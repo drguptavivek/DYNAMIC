@@ -10,12 +10,21 @@
   "license": "MIT",
   "author": "Prof. Vivek Gupta",
   "workspaces": [
-    "expo-prototype"
+    "expo-prototype",
+    "backend"
   ],
+  "overrides": {
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-native": "0.81.5"
+  },
   "scripts": {
     "start": "npm --workspace expo-prototype run start",
     "web": "npm --workspace expo-prototype run web",
     "test": "npm run test --workspaces --if-present",
-    "test:prototype": "npm --workspace expo-prototype run test"
+    "test:prototype": "npm --workspace expo-prototype run test",
+    "test:backend": "npm --workspace backend run test",
+    "backend": "npm --workspace backend run start",
+    "backend:dev": "npm --workspace backend run dev"
   }
 }

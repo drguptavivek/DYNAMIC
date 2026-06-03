@@ -1,0 +1,62 @@
+{
+  "study_sites": [
+    {
+      "site_id": 1,
+      "site_code": "BRL",
+      "site_name": "Bareilley"
+    },
+    {
+      "site_id": 2,
+      "site_code": "BLB",
+      "site_name": "Ballabgarh"
+    },
+    {
+      "site_id": 3,
+      "site_code": "BGM",
+      "site_name": "Belgavi"
+    },
+    {
+      "site_id": 4,
+      "site_code": "CHN",
+      "site_name": "Chennai"
+    }
+  ],
+  "study_villages": [
+    {
+      "site_id": 1,
+      "village_code": "101",
+      "village_name": "Bareilley",
+      "village_type": "city"
+    },
+    {
+      "site_id": 2,
+      "village_code": "101",
+      "village_name": "Sunped",
+      "village_type": "village"
+    },
+    {
+      "site_id": 2,
+      "village_code": "204",
+      "village_name": "Sagarpur",
+      "village_type": "village"
+    },
+    {
+      "site_id": 2,
+      "village_code": "309",
+      "village_name": "Pehladpur",
+      "village_type": "village"
+    },
+    {
+      "site_id": 2,
+      "village_code": "410",
+      "village_name": "Deegh",
+      "village_type": "village"
+    },
+    {
+      "site_id": 4,
+      "village_code": "101",
+      "village_name": "Aypakkam",
+      "village_type": "colony"
+    }
+  ]
+}

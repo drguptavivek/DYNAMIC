@@ -1,0 +1,17 @@
+import assert from "node:assert/strict";
+
+import {
+  STUDY_SITES,
+  getStudySiteName,
+  getStudyVillageName,
+  listStudyVillages
+} from "../modules/studyMasters/studyMasters.js";
+
+assert.equal(STUDY_SITES.length, 4);
+assert.equal(getStudySiteName(1), "Bareilley");
+assert.equal(getStudySiteName(2), "Ballabgarh");
+assert.equal(listStudyVillages(2).length, 4);
+assert.equal(getStudyVillageName(2, "101"), "Sunped");
+assert.equal(getStudyVillageName(2, "204"), "Sagarpur");
+
+console.log("Validated study site and village masters.");

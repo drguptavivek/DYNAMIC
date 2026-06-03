@@ -1,0 +1,98 @@
+import { getStudyVillageName } from "../studyMasters/studyMasters.js";
+
+export const CONSENT_LABELS = {
+  1: "Yes",
+  2: "No"
+};
+
+export function normalizeIdPart(value, fallback, width) {
+  const text = String(value || fallback || "").trim();
+  return width ? text.padStart(width, "0") : text;
+}
+
+export function buildHouseholdId(record) {
+  return [
+    normalizeIdPart(record.site_id, "0"),
+    normalizeIdPart(record.locality_code, "000"),
+    normalizeIdPart(record.structure_number, "0000", 4),
+    normalizeIdPart(record.household_number, "00", 2)
+  ].join("-");
+}
+
+export function buildIndividualId(householdId, lineNumber) {
+  return `${householdId}-${normalizeIdPart(lineNumber, "00", 2)}`;
+}
+
+export function extractMemberRows(householdId, hhqData, updatedAt) {
+  return (hhqData.hhq_household_members || []).map((member, index) => {
+    const lineNumber = Number(member.member_line_number || index + 1);
+    const residenceDuration = member.member_residence_duration || {};
+    return {
+      individual_id: buildIndividualId(householdId, lineNumber),
+      household_id: householdId,
+      line_number: lineNumber,
+      member_name: member.member_name || "",
+      relationship_to_head: member.member_relationship_to_head || "",
+      sex: member.member_sex || "",
+      last_residence_place: member.member_last_residence_place || "",
+      residence_months: residenceDuration.months ?? "",
+      residence_years: residenceDuration.years ?? "",
+      age_years: member.member_age_years || "",
+      marital_status: member.member_marital_status || "",
+      woman_questionnaire_eligible: member.member_woman_questionnaire_eligible || "",
+      birth_registration_status: member.member_birth_registration_status || "",
+      ever_attended_school: member.member_ever_attended_school || "",
+      highest_grade_completed: member.member_highest_grade_completed || "",
+      sync_status: "local",
+      updated_at: updatedAt
+    };
+  });
+}
+
+export function assertUniqueMembers(record) {
+  const memberIds = new Set();
+  const lineNumbers = new Set();
+  for (const member of record.members || []) {
+    if (memberIds.has(member.individual_id)) {
+      throw new Error(`Duplicate individual ID: ${member.individual_id}`);
+    }
+    if (lineNumbers.has(member.line_number)) {
+      throw new Error(`Duplicate household member line number: ${member.line_number}`);
+    }
+    memberIds.add(member.individual_id);
+    lineNumbers.add(member.line_number);
+  }
+}
+
+export function extractHouseholdRegistryFields(hhqData) {
+  const siteId = hhqData.hhq_site_id || "";
+  const localityCode = hhqData.hhq_locality_code || "";
+  const structureNumber = hhqData.hhq_structure_map_id || "";
+  const householdNumber = hhqData.hhq_household_number || "";
+  const updatedAt = new Date().toISOString();
+  const record = {
+    site_id: siteId,
+    locality_code: String(localityCode || ""),
+    locality_name: getStudyVillageName(siteId, localityCode),
+    structure_number: String(structureNumber || ""),
+    household_number: String(householdNumber || ""),
+    address: hhqData.hhq_household_address || "",
+    household_head_name: hhqData.hhq_household_head_name || "",
+    consent_status:
+      CONSENT_LABELS[hhqData.hhq_consent_study_provide_pis_explain_study_adult_member] ||
+      "",
+    interview_date: hhqData.hhq_interview_date || "",
+    result_interview: hhqData.hhq_result_interview || "",
+    language_questionnaire: hhqData.hhq_language_questionnaire || "",
+    mobile_number: hhqData.hhq_contact_mobile || "",
+    sync_status: "local",
+    updated_at: updatedAt
+  };
+  const householdId = buildHouseholdId(record);
+  return {
+    ...record,
+    household_id: householdId,
+    members: extractMemberRows(householdId, hhqData, updatedAt),
+    raw_hhq_json: hhqData
+  };
+}

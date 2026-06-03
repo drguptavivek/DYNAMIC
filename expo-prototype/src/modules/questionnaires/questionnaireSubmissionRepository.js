@@ -1,0 +1,33 @@
+const STORAGE_KEY = "dynamic_questionnaire_submissions_v1";
+
+function getStorage() {
+  if (typeof window === "undefined" || !window.localStorage) return null;
+  return window.localStorage;
+}
+
+export async function listQuestionnaireSubmissions(formCode) {
+  const storage = getStorage();
+  if (!storage) return [];
+  const rows = JSON.parse(storage.getItem(STORAGE_KEY) || "[]");
+  return rows.filter((row) => row.form_code === formCode);
+}
+
+export async function saveQuestionnaireSubmission({ formCode, formVersion, payload }) {
+  const storage = getStorage();
+  const now = new Date().toISOString();
+  const submission = {
+    submission_id: `${formCode}-${now}`,
+    form_code: formCode,
+    form_version: formVersion,
+    json_payload: payload,
+    sync_status: "local",
+    created_at: now,
+    updated_at: now
+  };
+
+  if (!storage) return submission;
+  const rows = JSON.parse(storage.getItem(STORAGE_KEY) || "[]");
+  storage.setItem(STORAGE_KEY, JSON.stringify([submission, ...rows]));
+  return submission;
+}
+

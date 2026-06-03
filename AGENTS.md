@@ -10,6 +10,26 @@ External document tools available on PATH include `pandoc`, `soffice`, Poppler t
 
 ## DYNAMIC PreTSING project rules
 
+Architecture source of truth:
+
+- Before implementing backend schema, offline sync, Expo routing/worklists, SurveyJS prefill, follow-up scheduling, or admin correction workflows, read `docs/superpowers/specs/2026-06-03-dynamic-fullstack-offline-architecture-design.md`.
+- Target stack is TypeScript/Node API with Postgres, Vite React admin app, Expo Android app with SQLite, and SurveyJS as the form renderer.
+- SurveyJS JSON is the questionnaire rendering layer only. Do not use SurveyJS response JSON as the core longitudinal data model.
+- Core operational state must be modeled as normalized domain records plus immutable form responses, domain events, follow-up tasks, task attempts, admin correction events, and sync/audit metadata.
+- Keep workflow rules, task generation, task context builders, and SurveyJS prefill mappers in shared TypeScript packages used by both Expo and the backend.
+- The Android app must support area-scoped offline search/sync by assigned village/colony/locality, not per-household assignment.
+- The Android app may generate deterministic scheduled tasks and event-triggered immediate tasks offline, but forms must open only from scheduled tasks or valid contextual trigger buttons. Do not add a global open-any-form workflow.
+- Repeated scheduled series use the current due task only. Do not backfill missed HRF, PFF, or NFF rounds as if they happened on time.
+- HRF is anchored to each household's baseline HHQ completion date; late HRF completion must not shift future HRF dates.
+- PFF is anchored to PEF completion/pregnancy enrollment date; late PFF completion must not shift future PFF dates.
+- NFF uses protocol visit labels and calendar-month scheduling: 7d, 28d, 2m, 3m, 4.5m, 6m, 7.5m, 9m, 10.5m, 12m, 14m, 16m, then every 2 calendar months until study end.
+- VA tasks are generated 30 days after stillbirth or child death. VA SurveyJS JSON is pending, so VA tasks must be visible but disabled in Android worklists until the JSON exists; field users must not close VA tasks while disabled.
+- Task windows/deadlines are global by form/task type, versioned in protocol config, and stored on generated task records.
+- Failed-attempt limits are task-type rules, not a global constant. After the configured number of failed attempts, ask the field user to close with a final reason; do not auto-close.
+- Prefilled lineage/core fields must be read-only in SurveyJS forms. If a prefill is wrong, allow the field user to continue; corrections are handled later in the admin app/outside field workflow.
+- Do not create an Android correction-request queue. Site Research Scientists make allowed core corrections in the Vite admin app with audit history and immediate rule recalculation.
+- Offline duplicate task completions must be accepted as immutable evidence. First synced valid completion closes the task operationally; later completions are marked duplicate and create admin data-quality flags.
+
 Before changing questionnaire JSON, Expo app routing, calculated fields, IDs, or flow logic, read and follow:
 
 - `Refs/FLOW.md`

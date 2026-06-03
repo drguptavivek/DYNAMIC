@@ -374,6 +374,13 @@ Opens when:
 pregnancy_id exists AND pregnancy outcome not yet recorded
 ```
 
+Schedule and mode:
+
+| Rule | App behavior |
+| --- | --- |
+| Monthly follow-up | Schedule Pregnancy Follow-Up monthly while the pregnancy remains active |
+| Alternating visit mode | Alternate in-person/face-to-face and telephonic follow-up visits |
+
 Triggers:
 
 | Condition | Action |
@@ -382,7 +389,7 @@ Triggers:
 | delivery/outcome reported | open Pregnancy Outcome |
 | ultrasound/report newly available | open Ultrasound Form |
 
-Unresolved: follow-up schedule and event dates.
+Unresolved: exact first follow-up mode and event date rules.
 
 ## Pregnancy Outcome Form
 

@@ -1,0 +1,43 @@
+{
+  "households": [
+    {
+      "household_id": "4-101-0099-01",
+      "site_id": 4,
+      "locality_code": "101",
+      "locality_name": "Aypakkam",
+      "structure_number": "0099",
+      "household_number": "01",
+      "address": "Demo address",
+      "household_head_name": "Demo Head",
+      "consent_status": "Yes",
+      "interview_date": "",
+      "result_interview": "",
+      "language_questionnaire": "",
+      "mobile_number": "",
+      "sync_status": "synced",
+      "updated_at": "2026-09-01T00:00:00.000Z"
+    }
+  ],
+  "household_members": [
+    {
+      "individual_id": "4-101-0099-01-01",
+      "household_id": "4-101-0099-01",
+      "line_number": 1,
+      "member_name": "Demo Head",
+      "relationship_to_head": "",
+      "sex": "",
+      "last_residence_place": "",
+      "residence_months": "",
+      "residence_years": "",
+      "age_years": "",
+      "marital_status": "",
+      "woman_questionnaire_eligible": "",
+      "birth_registration_status": "",
+      "ever_attended_school": "",
+      "highest_grade_completed": "",
+      "sync_status": "synced",
+      "updated_at": "2026-06-03T12:35:14.722Z"
+    }
+  ],
+  "form_submissions": []
+}
