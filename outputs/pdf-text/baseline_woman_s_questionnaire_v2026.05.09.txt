@@ -1,0 +1,506 @@
+                                              DYNAMIC: BASELINE WOMAN'S QUESTIONNAIRE, VERSION 9 MAY 2026
+                                                                                      01-Respondent's Background
+Variable ID Question and instructions                      Categories Labels                                                                            Further Instructions
+     1      What is the site of residence?                          1 Bareilley
+                                                                    2 Ballabgarh
+                                                                    3 Belgavi
+                                                                    4 Chennai
+     2       Is the household in an urban or rural area?            1 Urban
+                                                                    2 Rural
+     3       What is the name and code of the hamlet,               1 Sunped                                                                            Adapt list for each site
+             village of colony?                                     2 Sagarpur
+                                                                    3 Pehladpur
+                                                                    4 Deegh
+     4       Date of interview
+     5       Consent for study
+             Provide PIS and explain study to adult                 1 Yes, consent to participate in study
+             member(s) of the household, mark whether
+             houshold level consent provided                        2 No, do not consent to participate in study                                      End interview
+     6       Result of Interview                                    1 Completed
+                                                                    2 No household member at home or no competent respondent at home at time of visit
+                                                                    3 Entire household absent for extended period of time
+                                                                    4 Postponed
+                                                                    5 Refused
+                                                                    6 Dwelling vacant or address not a dwelling
+                                                                    7 Dweling destroyed
+                                                                    8 Dwelling not found)
+                                                                    9 Other (specify)
+     7       Language of questionnaire                              1 Hindi                                                                           Check if list is OK
+                                                                    2 Kannada
+                                                                    3 Marathi
+                                                                    4 Tamil
+                                                                    5 Telugu
+                                                                    6 Urdu
+                                                                    7 English
+     8       Enter structure based ID for woman
+     9       Name of woman
+    10       Name of husband (if currently married)
+    11       Husband's permanent ID
+    12       Mobile phone of woman
+    15       Mobile phone of husband
+    16       Which state were you born in?                         1 Jammu & Kashmir                                                                    Following NFHS-5 categories and labeling - update using NFHS-6
+                                                                   2 Himachal Pradesh                                                                   once we know - as needed per current states
+                                                                   3 Punjab
+                                                                   4 Chandigarh
+                                                                   5 Uttarakhand
+                                                                   6 Haryana
+                                                                   7 Nct Of Delhi
+                                                                   8 Rajasthan
+                                                                   9 Uttar Pradesh
+                                                                  10 Bihar
+                                                            11 Sikkim
+                                                            12 Arunachal Pradesh
+                                                            13 Nagaland
+                                                            14 Manipur
+                                                            15 Mizoram
+                                                            16 Tripura
+                                                            17 Meghalaya
+                                                            18 Assam
+                                                            19 West Bengal
+                                                            20 Jharkhand
+                                                            21 Odisha
+                                                            22 Chhattisgarh
+                                                            23 Madhya Pradesh
+                                                            24 Gujarat
+                                                            25 Dadra & Nagar Haveli And Daman & Diu
+                                                            27 Maharashtra
+                                                            28 Andhra Pradesh
+                                                            29 Karnataka
+                                                            30 Goa
+                                                            31 Lakshadweep
+                                                            32 Kerala
+                                                            33 Tamil Nadu
+                                                            34 Puducherry
+                                                            35 Andaman & Nicobar Islands
+                                                            36 Telangana
+                                                            37 Ladakh
+                                                            96 Outside of India
+17   How long have you been living continuously         |_|_| years
+     in (NAME OF CURRENT CITY, TOWN, OR
+     VILLAGE OF RESIDENCE)?
+                                                            95 always
+     If less than one year, record 00 years
+                                                            96 visitor
+18   In what month and year were you born?               |_|_| month (01 to 12)
+                                                            98 don't know month
+                                                     |_|_|_|_| year
+                                                          9998 don't know year
+19   How old were you at your last birthday?             |_|_| age in completed years                 COMPARE AND CORRECT 18 AND/OR 19 IF INCONSISTENT
+20   In general, would you say your health is very           1 Very Good
+     good, good, moderate, bad, or very bad?                 2 Good
+                                                             3 Moderate
+                                                             4 Bad
+                                                             5 Very Bad
+21   Have you ever attended school?                          1 yes
+                                                             2 no                                     SKIP TO 23
+22   What is the highest grade you completed?                0 Less than one year completed
+                                                             1 One year completed
+                                                             2 Two years completed
+                                                             3 3 Years completed
+                                                            …
+                                                            95 Pre-Primary
+                                                            98 Don't know
+23   What is your religion?                                  1 Hindu
+23   What is your religion?
+                                                  2 Muslim
+                                                  3 Christian
+                                                  4 Sikh
+                                                  5 Buddhist/Neo-Buddhist
+                                                  6 Jain
+                                                  7 Jewish
+                                                  8 Parsi/Zoroastrian
+                                                  9 No religion
+                                                 96 Other (specify)
+24   Do you belong to a scheduled caste, a        1 Scheduled caste
+     scheduled tribe, other backward class, or    2 Scheduled tribe
+     none of these?                               3 Other backward class
+                                                  4 None of them
+25   What is your current marital status?         1 currently married
+                                                  2 married, gauna not performed
+                                                  3 widowed
+                                                  4 divorced
+                                                  5 separated
+                                                  6 deserted
+                                                  7 never married                  stop questionnaire
+                                                  8 live-in relationship
+                                                                                                                                  02-Reproduction
+Variable ID Question and instructions                                                                                Categories                        Labels                        Further Instructions
+     1      Now I would like to ask about all the births you have had during your life. Have you ever given
+            birth?                                                                                                                                  1 yes
+                                                                                                                                                    2 no                             skip to 6
+     2      Do you have any sons of daughters to whom you have given birth who are now living with you?
+                                                                                                                                                    1 yes
+                                                                                                                                                    2 no                             SKIP TO 4
+    3a      How many sons live with you?                                                                                                        |_|_| sons at home                   00 if none
+    3b      How many daugthers live with you?                                                                                                   |_|_| daughters at home              00 if none
+     4      Do you have any sons or daughters to whom you have given birth who are alive but do not live                                            1 yes
+            with you?                                                                                                                               2 no                             SKIP TO 6
+    5a      How many sons are alive but do not live with you?                                                                                   |_|_| sons elsewhere                 00 if none
+    5b      How many daugthers are alive but do not live with you?                                                                              |_|_| daughters elsewhere            00 if none
+     6      Have you ever given birth to a boy or girl who was born alive but later died?                                                           1 yes
+
+
+                                                                                                                                                                                     SKIP TO 8
+                                                                                                                                                                                     IF NO, PROBE: Any baby who cried, who made any movement, sound
+                                                                                                                                                                                     or effort to breathe, or who showed any other signs of life even if for a
+                                                                                                                                                    2 no                             very short time?
+    7a      How many boys have died?                                                                                                            |_|_| boys dead
+    7b      How many girls have died?                                                                                                           |_|_| gilrs dead
+     8      SUM ANSWERS TO 3, 5, AND 7 ENTER TOTAL
+            IF NONE, RECORD 00                                                                                                                  |_|_| total live births              Automatically filled, 00 if none
+     9      CHECK 8:
+                                                                                                                                                    1 yes
+            Just to make sure that I have this right: you have had in TOTAL |_|_| births during your life. Is that
+            correct?                                                                                                                                2 no                             PROBE AND CORRECT 1-8 AS NECESSARY
+    10      Women sometimes have a pregnancy that does not result in a live birth. For example, a
+            pregnancy can end in a miscarriage, an abortion, or the child can be born dead. Have you ever                                           1 yes
+            had a pregnancy that did not end in a live birth?                                                                                       2 no                             SKIP TO 12
+    11      How many miscarriages, abortions, and stillbirths have you had?                                                                     |_|_| pregnancy losses
+    12      SUM ANSWERS TO 8 AND 11 AND ENTER TOTAL
+            IF NONE, RECORD 00                                                                                                                  |_|_| total pregnancy outcomes       Automatically filled, 00 if none
+    13      CHECK 12
+                                                                                                                                                    1 ONE OR MORE PAST PREGNANCIES
+                                                                                                                                                    2 NO PAST PREGNANCIES            SKIP TO 32 (ARE YOU PREGNANT NOW)
+    14      Now I would like to record all your pregnancies including live births, stillbirths, miscarriages,
+            and abortions, starting with your first pregnancy
+            Answer the questions 14 to 21, and 23 to 28 for each ith pregnancy, RECORD ALL
+            PREGNANCIES. RECORD TWINS AND TRIPLETS ON SEPARATE LINES.
+   15_i     If i = 1: Think back to your first pregnancy. Was that a single pregnancy, twins, or triplets?                                        1 Single
+            If i > 1: Think back to your next pregnancy. Was that a single pregnancy, twins, or triplets?                                         2 Twins
+                                                                                                                                                  3 Triplets
+                                                                                                                                                  4 Quadruplets
+                                                                                                                                                  5 Quintuplets
+   16_i     If 15_i = single: Was the baby born alive, born dead, or did you have a miscarriage or abortion?                                      1 Born alive                       SKIP TO 18_i
+            If 15_i > 1, for the first of multiple: Was the first baby in this pregnancy born alive or born dead?                                 2 Born dead
+            Next of multiple: Was the next baby in this pregnancy born alive or born dead?                                                        3 Miscarriage                      SKIP TO 20_i
+                                                                                                                                                  4 Abortion                         SKIP TO 20_i
+   17_i     Did the baby cry, move, or breathe?                                                                                                   1 yes
+                                                                                                                                                  2 no                               SKIP TO 20_i
+   18_i     What name was given to the baby?                                                                                            RECORD NAME
+   19_i     Is (NAME) a boy or a girl?                                                                                                            1 boy
+19_i   Is (NAME) a boy or a girl?
+                                                                                                        2 girl
+20_i   CHECK 16 and 17: TYPE OF PREGNANCY OUTCOME
+       NOTE:
+       IF 17_i = 1, THEN PREGNANCY OUTCOME = BORN ALIVE.
+       IF BORN ALIVE: On what day, month, and year was (NAME in 18_i) born?                          |_|_| DAY
+       IF BORN DEAD, MISCARRIAGE, OR ABORTION: On what day, month, and year did this pregnancy       |_|_| MONTH
+       end?                                                                                      |_|_|_|_| YEAR
+21_i   How long did this pregnancy last in weeks or months?
+       RECORD IN COMPLETED WEEKS OR MONTHS                                                          |_|_| WEEKS
+                                                                                                    |_|_| MONTHS
+22_i   IF ROW i = 1: were there any other pregnancies before this pregnancy?
+       IF ROW i > 1: were there any other pregnancies between the previous pregnancy and this
+       pregnancy?                                                                                       1 yes                     add pregnancy
+       IF 15_i > 1 AND THIS IS NOT THE FIRST BIRTH OF THE PREGNANCY, SKIP TO 16_i IN THE NEXT
+       ROW                                                                                              2 no                      next row (i)
+22a    Have you had any pregnancies that ended since the last pregnancy?                                1 yes                     ADD TO TABLE
+                                                                                                        2 no
+22b    READ THE LIST OF PREGNANCY OUTCOMES IN ORDER TO THE RESPONDENT AND ASK IF THEY
+       ARE ALL THAT SHE HAS EVER HAD, AND IF THEY ARE LISTED IN ORDER STARTED FROM THE
+       FIRST ONE.
+
+       DOES THE RESPONDENT AGREE?
+       IF NOT, PROBE FOR THE CORRECT INFORMATION AND REVISE THE PREGNANCY HISTORY
+       ACCORDINGLY.
+23_i   CHECK 16, 17, and 21:
+
+       IF 16_i = 1 OR 17_i = 1, THEN PREGNANCY OUTCOME = BORN ALIVE
+
+       IF 16_i = 2 OR 3, THEN CHECK 21_i
+         IF 21_i >= 7 MONTHS OR 28 WEEKS, THEN PREGNANCY OUTCOME = BORN DEAD
+         IF 21_i < 7 MONTHS OR 28 WEEKS, THEN PREGNANCY OUTCOME = MISCARRIAGE                           1 Born alive
+                                                                                                        2 Born dead               SKIP TO NEXT PREGNANCY (i+1)
+       IF 16_i = 4, THEN PREGNANCY OUTCOME = ABORTION                                                   3 Miscarriage             SKIP TO NEXT PREGNANCY (i+1)
+                                                                                                        4 Abortion                SKIP TO NEXT PREGNANCY (i+1)
+24_i   Is (NAME) still alive?                                                                           1 yes
+                                                                                                        2 no                      SKIP TO 28_i
+25_i   IF BORN ALIVE AND STILL LIVING:
+       IF 18_i = 1-BOY:
+       How old was (NAME) at his last birthday?
+       IF 18_i = 2-GIRL:
+       How old was (NAME) at her last birthday?
+       RECORD AGE IN COMPLETED YEARS                                                                |_|_| age in years
+26_i   IF BORN ALIVE AND STILL LIVING:                                                                  1 yes
+       Is (NAME) living with you?                                                                       2 no
+27_i   IF BORN ALIVE AND STILL LIVING:
+       Record household line number of child. Record 00 if child not listed in household            |_|_| household line number   SKIP TO 23 IN NEXT ROW (i+1)
+28_i   IF BORN ALIVE AND NOW DEAD:
+
+       IF 19_i = 1-BOY:
+       How old was (NAME in 18_i) when he died?
+       IF 12 MONTHS OR 1 YEAR, ASK: Did (NAME) have his first birthday?
+       THEN ASK: Exactly how many months old was (NAME in 18_i) when he died?
+       RECORD DAYS IF LESS THAN 1 MONTH; MONTHS IF LESS THAN 2 YEARS; OR YEARS
+
+       IF 19_i = 2-GIRL:
+       How old was (NAME in 18_i) when she died?
+       IF 12 MONTHS OR 1 YEAR, ASK: Did (NAME) have her first birthday?
+       THEN ASK: Exactly how many months old was (NAME in 18_i) when she died?                                         |_|_| DAYS                                   SKIP TO 23 IN NEXT ROW (i+1)
+       RECORD DAYS IF LESS THAN 1 MONTH; MONTHS IF LESS THAN 2 YEARS; OR YEARS                                         |_|_| MONTHS                                 SKIP TO 23 IN NEXT ROW (i+1)
+                                                                                                                       |_|_| YEARS                                  SKIP TO 23 IN NEXT ROW (i+1)
+29     COMPARE 12 WITH NUMBER OF PREGNANCY OUTCOMES IN PREGNANCY HISTORY
+                                                                                                                             NUMBER IN PREGNANCY HISTORY IS
+                                                                                                                           1 GREATER THAN OR EQUAL TO 12
+                                                                                                                             NUMBER IN PREGNANCY HISTORY IS
+                                                                                                                           2 LESS THAN 12                           PROBE AND RECONCILE
+30     Did you ever experience a delivery by caesarean, that is, when they cut your belly to take the                      1 yes
+       baby out?                                                                                                           2 no
+                                                                                                                           9 don't know
+31a    Did you ever have a delivery that had complications?                                                                1 yes
+                                                                                                                           2 no                                     Skip to 32
+                                                                                                                           9 don't know
+31b    What were the complications. MARK ALL THAT APPLY
+                                                                                                                           a Excessive bleeding
+                                                                                                                           b Prolonged Labor
+                                                                                                                           c Baby got Stuck
+                                                                                                                           d Convulsions
+                                                                                                                           e Fever
+                                                                                                                           f Other (specify)
+                                                                                                                           g don't know
+32     Are you pregnant now?                                                                                                1 yes                                   Go to pregnancy enrolment form
+                                                                                                                            2 no
+                                                                                                                           98 unsure
+33a    When did your last menstrual period start?                                                       |_|_|/|_|_|/|_|_|_|_| DATE, IF GIVEN
+       IF LESS THAN 1 WEEK, RECORD DAYS                                                                                 |_|_| days ago
+       IF LESS THAN 1 MONTH, RECORD WEEKS                                                                               |_|_| weeks ago
+       IF LESS THAN 1 YEAR, RECORD MONTHS                                                                               |_|_| months ago
+                                                                                                                        |_|_| yeas ago
+                                                                                                                         993 has had hysterectomy
+                                                                                                                         994 in menopause
+                                                                                                                         995 before last birth
+                                                                                                                         996 never menstruated
+33b    CHECK 33a
+       IF LAST MENSTRUAL PERIOD > 6 MONTHS AGO                                                                             1 last menstrual period > 6 months ago
+                                                                                                                           2 other                                  skip to 35
+33c    CHECK 32
+       IF NOT PREGNANT OR UNSURE                                                                                           1 not pregnant or unsure
+                                                                                                                           2 other                                  skip to 35
+34     Some women undergo an operation to remove the uterus. Have you undergone such an                                    1 yes
+       operation?                                                                                                          2 no
+                                                                                                                           3 don't know
+35     How old were you when you had your first monthly period?                                                        |_|_| age in completed years
+36   Are you or your partner currently doing something or using any method to delay or avoid getting
+     pregnant?                                                                                         1 yes
+                                                                                                       2 no
+37   Are you or your partner sterilized?                                                               1 Yes, respondent sterilized only
+     PROBE: Who is sterilized, you or your partner?                                                    2 Yes, partner sterilized only
+                                                                                                       3 Yes, both sterilized
+                                                                                                       4 No, neither sterilized
+38   Eligibility for pregnancy status tracking                                                                                             IF 01.25 (marital status) = 1,2 or 8, and 02.34 (hysterectomy) = 2, and
+                                                                                                       1 Yes, eligible                     02.37 (sterilization status) = 4
+                                                                                                       2 No, not eligible
+                                                                                03-Other Health Issues
+Variable ID Question and instructions                                                                Categories                     Labels                          Further Instructions
+                                     The next set of questions should be asked only for those eligible for pregnancy status tracking (Question 02.38)
+    1a      Have you ever had a blood transfusion?                                                                               1 yes
+                                                                                                                                 2 no                               SKIP TO 2
+    1b      In which month and year did you have the last blood transfusion?                                                 |_|_| month
+                                                                                                                        |_|_|_|_| year
+                                                                                                                                98 do not remember
+     2      Now I would like to ask you some questions on smoking and tobacco use. Do you                                        1 Every day
+            currently smoke cigarettes every day, some days, or not at all?                                                      2 Some days                        SKIP TO 4
+                                                                                                                                 3 Not at all                       SKIP TO 4
+     3      On average, how many cigarettes do you currently smoke each day?                                                 |_|_| number of cigarettes
+     4      Do you currently smoke bidis every day, some days, or not at all?                                                    1 Every day
+                                                                                                                                 2 Some days                        SKIP TO 6
+                                                                                                                                 3 Not at all                       SKIP TO 6
+     5      On  average, how  many  bidis do you currently smoke each  day?                                                  |_|_| number of bidis
+     6      Do you currently smoke or use any other type of tobacco every day, some days, or not                                 1 Every day
+            at all?                                                                                                              2 Some days                        SKIP TO 8
+                                                                                                                                 3 Not at all                       SKIP TO 8
+     7      What other type of tobacco do you currently smoke or use? RECORD ALL MENTIONED                                       a cigar
+                                                                                                                                 b pipe
+                                                                                                                                 c hookah
+                                                                                                                                 d gutka/pann malasa with tobacco
+                                                                                                                                 e khaini
+                                                                                                                                  f paan with tobacco
+                                                                                                                                 g other chewing tobacco
+                                                                                                                                 h snuff
+                                                                                                                                  x other (specify)
+     8      Now I would like to ask you some questions about drinking alcohol. Have you ever
+            consumed any alcohol, such as beer, wine, spirits, or [ADD OTHER LOCAL                                               1 yes
+            EXAMPLES]?                                                                                                           2 no                               SKIP TO 11
+     9       During the last one month, on how many days did you have at least one drink of
+             alcohol?                                                                                                        00 Did not have even one drink         SKIP TO 11
+             If non-numeric answer, probe to get an estimate. If respondent answers 'every day' or                       |_|_| number of days
+             'almost every day', code 95                                                                                    95 Every day/Almost every day
+    10       We count one drink of alcohol as one can or bottle of beer, one glass of wine, one shot
+             of spirits, or one cup of [ADD OTHER LOCAL EXAMPLES]. In the last one month, on the
+             days ythat you drank alcohol, how many drinks did you usually have per day?
+                                                                                                                             00 Less than one standard drink
+10    We count one drink of alcohol as one can or bottle of beer, one glass of wine, one shot
+      of spirits, or one cup of [ADD OTHER LOCAL EXAMPLES]. In the last one month, on the
+      days ythat you drank alcohol, how many drinks did you usually have per day?
+
+                                                                                                |_|_| number of drinks
+11    Now I would like to ask some questions about your current health condition
+11a   Do you currently have diabetes?                                                               1 yes
+                                                                                                    2 no                 SKIP TO 12a
+                                                                                                    8 don't know         SKIP TO 12a
+11b   Have you sought treatment for this problem [diabetes]?                                        1 yes
+                                                                                                    2 no
+12a   Do you currently have hypertension?                                                           1 yes
+                                                                                                    2 no                 SKIP TO 13a
+                                                                                                    8 don't know         SKIP TO 13a
+12b   Have you sought treatment for this problem [hypertension]?                                    1 yes
+                                                                                                    2 no
+13a   Do you currently have chronic respiratory disease including asthma?                           1 yes
+                                                                                                    2 no                 SKIP TO 14a
+                                                                                                    8 don't know         SKIP TO 14a
+13b   Have you sought treatment for this problem [chronic respiratory disease including             1 yes
+      asthma]?                                                                                      2 no
+14a   Do you currently have Goitre or any other thyroid disorder?                                   1 yes
+                                                                                                    2 no                 SKIP TO 15a
+                                                                                                    8 don't know         SKIP TO 15a
+14b   Have you sought treatment for this problem [Goitre or any other thyroid disorder]?            1 yes
+                                                                                                    2 no
+15a   Do you currently have any heart disease?                                                      1 yes
+                                                                                                    2 no                 SKIP TO 16a
+                                                                                                    8 don't know         SKIP TO 16a
+15b   Have you sought treatment for this problem [any heart disease]?                               1 yes
+                                                                                                    2 no
+16a   Do you currently have cancer?                                                                 1 yes
+                                                                                                    2 no                 SKIP TO 17a
+                                                                                                    8 don't know         SKIP TO 17a
+16b   Have you sought treatment for this problem [cancer]?                                          1 yes
+                                                                                                    2 no
+17a   Do you currently have any chronic kidney disorder?                                            1 yes
+                                                                                                    2 no                 SKIP TO 18a
+                                                                                                    8 don't know         SKIP TO 18a
+17b   Have you sought treatment for this problem [any chronic kidney disorder]?                     1 yes
+                                                                                                    2 no
+18a   Do you currently have anemia?                                                                 1 yes
+                                                                                                    2 no                 SKIP TO 19
+18a   Do you currently have anemia?
+
+                                                             8 don't know   SKIP TO 19
+18b   Have you sought treatment for this problem [anemia]?   1 yes
+                                                             2 no
+                                                                                         04-Husband's background and Woman's work
+Variable ID Question and instructions                                                    Categories                  Labels                                                                Further Instructions
+     1      Check answer to marital status on 01 - Respondent Background                                           1 Currently married
+                                                                                                                   2 Never married / married, gauna not performed / live-in relationship   SKIP TO 6
+                                                                                                                   3 Other (widowed, divorced, separated, deserted)                        SKIP TO 3
+    2       How old was your husband on his last birthday?                               |_|_|                       age in completed years                                                Only for the currently married
+    3       Did your (last) husband ever attend school?                                                            1 yes
+                                                                                                                   2 no
+    4       What was the highest grade he completed?                                                               0 Less than one year completed
+                                                                                                                   1 One year completed
+                                                                                                                   2 Two years completed
+                                                                                                                   3 3 Years completed
+                                                                                                                  …
+                                                                                                                  95 Pre-Primary
+                                                                                                                  98 Don't know
+    5       IF 1 = 1-CURRENTLY MARRIED
+            What is your (last) husband's occupation? That is, what kind of work does
+            he mainly do?
+            IF 1 = 3-OTHER
+            What was your (last) husband's occupation. That is, what kind of work did
+            he mainly do?
+    6       Aside from your own housework, have you done any work in the last seven
+            days?                                                                                                    1 yes                                                                 SKIP TO 10
+                                                                                                                     2 no
+    7       As you know, some women take up jobs for which they are paid in cash or
+            kind. Others sell things, have a small business or work on the family farm                               1 yes                                                                 SKIP TO 10
+            or in the family business. In the last seven days, have you done any of
+            these things or any other work?                                                                          2 no
+    8       Although you did not work in the last seven days, do you have any job or
+            business from which you were absent for leave, illness, vacation,                                        1 yes                                                                 SKIP TO 10
+            maternity leave or any other such reason?                                                                2 no
+    9       Have you done any work in the last 12 months?                                                            1 yes
+                                                                                                                     2 no                                                                  SKIP TO 12
+    10      What is your occupation, that is, what kind of work do you mainly do?
+    11      Are you paid in cash or kind for this work, or are you not paid at all?                                  1 Cash only
+                                                                                                                     2 Cash and kind
+                                                                                                                     3 In kind only
+                                                                                                                     4 Not paid
+    12      Who decides how the money you earn will be used: mainly you, mainly                                                                                                            Only for the currently married
+            your husband, or you and your husband jointly?                                                                                                                                 and for those women paid in
+                                                                                                                     1 Respondent                                                          cash
+                                                                                                                     2 Husband
+                                                                                                                     3 Respondent and husband jointly
+                                                                                                                     4 Other
+13    Who usually makes decisions about health care for yourself: mainly you,
+      mainly your husband, or you and your husband jointly, or someone else?
+                                                                                                                    1 Respondent                       Only for the currently married
+                                                                                                                    2 Husband
+                                                                                                                    3 Respondent and husband jointly
+                                                                                                                    4 Someone else
+                                                                                                                    6 Other
+14    Do you have any money of your own that you alone can decide how to use?                                       1 yes
+                                                                                                                    2 no
+15a   Are you usually allowed to go to the market alone, only with someone else,                                    1 Alone
+      or not at all?                                                                                                2 With someone else only
+                                                                                                                    3 Not at all
+15b   Are you usually allowed to go to the health facility alone, only with                                         1 Alone
+      someone else, or not at all?                                                                                  2 With someone else only
+                                                                                                                    3 Not at all
+15c   Are you usually allowed to go to places outside this village/community                                        1 Alone
+      alone, only with someone else, or not at all?                                                                 2 With someone else only
+                                                                                                                    3 Not at all
+16    Do you own this or any other house either alone or jointly with someone                                       1 Alone only
+      else?                                                                                                         2 Jointly only
+                                                                                                                    3 Both alone and jointly
+                                                                                                                    4 Does not own
+17    Do you own any agricultural or non-agricultural land either alone or jointly                                  1 Alone only
+      with someone else?                                                                                            2 Jointly only
+                                                                                                                    3 Both alone and jointly
+                                                                                                                    4 Does not own
+                                                                                    Module on household violence - Ayappakkam site only
+18a   Presence of any children < 10 in the household at this point                                                  1 Present and listening
+                                                                                                                    2 Present abut not listening
+                                                                                                                    3 Not present
+18b   Presence of husband in the household at this point                                                            1 Present and listening
+                                                                                                                    2 Present abut not listening
+                                                                                                                    3 Not present
+18c   Presence of any other males in the household at this point                                                    1 Present and listening
+                                                                                                                    2 Present abut not listening
+                                                                                                                    3 Not present
+18d   Presence of any other females in the household at this point                                                  1 Present and listening
+                                                                                                                    2 Present abut not listening
+                                                                                                                    3 Not present
+19a   In your opinion, is a husband justified in hitting or beating his wife in the                                 1 yes
+      following situations:                                                                                         2 no
+      [If she goes out without telling him]                                                                         8 Don't know
+19b   In your opinion, is a husband justified in hitting or beating his wife in the                                 1 yes
+      following situations:                                                                                         2 no
+      [If she neglects the house or the children]                                                                   8 Don't know
+19c   In your opinion, is a husband justified in hitting or beating his wife in the                                 1 yes
+      following situations:                                                                                         2 no
+      [If she argues with him]
+19c   In your opinion, is a husband justified in hitting or beating his wife in the
+      following situations:
+      [If she argues with him]                                                        8 Don't know
+19d   In your opinion, is a husband justified in hitting or beating his wife in the   1 yes
+      following situations:                                                           2 no
+      [If she refuses to have sex with him]                                           8 Don't know
+19e   In your opinion, is a husband justified in hitting or beating his wife in the   1 yes
+      following situations:                                                           2 no
+      [If shedoesn't cook food properly]                                              8 Don't know
+19f   Opinion about husband beating or hitting VI                                     1 yes
+      In your opinion, is a husband justified in hitting or beating his wife in the   2 no
+      following situations:                                                           8 Don't know
+19g   In your opinion, is a husband justified in hitting or beating his wife in the   1 yes
+      following situations:                                                           2 no
+      [If she shows disrespects for in-laws]                                          8 Don't know
+20    If a wife knows her husband has a sexually transmitted disease, is she          1 yes
+      justified in asking that they use a condom when they have sex?                  2 no
+                                                                                      8 Don't know
+21    If a wife knows her husband has sex with other woman, is she justified in       1 yes
+      refusing to have sex with him?                                                  2 no
+                                                                                      8 Don't know
+22    Can you say no to your husband if you do not want to have sexual                1 yes          Only for the currently married
+      intercourse with him?                                                           2 no
+                                                                            05-Biomarkers
+Variable ID Question and instructions           Categories                       Labels                                  Further Instructions
+                                                Only for women eligible for pregnancy status tracking (Question 02.38)
+    1       Height - measured on site                                   |_|_|_| cm
+    2       Weight - measured on site                            |_|_|_|.|_|_| kg
+            Blood pressure - measured on site
+    3
+            ONLY IF SITE WANTS TO INCLUDE                      |_|_|_|/|_|_|_|                                           [Bareilly only?]
+            Hemoglobin - measured on site
+    4
+            ONLY IF SITE WANTS TO INCLUDE                                 |_|_| grams per deciliter                      [Bareilly only?]
+

@@ -1,0 +1,386 @@
+                               DYNAMIC: BASELINE HOUSEHOLD QUESTIONNAIRE, VERSION 9 MAY 2026
+                                                                                       01-IDENTIFICATION
+Variable ID Question and instructions                                  Categories Labels                                                                   Further Instructions
+     1      What is the site of residence?                                      1 Bareilley
+                                                                                2 Ballabgarh
+                                                                                3 Belgavi
+                                                                                4 Chennai
+     2       Is the household in an urban or rural area?                        1 Urban
+                                                                                2 Rural
+     3       What is the name and code of the hamlet, village of                1 Sunped                                                                   Adapt list for each site
+             colony?                                                            2 Sagarpur
+                                                                                3 Pehladpur
+                                                                                4 Deegh
+     4       What is the number of the structure on map                 |_|_|_|_|                                                                          4 digits number
+     6       Household number in the structure                              |_|_|                                                                          2-digits number
+     7       Name of Household Head
+     8       Address of Household
+     9       Date of interview
+    10       Consent for study
+             Provide PIS and explain study to adult member(s) of the           1 Yes, consent to participate in study
+             household , mark whether houshold level consent
+             provided                                                          2 No, do not consent to participate in study                              End interview
+    11       Result of Interview                                               1 Completed
+                                                                               2 No household member at home or no competent respondent at home at time of visit
+                                                                               3 Entire household absent for extended period of time
+                                                                               4 Postponed
+                                                                               5 Refused
+                                                                               6 Dwelling vacant or address not a dwelling
+                                                                               7 Dweling destroyed
+                                                                               8 Dwelling not found)
+                                                                               9 Other (specify)
+    12       Language of questionnaire                                         1 Hindi                                                                   Check if list is OK
+                                                                               2 Kannada
+                                                                               3 Marathi
+                                                                               4 Tamil
+                                                                               5 Telugu
+                                                                               6 Urdu
+                                                                               7 English
+    13       Mobile number
+             Mobile number of the head of household or of adult
+             member of household
+    14       Total persons in household                                                                                                                    Automatically filled after household listing
+15   Total Women Eligible for Women's Questionnaire
+     (female, age 18-49, ever-married)                         Automatically filled after household listing
+16
+     Total Women Potentially Eligible for Pregnancy Tracking
+     (female, age 18-44, currently married)                    Automatically filled after household listing
+                                                                                                   02-HOUSEHOLD SCHEDULE
+Now we would like some information about the people who usually live in your household
+  Variable ID     Question and instructions                                                      Categories         Labels                                      Further Instructions
+      1_i         Line number                                                                                                                                   Line number of individual I - combined with the household ID
+                                                                                                                                                                should represent the individual ID
+       2_i        Please give me the names of persons who usually live in your household,
+                  starting with the head of the household
+       3_i        What is the relationship of (name of person i) to the head of the household?                    1 Head
+                                                                                                                  2 Wife or husband
+                                                                                                                  3 Son/daughter
+                                                                                                                  4 Son/daughter-in-law
+                                                                                                                  5 Grandchild
+                                                                                                                  6 Parent
+                                                                                                                  7 Parent-in-law
+                                                                                                                  8 Brother/sister
+                                                                                                                  9 Brother-in-law or sister-in-law
+                                                                                                                 10 Niece/Nephew
+                                                                                                                 11 Other relative
+                                                                                                                 12 Adopted/Foster/Step-NO
+                                                                                                                 13 Domestic Servant
+                                                                                                                 14 Other not related
+                                                                                                                 98 Don't know
+       4_i        Is (name) male, female or transgender?                                                          1 male
+                                                                                                                  2 female
+                                                                                                                  3 transgender
+       5_i        What was the place of last residence?                                                           1 within the same district
+                                                                                                                  2 within same state but not within district
+                                                                                                                  3 out of state but within country
+                                                                                                                  4 out of the country
+       6_i        Since how long (name) is continuously living here?                                          |_|_| months
+                                                                                                              |_|_| years                                       If less than 1 year enter in months, if less than 1 month, enter 00
+       7_i        How old is (name)?                                                                                                                            2-digits
+                                                                                                                                                                Record completed years based on date of last birth or on answer
+                                                                                                                                                                00 = Age less than one year / 95 = age 95 years or more
+                                                                                                              |_|_| years
+ CHECK LISTING Just to make sure that I have a complete household listing.
+               A) Are there any other persons such as small children or infants that we have                                                                    if YES, add household member
+               not listed?
+               B) Are there other people who may not be members of your family such as                                                                          if YES, add household member
+               domestic servants, lodgers or friends who usually live here?
+     8_i       What is (name)'s current marital status                                                            1 Currently married                           Ask only if individual is age 13 or older
+                                                                                                                  2 Married, but Gauna bot performed
+                                                                                                                  3 Widowed
+                                                                                                                  4 Divorced
+                                                                                                                  5 Separated
+                                                                                                                  6 Deserted
+                                                                                                                  7 Never married
+                                                                                                                  8 Live-in relationship
+                                                                                                                 98 Don't know
+       9_i        Eligibility for woman's questionnaire                                                           1 yes                                         To be automatically filled if ever married (marital status different
+                                                                                                                                                                from 7), female, between ages 18-49
+ 9_i    Eligibility for woman's questionnaire                                                                                      To be automatically filled if ever married (marital status different
+                                                                                     2 no                                          from 7), female, between ages 18-49
+10_i    Does (name) have a birth certificate? IF NO: has (name)'s birth ever been    1 Has birth certificate                       Ask only if individual is age 0-4
+        registered with the civil authority?                                         2 Was registered
+                                                                                     3 Neither has certificate or was registered
+                                                                                     8 Don't know
+11A_i   if age 5 or older                                                            1 yes                                         Ask only if individual is age 5 or older
+        Has (name) ever attended school including online classes?                    2 no                                          If answer is 2 (no), skip to 12_i
+                                                                                     8 Don't know
+11B_i   What is the highest grade (name) has ever completed?                         0 Less than one year completed
+                                                                                     1 One year completed
+                                                                                     2 Two years completed
+                                                                                     3 3 Years completed
+                                                                                    …
+                                                                                    95 Pre-Primary
+                                                                                    98 Don't know
+12_i    Potential person eligible for pregnancy tracking (female, 18-44, and                                                       To be automatically filled if female, age 18-44, and currently
+        currently married)                                                           1 yes                                         married (1, 2 or 8)
+                                                                                     2 no
+                                                                                                                     03-HOUSEHOLD CHARACTERISTICS
+                                        OBS: variables with grey background are part of the construction of the wealth index of NHFS-5 as described by https://dhsprogram.com/topics/wealth-index/Wealth-Index-Construction.cfm
+Variable ID Question and instructions                                                                 Categories Labels                                                                                           Further Instructions
+     1      How often does anyone smoke inside your house? Would you say daily, weekly,                            1 Daily
+            monthly, less than monthly, or never?                                                                  2 Weekly
+                                                                                                                   3 Monthly
+                                                                                                                   4 Less than monthly
+                                                                                                                   5 Never
+    2A      What is the main source of drinking water for members of your household?                                  PIPED WATER
+                                                                                                                  11        Piped into dwelling
+                                                                                                                  12        Piped to yard/plot
+                                                                                                                  13        Piped to Neighbour
+                                                                                                                  14        Public tap/standpipe
+                                                                                                                  21 TUBE WELL OR BOREHOLE
+                                                                                                                      DUG WELL
+                                                                                                                  31        Protected well
+                                                                                                                  32        Unprotected well
+                                                                                                                      WATER FROM SPRING
+                                                                                                                  41        Protected spring
+                                                                                                                  42        Unprotected spring
+                                                                                                                  51 RAINWATER
+                                                                                                                  61 TANKER TRUCK
+                                                                                                                  71 CART WITH SMALL TANK
+                                                                                                                  81 SURFACE WATER (RIVER/DAM/LAKE/PONDS/STREAM/CANAL/IRRIGATION CHANNEL)
+                                                                                                                  91 BOTTLED WATER
+                                                                                                                  92 COMMUNITY RO PLANT
+                                                                                                                  96 OTHER (SPECIFY)
+    2B      Where is the water source located?                                                                     1 In own dwelling
+                                                                                                                   2 In own yard/plot
+                                                                                                                   3 Elsewhere
+    2C      What does this household usually do to make the water safe to drink? Anything else?                    A Boil
+            (RECORD ALL MENTIONED)                                                                                 B Use Alum
+                                                                                                                   C Add Bleach/Chlorine Tablets
+                                                                                                                   D Strain through a cloth
+                                                                                                                   E Use water filter (ceramic/sand/composite/etc)
+                                                                                                                   F Use electronic purifier
+                                                                                                                   G Use solar disinfection
+                                                                                                                   H Let it stand and settle
+                                                                                                                   X OTHER (SPECIFY)
+                                                                                                                   Z Don't know
+     3A     Whether you and your family members have a toilet facility that you can use?
+                                                                                                                   1 Yes, own toilet
+                                                                                                                   2 Yes, shared toilet with other household
+                                                                                                                   3 Yes, community toilet
+                                                                                                                   4 No access                                                                                    SKIP TO 4
+     3B     What kind of toilet facility do members of your household usually use                                     FLUSH OR POUR FLUSH TOILET
+                                                                                                                  11        Flush to piped water system
+                                                                                                                  12        Flush to septic tank
+                                                                                                                  13        Flush to pit latrine
+                                                                                                                  14        Flush to somewhere else
+                                                                                                                  15        Flush, don't know where
+                                                                                                                      PIT LATRINE
+                                                                                                                  21        Ventilated improved single pit (VIP)/Biogas latrine
+                                                                                                                  22        Single pit latrine with slab
+                                                                                                                  23        Single pit latrine without slab/open pit
+                                                                                                                  31 TWIN PIT/COMPOSTING TOILET
+                                                                                                                  41 DRY TOILET
+                                                                                                                  51 USES OPEN SPACE OR FIELD                                                                     SKIP TO 4
+                                                                                        96 OTHER (SPECIFY)
+3C   Where is the toilet facility located?                                               1 In own dwelling
+                                                                                         2 In own yard/plot
+                                                                                         3 Elsewhere
+4    What type of drainage facility does your household have?                            1 Closed drainage
+                                                                                         2 Open drainage
+                                                                                         3 Drain to soak pit
+                                                                                         4 No drainage
+5    What is the religion of the head of the household?                                  1 Hindu
+                                                                                         2 Muslim
+                                                                                         3 Christian
+                                                                                         4 Sikh
+                                                                                         5 Buddhist/Neo-Buddhist
+                                                                                         6 Jain
+                                                                                         7 Jewish
+                                                                                         8 Parsi/Zoroastrian
+                                                                                         9 No religion
+                                                                                        96 Other (specify)
+6    Does the head of the household belong to a schedule cast, scheduled tribe, other    1 Scheduled caste         check if rephrasing is OK
+     backward class, or to none of them?                                                 2 Scheduled tribe
+                                                                                         3 Other backward class
+                                                                                         4 None of them
+                                                                                         5 Don't know
+7A   Does your household have electricity?                                               1 Yes
+                                                                                         2 No
+7B   Does your household have a mattress?                                                1 Yes
+                                                                                         2 No
+7C   Does your household have a pressure cooker?                                         1 Yes
+                                                                                         2 No
+7D   Does your household have a chair?                                                   1 Yes
+                                                                                         2 No
+7E   Does your household have a cot or bed?                                              1 Yes
+                                                                                         2 No
+7F   Does your household have a table?                                                   1 Yes
+                                                                                         2 No
+7G   Does your household have an electric fan?                                           1 Yes
+                                                                                         2 No
+7H   Does your household have a television?                                              1 Yes
+                                                                                         2 No
+7I   Does your household have a sewing machine?                                          1 Yes
+                                                                                         2 No
+7J   Does your household have a landline telephone?                                      1 Yes
+                                                                                         2 No
+7K   Does your household have access to the internet?                                    1 Yes
+                                                                                         2 No
+7L   Does your household have a computer/laptop?                                         1 Yes
+                                                                                         2 No
+7M   Does your household have a refrigerator?                                            1 Yes
+                                                                                         2 No
+7N   Does your household have ar conditioner/cooler?                                     1 Yes
+                                                                                         2 No
+7O   Does your household have a washing machine?                                         1 Yes
+                                                                                         2 No
+7P   Does your household have a water pump?                                              1 Yes
+                                                                                         2 No
+7Q    Does your household have a thresher?                                              1 Yes
+                                                                                        2 No
+7R    Does your household have a tractor?                                               1 Yes
+                                                                                        2 No
+7S    Does your household have a kitchen garden?                                        1 Yes
+                                                                                        2 No
+7T    Does any member of this household own a radio or transistor?                      1 Yes
+                                                                                        2 No
+7U    Does any member of this household own a mobile telephone/tablet?                  1 Yes
+                                                                                        2 No
+7V    Does any member of this household own a watch or clock?                           1 Yes
+                                                                                        2 No
+7W    Does any member of this household own a bicycle?                                  1 Yes
+                                                                                        2 No
+7X    Does any member of this household own a motorcycle or scooter?                    1 Yes
+                                                                                        2 No
+7Y    Does any member of this household own an animal-drawn cart?                       1 Yes
+                                                                                        2 No
+7Z    Does any member of this household own a car?                                      1 Yes
+                                                                                        2 No
+7Za   Does any member of this household own a truck?                                    1 Yes
+                                                                                        2 No
+7Zb   Does any member of this household own a boat with motor?                          1 Yes
+                                                                                        2 No
+7Zc   Does any member of this household own a boat without motor?                       1 Yes
+                                                                                        2 No
+8A    What type of fuel does your household mainly use for cooking?                     1 Electricity
+                                                                                        2 LPG/Natural gas
+                                                                                        3 Biogas
+                                                                                        4 Kerosene
+                                                                                        5 Coal/Lignite
+                                                                                        6 Charcoal
+                                                                                        7 Wood
+                                                                                        8 Straw/Shrubs/Grass
+                                                                                        9 Agricultural crop waste
+                                                                                       10 Dung cakes
+                                                                                       95 No food cooked in household   SKIP TO 9
+                                                                                       96 Other (specify)
+8B1   In this household, is food cooked on a stove, a chullah, or an open fire?         1 Stove                         answer 8B2
+                                                                                        2 Chullah                       SKIP TO 8C
+                                                                                        3 Open Fire                     SKIP TO 8C
+                                                                                        6 Other (specify)               SKIP TO 8C
+8B2   Does the stove have chimney?                                                      1 yes
+                                                                                        2 no
+                                                                                        8 Don't know
+8C    Does the place used for cooking (kitchen) has exhaust fan?                        1 Yes
+                                                                                        2 No
+                                                                                        8 Don't know
+8D    Is the cooking usually done in the house, in a separate building, or outdoors?    1 In the house
+                                                                                        2 In a separate building
+                                                                                        3 Outdoors
+                                                                                        6 Other (specify)
+ 9    Do you have a separate room which is used as a kitchen?                           1 Yes
+                                                                                        2 No
+10   Main material of the floor
+     (Record observation)                     NATURAL FLOOR
+                                           11      Mud/Clay/Earth
+                                           12      Sand
+                                           13      Dung cakes
+                                              RUDIMENTARY FLOOR
+                                           21      Raw Wood Planks
+                                           22      Palm/Bamboo
+                                           23      Brick
+                                           24      Stone
+                                              FINISHED FLOOR
+                                           31      Parquet or Polished Wood
+                                           32      Vinyl or Asphalt
+                                           33      Ceramic Tiles
+                                           34      Cement
+                                           35      Carpet
+                                           36      Polished stone/Marble/Granite
+                                           96 OTHER (SPECIFY)
+11   Main material of the roof                NATURAL ROOFING
+     (Record observation)                  11      No roof
+                                           12      Thatch/Palm leaf/Reed/Grass
+                                           13      Mud
+                                           14      Sod/Mud and Grass Mixture
+                                           15      Plastic/Polythene Sheeting
+                                              RUDIMENTARY ROOFING
+                                           21      Rustic mat
+                                           22      Palm/Bamboo
+                                           23      Raw Wood Planks/Timber
+                                           24      Unburnt birck
+                                           25      Loosely packed stone
+                                              FINISHED ROOFING
+                                           31      Metal/GI
+                                           32      Wood
+                                           33      Calamine/Cement Fiber
+                                           34      Asbestos Sheets
+                                           35      RCC/RBC/Cement/Concrete
+                                           36      Roofing Shingles
+                                           37      Tiles
+                                           38      Slate
+                                           39      Burnt brick
+                                           96 OTHER (SPECIFY)
+12   Main material of the external walls      NATURAL WALLS
+     (Record observation)                  11      No walls
+                                           12      Cane/Palm/Trucks/Bamboo
+                                           13      Mud
+                                           14      Grass/Reeds/Thatch
+                                              RUDIMENTARY WALLS
+                                           21      Bamboo with mud
+                                           22      Stone with mud
+                                           23      Plywood
+                                           24      Cardboard
+                                           25      Unburnt birck
+                                           26      Raw wood/Reused wood
+                                              FINISHED WALLS
+                                           31      Cement/Concrete
+                                           32      Stone with lime/cement
+                                                                                               33     Burnt bricks
+                                                                                               34     Cement blocks
+                                                                                               35     Wood planks/Shingles
+                                                                                               36     GI/Metal/Asbestos sheets
+                                                                                               96 OTHER (SPECIFY)
+13    How many rooms in this household are used for sleeping?
+                                                                                                                                                   Obs: used as a denominator for calculating number
+                                                                                             |_|_| rooms                                           of people / sleeping room for Wealth index
+14    Does any member of this household own this house or any other house?                       1 Yes
+                                                                                                 2 No
+15    Does any member of this household own any agriculture land?
+                                                                                                1 Yes
+                                                                                                2 No
+16A   Does your household own any cows, bulls, buffaloes, or yaks?                              1 Yes
+                                                                                                2 No
+16B   Does your household own any camels?                                                       1 Yes
+                                                                                                2 No
+16C   Does your household own any horses, donkeys, or mules?                                    1 Yes
+                                                                                                2 No
+16D   Does your household own any goats or sheep?                                               1 Yes
+                                                                                                2 No
+16E   Does your household own any pigs?                                                         1 Yes
+                                                                                                2 No
+16F   Does your household own any gchickens or ducks?
+                                                                                                1 Yes
+                                                                                                2 No
+17    Does any usual member of this household have a bank account or a post office              1 Yes
+      account?                                                                                  2 No
+                                                                                                8 Don't know
+18    Does your household have a BPL or any equivalent card?                                    1 Yes
+                                                                                                2 No
+                                                                                                8 Don't know
+19    Does this household has a domestic staff?                                                                                                    Automatically generated from the household
+                                                                                                1 yes                                              listing - any 02.3_i = 13
+                                                                                                2 no
+20    We would now like to learn about the places that households use to wash their hands.      1 OBSERVED
+      Can you please show me where members of your household most often wash their              2 NOT OBSERVED, NOT IN DWELLING/YARD/PLOT          skip 21 and 22
+      hands?                                                                                    3 NOT OBSERVED, NO PERMISSION TO SEE               skip 21 and 22
+                                                                                                4 NOT OBSERVED, OTHER REASON                       skip 21 and 22
+21    OBSERVATION ONLY:
+      Observe presence of water at the place for handwashing                                    1 Water is available
+                                                                                                2 Water is not available
+22    OBSERVATION ONLY:                                                                         A Soap or detergent (bar, liquid, powder, paste)
+      Observe presence of soap, detergent, or other cleansing aget.                             B Ash, mud, sand
+      RECORD ALL MENTIONED                                                                      C None
+

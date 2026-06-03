@@ -1,0 +1,198 @@
+[
+  {
+    "form_code": "HHQ",
+    "name": "hhq_type_fuel_household_mainly_use_cooking",
+    "sourceCode": "8A",
+    "title": "What type of fuel does your household mainly use for cooking?",
+    "issue": "Cooking-stove sub-branch 8B1/8B2 was merged in PDF extraction; verify before enforcing."
+  },
+  {
+    "form_code": "WQ",
+    "name": "wq_women_sometimes_pregnancy_that_not_result_live_birth",
+    "sourceCode": "10",
+    "title": "Women sometimes have a pregnancy that does not result in a live birth. For example, a pregnancy can end in a miscarriage, an abortion, or the child can be born dead. Have you ever",
+    "issue": "Repeated-row logic needs final paneldynamic rules after confirming row model and birth/pregnancy history design."
+  },
+  {
+    "form_code": "WQ",
+    "name": "wq_check_2",
+    "sourceCode": "13",
+    "title": "CHECK",
+    "issue": "CHECK skip to current pregnancy depends on prior reproductive history totals; needs explicit derived variable before strict SurveyJS enforcement."
+  },
+  {
+    "form_code": "WQ",
+    "name": "wq_i_think_back_first_pregnancy_that_single_pregnancy",
+    "sourceCode": "15_i",
+    "title": "If i = 1: Think back to your first pregnancy. Was that a single pregnancy, twins, or triplets?",
+    "issue": "Repeated-row logic needs final paneldynamic rules after confirming row model and birth/pregnancy history design."
+  },
+  {
+    "form_code": "WQ",
+    "name": "wq_i_single_baby_born_alive_born_dead_miscarriage",
+    "sourceCode": "16_i",
+    "title": "If 15_i = single: Was the baby born alive, born dead, or did you have a miscarriage or abortion?",
+    "issue": "Repeated-row logic needs final paneldynamic rules after confirming row model and birth/pregnancy history design."
+  },
+  {
+    "form_code": "WQ",
+    "name": "wq_baby_cry_move_breathe",
+    "sourceCode": "17_i",
+    "title": "Did the baby cry, move, or breathe?",
+    "issue": "Repeated-row logic needs final paneldynamic rules after confirming row model and birth/pregnancy history design."
+  },
+  {
+    "form_code": "WQ",
+    "name": "wq_check_i",
+    "sourceCode": "20_i",
+    "title": "CHECK",
+    "issue": "Repeated-row logic needs final paneldynamic rules after confirming row model and birth/pregnancy history design."
+  },
+  {
+    "form_code": "WQ",
+    "name": "wq_row_i_there_any_other_pregnancies_before_pregnancy",
+    "sourceCode": "22_i",
+    "title": "IF ROW i = 1: were there any other pregnancies before this pregnancy? IF ROW i > 1: were there any other pregnancies between the previous pregnancy and this pregnancy?",
+    "issue": "Repeated-row logic needs final paneldynamic rules after confirming row model and birth/pregnancy history design."
+  },
+  {
+    "form_code": "WQ",
+    "name": "wq_check_i_i",
+    "sourceCode": "23_i",
+    "title": "CHECK 16, 17, and 21: IF 16_i =",
+    "issue": "Repeated-row logic needs final paneldynamic rules after confirming row model and birth/pregnancy history design."
+  },
+  {
+    "form_code": "WQ",
+    "name": "wq_still_alive",
+    "sourceCode": "24_i",
+    "title": "Is (NAME) still alive?",
+    "issue": "Repeated-row logic needs final paneldynamic rules after confirming row model and birth/pregnancy history design."
+  },
+  {
+    "form_code": "WQ",
+    "name": "wq_born_alive_still_living",
+    "sourceCode": "26_i",
+    "title": "IF BORN ALIVE AND STILL LIVING:",
+    "issue": "Repeated-row logic needs final paneldynamic rules after confirming row model and birth/pregnancy history design."
+  },
+  {
+    "form_code": "WQ",
+    "name": "wq_household_member_line_number",
+    "sourceCode": "27_i",
+    "title": "IF BORN ALIVE AND STILL LIVING: Record household line number of child. Record",
+    "issue": "Repeated-row logic needs final paneldynamic rules after confirming row model and birth/pregnancy history design."
+  },
+  {
+    "form_code": "WQ",
+    "name": "wq_check_answer_marital_status",
+    "sourceCode": "1",
+    "title": "Check answer to marital status on",
+    "issue": "Husband/work module skip sequence needs final field grouping; PDF row text is merged across questions."
+  },
+  {
+    "form_code": "WQ",
+    "name": "wq_aside_own_housework_done_any_work_last_seven",
+    "sourceCode": "6",
+    "title": "Aside from your own housework, have you done any work in the last seven days?",
+    "issue": "Husband/work module skip sequence needs final field grouping; PDF row text is merged across questions."
+  },
+  {
+    "form_code": "WQ",
+    "name": "wq_know_some_women_take_up_jobs_they_paid",
+    "sourceCode": "7",
+    "title": "As you know, some women take up jobs for which they are paid in cash or kind. Others sell things, have a small business or work on the family farm",
+    "issue": "Husband/work module skip sequence needs final field grouping; PDF row text is merged across questions."
+  },
+  {
+    "form_code": "WQ",
+    "name": "wq_although_not_work_last_seven_days_any_job",
+    "sourceCode": "8",
+    "title": "Although you did not work in the last seven days, do you have any job or business from which you were absent for leave, illness, vacation,",
+    "issue": "Husband/work module skip sequence needs final field grouping; PDF row text is merged across questions."
+  },
+  {
+    "form_code": "WQ",
+    "name": "wq_done_any_work_last",
+    "sourceCode": "9",
+    "title": "Have you done any work in the last",
+    "issue": "Husband/work module skip sequence needs final field grouping; PDF row text is merged across questions."
+  },
+  {
+    "form_code": "HRF",
+    "name": "hrf_s_current_marital_status",
+    "sourceCode": "23_i",
+    "title": "What is (name)'s current marital status",
+    "issue": "Repeated-row logic needs final paneldynamic rules after confirming row model and birth/pregnancy history design."
+  },
+  {
+    "form_code": "HRF",
+    "name": "hrf_s_current_marital_status_ask_only_individual_age",
+    "sourceCode": "23_i",
+    "title": "What is (name)'s current marital status Ask only if individual is age",
+    "issue": "Repeated-row logic needs final paneldynamic rules after confirming row model and birth/pregnancy history design."
+  },
+  {
+    "form_code": "HRF",
+    "name": "hrf_age",
+    "sourceCode": "24A_i",
+    "title": "if age",
+    "issue": "Repeated-row logic needs final paneldynamic rules after confirming row model and birth/pregnancy history design."
+  },
+  {
+    "form_code": "PFF",
+    "name": "pff_ever_consumed_alcohol",
+    "sourceCode": "63",
+    "title": "Now",
+    "issue": "Alcohol module text merged with examples; verify values and branch before strict enforcement."
+  },
+  {
+    "form_code": "PFF",
+    "name": "pff_alcohol_standard_drinks_prompt",
+    "sourceCode": "63",
+    "title": "Now",
+    "issue": "Alcohol module text merged with examples; verify values and branch before strict enforcement."
+  },
+  {
+    "form_code": "POF",
+    "name": "pof_any_complications_during_delivery",
+    "sourceCode": "42",
+    "title": "Did you have any complications during delivery?",
+    "issue": "Home-delivery/multi-response branch needs exact source-table cleanup before strict enforcement."
+  },
+  {
+    "form_code": "POF",
+    "name": "pof_anything_done_help_baby_come_out",
+    "sourceCode": "54",
+    "title": "Was anything done to help the baby come out? (UP TO THREE RESPONSES)",
+    "issue": "Home-delivery/multi-response branch needs exact source-table cleanup before strict enforcement."
+  },
+  {
+    "form_code": "POF",
+    "name": "pof_anything_given_orally_after_all_babies_came_out",
+    "sourceCode": "56",
+    "title": "Was anything given orally after all the babies came out?",
+    "issue": "Home-delivery/multi-response branch needs exact source-table cleanup before strict enforcement."
+  },
+  {
+    "form_code": "POF",
+    "name": "pof_anything_given_orally_after_all_babies_came_out_2",
+    "sourceCode": "56",
+    "title": "Was anything given orally after all the babies came out?",
+    "issue": "Home-delivery/multi-response branch needs exact source-table cleanup before strict enforcement."
+  },
+  {
+    "form_code": "POF",
+    "name": "pof_done_help_placenta_come_out",
+    "sourceCode": "59",
+    "title": "What was done to help the placenta come out? (UP TO THREE RESPONSES)",
+    "issue": "Home-delivery/multi-response branch needs exact source-table cleanup before strict enforcement."
+  },
+  {
+    "form_code": "POF",
+    "name": "pof_entire_placenta_come_out",
+    "sourceCode": "62",
+    "title": "Did the entire placenta come out?",
+    "issue": "Home-delivery/multi-response branch needs exact source-table cleanup before strict enforcement."
+  }
+]

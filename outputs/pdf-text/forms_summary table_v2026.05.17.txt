@@ -1,0 +1,67 @@
+Form   Form   Form title           Respondent          Timing          Mode of data Main purpose             Flow with subsequent forms                 Comments
+number Code                                                            collection
+
+
+1     HHQ     Baseline household   Any adult able to   Baseline        face-to-face   Obtain household       Woman's questionnaire (for ever-married
+              questionnaire        provide                                            listing and baseline   women aged 18-49); household rounds
+                                   information                                        household              form (for households without eligible
+                                                                                      characteristics        women*)
+
+2     WQ      Baseline woman's     Ever-married     Baseline           face-to-face   Obtain baseline        Pregnancy enrollment form (for woman
+              questionnaire        women aged 18-49                                   woman's                pregnant at baseline); household rounds
+                                                                                      characteristics and    form (for eligible women)
+                                                                                      retrospective
+                                                                                      pregnancy histories
+
+3     HRF     Household rounds     Eligible women;     Bi-monthly      telephonic     Detect new            Pregnancy enrollment form (for pregnant May be combined
+              form                 any adults (for                                    pregnancies; identify woman); Woman's questionaire (for new with pregnancy
+                                   households                                         new eligible women eligible women)                            follow-up form
+                                   without eligible                                                                                                 and/or child follow-
+                                   women)                                                                                                           up form when
+                                                                                                                                                    relevant
+
+4     PEF     Pregnancy            mother              Once new        face-to-face   Obtain baseline        Ultrasound form (when 1st ultrasound is
+              enrollment form                          pregnancy is                   pregnancy              completed); pregnancy follow-up form
+                                                       detected                       information
+
+5     UF      Ultrasound form      mother will         Once 1st USG    extracted from Obtain USG-based       N/A
+                                   provide the USG     has been        USG report     gestational age
+                                   report              performed
+
+
+6     PFF     Pregnancy follow-up mother               Monthly         Alternate face- Obtain information    Ultrasound form (when 1st ultrasound is May be combined
+              form                                                     to-face vs.     on pregnancy          completed); Pregnancy outcome form      with household
+                                                                       telephonic      progress and other    (once pregnancy is completed)           rounds form and/or
+                                                                                       maternal variables                                            child follow-up
+                                                                                                                                                     form when relevant
+
+7     POF     Pregnancy outcome    mother              Day of delivery face-to-face   Obtain information     Birth assessment form (for each birth >=
+              form                                     or day after                   on conditions of       20w)
+                                                                                      delivery and its
+                                                                                      outcome
+8       BAF       Birth assessment      mother             Same time as    face-to-face      Obtain information   Stillbirth form or child death form (if died
+                  form                                     POF                               for each birth >=    by the time of visit); Newborn follow-up
+                                                                                             20w                  form (if survived)
+
+9       SBF       Stillbirth form       mother             Same time as    face-to-face      Obtain information Verbal autopsy
+                                                           BAF                               specific to stillbirths
+
+10      NFF       newborn follow-up     mother             7d, 28d, 2m,    face-to-face      Obtain information Subsequent newborn follow-up form (if            May be combined
+                  form                                     3m, 4.5m, 6m,   (7d, 28d,         on survival status of survived); Child death form (if died)         with household
+                                                           7.5m, 9m,       2m,3m, 6m,        the child and other                                                 rounds form and/or
+                                                           10.5m, 12m,     9m, 12m);         child variables                                                     pregnancy follow-
+                                                           14m, 16m…       telephonic (all                                                                       up form when
+                                                           until end of    other)                                                                                relevant
+                                                           study
+
+11      CDF       Child death form      mother             Same time as    face-to-face      Obtain information   Verbal autopsy
+                                                           BAF or NFF                        specific to child
+                                                                                             deaths
+
+12      VA        Verbal autopsy        mother             30 days after   face-to-face      Verify stillbirth vs. N/A
+                                                           stillbirth or                     neonatal deaths, and
+                                                           child death                       ontain CoD
+                                                                                             information
+
+*eligible women = women at risk of becoming pregnant during the study period
+

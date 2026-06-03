@@ -1,0 +1,42 @@
+                                                          DYNAMIC: STILLBIRTH FORM, VERSION 13 MAY 2026
+Variable ID   Question and instructions                                                         Categories       Labels                                  Further Instructions
+      1       Name of woman                                                                                                                              Automatically filled from pregnancy outcome form
+      2       Name of husband                                                                                                                            Automatically filled from pregnancy outcome form
+      3       Woman's HH member ID                                                                                                                       automatically filled
+      4       Woman's permanent ID                                                                                                                       automatically filled
+      5       Pregnancy ID                                                                                                                               automatically filled
+      6       Birth ID                                                                                                                                   Automatically filled from birth assessment form
+      7       Date form was completed                                                               mm/dd/yyyy                                           Automatically filled from pregnancy outcome form
+      8       Where did the interview take place?                                                            1 At the woman's home                       Automatically filled from pregnancy outcome form
+                                                                                                             2 At health facility
+                                                                                                             3 Telephonic
+      9       Was the interviewer present during the delivery?                                               1 Yes                                       Automatically filled from pregnancy outcome form
+                                                                                                             2 No
+     10       Is the medical card for this birth available?                                                  1 Yes
+                                                                                                             2 No                                        SKIP to 13
+     11       Was the stillbirth determined as antepartum or intrapartum in the medical card?                1 Antepartum
+                                                                                                             2 Intrapartum                               SKIP to 16
+                                                                                                             3 Not indicated on medical card             SKIP to 13
+                                                                                                             4 Medical card indicates neonatal death     SKIP to 13
+     12       What information was used to make this determination?                                          1 Absence of fetal heart sounds             SKIP to 16
+                                                                                                             2 Ultrasound confirmation                   SKIP to 16
+                                                                                                             3 Signs of maceration at time of delivery   SKIP to 16
+                                                                                                             4 Not indicated on medical card
+     13       Were there any bruises or signs of injury on the baby's body at the time of                    1 Yes
+              delivery?                                                                                      2 No
+                                                                                                             9 Don't know
+     14       Was the baby's skin pulpy or peeling?                                                          1 Yes
+                                                                                                             2 No
+                                                                                                             9 Don't know
+     15       Was the baby foul smelling?                                                                    1 Yes
+                                                                                                             2 No
+                                                                                                             9 Don't know
+     16       Was any part of the baby physically abnormal at the time of delivery?                          1 Yes
+                                                                                                             2 No                                        END OF INTERVIEW
+                                                                                                             9 Don't know                                END OF INTERVIEW
+     17       What were the abnormalities?                                                                   1 Head size very small                      END OF INTERVIEW
+                                                                                                             2 Head size very large                      END OF INTERVIEW
+                                                                                                             3 Mass or lump on back of head or spine     END OF INTERVIEW
+                                                                                                             4 Other, specify______                      END OF INTERVIEW
+                                                                                                             9 Don’t Know                                END OF INTERVIEW
+

@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "name": "DYNAMIC Survey Prototype",
+    "slug": "dynamic-survey-prototype",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "platforms": ["web", "ios", "android"],
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}

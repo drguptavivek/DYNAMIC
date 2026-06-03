@@ -1,0 +1,139 @@
+                                 DYNAMIC: NEWBORN FOLLOW-UP FORM, VERSION 13 MAY 2026
+Variable ID   Question and instructions                                                    Categories       Labels                              Further Instructions
+       1      Name of woman
+       2      Name of husband
+       3      Woman's HH member ID                                                                                                              automatically filled
+       4      Woman's permanent ID                                                                                                              automatically filled
+       5      Pregnancy ID                                                                                                                      automatically filled
+       6      Birth ID                                                                                                                          Automatically filled from birth assessment form
+       7      Name of child
+       8      Date of interview                                                                dd/mm/yyyy
+       9      Type of interview                                                                         1 In-person (face to face)              at ages: 7d, 28d, 2m, 3m, 6m, 1y
+                                                                                                        2 telephonic                            bi-monthly outside face to face interviews, or if mother is staying
+                                                                                                                                                outside catchment area
+      10      What round of visit is this?                                                                1 7d
+                                                                                                          2 28d
+                                                                                                          3 2m
+                                                                                                          4 3m
+                                                                                                          5 6m
+                                                                                                          6 1y
+                                                                                                          7 Regular bi-monthly visit outside the
+                                                                                                            above times
+      11      Where are you staying now?                                                                  1 own home
+                                                                                                          2 parents' home
+                                                                                                          3 other, specify___
+      12      Vital status of child now                                                                   1 Alive
+                                                                                                          2 Dead                                 STOP and complete child death form in-person
+      13      IF IN-PERSON (Q9=1)                                                                         1 Yes
+              Is child available now?                                                                     2 No                                   STOP interview and make plans for another visit when child present
+                                                                                                                                                 shortly thereafter
+      14      Since my last call/visit: Has your baby been fed breastmilk (from baby's                    1 Yes
+              own mother)?                                                                                2 No
+                                                                                                          9 Don't know
+      15      Has your baby been fed breastmilk from another mother                                       1 Yes
+                                                                                                          2 No
+                                                                                                          9 Don't know
+      16      Has your baby been fed cow/goat milk?                                                       1 Yes
+                                                                                                          2 No
+                                                                                                          9 Don't know
+      17      Has your baby been fed weaning food, i.e., solid, semi-solid or soft food?                  1 Yes
+                                                                                                          2 No
+                                                                                                          9 Don't know
+      18      Has your baby had difficulty sucking?                                                       1 Yes                                  Refer the baby to nearest health facility
+                                                                                                          2 No
+                                                                                                          9 Don't know
+      19      Has your baby had difficulty breathing?                                                     1 Yes                                  Refer the baby to nearest health facility
+                                                                                                          2 No
+                                                                                                          9 Don't know
+20   Has your baby had convulsions?                                                    1 Yes                        Refer the baby to nearest health facility
+                                                                                       2 No
+                                                                                       9 Don't know
+21   Has your baby had stiffness of the back?                                          1 Yes                        Refer the baby to nearest health facility
+                                                                                       2 No
+                                                                                       9 Don't know
+22   Has your baby been hot to touch?                                                  1 Yes
+                                                                                       2 No
+                                                                                       9 Don't know
+23   Has your baby been cold to touch?                                                 1 Yes
+                                                                                       2 No
+                                                                                       9 Don't know
+24   Has your baby had vomiting (more than half the feed)?                             1 Yes
+                                                                                       2 No
+                                                                                       9 Don't know
+25   Has your baby been very lethargic or unconscious?                                 1 Yes                        Refer the baby to nearest health facility
+                                                                                       2 No
+                                                                                       9 Don't know
+26   Has your baby’s body, soles, palms, or eyes become yellow color?                  1 Yes                        Refer the baby to nearest health facility
+                                                                                       2 No
+                                                                                       9 Don't know
+27   Has your baby had any skin infection or other skin problem?                       1 Yes
+                                                                                       2 No
+                                                                                       9 Don't know
+28   Has the baby been placed skin-to-skin with mother (or father) to keep             1 Yes
+     him/her warm?                                                                     2 No
+                                                                                       9 Don't know
+29   Has the baby worn a hat or other covering on his/her head?                        1 Yes
+                                                                                       2 No
+                                                                                       9 Don't know
+30   Has the baby been given a bath?                                                   1 Yes
+                                                                                       2 No
+                                                                                       9 Don't know
+31   Has the baby received any health care at home or outside the home?                1 Yes
+                                                                                       2 No                         SKIP to 39 if in-person visit, else end interview
+                                                                                       9 Don't know                 SKIP to 39 if in-person visit, else end interview
+32   Who did the baby get care from?                                                     1=Doctor
+                                                                                         2=ANM/NURSE/MIDWIFE/LHV
+                                                                                         3=Other health personnel
+                                                                                         4=Asha
+                                                                                         5=Dai
+                                                                                         6=other, specify___
+35   Where did this care take place?                                                   1 Home                       Skip to 37
+                                                                                       2 Parents' home              Skip to 37
+                                                                                       3 Other home                 Skip to 37
+                                                                                       4 Health facility
+36   What was the name and address of this health facility?                  _______     free answer
+37   Was any drug or medication given to the child?                                    1 Yes
+37   Was any drug or medication given to the child?
+                                                                                           2 No              SKIP to 39 if in-person visit, else end interview
+                                                                                           9 Don't know      SKIP to 39 if in-person visit, else end interview
+38   Please specify                                                          ______          free answer     END OF TELEPHONIC INTERVIEW
+                                                                                 IN-PERSON VISITS ONLY
+39   Do you have a card or other document where the child's vaccinations are               1 Yes, seen
+     written down? IF YES: May I see the card or other document where                      2 Yes, not seen   SKIP to 65
+     vaccinations are written down?                                                        3 No              SKIP TO 65
+40   BCG                                                                     dd/mm/yyyy
+                                                                                                             (1) COPY VACCINATION DATE FOR EACH VACCINE FROM THE CARD
+                                                                                                             (2) WRITE ‘44' IN ‘DAY' COLUMN IF CARD SHOWS THAT A
+                                                                                                             VACCINATION WAS GIVEN, BUT NO DATE IS RECORDED.
+                                                                                                             (3) IF ONLY PART OF DATE IS SHOWN ON CARD, RECORD '98' OR '9998'
+                                                                                                             FOR 'DON'T KNOW' IN THE COLUMNS FOR
+                                                                                                             WHICH INFORMATION IS NOT GIVEN.
+41   POLIO 0 (POLIO GIVEN AT BIRTH)                                        dd/mm/yyyy
+42   POLIO 1                                                               dd/mm/yyyy
+43   POLIO 2                                                               dd/mm/yyyy
+44   POLIO 3                                                               dd/mm/yyyy
+45   fIPV 1                                                                dd/mm/yyyy
+46   fIPV 2                                                                dd/mm/yyyy
+47   HEPATITIS B 0 (GIVEN AT BIRTH)                                        dd/mm/yyyy
+48   PENTAVALENT 1                                                         dd/mm/yyyy
+49   PENTAVALENT 2                                                         dd/mm/yyyy
+50   PENTAVALENT 3                                                         dd/mm/yyyy
+51   ROTAVIRUS 1                                                           dd/mm/yyyy
+52   ROTAVIRUS 2                                                           dd/mm/yyyy
+53   ROTAVIRUS 3                                                           dd/mm/yyyy
+54   JE 1                                                                  dd/mm/yyyy
+55   JE 2                                                                  dd/mm/yyyy
+56   MCV 1/MMR/MR                                                          dd/mm/yyyy
+57   MCV 2/MMR/MR                                                          dd/mm/yyyy
+58   DPT BOOSTER-1                                                         dd/mm/yyyy
+59   VITAMIN A (LAST DOSE)                                                 dd/mm/yyyy
+60   VITAMIN A (NEXT-TO-LAST DOSE)                                         dd/mm/yyyy
+61   PCV1                                                                  dd/mm/yyyy
+62   PCV2                                                                  dd/mm/yyyy
+63   PCV BOOSTER                                                           dd/mm/yyyy
+64   OPV BOOSTER                                                           dd/mm/yyyy
+65   Weight                                                                |_|_|_|_|         gr              measured on site
+66   Length                                                                |_|_|_|           cm              measured on site
+67   Head circumference (HC)                                               |_|_|_|           cm              measured on site
+68   Mid-arm circumference                                                 |_|_|_|           cm              measured on site
+

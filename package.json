@@ -1,0 +1,21 @@
+{
+  "name": "dynamic-study-dms",
+  "version": "1.0.0",
+  "description": "Data Management System for DYNAMIC Study",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "dynamic-study-dms"
+  },
+  "license": "MIT",
+  "author": "Prof. Vivek Gupta",
+  "workspaces": [
+    "expo-prototype"
+  ],
+  "scripts": {
+    "start": "npm --workspace expo-prototype run start",
+    "web": "npm --workspace expo-prototype run web",
+    "test": "npm run test --workspaces --if-present",
+    "test:prototype": "npm --workspace expo-prototype run test"
+  }
+}

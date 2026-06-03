@@ -1,0 +1,44 @@
+         DYNAMIC: ULTRASOUND FORM, VERSION 11 MAY 2026
+Variable ID Question and instructions                            Categories      Labels                               Further Instructions
+     1      Name of woman
+     2      Name of husband
+     3      Pregnancy ID
+     4      Date form was completed                                 dd/mm/yyyy
+     5      Where was the ultrasound report accessed?                          1 At the woman's home
+                                                                               2 At health facility
+                                                                      3________ Other (specify)
+     6      Where was the ultrasound performed?                    ____________ Please fill name and address of facility
+     7      Date ultrasound was performed                           dd/mm/yyyy
+     8      Has this pregnancy being confirmed by this ultrasound?             1 Yes
+                                                                               2 No                                    Close pregnancy record
+     9      Type of ultrasound                                                 1 Transvaginal
+                                                                               2 Transabdominal
+                                                                               3 not indicated in report
+    10      Number of foetuses                                                 1 Singleton
+                                                                               2 Multiple
+    11      Measurement: Crown-Rump Length                              |_|_|_| mm
+    12      Measurement: Bi Parietal Diameter                           |_|_|_| mm
+    13      Measurement: Nuchal Translucency                            |_|_|_| mm
+    14      Gestational age as indicated in ultrasound report            1 |_|_| Weeks
+                                                                         2 |_|_| Days
+    15      Expected date of delivery (EDD) by ultrasound           dd/mm/yyyy
+    16      Organ status: Head and Brain                                       1 Normal
+                                                                               2 Abnormal
+                                                                               3 not indicated in report
+    17      Organ status: Heart                                                1 Normal
+                                                                               2 Abnormal
+                                                                               3 not indicated in report
+    18      Organ status: Abdomen                                              1 Normal
+                                                                               2 Abnormal
+18   Organ status: Abdomen
+
+                                            3 not indicated in report
+19   Organ status: Extremities              1 Normal
+                                            2 Abnormal
+                                            3 not indicated in report
+20   Organ status: Placenta                 1 Normal
+                                            2 Abnormal
+                                            3 not indicated in report
+21   Upload Photo / PDF of the USG report
+ancy record
+
