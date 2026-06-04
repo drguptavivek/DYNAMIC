@@ -80,7 +80,16 @@ export async function refreshAssignments() {
 }
 
 export function getLastSyncAt() {
-  return getMeta("last_sync_at") || null;
+  const value = getMeta("last_sync_at");
+  if (!value) return null;
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    setMeta("last_sync_at", "");
+    return null;
+  }
+
+  return value;
 }
 
 function setLastSyncAt(timestamp) {

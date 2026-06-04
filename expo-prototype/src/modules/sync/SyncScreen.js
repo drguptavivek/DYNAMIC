@@ -37,9 +37,6 @@ export function SyncScreen() {
           domainEvents: pendingEvents,
         }),
       );
-
-      setSyncMessage(null);
-      setSyncError(null);
     } catch (error) {
       console.error("Error loading sync info:", error);
       setSyncError(`Failed to load sync info: ${error.message}`);

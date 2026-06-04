@@ -61,7 +61,10 @@ export function selectChangedFormCodes(remoteVersions = [], cachedVersions = [])
 }
 
 export function selectNextPullCursor(syncPayload = {}, fallbackCursor = null) {
-  return syncPayload.sync_cursor || fallbackCursor;
+  const nextCursor = syncPayload.sync_cursor || fallbackCursor;
+  if (!nextCursor) return null;
+  const parsed = new Date(nextCursor);
+  return Number.isNaN(parsed.getTime()) ? null : nextCursor;
 }
 
 export function formatSyncCompletionMessage(result = {}) {

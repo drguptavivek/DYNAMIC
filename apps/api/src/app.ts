@@ -19,6 +19,33 @@ import { requireAuth } from "./middleware/auth";
 
 export function createApp() {
   const app = express();
+
+  app.use((req, res, next) => {
+    const origin = req.headers.origin;
+    const allowedOrigins = new Set([
+      "http://localhost:8088",
+      "http://127.0.0.1:8088",
+      "http://localhost:5317",
+      "http://127.0.0.1:5317",
+      "http://localhost:58080",
+      "http://127.0.0.1:58080",
+    ]);
+
+    if (origin && allowedOrigins.has(origin)) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+      res.setHeader("Access-Control-Allow-Credentials", "true");
+      res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
+      res.setHeader("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
+    }
+
+    if (req.method === "OPTIONS") {
+      res.sendStatus(204);
+      return;
+    }
+
+    next();
+  });
+
   app.use(express.json());
 
   app.get("/health", (_req, res) => {

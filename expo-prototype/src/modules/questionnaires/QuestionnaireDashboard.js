@@ -138,7 +138,7 @@ export function QuestionnaireDashboard({
           <View>
             <Text style={styles.title}>{form.title?.default || form.title}</Text>
             <Text style={styles.subtle}>
-              Version {form.version} · {form.question_count} fields
+              {`Version ${form.version} · ${form.question_count} fields`}
             </Text>
           </View>
         </View>
@@ -162,7 +162,7 @@ export function QuestionnaireDashboard({
               <View key={submission.submission_id} style={styles.submissionRow}>
                 <Text style={styles.submissionId}>{submission.submission_id}</Text>
                 <Text style={styles.subtle}>
-                  {submission.sync_status} · {submission.created_at}
+                  {`${submission.sync_status} · ${submission.created_at}`}
                 </Text>
               </View>
             ))}

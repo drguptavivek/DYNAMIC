@@ -287,7 +287,7 @@ export default function App() {
                   style={[styles.menuItem, active && styles.activeMenuItem]}
                 >
                   <Text style={[styles.menuItemText, active && styles.activeMenuItemText]}>
-                    {form.form_code} · {form.title}
+                    {`${form.form_code} · ${form.title}`}
                   </Text>
                 </Pressable>
               );

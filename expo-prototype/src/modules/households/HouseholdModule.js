@@ -132,7 +132,7 @@ export function HouseholdModule({ locale, mode, onLocaleChange }) {
                 {household.structure_number}-{household.household_number}
               </Text>
               <Text style={[styles.cell, styles.localityCell]}>
-                {formatSite(household.site_id)} · {household.locality_name || household.locality_code}
+                {`${formatSite(household.site_id)} · ${household.locality_name || household.locality_code}`}
               </Text>
               <Text style={[styles.cell, styles.addressCell]}>{household.address}</Text>
               <Text style={[styles.cell, styles.headCell]}>{household.household_head_name}</Text>

@@ -20,7 +20,7 @@ export function FormSelector({ forms, selectedCode, onSelect }) {
                   {form.title}
                 </Text>
                 <Text style={[styles.meta, active && styles.activeMeta]}>
-                  {form.version} · {form.question_count} fields
+                  {`${form.version} · ${form.question_count} fields`}
                 </Text>
               </View>
             </Pressable>

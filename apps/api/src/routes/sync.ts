@@ -25,6 +25,11 @@ const encodePageToken = (token: PageToken): string => {
   return Buffer.from(JSON.stringify(token)).toString("base64");
 };
 
+const parseSyncCursorDate = (cursor: string): Date | null => {
+  const parsed = new Date(cursor);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
 const parseAnswersJson = (answersJson: unknown): Record<string, unknown> => {
   if (typeof answersJson === "string") {
     return JSON.parse(answersJson);
@@ -135,7 +140,10 @@ router.get("/pull", requireAuth, async (req: Request, res: Response) => {
       }
     }
 
-    const sinceDate = new Date(sinceCursor);
+    const sinceDate = parseSyncCursorDate(sinceCursor);
+    if (!sinceDate) {
+      return sendError(res, 400, "INVALID_SYNC_CURSOR", "Invalid sync cursor");
+    }
     const syncCursorSince = since || pageTokenStr ? sinceCursor : initialSyncCursor;
     const scopedHouseholdRows =
       localityCodes.length > 0 || siteId !== undefined
@@ -259,10 +267,7 @@ router.get("/pull", requireAuth, async (req: Request, res: Response) => {
       tasksData.length >= pageSize ||
       taskAttempts.length >= pageSize;
 
-    const syncCursor = encodePageToken({
-      since: syncCursorSince,
-      offset: 0,
-    });
+    const syncCursor = syncCursorSince;
 
     const nextPageToken = hasMore
       ? encodePageToken({

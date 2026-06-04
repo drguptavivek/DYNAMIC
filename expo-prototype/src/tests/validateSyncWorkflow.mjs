@@ -91,8 +91,12 @@ assert.deepEqual(
   ["HHQ", "PEF"],
 );
 
-assert.equal(selectNextPullCursor({ sync_cursor: "server-cursor" }, "old-cursor"), "server-cursor");
-assert.equal(selectNextPullCursor({}, "old-cursor"), "old-cursor");
+assert.equal(
+  selectNextPullCursor({ sync_cursor: "2026-06-04T09:29:42.012Z" }, "2026-06-03T00:00:00.000Z"),
+  "2026-06-04T09:29:42.012Z",
+);
+assert.equal(selectNextPullCursor({}, "2026-06-03T00:00:00.000Z"), "2026-06-03T00:00:00.000Z");
+assert.equal(selectNextPullCursor({ sync_cursor: "server-cursor" }, "2026-06-03T00:00:00.000Z"), null);
 
 assert.equal(
   formatSyncCompletionMessage({
