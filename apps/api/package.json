@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "tsx src/index.ts",
     "test": "tsx --test \"src/**/*.test.ts\"",
+    "test:integration": "npm run db:test:migrate && DATABASE_URL=${TEST_DATABASE_URL:-postgresql://dynamic:dynamic_dev_password@localhost:55432/dynamic_test} JWT_SECRET=test_jwt_secret JWT_REFRESH_SECRET=test_refresh_secret tsx --test \"src/**/*.integration.ts\"",
     "build": "tsc --project tsconfig.json",
     "typecheck": "tsc --noEmit --project tsconfig.json",
     "start": "node dist/index.js",

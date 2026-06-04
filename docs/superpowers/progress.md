@@ -249,3 +249,11 @@ _Last updated: 2026-06-03 — auto-maintained by Copilot CLI session_
 | Nginx edge container | `docker-compose.yml`, `deploy/nginx/default.conf` | ✅ Done | proxies admin Vite dev server with HMR and proxies `/api/v1/*` plus `/health` to API port `3310`; local edge port `58080` |
 | Deployment note      | `docs/deployment/same-vm-nginx.md`                | ✅ Done | recommends Nginx for same-VM admin/API routing; HAProxy reserved for later multi-node load balancing      |
 | Dev proxy verification | curl + API smoke through `http://localhost:58080` | ✅ Done | verified admin HTML, Vite client, `/health`, and full API smoke through Nginx                             |
+
+## API Integration Test Harness (2026-06-04)
+
+| Area                      | Files / Commands                                              | Status  | Notes                                                                                               |
+| ------------------------- | ------------------------------------------------------------- | ------- | --------------------------------------------------------------------------------------------------- |
+| Express app factory       | `apps/api/src/app.ts`, `apps/api/src/app.test.ts`             | ✅ Done | route setup can be tested in-process without binding API port `3310`                                |
+| Reusable dev/test seed    | `apps/api/src/dev/dev-seed.ts`, `smoke-dev.ts`                | ✅ Done | smoke script and integration tests share deterministic seed data                                    |
+| Test DB integration smoke | `apps/api/src/smoke.integration.ts`, `npm --workspace @dynamic/api run test:integration` | ✅ Done | migrates `dynamic_test`, then verifies login, `/users/me`, protocol forms, sync pull, and sync push |
