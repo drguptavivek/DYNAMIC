@@ -215,6 +215,9 @@ _Last updated: 2026-06-03 — auto-maintained by Copilot CLI session_
 | `8ca380f` | Add custom dev ports and Nginx HMR edge | custom Postgres/API/admin/Expo/Nginx ports; Nginx dev routing with Vite HMR; API dev without watcher |
 | `f846be7` | Add API integration smoke tests | `dynamic_test` setup on Postgres port 55432 plus API smoke integration coverage |
 | `ee00a6f` | Cover admin user APIs with integration tests | user CRUD and area-assignment integration coverage; route mounting fixed |
+| `6020b4f` | Cover masters APIs with integration tests | masters + mapping-frame integration coverage; root `npm test` now includes API integration tests |
+| `f6cd0e8` | Surface sync and promotion failures | swallowed sync/promotion errors now fail loudly instead of looking like empty queues |
+| `1b394b7` | Replace shared prefill placeholders | UF/PFF/POF/BAF/SBF/NFF/CDF/VA shared-context prefill builders return read-only lineage fields |
 
 ## API Integration Coverage (2026-06-04)
 
@@ -234,6 +237,7 @@ _Last updated: 2026-06-03 — auto-maintained by Copilot CLI session_
 | Admin app bypassed Nginx edge by default     | `apps/admin/src/lib/api.ts`                                                                                | ✅ Done    | default API base is relative `/api/v1`; explicit `VITE_API_BASE_URL` still supported  |
 | Swallowed promotion/sync errors              | `eventProcessor.ts`, `taskWriter.ts`, Expo task/event/submission repositories                              | ✅ Done    | sync/promotion failures now surface instead of looking like empty queues or success   |
 | Shared-context placeholder prefill builders  | `packages/shared-context/src/prefill.ts`, `types.ts`, `builders.ts`, `__tests__/prefill.test.ts`           | ✅ Done    | UF/PFF/POF/BAF/SBF/NFF/CDF/VA builders now return read-only lineage prefill fields    |
+| Nested workspace `node_modules` cleanup      | workspace filesystem                                                                                       | ✅ Done    | removed nested ignored installs; only root `node_modules` remains; `npm test` and typecheck still pass |
 
 ## Protocol Forms API Alignment (2026-06-04)
 
