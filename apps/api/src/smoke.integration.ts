@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { createServer } from "node:http";
 import test from "node:test";
+import { eq } from "drizzle-orm";
 
 const testDatabaseUrl =
   process.env.TEST_DATABASE_URL ??
@@ -13,6 +14,7 @@ test("API smoke flow passes against dynamic_test without a fixed port", async ()
   process.env.JWT_REFRESH_SECRET = "test_refresh_secret";
 
   const { createApp } = await import("./app");
+  const { db, schema } = await import("./db");
   const { smokeUser, upsertDevSeed } = await import("./dev/dev-seed");
 
   await upsertDevSeed();
@@ -90,6 +92,12 @@ test("API smoke flow passes against dynamic_test without a fixed port", async ()
     assert.equal(failedPromotionPush.errors.length, 1);
     assert.equal(failedPromotionPush.errors[0].id, failedPromotionResponseId);
     assert.match(failedPromotionPush.errors[0].error, /No active pregnancy found/);
+
+    const failedResponseRows = await db
+      .select()
+      .from(schema.formResponses)
+      .where(eq(schema.formResponses.response_id, failedPromotionResponseId));
+    assert.equal(failedResponseRows.length, 0);
   } finally {
     await new Promise<void>((resolve, reject) => {
       server.close((error) => (error ? reject(error) : resolve()));

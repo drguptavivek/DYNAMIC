@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import test from "node:test";
+import { eq } from "drizzle-orm";
 
 const testDatabaseUrl =
   process.env.TEST_DATABASE_URL ??
@@ -12,12 +13,14 @@ test("central admin can create, update, assign, and deactivate a user", async ()
   process.env.JWT_REFRESH_SECRET = "test_refresh_secret";
 
   const { createApp } = await import("./app");
+  const { db, schema } = await import("./db");
   const { adminUser, upsertDevSeed } = await import("./dev/dev-seed");
 
   await upsertDevSeed();
 
   const server = createServer(createApp());
   await new Promise<void>((resolve) => server.listen(0, resolve));
+  let createdUserId: string | null = null;
 
   try {
     const address = server.address();
@@ -46,6 +49,7 @@ test("central admin can create, update, assign, and deactivate a user", async ()
     assert.equal(createdUser.username, username);
     assert.equal(createdUser.active, true);
     assert.equal(createdUser.password_hash, undefined);
+    createdUserId = createdUser.user_id;
 
     const patchedUser = await fetchData(`${baseUrl}/users/${createdUser.user_id}`, {
       method: "PATCH",
@@ -84,6 +88,12 @@ test("central admin can create, update, assign, and deactivate a user", async ()
     });
     assert.equal(deletedUser.message, "User deactivated");
   } finally {
+    if (createdUserId) {
+      await db
+        .delete(schema.userAreaAssignments)
+        .where(eq(schema.userAreaAssignments.user_id, createdUserId));
+      await db.delete(schema.users).where(eq(schema.users.user_id, createdUserId));
+    }
     await new Promise<void>((resolve, reject) => {
       server.close((error) => (error ? reject(error) : resolve()));
     });

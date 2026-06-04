@@ -362,7 +362,14 @@ router.post("/push", requireAuth, async (req: Request, res: Response) => {
             created_at: new Date(),
           });
 
-          await processFormResponse(id);
+          try {
+            await processFormResponse(id);
+          } catch (promotionError) {
+            await db
+              .delete(schema.formResponses)
+              .where(eq(schema.formResponses.response_id, id));
+            throw promotionError;
+          }
 
           // Update task status to completed if provided
           if (task_id) {

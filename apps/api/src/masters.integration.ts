@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { randomInt } from "node:crypto";
 import { createServer } from "node:http";
 import test from "node:test";
+import { eq } from "drizzle-orm";
 
 const testDatabaseUrl =
   process.env.TEST_DATABASE_URL ??
@@ -13,12 +14,16 @@ test("central admin can manage masters and mapping-frame records", async () => {
   process.env.JWT_REFRESH_SECRET = "test_refresh_secret";
 
   const { createApp } = await import("./app");
+  const { db, schema } = await import("./db");
   const { adminUser, upsertDevSeed } = await import("./dev/dev-seed");
 
   await upsertDevSeed();
 
   const server = createServer(createApp());
   await new Promise<void>((resolve) => server.listen(0, resolve));
+  const uniqueSuffix = randomInt(100000, 999999);
+  const siteId = 1000000000 + uniqueSuffix;
+  const localityCode = `T${String(uniqueSuffix).padStart(5, "0")}`;
 
   try {
     const address = server.address();
@@ -30,10 +35,7 @@ test("central admin can manage masters and mapping-frame records", async () => {
       body: JSON.stringify({ username: adminUser.username, password: adminUser.password }),
     });
     const authorization = `Bearer ${login.access_token}`;
-    const uniqueSuffix = randomInt(100000, 999999);
-    const siteId = 1000000000 + uniqueSuffix;
     const siteCode = `T${uniqueSuffix}`;
-    const localityCode = `T${String(uniqueSuffix).padStart(5, "0")}`;
 
     const site = await fetchData(`${baseUrl}/masters/sites`, {
       method: "POST",
@@ -153,6 +155,9 @@ test("central admin can manage masters and mapping-frame records", async () => {
     assert.equal(listedMappingFrame.length, 3);
     assert.ok(listedMappingFrame.some((entry: any) => entry.household_id === householdId));
   } finally {
+    await db.delete(schema.mappingFrame).where(eq(schema.mappingFrame.site_id, siteId));
+    await db.delete(schema.studyLocalities).where(eq(schema.studyLocalities.site_id, siteId));
+    await db.delete(schema.studySites).where(eq(schema.studySites.site_id, siteId));
     await new Promise<void>((resolve, reject) => {
       server.close((error) => (error ? reject(error) : resolve()));
     });

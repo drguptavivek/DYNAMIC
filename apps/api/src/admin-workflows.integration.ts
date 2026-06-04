@@ -204,6 +204,22 @@ test("admin correction and review workflows expose audit-ready API behavior", as
     assert.equal(outOfScopeHouseholdCorrection.status, 403);
     assert.equal(outOfScopeHouseholdCorrection.body.error.code, "OUT_OF_SCOPE");
   } finally {
+    await db
+      .delete(schema.adminCorrections)
+      .where(eq(schema.adminCorrections.entity_id, "1-DEV001-0001-01"));
+    await db.delete(schema.adminCorrections).where(eq(schema.adminCorrections.entity_id, memberId));
+    await db.delete(schema.dataQualityFlags).where(eq(schema.dataQualityFlags.flag_id, flagId));
+    await db.delete(schema.formResponses).where(eq(schema.formResponses.response_id, responseId));
+    await db.delete(schema.householdMembers).where(eq(schema.householdMembers.household_member_id, memberId));
+    await db.delete(schema.users).where(eq(schema.users.user_id, outOfScopeSrs.user_id));
+    await db
+      .update(schema.households)
+      .set({
+        baseline_enrollment_status: "completed",
+        updated_at: new Date(),
+      })
+      .where(eq(schema.households.household_id, "1-DEV001-0001-01"));
+
     await new Promise<void>((resolve, reject) => {
       server.close((error) => (error ? reject(error) : resolve()));
     });
