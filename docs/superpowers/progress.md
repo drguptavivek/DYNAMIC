@@ -224,3 +224,11 @@ _Last updated: 2026-06-03 — auto-maintained by Copilot CLI session_
 | ------------------------------- | ---------------------------------------------- | ------- | ----------------------------------------------------------------------------------- |
 | `apps/api` — Sync form manifest | `src/routes/sync.ts`, `src/lib/formCatalog.ts` | ✅ Done | `/sync/pull` form_versions now come from the bundled catalog with SHA-256 checksums |
 | Verification                    | API tests + API typecheck                      | ✅ Done | 6/6 API form-catalog tests pass; API typecheck passes                               |
+
+## Expo Form Cache Refresh (2026-06-04)
+
+| Package/App                         | Files                                                | Status  | Notes                                                                                                                     |
+| ----------------------------------- | ---------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `expo-prototype` — Form cache sync  | `src/modules/sync/syncService.js`, `syncWorkflow.js` | ✅ Done | compares pull `form_versions` checksums, downloads changed forms from `/protocol/forms/batch`, stores JSON in `sync_meta` |
+| `expo-prototype` — Sync UI feedback | `SyncScreen.js` via `formatSyncCompletionMessage`    | ✅ Done | sync completion message now reports updated form count                                                                    |
+| Verification                        | prototype tests + root typecheck                     | ✅ Done | sync workflow helper tests pass; root typecheck passes                                                                    |

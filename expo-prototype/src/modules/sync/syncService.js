@@ -5,6 +5,7 @@ import {
   buildPushRecords,
   collectAcceptedSyncIds,
   collectAssignedLocalityCodes,
+  selectChangedFormCodes,
 } from "./syncWorkflow.js";
 
 const API_BASE_URL = "http://localhost:3000/api/v1";
@@ -91,6 +92,76 @@ function setLastSyncAt(timestamp) {
   }
 }
 
+function getCachedFormVersions() {
+  const value = getMeta("form_versions");
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    console.error("Error parsing form_versions:", error);
+    return [];
+  }
+}
+
+function setCachedFormVersions(formVersions) {
+  setMeta("form_versions", JSON.stringify(formVersions));
+}
+
+function cacheProtocolForms(forms) {
+  for (const form of forms) {
+    if (!form?.form_code || !form.json) continue;
+    setMeta(`form_json_${String(form.form_code).toUpperCase()}`, JSON.stringify(form.json));
+  }
+}
+
+export function getCachedProtocolForm(formCode) {
+  const value = getMeta(`form_json_${String(formCode).toUpperCase()}`);
+  if (!value) return null;
+  try {
+    return JSON.parse(value);
+  } catch (error) {
+    console.error("Error parsing cached protocol form:", error);
+    return null;
+  }
+}
+
+export async function refreshProtocolForms(formVersions = []) {
+  if (!Array.isArray(formVersions) || formVersions.length === 0) {
+    return { formsUpdated: 0 };
+  }
+
+  const changedCodes = selectChangedFormCodes(formVersions, getCachedFormVersions());
+  if (changedCodes.length === 0) {
+    return { formsUpdated: 0 };
+  }
+
+  const token = authStore.getToken();
+  if (!token) {
+    throw new Error("Not authenticated");
+  }
+
+  const params = new URLSearchParams({ codes: changedCodes.join(",") });
+  const response = await fetch(`${API_BASE_URL}/protocol/forms/batch?${params.toString()}`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Form refresh failed: ${response.statusText}`);
+  }
+
+  const result = unwrapApiData(await response.json());
+  const forms = Array.isArray(result.forms) ? result.forms : [];
+  cacheProtocolForms(forms);
+  setCachedFormVersions(formVersions);
+
+  return { formsUpdated: forms.length };
+}
+
 export async function pullSync() {
   const token = authStore.getToken();
   if (!token) {
@@ -122,16 +193,21 @@ export async function pullSync() {
     }
 
     const data = unwrapApiData(await response.json());
-    const { tasks = [] } = data;
+    const { tasks = [], form_versions: formVersions = [], protocol_config_version } = data;
 
     if (tasks.length > 0) {
       await taskRepository.saveTaskBatch(tasks);
     }
 
+    const formRefresh = await refreshProtocolForms(formVersions);
+    if (protocol_config_version) {
+      setMeta("protocol_config_version", protocol_config_version);
+    }
+
     const now = new Date().toISOString();
     setLastSyncAt(now);
 
-    return { pulled: tasks.length };
+    return { pulled: tasks.length, formsUpdated: formRefresh.formsUpdated };
   } catch (error) {
     console.error("Pull sync error:", error);
     throw error;
@@ -218,6 +294,7 @@ export async function syncAll() {
       pulled: pullResult.pulled,
       pushed: pushResult.pushed,
       events: pushResult.events,
+      formsUpdated: pullResult.formsUpdated,
     };
   } catch (error) {
     console.error("Sync all error:", error);

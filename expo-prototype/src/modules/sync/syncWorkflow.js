@@ -44,6 +44,22 @@ export function summarizePendingSyncData({ formResponses = [], domainEvents = []
   };
 }
 
+export function selectChangedFormCodes(remoteVersions = [], cachedVersions = []) {
+  const cachedChecksums = new Map(
+    cachedVersions
+      .filter((form) => form?.form_code)
+      .map((form) => [String(form.form_code).toUpperCase(), form.checksum || null]),
+  );
+
+  return remoteVersions
+    .filter((form) => {
+      if (!form?.form_code || !form.checksum) return false;
+      const formCode = String(form.form_code).toUpperCase();
+      return cachedChecksums.get(formCode) !== form.checksum;
+    })
+    .map((form) => String(form.form_code).toUpperCase());
+}
+
 export function formatSyncCompletionMessage(result = {}) {
   const parts = [];
   const pluralize = (count, singular, plural = `${singular}s`) =>
@@ -59,6 +75,10 @@ export function formatSyncCompletionMessage(result = {}) {
 
   if (Object.prototype.hasOwnProperty.call(result, "events")) {
     parts.push(`${pluralize(result.events, "event")} pushed`);
+  }
+
+  if (Object.prototype.hasOwnProperty.call(result, "formsUpdated")) {
+    parts.push(`${pluralize(result.formsUpdated, "form")} updated`);
   }
 
   return `Sync complete: ${parts.join(", ")}`;

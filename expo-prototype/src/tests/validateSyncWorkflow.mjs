@@ -4,6 +4,7 @@ const {
   collectAssignedLocalityCodes,
   buildPushRecords,
   collectAcceptedSyncIds,
+  selectChangedFormCodes,
   summarizePendingSyncData,
   formatSyncCompletionMessage,
 } = await import("../modules/sync/syncWorkflow.js");
@@ -74,13 +75,29 @@ assert.deepEqual(
   },
 );
 
+assert.deepEqual(
+  selectChangedFormCodes(
+    [
+      { form_code: "HHQ", checksum: "new-hhq" },
+      { form_code: "WQ", checksum: "same-wq" },
+      { form_code: "PEF", checksum: "new-pef" },
+    ],
+    [
+      { form_code: "HHQ", checksum: "old-hhq" },
+      { form_code: "WQ", checksum: "same-wq" },
+    ],
+  ),
+  ["HHQ", "PEF"],
+);
+
 assert.equal(
   formatSyncCompletionMessage({
     pulled: 4,
     pushed: 2,
     events: 1,
+    formsUpdated: 3,
   }),
-  "Sync complete: 4 pulled, 2 responses pushed, 1 event pushed",
+  "Sync complete: 4 pulled, 2 responses pushed, 1 event pushed, 3 forms updated",
 );
 
 console.log("Validated sync workflow helpers.");
