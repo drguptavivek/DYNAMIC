@@ -83,8 +83,7 @@ household_id  +  member_number
 Member record  →  (if WQ shows pregnant)  →  Eligible Woman
                                               └── Pregnancy #1
                                                    └── Birth Outcome(s) from POF
-                                                         ├── Child / newborn record
-                                                         └── HH roster member if alive
+                                                         └── Child / newborn record
                                               └── Pregnancy #2 (if later detected)
                                                    └── ...
 ```
@@ -115,8 +114,8 @@ birth_outcome_id = "preg-001-02"   (e.g. twin)
 - A single pregnancy can produce more than one Birth Outcome (twins/triplets, or mixed live birth and stillbirth outcomes).
 - Each Birth Outcome gets its own permanent `birth_outcome_id`.
 - A Birth Outcome can be live birth, stillbirth, miscarriage, abortion, or another protocol-defined outcome.
-- Live-born outcomes create a child/newborn record and are added to the household roster as new household members with the next available member numbers.
-- Stillbirths and other non-living outcomes are preserved as Birth Outcome evidence but are not added to the living household roster.
+- Live-born outcomes create a child/newborn record for follow-up, but born children are not added to the household roster.
+- Stillbirths and other non-living outcomes are preserved as Birth Outcome evidence and are not added to the household roster.
 - Birth Assessment (BAF), Stillbirth Follow-up (SBF), Newborn Follow-up (NFF), Child Death (CDF), and Verbal Autopsy (VA) link to the relevant `birth_outcome_id` and, where applicable, the child/newborn record.
 
 ---
@@ -132,8 +131,8 @@ Child ID = birth_outcome_id + child_sequence
 **Key rules:**
 
 - Twins and triplets get separate Birth Outcome IDs and separate child records.
-- Live-born children are also added to the household member roster with the next available member number.
-- Stillbirths can have child/stillbirth records for follow-up and audit, but they are not added as living household members.
+- Live-born children are tracked as child records for follow-up, not as new household roster members.
+- Stillbirths can have child/stillbirth records for follow-up and audit, but they are not added as household members.
 - If a child dies, their vital status is updated. A Verbal Autopsy (VA) task is generated 30 days after death.
 - VA tasks are currently **disabled** (form not yet available) — they appear in worklists but cannot be opened until the VA questionnaire is finalised (~4 weeks from study start).
 
