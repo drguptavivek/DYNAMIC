@@ -3,6 +3,7 @@
 
 # Dependencies
 node_modules/
+.turbo/
 
 # Expo / React Native
 .expo/

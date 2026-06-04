@@ -1,0 +1,26 @@
+import { pgTable, text, integer, date, timestamp, jsonb } from "drizzle-orm/pg-core";
+
+export const households = pgTable("households", {
+  household_id: text("household_id").primaryKey(),
+  site_id: integer("site_id").notNull(),
+  locality_code: text("locality_code").notNull(),
+  structure_map_id: text("structure_map_id").notNull(),
+  household_number: text("household_number").notNull(),
+  residence_area_type: integer("residence_area_type"),
+  address: text("address"),
+  household_head_name: text("household_head_name"),
+  contact_mobile: text("contact_mobile"),
+  consent_status: text("consent_status"),
+  result_interview: integer("result_interview"),
+  language_questionnaire: integer("language_questionnaire"),
+  baseline_enrollment_status: text("baseline_enrollment_status").default("pending"),
+  baseline_completed_date: date("baseline_completed_date"),
+  cohort_status: text("cohort_status"),
+  closed_reason: text("closed_reason"),
+  religion_head: integer("religion_head"),
+  caste_category: integer("caste_category"),
+  household_characteristics: jsonb("household_characteristics"),
+  sync_status: text("sync_status").default("local"),
+  created_at: timestamp("created_at", { withTimezone: true }),
+  updated_at: timestamp("updated_at", { withTimezone: true }),
+});

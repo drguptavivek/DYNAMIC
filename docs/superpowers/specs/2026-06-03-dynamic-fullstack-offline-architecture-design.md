@@ -145,7 +145,7 @@ Key fields:
 
 - `household_id`
 - `site_id`
-- `locality_id`
+- `locality_code`
 - `structure_map_id`
 - `household_number`
 - `baseline_enrollment_status`
@@ -173,7 +173,7 @@ Key fields:
 - `household_member_id`
 - `household_id`
 - `site_id`
-- `locality_id`
+- `locality_code`
 - `member_number`
 - `name`
 - `sex`
@@ -259,7 +259,7 @@ Key fields:
 - `household_member_id`
 - `household_id`
 - `site_id`
-- `locality_id`
+- `locality_code`
 - `eligibility_start_date`
 - `eligibility_source_event_id`
 - `wq_status`
@@ -306,7 +306,7 @@ Key fields:
 - `household_member_id`
 - `household_id`
 - `site_id`
-- `locality_id`
+- `locality_code`
 - `pregnancy_sequence`
 - `pregnancy_status`
 - `detected_date`
@@ -389,7 +389,7 @@ Key fields:
 - `visit_id`
 - `session_id`
 - `site_id`
-- `locality_id`
+- `locality_code`
 - `household_id`
 - `primary_subject_type`
 - `primary_subject_id`
@@ -410,7 +410,7 @@ Key fields:
 - `form_response_id`
 - `response_id`
 - `site_id`
-- `locality_id`
+- `locality_code`
 - `household_id`
 - `visit_id`
 - `task_id`
@@ -447,7 +447,7 @@ Key fields:
 - `event_id`
 - `event_type`
 - `site_id`
-- `locality_id`
+- `locality_code`
 - `household_id`
 - `subject_type`
 - `subject_id`
@@ -497,7 +497,7 @@ Key fields:
 - `task_id`
 - `task_key`
 - `site_id`
-- `locality_id`
+- `locality_code`
 - `household_id`
 - `subject_type`
 - `subject_id`
@@ -863,6 +863,8 @@ VA is generated after stillbirth or child death.
 
 ```text
 target_date = stillbirth/death event date + 30 days
+window_start = target_date - 3 days
+deadline = target_date + 14 days
 ```
 
 VA task generation is active now. VA form opening is disabled until VA SurveyJS JSON is available.
@@ -1102,27 +1104,29 @@ Sync scope is based on assigned villages/colonies:
 user_area_assignment:
   user_id
   site_id
-  locality_id
+  locality_code
   role
   active_from
   active_to
 ```
 
-The Android device receives all active records where `site_id/locality_id` is in the user's assignment.
+The Android device receives all active records where `site_id/locality_code` is in the user's assignment.
 
 Required on device:
 
+- mapping frame (all listed/enrolled/empty frame entries for assigned localities)
 - active households in assigned localities
 - current roster/person state
 - eligible women
 - active and recent pregnancies
 - active child follow-up records
 - active/planned tasks
+- task attempts (all attempts for tasks in pull scope)
 - task context JSON
 - masters
-- protocol rules
-- form JSON versions
-- user and area assignments
+- protocol rules (full config, refreshed when version changes)
+- form JSON versions and cached form JSONs
+- user and area assignments (from /api/auth/me)
 
 Do not require full prior form-response JSON for every record on the device. For routine field work, sync domain state plus task contexts. Full prior form payloads can remain backend-side unless created on that device or specifically needed.
 
@@ -1155,8 +1159,26 @@ Backend behavior:
 3. apply valid domain events
 4. replay workflow rules
 5. merge generated tasks by `task_key`
-6. detect duplicate task completions
-7. return updated domain/task state for assigned areas
+6. merge task attempts by `attempt_id`
+7. detect duplicate task completions
+8. return updated domain/task state for assigned areas
+
+### App Sync Sequence
+
+The app follows this sequence on each sync:
+
+1. Read current area assignments from `GET /api/auth/me` → `area_assignments`
+2. POST outbox records to `/api/sync/push` with all pending records including task attempts and visits
+3. GET `/api/sync/pull` with current `sync_cursor` and assigned `locality_codes`
+4. If `protocol_config_version` differs from cached version, call `GET /api/protocol/config` and batch-download updated form JSONs via `GET /api/protocol/forms/batch?codes=...`
+5. Apply pull response to local SQLite domain store
+6. Clear synced outbox records
+
+Pull is paginated. Continue fetching `next_page_token` pages until absent.
+
+### Sync Cursor
+
+`sync_cursor` is an opaque server-issued token. Clients treat it as opaque and pass it unchanged in `since=` on the next pull. On first sync, omit `since`. The server uses this to return only records updated after the previous sync position (internally a server timestamp or sequence).
 
 ### Offline Duplicate Completion
 
@@ -1312,6 +1334,10 @@ Central admin can:
 - apply domain correction from reviewed values
 
 ## Android App Design
+
+### Device Registration
+
+Field workers register their own device on first login via `POST /api/devices/register`. This requires only `field_worker` credentials and records the device ID and user association. Admin pre-registration via `POST /api/devices` remains available for bulk setup.
 
 ### Main Navigation
 

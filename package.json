@@ -1,30 +1,39 @@
 {
   "name": "dynamic-study-dms",
   "version": "1.0.0",
-  "description": "Data Management System for DYNAMIC Study",
   "private": true,
+  "description": "Data Management System for DYNAMIC Study",
+  "license": "MIT",
+  "author": "Prof. Vivek Gupta",
   "repository": {
     "type": "git",
     "url": "dynamic-study-dms"
   },
-  "license": "MIT",
-  "author": "Prof. Vivek Gupta",
   "workspaces": [
     "expo-prototype",
-    "backend"
+    "shared",
+    "packages/*",
+    "apps/*"
   ],
-  "overrides": {
-    "react": "19.1.0",
-    "react-dom": "19.1.0",
-    "react-native": "0.81.5"
-  },
   "scripts": {
     "start": "npm --workspace expo-prototype run start",
     "web": "npm --workspace expo-prototype run web",
     "test": "npm run test --workspaces --if-present",
     "test:prototype": "npm --workspace expo-prototype run test",
-    "test:backend": "npm --workspace backend run test",
-    "backend": "npm --workspace backend run start",
-    "backend:dev": "npm --workspace backend run dev"
-  }
+    "api": "npm --workspace @dynamic/api run start",
+    "api:dev": "npm --workspace @dynamic/api run dev",
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck"
+  },
+  "devDependencies": {
+    "turbo": "^2.9.16"
+  },
+  "overrides": {
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-native": "0.81.5"
+  },
+  "packageManager": "npm@10.0.0"
 }

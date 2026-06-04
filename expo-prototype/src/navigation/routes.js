@@ -3,7 +3,9 @@ export const ROUTES = {
   households: "#/households",
   householdNew: "#/households/new",
   questionnaire: (formCode) => `#/questionnaires/${formCode}`,
-  questionnaireNew: (formCode) => `#/questionnaires/${formCode}/new`
+  questionnaireNew: (formCode) => `#/questionnaires/${formCode}/new`,
+  worklist: "#/worklist",
+  sync: "#/sync",
 };
 
 export function parseHashRoute(hash, defaultFormCode) {
@@ -18,7 +20,7 @@ export function parseHashRoute(hash, defaultFormCode) {
     return {
       view: "households",
       formCode: defaultFormCode,
-      mode: parts[1] === "new" ? "new" : "dashboard"
+      mode: parts[1] === "new" ? "new" : "dashboard",
     };
   }
 
@@ -26,8 +28,16 @@ export function parseHashRoute(hash, defaultFormCode) {
     return {
       view: "questionnaire",
       formCode: parts[1],
-      mode: parts[2] === "new" ? "new" : "dashboard"
+      mode: parts[2] === "new" ? "new" : "dashboard",
     };
+  }
+
+  if (parts[0] === "worklist") {
+    return { view: "worklist", formCode: defaultFormCode, mode: "dashboard" };
+  }
+
+  if (parts[0] === "sync") {
+    return { view: "sync", formCode: defaultFormCode, mode: "dashboard" };
   }
 
   return { view: "home", formCode: defaultFormCode, mode: "dashboard" };

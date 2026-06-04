@@ -1,0 +1,58 @@
+.container {
+  max-width: 1200px;
+}
+
+.container h1 {
+  margin: 0 0 0.5rem;
+  color: #333;
+}
+
+.subtitle {
+  color: #666;
+  margin: 0 0 2rem;
+}
+
+.userCard {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  margin-bottom: 2rem;
+}
+
+.userCard h2 {
+  margin: 0 0 1rem;
+  color: #2563eb;
+}
+
+.userCard p {
+  margin: 0.5rem 0;
+  color: #666;
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.5rem;
+}
+
+.statCard {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.statLabel {
+  color: #666;
+  font-size: 0.875rem;
+  font-weight: 500;
+  margin-bottom: 1rem;
+}
+
+.statValue {
+  color: #2563eb;
+  font-size: 2rem;
+  font-weight: bold;
+}
