@@ -60,6 +60,10 @@ export function selectChangedFormCodes(remoteVersions = [], cachedVersions = [])
     .map((form) => String(form.form_code).toUpperCase());
 }
 
+export function selectNextPullCursor(syncPayload = {}, fallbackCursor = null) {
+  return syncPayload.sync_cursor || fallbackCursor;
+}
+
 export function formatSyncCompletionMessage(result = {}) {
   const parts = [];
   const pluralize = (count, singular, plural = `${singular}s`) =>

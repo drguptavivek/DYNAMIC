@@ -241,6 +241,9 @@ _Last updated: 2026-06-03 — auto-maintained by Copilot CLI session_
 | Shared-context placeholder prefill builders  | `packages/shared-context/src/prefill.ts`, `types.ts`, `builders.ts`, `__tests__/prefill.test.ts`           | ✅ Done    | UF/PFF/POF/BAF/SBF/NFF/CDF/VA builders now return read-only lineage prefill fields    |
 | Nested workspace `node_modules` audit        | workspace filesystem                                                                                       | ✅ Done    | nested installs are currently needed for workspace-local bins such as Vite; root `npm install --cache /private/tmp/dynamic-npm-cache` restored them |
 | Nginx dev edge smoke                         | `http://127.0.0.1:58080`                                                                                   | ✅ Done    | `/` serves Vite with `/@vite/client`; `/health` proxies to API; protected `/api/v1/*` routes traverse Nginx |
+| Sync cursor persistence                      | `expo-prototype/src/modules/sync/syncService.js`, `syncWorkflow.js`, `validateSyncWorkflow.mjs`            | ✅ Done    | Expo pull now persists backend `sync_cursor` instead of local client time |
+| Promotion failure propagation                | `apps/api/src/services/eventProcessor.ts`                                                                  | ✅ Done    | WQ/PEF/UF/POF/BAF/NFF/CDF promotion errors now rethrow so sync push cannot mark failed promotion as accepted |
+| SRS correction site scope                    | `apps/api/src/routes/corrections.ts`, `admin-workflows.integration.ts`                                     | ✅ Done    | Site Research Scientist correction writes are denied outside the user's site |
 
 ## Protocol Forms API Alignment (2026-06-04)
 

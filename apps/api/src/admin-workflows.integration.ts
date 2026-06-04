@@ -24,6 +24,11 @@ test("admin correction and review workflows expose audit-ready API behavior", as
   const responseId = `response-${randomUUID()}`;
   const memberId = `1-DEV001-0001-01-${randomUUID()}`;
   const memberNumber = randomInt(700000, 999999);
+  const outOfScopeSrs = {
+    user_id: `srs-${randomUUID()}`,
+    username: `srs-${randomUUID()}`,
+    password: "srs-password",
+  };
 
   await db.insert(schema.householdMembers).values({
     household_member_id: memberId,
@@ -77,6 +82,19 @@ test("admin correction and review workflows expose audit-ready API behavior", as
     created_at: now,
   });
 
+  const { hashPassword } = await import("./lib/password");
+  await db.insert(schema.users).values({
+    user_id: outOfScopeSrs.user_id,
+    username: outOfScopeSrs.username,
+    display_name: "Out Of Scope SRS",
+    role: "site_research_scientist",
+    site_id: 2,
+    password_hash: await hashPassword(outOfScopeSrs.password),
+    active: true,
+    created_at: now,
+    updated_at: now,
+  });
+
   const server = createServer(createApp());
   await new Promise<void>((resolve) => server.listen(0, resolve));
 
@@ -90,6 +108,11 @@ test("admin correction and review workflows expose audit-ready API behavior", as
       body: JSON.stringify({ username: adminUser.username, password: adminUser.password }),
     });
     const authorization = `Bearer ${login.access_token}`;
+    const srsLogin = await fetchData(`${baseUrl}/auth/login`, {
+      method: "POST",
+      body: JSON.stringify({ username: outOfScopeSrs.username, password: outOfScopeSrs.password }),
+    });
+    const srsAuthorization = `Bearer ${srsLogin.access_token}`;
 
     const listedFlags = await fetchData(
       `${baseUrl}/data-quality-flags?status=open&flag_type=duplicate_response&site_id=1`,
@@ -165,6 +188,21 @@ test("admin correction and review workflows expose audit-ready API behavior", as
       .from(schema.householdMembers)
       .where(eq(schema.householdMembers.household_member_id, memberId));
     assert.equal(updatedMember.name, "Corrected Member Name");
+
+    const outOfScopeHouseholdCorrection = await fetchJson(
+      `${baseUrl}/households/1-DEV001-0001-01/corrections`,
+      {
+        method: "POST",
+        headers: { Authorization: srsAuthorization },
+        body: JSON.stringify({
+          field: "baseline_enrollment_status",
+          old_value: "corrected_completed",
+          new_value: "wrong_site_change",
+        }),
+      },
+    );
+    assert.equal(outOfScopeHouseholdCorrection.status, 403);
+    assert.equal(outOfScopeHouseholdCorrection.body.error.code, "OUT_OF_SCOPE");
   } finally {
     await new Promise<void>((resolve, reject) => {
       server.close((error) => (error ? reject(error) : resolve()));
@@ -173,6 +211,16 @@ test("admin correction and review workflows expose audit-ready API behavior", as
 });
 
 async function fetchData(url: string, options: RequestInit = {}) {
+  const response = await fetchJson(url, options);
+
+  if (!response.ok) {
+    throw new Error(`${url} failed with ${response.status}: ${JSON.stringify(response.body)}`);
+  }
+
+  return response.body.data;
+}
+
+async function fetchJson(url: string, options: RequestInit = {}) {
   const response = await fetch(url, {
     ...options,
     headers: {
@@ -180,11 +228,10 @@ async function fetchData(url: string, options: RequestInit = {}) {
       ...options.headers,
     },
   });
-  const json = await response.json();
 
-  if (!response.ok) {
-    throw new Error(`${url} failed with ${response.status}: ${JSON.stringify(json)}`);
-  }
-
-  return json.data;
+  return {
+    ok: response.ok,
+    status: response.status,
+    body: await response.json(),
+  };
 }

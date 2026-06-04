@@ -39,6 +39,14 @@ router.post(
         sendError(res, 404, "HOUSEHOLD_NOT_FOUND", "Household not found");
         return;
       }
+      if (
+        req.user?.role === "site_research_scientist" &&
+        req.user.site_id !== null &&
+        household.site_id !== req.user.site_id
+      ) {
+        sendError(res, 403, "OUT_OF_SCOPE", "Household is outside the user's site scope");
+        return;
+      }
 
       // Create correction audit record
       const correctionId = crypto.randomUUID();
@@ -120,6 +128,14 @@ router.post(
 
       if (!member) {
         sendError(res, 404, "MEMBER_NOT_FOUND", "Member not found");
+        return;
+      }
+      if (
+        req.user?.role === "site_research_scientist" &&
+        req.user.site_id !== null &&
+        member.site_id !== req.user.site_id
+      ) {
+        sendError(res, 403, "OUT_OF_SCOPE", "Member is outside the user's site scope");
         return;
       }
 

@@ -7,6 +7,7 @@ import {
   collectAcceptedSyncIds,
   collectAssignedLocalityCodes,
   selectChangedFormCodes,
+  selectNextPullCursor,
 } from "./syncWorkflow.js";
 
 function unwrapApiData(payload) {
@@ -203,8 +204,10 @@ export async function pullSync() {
       setMeta("protocol_config_version", protocol_config_version);
     }
 
-    const now = new Date().toISOString();
-    setLastSyncAt(now);
+    const nextCursor = selectNextPullCursor(data, lastSync);
+    if (nextCursor) {
+      setLastSyncAt(nextCursor);
+    }
 
     return { pulled: tasks.length, formsUpdated: formRefresh.formsUpdated };
   } catch (error) {

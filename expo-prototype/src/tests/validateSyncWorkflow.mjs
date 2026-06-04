@@ -5,6 +5,7 @@ const {
   buildPushRecords,
   collectAcceptedSyncIds,
   selectChangedFormCodes,
+  selectNextPullCursor,
   summarizePendingSyncData,
   formatSyncCompletionMessage,
 } = await import("../modules/sync/syncWorkflow.js");
@@ -89,6 +90,9 @@ assert.deepEqual(
   ),
   ["HHQ", "PEF"],
 );
+
+assert.equal(selectNextPullCursor({ sync_cursor: "server-cursor" }, "old-cursor"), "server-cursor");
+assert.equal(selectNextPullCursor({}, "old-cursor"), "old-cursor");
 
 assert.equal(
   formatSyncCompletionMessage({

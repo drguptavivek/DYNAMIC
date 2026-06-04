@@ -278,6 +278,7 @@ async function promoteWq(
     }
   } catch (err) {
     console.error(`Error in promoteWq for ${householdId}/${subjectId}:`, err);
+    throw err;
   }
 }
 
@@ -300,8 +301,7 @@ async function promotePef(
       .limit(1);
 
     if (pregnancies.length === 0) {
-      console.warn(`No active pregnancy found for woman ${subjectId}`);
-      return;
+      throw new Error(`No active pregnancy found for woman ${subjectId}`);
     }
 
     const pregnancy = pregnancies[0];
@@ -332,6 +332,7 @@ async function promotePef(
     await writeTasksFromDescriptors(tasks);
   } catch (err) {
     console.error(`Error in promotePef for ${householdId}/${subjectId}:`, err);
+    throw err;
   }
 }
 
@@ -350,6 +351,7 @@ async function promoteUf(pregnancyId: string, answers: FormAnswers): Promise<voi
     }
   } catch (err) {
     console.error(`Error in promoteUf for ${pregnancyId}:`, err);
+    throw err;
   }
 }
 
@@ -367,8 +369,7 @@ async function promotePof(
       .limit(1);
 
     if (pregnancies.length === 0) {
-      console.warn(`No pregnancy found for woman ${subjectId}`);
-      return;
+      throw new Error(`No pregnancy found for woman ${subjectId}`);
     }
 
     const pregnancy = pregnancies[0];
@@ -445,6 +446,7 @@ async function promotePof(
     await writeTasksFromDescriptors(tasks);
   } catch (err) {
     console.error(`Error in promotePof for ${householdId}/${subjectId}:`, err);
+    throw err;
   }
 }
 
@@ -461,8 +463,7 @@ async function promoteBaf(childId: string, answers: FormAnswers): Promise<void> 
       .limit(1);
 
     if (children.length === 0) {
-      console.warn(`Child not found: ${childId}`);
-      return;
+      throw new Error(`Child not found: ${childId}`);
     }
 
     const child = children[0];
@@ -491,6 +492,7 @@ async function promoteBaf(childId: string, answers: FormAnswers): Promise<void> 
     await writeTasksFromDescriptors(tasks);
   } catch (err) {
     console.error(`Error in promoteBaf for ${childId}:`, err);
+    throw err;
   }
 }
 
@@ -510,8 +512,7 @@ async function promoteNff(
       .limit(1);
 
     if (children.length === 0) {
-      console.warn(`Child not found: ${childId}`);
-      return;
+      throw new Error(`Child not found: ${childId}`);
     }
 
     const child = children[0];
@@ -540,6 +541,7 @@ async function promoteNff(
     }
   } catch (err) {
     console.error(`Error in promoteNff for ${childId}:`, err);
+    throw err;
   }
 }
 
@@ -555,8 +557,7 @@ async function promoteCdf(childId: string, answers: FormAnswers): Promise<void> 
       .limit(1);
 
     if (children.length === 0) {
-      console.warn(`Child not found: ${childId}`);
-      return;
+      throw new Error(`Child not found: ${childId}`);
     }
 
     const child = children[0];
@@ -581,6 +582,7 @@ async function promoteCdf(childId: string, answers: FormAnswers): Promise<void> 
     await writeTasksFromDescriptors(tasks);
   } catch (err) {
     console.error(`Error in promoteCdf for ${childId}:`, err);
+    throw err;
   }
 }
 
