@@ -203,3 +203,17 @@ _Last updated: 2026-06-03 — auto-maintained by Copilot CLI session_
 | Domain event wrapper did not match backend ingest shape      | `expo-prototype/src/modules/sync/syncWorkflow.js`, `validateSyncWorkflow.mjs` | ✅ Done | flatten outbox payload into pushed domain event records                                                               |
 | Verification after review fixes                              | root scripts                                                                  | ✅ Done | `npm test`, `npm run build`, `npm run typecheck`, and `git diff --check` pass after review fixes                      |
 | Ad hoc lint/format                                           | `npx oxlint@latest`, `npx oxfmt@latest`                                       | ✅ Done | `oxlint` exits 0 with warnings; staged implementation paths pass `oxfmt --check`; unrelated Refs/forms churn reverted |
+
+## Commit Log (2026-06-04)
+
+| Commit    | Summary                           | Notes                                                                                             |
+| --------- | --------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `5e8e100` | Fullstack offline sync foundation | API/admin/shared package scaffold, Expo worklist/sync wiring, legacy `backend/` workspace removed |
+
+## Protocol Forms API Alignment (2026-06-04)
+
+| Package/App                     | Files                                           | Status  | Notes                                                                                                                                                 |
+| ------------------------------- | ----------------------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/api` — Form catalog       | `src/lib/formCatalog.ts`, `formCatalog.test.ts` | ✅ Done | reads bundled `expo-prototype/src/data/forms` index/files, normalizes version, computes SHA-256 checksums                                             |
+| `apps/api` — Protocol endpoints | `src/routes/protocol.ts`                        | ✅ Done | aligns with plan endpoints: `/protocol/forms`, `/protocol/forms/:code`, `/protocol/forms/batch`; keeps aliases                                        |
+| Verification                    | root scripts + Ox tools                         | ✅ Done | `npm test`, `npm run typecheck`, `npm run build`, touched-path `oxfmt --check`, `oxlint`, and `git diff --check` pass; `oxlint` reports warnings only |

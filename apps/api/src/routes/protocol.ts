@@ -2,36 +2,14 @@ import { Router, Request, Response } from "express";
 import { DEFAULT_PROTOCOL_CONFIG } from "@dynamic/shared-workflow";
 import { requireAuth } from "../middleware/auth";
 import { sendError, sendSuccess } from "../lib/errors";
+import {
+  getAllFormMetadata,
+  getFormJson,
+  getLatestFormMetadata,
+  getRequestedFormsWithJson,
+} from "../lib/formCatalog";
 
 const router = Router();
-
-const KNOWN_FORM_CODES = [
-  "HHQ",
-  "WQ",
-  "HRF",
-  "PEF",
-  "UF",
-  "PFF",
-  "POF",
-  "BAF",
-  "SBF",
-  "NFF",
-  "CDF",
-];
-
-const FORM_VERSIONS: Record<string, string> = {
-  HHQ: "2026.05.09",
-  WQ: "2026.05.11",
-  HRF: "2026.05.13",
-  PEF: "2026.05.14",
-  UF: "2026.05.11",
-  PFF: "2026.05.13",
-  POF: "2026.05.09",
-  BAF: "2026.05.11",
-  SBF: "2026.05.14",
-  NFF: "2026.05.11",
-  CDF: "2026.05.09",
-};
 
 /**
  * GET /api/v1/protocol/config
@@ -47,29 +25,91 @@ router.get("/config", requireAuth, async (_req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/v1/protocol/forms
+ * Returns bundled form versions and checksums for device cache comparison
+ */
+router.get("/forms", requireAuth, async (_req: Request, res: Response) => {
+  try {
+    sendSuccess(res, { forms: getAllFormMetadata() });
+  } catch (error) {
+    console.error("Forms metadata error:", error);
+    sendError(res, 500, "FORMS_METADATA_ERROR", "Error fetching forms metadata");
+  }
+});
+
+/**
+ * GET /api/v1/protocol/forms/batch?codes=HHQ,WQ
+ * Returns bundled SurveyJS JSON for requested forms
+ */
+router.get("/forms/batch", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const codesParam = typeof req.query.codes === "string" ? req.query.codes : "";
+    const codes = codesParam
+      .split(",")
+      .map((code) => code.trim())
+      .filter(Boolean);
+
+    sendSuccess(res, { forms: getRequestedFormsWithJson(codes) });
+  } catch (error) {
+    console.error("Forms batch error:", error);
+    sendError(res, 500, "FORMS_BATCH_ERROR", "Error fetching form batch");
+  }
+});
+
+/**
  * GET /api/v1/protocol/forms/:code/latest
- * Returns metadata for a specific form
+ * Returns metadata for a specific form; kept as an explicit latest alias
  */
 router.get("/forms/:code/latest", requireAuth, async (req: Request, res: Response) => {
   try {
-    const { code } = req.params;
+    const metadata = getLatestFormMetadata(req.params.code);
 
-    if (!code || !KNOWN_FORM_CODES.includes(code.toUpperCase())) {
-      return sendError(res, 404, "FORM_NOT_FOUND", `Form code ${code} not found`);
+    if (!metadata) {
+      return sendError(res, 404, "FORM_NOT_FOUND", `Form code ${req.params.code} not found`);
     }
 
-    const upperCode = code.toUpperCase();
-    const version = FORM_VERSIONS[upperCode];
-
-    sendSuccess(res, {
-      form_code: upperCode,
-      version,
-      checksum: null,
-      json_url: null,
-    });
+    sendSuccess(res, metadata);
   } catch (error) {
     console.error("Form metadata error:", error);
     sendError(res, 500, "FORM_METADATA_ERROR", "Error fetching form metadata");
+  }
+});
+
+/**
+ * GET /api/v1/protocol/forms/:code/latest/json
+ * Returns the latest bundled SurveyJS JSON for a specific form; legacy latest alias
+ */
+router.get("/forms/:code/latest/json", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const formJson = getFormJson(req.params.code);
+
+    if (!formJson) {
+      return sendError(res, 404, "FORM_NOT_FOUND", `Form code ${req.params.code} not found`);
+    }
+
+    sendSuccess(res, formJson);
+  } catch (error) {
+    console.error("Form JSON error:", error);
+    sendError(res, 500, "FORM_JSON_ERROR", "Error fetching form JSON");
+  }
+});
+
+/**
+ * GET /api/v1/protocol/forms/:code
+ * Returns the latest bundled SurveyJS JSON for a specific form
+ */
+router.get("/forms/:code", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const formJson = getFormJson(req.params.code);
+
+    if (!formJson) {
+      return sendError(res, 404, "FORM_NOT_FOUND", `Form code ${req.params.code} not found`);
+    }
+
+    sendSuccess(res, formJson);
+  } catch (error) {
+    console.error("Form JSON error:", error);
+    sendError(res, 500, "FORM_JSON_ERROR", "Error fetching form JSON");
   }
 });
 
