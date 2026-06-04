@@ -54,7 +54,7 @@ export function getPendingEvents() {
     }));
   } catch (error) {
     console.error("Error getting pending events:", error);
-    return [];
+    throw error;
   }
 }
 
@@ -110,6 +110,6 @@ export function getSyncedEvents() {
     }));
   } catch (error) {
     console.error("Error getting synced events:", error);
-    return [];
+    throw error;
   }
 }

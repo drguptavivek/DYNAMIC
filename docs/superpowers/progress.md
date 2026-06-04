@@ -226,6 +226,14 @@ _Last updated: 2026-06-03 — auto-maintained by Copilot CLI session_
 | Admin users            | `apps/api/src/admin-users.integration.ts`  | ✅ Done | central admin create/patch/deactivate user and area-assignment lifecycle              |
 | Masters/mapping frame  | `apps/api/src/masters.integration.ts`      | ✅ Done | central admin sites, localities, mapping-frame create/read/patch/bulk/conflict coverage |
 
+## Review Fixes — Error Visibility + Test Edge (2026-06-04)
+
+| Finding                                      | Files                                                                                                      | Status     | Notes                                                                                 |
+| -------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ---------- | ------------------------------------------------------------------------------------- |
+| Persistent test DB coverage could be skipped | `package.json`, `apps/api/src/masters.integration.ts`                                                      | ✅ Done    | root `npm test` now runs API integration tests; masters test uses high-range random IDs |
+| Admin app bypassed Nginx edge by default     | `apps/admin/src/lib/api.ts`                                                                                | ✅ Done    | default API base is relative `/api/v1`; explicit `VITE_API_BASE_URL` still supported  |
+| Swallowed promotion/sync errors              | `eventProcessor.ts`, `taskWriter.ts`, Expo task/event/submission repositories                              | ✅ Done    | sync/promotion failures now surface instead of looking like empty queues or success   |
+
 ## Protocol Forms API Alignment (2026-06-04)
 
 | Package/App                     | Files                                           | Status  | Notes                                                                                                                                                 |

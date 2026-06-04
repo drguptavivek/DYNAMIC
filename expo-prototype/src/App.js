@@ -111,7 +111,7 @@ function LoginScreen({ onLogin }) {
             )}
           </Pressable>
         </View>
-        <Text style={styles.demoText}>Demo: Use any username and password to test</Text>
+        <Text style={styles.demoText}>Use credentials issued for this study device</Text>
       </View>
     </SafeAreaView>
   );

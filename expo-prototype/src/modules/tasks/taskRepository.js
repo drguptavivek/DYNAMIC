@@ -237,7 +237,7 @@ export function getPendingResponses() {
     return responses || [];
   } catch (error) {
     console.error("Error getting pending responses:", error);
-    return [];
+    throw error;
   }
 }
 

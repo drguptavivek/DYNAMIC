@@ -88,108 +88,103 @@ export async function processFormResponse(formResponseId: string): Promise<void>
 }
 
 async function promoteHhq(householdId: string, answers: FormAnswers): Promise<void> {
-  try {
-    // Extract interview date
-    const interviewDate = answers.hhq_interview_date || new Date().toISOString().split("T")[0];
+  // Extract interview date
+  const interviewDate = answers.hhq_interview_date || new Date().toISOString().split("T")[0];
 
-    // Update household
-    await db
-      .update(schema.households)
-      .set({
-        baseline_completed_date: interviewDate,
-        baseline_enrollment_status: "enrolled",
-        updated_at: new Date(),
-      })
-      .where(eq(schema.households.household_id, householdId));
+  // Update household
+  await db
+    .update(schema.households)
+    .set({
+      baseline_completed_date: interviewDate,
+      baseline_enrollment_status: "enrolled",
+      updated_at: new Date(),
+    })
+    .where(eq(schema.households.household_id, householdId));
 
-    // Extract household members panel
-    const membersPanel = (answers.hhq_household_members || []) as any[];
-    for (const member of membersPanel) {
-      try {
-        const memberNumber = member.member_line_number || membersPanel.indexOf(member) + 1;
-        const memberId = buildMemberId(householdId, memberNumber);
+  // Extract household members panel
+  const membersPanel = (answers.hhq_household_members || []) as any[];
+  for (const [index, member] of membersPanel.entries()) {
+    const memberNumber = member.member_line_number || index + 1;
+    const memberId = buildMemberId(householdId, memberNumber);
 
-        // Infer DOB from age if not provided
-        let dob = member.member_date_of_birth;
-        if (!dob && member.member_age_years) {
-          const currentYear = new Date().getFullYear();
-          const birthYear = currentYear - parseInt(member.member_age_years);
-          dob = `${birthYear}-01-01`;
-        }
-
-        // Get household info to extract site_id and locality_code
-        const household = await db
-          .select()
-          .from(schema.households)
-          .where(eq(schema.households.household_id, householdId))
-          .limit(1);
-
-        if (household.length === 0) continue;
-
-        const hh = household[0];
-
-        // Upsert household member
-        await db
-          .insert(schema.householdMembers)
-          .values({
-            household_member_id: memberId,
-            household_id: householdId,
-            member_number: memberNumber,
-            site_id: hh.site_id,
-            locality_code: hh.locality_code,
-            name: member.member_name,
-            relationship_to_head: member.member_relationship_to_head,
-            sex: member.member_sex,
-            date_of_birth: dob,
-            date_of_birth_precision:
-              dob && !member.member_date_of_birth ? "inferred_from_age" : "reported",
-            reported_age_years: member.member_age_years,
-            reported_age_as_of_date: interviewDate,
-            dob_inference_rule_version: dob && !member.member_date_of_birth ? "1.0" : undefined,
-            member_status: "active",
-            usual_resident: true,
-            member_source: "baseline",
-            created_at: new Date(),
-            updated_at: new Date(),
-          })
-          .onConflictDoUpdate({
-            target: [schema.householdMembers.household_id, schema.householdMembers.member_number],
-            set: {
-              name: member.member_name,
-              relationship_to_head: member.member_relationship_to_head,
-              sex: member.member_sex,
-              date_of_birth: dob,
-              date_of_birth_precision:
-                dob && !member.member_date_of_birth ? "inferred_from_age" : "reported",
-              reported_age_years: member.member_age_years,
-              reported_age_as_of_date: interviewDate,
-              updated_at: new Date(),
-            },
-          });
-      } catch (memberErr) {
-        console.error(`Failed to process household member for ${householdId}:`, memberErr);
-      }
+    // Infer DOB from age if not provided
+    let dob = member.member_date_of_birth;
+    if (!dob && member.member_age_years) {
+      const currentYear = new Date().getFullYear();
+      const birthYear = currentYear - parseInt(member.member_age_years);
+      dob = `${birthYear}-01-01`;
     }
 
-    // Generate HRF tasks if this is baseline enrollment
+    // Get household info to extract site_id and locality_code
     const household = await db
       .select()
       .from(schema.households)
       .where(eq(schema.households.household_id, householdId))
       .limit(1);
 
-    if (household.length > 0) {
-      const hh = household[0];
-      const tasks = onHouseholdEnrolled({
-        event_id: randomUUID(),
-        household_id: householdId,
-        baseline_completed_date: interviewDate,
-      });
-      await writeTasksFromDescriptors(tasks);
+    if (household.length === 0) {
+      throw new Error(`Household not found during HHQ promotion: ${householdId}`);
     }
-  } catch (err) {
-    console.error(`Error in promoteHhq for ${householdId}:`, err);
+
+    const hh = household[0];
+
+    // Upsert household member
+    await db
+      .insert(schema.householdMembers)
+      .values({
+        household_member_id: memberId,
+        household_id: householdId,
+        member_number: memberNumber,
+        site_id: hh.site_id,
+        locality_code: hh.locality_code,
+        name: member.member_name,
+        relationship_to_head: member.member_relationship_to_head,
+        sex: member.member_sex,
+        date_of_birth: dob,
+        date_of_birth_precision:
+          dob && !member.member_date_of_birth ? "inferred_from_age" : "reported",
+        reported_age_years: member.member_age_years,
+        reported_age_as_of_date: interviewDate,
+        dob_inference_rule_version: dob && !member.member_date_of_birth ? "1.0" : undefined,
+        member_status: "active",
+        usual_resident: true,
+        member_source: "baseline",
+        created_at: new Date(),
+        updated_at: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: [schema.householdMembers.household_id, schema.householdMembers.member_number],
+        set: {
+          name: member.member_name,
+          relationship_to_head: member.member_relationship_to_head,
+          sex: member.member_sex,
+          date_of_birth: dob,
+          date_of_birth_precision:
+            dob && !member.member_date_of_birth ? "inferred_from_age" : "reported",
+          reported_age_years: member.member_age_years,
+          reported_age_as_of_date: interviewDate,
+          updated_at: new Date(),
+        },
+      });
   }
+
+  // Generate HRF tasks if this is baseline enrollment
+  const household = await db
+    .select()
+    .from(schema.households)
+    .where(eq(schema.households.household_id, householdId))
+    .limit(1);
+
+  if (household.length === 0) {
+    throw new Error(`Household not found after HHQ promotion: ${householdId}`);
+  }
+
+  const tasks = onHouseholdEnrolled({
+    event_id: randomUUID(),
+    household_id: householdId,
+    baseline_completed_date: interviewDate,
+  });
+  await writeTasksFromDescriptors(tasks);
 }
 
 async function promoteWq(

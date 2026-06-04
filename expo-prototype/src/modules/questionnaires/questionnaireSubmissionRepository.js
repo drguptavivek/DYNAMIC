@@ -28,12 +28,8 @@ export async function saveQuestionnaireSubmission({ formCode, formVersion, paylo
   if (!storage) {
     // No localStorage, but still try to complete task if taskId provided
     if (taskId) {
-      try {
-        const { completeTask } = await import("../tasks/taskRepository.js");
-        await completeTask(taskId, formCode, formVersion, JSON.stringify(payload), "unknown");
-      } catch (error) {
-        console.error("Error completing task:", error);
-      }
+      const { completeTask } = await import("../tasks/taskRepository.js");
+      await completeTask(taskId, formCode, formVersion, JSON.stringify(payload), "unknown");
     }
     return submission;
   }
@@ -43,13 +39,8 @@ export async function saveQuestionnaireSubmission({ formCode, formVersion, paylo
 
   // Link to task if taskId provided
   if (taskId) {
-    try {
-      const { completeTask } = await import("../tasks/taskRepository.js");
-      await completeTask(taskId, formCode, formVersion, JSON.stringify(payload), "unknown");
-    } catch (error) {
-      console.error("Error completing task:", error);
-      // Don't throw - submission still saved
-    }
+    const { completeTask } = await import("../tasks/taskRepository.js");
+    await completeTask(taskId, formCode, formVersion, JSON.stringify(payload), "unknown");
   }
 
   return submission;
