@@ -82,8 +82,9 @@ household_id  +  member_number
 ```
 Member record  →  (if WQ shows pregnant)  →  Eligible Woman
                                               └── Pregnancy #1
-                                                   └── Pregnancy Outcome (POF)
-                                                         └── Child
+                                                   └── Birth Outcome(s) from POF
+                                                         ├── Child / newborn record
+                                                         └── HH roster member if alive
                                               └── Pregnancy #2 (if later detected)
                                                    └── ...
 ```
@@ -93,21 +94,46 @@ Member record  →  (if WQ shows pregnant)  →  Eligible Woman
 - The eligible_woman record is created from the member record — it is the **same person**, just tracked specifically for pregnancy follow-up.
 - A woman can have multiple pregnancies over the study period (sequential, never overlapping).
 - Pregnancy begins on the date pregnancy is detected/enrolled. All future follow-up dates (PFF visits, NFF visits) are anchored to this date. **Late completion of a visit never shifts future dates.**
-- If a pregnancy ends (birth, stillbirth, miscarriage), the pregnancy is closed and a child record (or stillbirth record) is created.
+- If a pregnancy ends (live birth, stillbirth, miscarriage, abortion, or other outcome), the pregnancy is closed and one or more **Birth Outcome** records are created.
 
 ---
 
-## Layer 5: Children
+## Layer 5: Birth Outcomes
 
-**What it is:** A child record is created when a pregnancy outcome is recorded (POF form). The child belongs to the pregnancy and, through it, to the mother member and household.
+**What it is:** A Birth Outcome is the per-outcome record created from the Pregnancy Outcome Form (POF). It records exactly what happened at the end of a pregnancy. It is not the same as the pregnancy, and it is not the same as a household member.
 
 ```
-Child ID = pregnancy_id + birth_sequence (e.g. twins get separate records)
+BirthOutcome ID = pregnancy_id + outcome_sequence
+Example:
+pregnancy_id = "preg-001"
+birth_outcome_id = "preg-001-01"
+birth_outcome_id = "preg-001-02"   (e.g. twin)
 ```
 
 **Key rules:**
 
-- Stillbirths also get a child record (with birth_status = 'stillbirth').
+- A single pregnancy can produce more than one Birth Outcome (twins/triplets, or mixed live birth and stillbirth outcomes).
+- Each Birth Outcome gets its own permanent `birth_outcome_id`.
+- A Birth Outcome can be live birth, stillbirth, miscarriage, abortion, or another protocol-defined outcome.
+- Live-born outcomes create a child/newborn record and are added to the household roster as new household members with the next available member numbers.
+- Stillbirths and other non-living outcomes are preserved as Birth Outcome evidence but are not added to the living household roster.
+- Birth Assessment (BAF), Stillbirth Follow-up (SBF), Newborn Follow-up (NFF), Child Death (CDF), and Verbal Autopsy (VA) link to the relevant `birth_outcome_id` and, where applicable, the child/newborn record.
+
+---
+
+## Layer 6: Children
+
+**What it is:** A child record is created for each live-born or stillborn Birth Outcome that needs child-level follow-up. The child belongs to the Birth Outcome, pregnancy, mother member, and household.
+
+```
+Child ID = birth_outcome_id + child_sequence
+```
+
+**Key rules:**
+
+- Twins and triplets get separate Birth Outcome IDs and separate child records.
+- Live-born children are also added to the household member roster with the next available member number.
+- Stillbirths can have child/stillbirth records for follow-up and audit, but they are not added as living household members.
 - If a child dies, their vital status is updated. A Verbal Autopsy (VA) task is generated 30 days after death.
 - VA tasks are currently **disabled** (form not yet available) — they appear in worklists but cannot be opened until the VA questionnaire is finalised (~4 weeks from study start).
 
@@ -133,8 +159,8 @@ Key fields extracted automatically:
   - HHQ answers → household enrolled, member list created
   - WQ answers  → pregnancy detected, eligible woman flagged
   - PEF answers → pregnancy details (LMP, EDD, GA) recorded
-  - POF answers → pregnancy closed, child record created
-  - BAF answers → child birth details recorded
+  - POF answers → pregnancy closed, Birth Outcome record(s) created
+  - BAF answers → birth outcome and child birth details recorded
   - NFF answers → child vital status updated
   - CDF answers → child death recorded, VA task generated
     ↓
@@ -223,7 +249,8 @@ Flags are reviewed and resolved by the Site Research Scientist in the admin app.
 | Member record         | Yes (once added)            | HHQ or valid addition                 | SRS via correction                            |
 | Eligible woman        | Yes                         | WQ form submission (if pregnant)      | System only                                   |
 | Pregnancy             | Yes (immutable once closed) | WQ or subsequent detection            | System/SRS                                    |
-| Child                 | Yes                         | POF form submission                   | System/SRS                                    |
+| Birth Outcome         | Yes                         | POF form submission                   | System/SRS                                    |
+| Child                 | Yes                         | Live/stillbirth Birth Outcome         | System/SRS                                    |
 | Form response         | **Immutable forever**       | Field worker via task                 | No one — corrections create new audit records |
 | Task                  | Auto-generated              | System (event-triggered or scheduled) | SRS can close with reason                     |
 | Correction            | Append-only log             | SRS via admin app                     | Cannot be deleted                             |
