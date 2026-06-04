@@ -218,6 +218,7 @@ _Last updated: 2026-06-03 — auto-maintained by Copilot CLI session_
 | `6020b4f` | Cover masters APIs with integration tests | masters + mapping-frame integration coverage; root `npm test` now includes API integration tests |
 | `f6cd0e8` | Surface sync and promotion failures | swallowed sync/promotion errors now fail loudly instead of looking like empty queues |
 | `1b394b7` | Replace shared prefill placeholders | UF/PFF/POF/BAF/SBF/NFF/CDF/VA shared-context prefill builders return read-only lineage fields |
+| `8fd6e67` | Cover admin correction workflows | data-quality review, form-response detail, correction audit/update coverage; admin corrections migration added |
 
 ## API Integration Coverage (2026-06-04)
 
@@ -238,7 +239,8 @@ _Last updated: 2026-06-03 — auto-maintained by Copilot CLI session_
 | Admin app bypassed Nginx edge by default     | `apps/admin/src/lib/api.ts`                                                                                | ✅ Done    | default API base is relative `/api/v1`; explicit `VITE_API_BASE_URL` still supported  |
 | Swallowed promotion/sync errors              | `eventProcessor.ts`, `taskWriter.ts`, Expo task/event/submission repositories                              | ✅ Done    | sync/promotion failures now surface instead of looking like empty queues or success   |
 | Shared-context placeholder prefill builders  | `packages/shared-context/src/prefill.ts`, `types.ts`, `builders.ts`, `__tests__/prefill.test.ts`           | ✅ Done    | UF/PFF/POF/BAF/SBF/NFF/CDF/VA builders now return read-only lineage prefill fields    |
-| Nested workspace `node_modules` cleanup      | workspace filesystem                                                                                       | ✅ Done    | removed nested ignored installs; only root `node_modules` remains; `npm test` and typecheck still pass |
+| Nested workspace `node_modules` audit        | workspace filesystem                                                                                       | ✅ Done    | nested installs are currently needed for workspace-local bins such as Vite; root `npm install --cache /private/tmp/dynamic-npm-cache` restored them |
+| Nginx dev edge smoke                         | `http://127.0.0.1:58080`                                                                                   | ✅ Done    | `/` serves Vite with `/@vite/client`; `/health` proxies to API; protected `/api/v1/*` routes traverse Nginx |
 
 ## Protocol Forms API Alignment (2026-06-04)
 
