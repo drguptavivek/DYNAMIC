@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import { createServer } from "node:http";
 import test from "node:test";
 
@@ -60,6 +61,35 @@ test("API smoke flow passes against dynamic_test without a fixed port", async ()
       body: JSON.stringify({ device_id: "test-smoke-device", records: [] }),
     });
     assert.equal(push.accepted, 0);
+
+    const failedPromotionResponseId = `failed-pef-${randomUUID()}`;
+    const failedPromotionPush = await fetchData(`${baseUrl}/sync/push`, {
+      method: "POST",
+      headers: { Authorization: authorization },
+      body: JSON.stringify({
+        device_id: "test-smoke-device",
+        records: [
+          {
+            type: "form_response",
+            data: {
+              id: failedPromotionResponseId,
+              household_id: "1-DEV001-0001-01",
+              subject_id: "missing-active-pregnancy",
+              subject_type: "woman",
+              form_code: "PEF",
+              form_version: "2026.05.17",
+              answers_json: { pef_any_time_during_pregnancy_ultrasound: 0 },
+              submitted_at: "2026-09-02T00:00:00.000Z",
+            },
+          },
+        ],
+      }),
+    });
+    assert.equal(failedPromotionPush.accepted, 0);
+    assert.deepEqual(failedPromotionPush.accepted_records, []);
+    assert.equal(failedPromotionPush.errors.length, 1);
+    assert.equal(failedPromotionPush.errors[0].id, failedPromotionResponseId);
+    assert.match(failedPromotionPush.errors[0].error, /No active pregnancy found/);
   } finally {
     await new Promise<void>((resolve, reject) => {
       server.close((error) => (error ? reject(error) : resolve()));
