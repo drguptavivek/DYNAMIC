@@ -228,6 +228,7 @@ _Last updated: 2026-06-03 — auto-maintained by Copilot CLI session_
 | Smoke sync/API         | `apps/api/src/smoke.integration.ts`        | ✅ Done | auth, current user assignments, protocol config/forms, pull/push smoke path           |
 | Admin users            | `apps/api/src/admin-users.integration.ts`  | ✅ Done | central admin create/patch/deactivate user and area-assignment lifecycle              |
 | Masters/mapping frame  | `apps/api/src/masters.integration.ts`      | ✅ Done | central admin sites, localities, mapping-frame create/read/patch/bulk/conflict coverage |
+| Admin correction/review workflows | `apps/api/src/admin-workflows.integration.ts`, `drizzle/migrations/0001_admin_corrections.sql` | ✅ Done | data-quality review, form-response detail, correction audit/update coverage; missing admin corrections migration fixed |
 
 ## Review Fixes — Error Visibility + Test Edge (2026-06-04)
 
