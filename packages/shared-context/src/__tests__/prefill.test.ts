@@ -7,9 +7,16 @@ import {
   buildPefPrefill,
   buildUfPrefill,
   buildPffPrefill,
+  buildPofPrefill,
+  buildBafPrefill,
+  buildSbfPrefill,
+  buildNffPrefill,
+  buildCdfPrefill,
+  buildVaPrefill,
   buildHouseholdContext,
   buildMemberContext,
   buildPregnancyContext,
+  buildChildContext,
 } from "../index";
 
 describe("Prefill mappers", () => {
@@ -102,14 +109,72 @@ describe("Prefill mappers", () => {
     assert.equal(readOnly.fields.length, 6);
   });
 
-  it("stub builders return empty prefill and empty readOnly fields list", () => {
-    const result1 = buildUfPrefill();
-    const result2 = buildPffPrefill();
+  it("pregnancy and child follow-up builders prefill read-only lineage fields", () => {
+    const household = {
+      householdId: "hh-001",
+      siteId: "SITE-B",
+      localityCode: "LOC-002",
+      householdNumber: "456",
+    };
+    const member = {
+      memberId: "mem-002",
+      householdId: "hh-001",
+      memberNumber: 2,
+      fullName: "Sarah Smith",
+      sex: "F",
+      dob: "1995-03-20",
+    };
+    const pregnancy = {
+      pregnancyId: "preg-001",
+      womanId: "woman-001",
+      householdMemberId: "mem-002",
+      enrollmentDate: "2026-02-01",
+    };
+    const child = {
+      childId: "child-001",
+      pregnancyId: "preg-001",
+      motherMemberId: "mem-002",
+      childName: "Baby Smith",
+      birthStatus: "live_birth",
+    };
+    const task = {
+      taskId: "task-002",
+      taskType: "NFF",
+      protocolVisitLabel: "28d",
+      targetDate: "2026-10-01",
+      windowStart: "2026-09-28",
+      windowEnd: "2026-10-08",
+    };
 
-    assert.deepEqual(result1.prefill, {});
-    assert.deepEqual(result1.readOnly.fields, []);
-    assert.deepEqual(result2.prefill, {});
-    assert.deepEqual(result2.readOnly.fields, []);
+    const uf = buildUfPrefill(member, pregnancy);
+    assert.equal(uf.prefill.uf_woman_name, "Sarah Smith");
+    assert.equal(uf.prefill.uf_pregnancy_id, "preg-001");
+    assert.deepEqual(uf.readOnly.fields, ["uf_woman_name", "uf_pregnancy_id"]);
+
+    const pff = buildPffPrefill(member, pregnancy, task);
+    assert.equal(pff.prefill.pff_pregnancy_id, "preg-001");
+    assert.equal(pff.prefill.pff_visit_type, "28d");
+    assert.equal(pff.readOnly.fields.includes("pff_woman_hh_member_id"), true);
+
+    const pof = buildPofPrefill(member, pregnancy);
+    assert.equal(pof.prefill.pof_woman_permanent_id, "woman-001");
+
+    const baf = buildBafPrefill(member, pregnancy, child);
+    assert.equal(baf.prefill.baf_birth_id, "child-001");
+
+    const sbf = buildSbfPrefill(member, pregnancy, child);
+    assert.equal(sbf.prefill.sbf_birth_id, "child-001");
+
+    const nff = buildNffPrefill(member, pregnancy, child, task);
+    assert.equal(nff.prefill.nff_child_name, "Baby Smith");
+    assert.equal(nff.prefill.nff_round_visit, "28d");
+
+    const cdf = buildCdfPrefill(member, pregnancy, child);
+    assert.equal(cdf.prefill.cdf_birth_id, "child-001");
+
+    const va = buildVaPrefill(child, household, task);
+    assert.equal(va.prefill.va_child_id, "child-001");
+    assert.equal(va.prefill.va_household_id, "hh-001");
   });
 
   it("buildHouseholdContext maps row correctly", () => {
@@ -163,5 +228,21 @@ describe("Prefill mappers", () => {
     assert.equal(context.womanId, "wom-001");
     assert.equal(context.enrollmentDate, "2026-02-01");
     assert.equal(context.lmpDate, "2026-01-15");
+  });
+
+  it("buildChildContext maps optional child name", () => {
+    const row = {
+      child_id: "child-001",
+      pregnancy_id: "preg-001",
+      mother_member_id: "mem-002",
+      child_name: "Baby Smith",
+      birth_status: "live_birth",
+    };
+
+    const context = buildChildContext(row);
+
+    assert.equal(context.childId, "child-001");
+    assert.equal(context.childName, "Baby Smith");
+    assert.equal(context.birthStatus, "live_birth");
   });
 });

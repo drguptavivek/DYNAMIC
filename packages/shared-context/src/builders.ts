@@ -45,6 +45,11 @@ export function buildChildContext(row: Record<string, unknown>): ChildContext {
     childId: String(row.child_id ?? row.childId ?? ""),
     pregnancyId: String(row.pregnancy_id ?? row.pregnancyId ?? ""),
     motherMemberId: String(row.mother_member_id ?? row.motherMemberId ?? ""),
+    childName: row.child_name
+      ? String(row.child_name)
+      : row.childName
+        ? String(row.childName)
+        : undefined,
     birthDate: row.birth_date ? String(row.birth_date) : undefined,
     sex: row.sex ? String(row.sex) : undefined,
     birthStatus: String(row.birth_status ?? row.birthStatus ?? ""),

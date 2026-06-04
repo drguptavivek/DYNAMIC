@@ -37,6 +37,7 @@ export interface ChildContext {
   childId: string;
   pregnancyId: string;
   motherMemberId: string;
+  childName?: string;
   birthDate?: string;
   sex?: string;
   birthStatus: string;

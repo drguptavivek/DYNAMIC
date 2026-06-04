@@ -233,6 +233,7 @@ _Last updated: 2026-06-03 — auto-maintained by Copilot CLI session_
 | Persistent test DB coverage could be skipped | `package.json`, `apps/api/src/masters.integration.ts`                                                      | ✅ Done    | root `npm test` now runs API integration tests; masters test uses high-range random IDs |
 | Admin app bypassed Nginx edge by default     | `apps/admin/src/lib/api.ts`                                                                                | ✅ Done    | default API base is relative `/api/v1`; explicit `VITE_API_BASE_URL` still supported  |
 | Swallowed promotion/sync errors              | `eventProcessor.ts`, `taskWriter.ts`, Expo task/event/submission repositories                              | ✅ Done    | sync/promotion failures now surface instead of looking like empty queues or success   |
+| Shared-context placeholder prefill builders  | `packages/shared-context/src/prefill.ts`, `types.ts`, `builders.ts`, `__tests__/prefill.test.ts`           | ✅ Done    | UF/PFF/POF/BAF/SBF/NFF/CDF/VA builders now return read-only lineage prefill fields    |
 
 ## Protocol Forms API Alignment (2026-06-04)
 
