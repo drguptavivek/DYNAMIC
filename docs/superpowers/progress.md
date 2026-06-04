@@ -209,6 +209,22 @@ _Last updated: 2026-06-03 — auto-maintained by Copilot CLI session_
 | Commit    | Summary                           | Notes                                                                                             |
 | --------- | --------------------------------- | ------------------------------------------------------------------------------------------------- |
 | `5e8e100` | Fullstack offline sync foundation | API/admin/shared package scaffold, Expo worklist/sync wiring, legacy `backend/` workspace removed |
+| `753ec6c` | Align protocol forms API with plan | protocol forms list/detail/batch endpoints with bundled form catalog |
+| `2225673` | Use bundled form checksums in sync pull | sync pull protocol payload now uses the same bundled form catalog checksums |
+| `d396d16` | Refresh Expo form cache from protocol checksums | Expo sync stores protocol form cache metadata from backend pull |
+| `8ca380f` | Add custom dev ports and Nginx HMR edge | custom Postgres/API/admin/Expo/Nginx ports; Nginx dev routing with Vite HMR; API dev without watcher |
+| `f846be7` | Add API integration smoke tests | `dynamic_test` setup on Postgres port 55432 plus API smoke integration coverage |
+| `ee00a6f` | Cover admin user APIs with integration tests | user CRUD and area-assignment integration coverage; route mounting fixed |
+
+## API Integration Coverage (2026-06-04)
+
+| Area                   | Files                                      | Status  | Notes                                                                                 |
+| ---------------------- | ------------------------------------------ | ------- | ------------------------------------------------------------------------------------- |
+| API app test factory   | `apps/api/src/app.ts`, `index.ts`          | ✅ Done | tests create an in-process server; dev/prod entrypoint listens separately             |
+| Dev/test DB seed       | `apps/api/src/dev/dev-seed.ts`             | ✅ Done | shared field worker + central admin seed data for smoke/integration tests             |
+| Smoke sync/API         | `apps/api/src/smoke.integration.ts`        | ✅ Done | auth, current user assignments, protocol config/forms, pull/push smoke path           |
+| Admin users            | `apps/api/src/admin-users.integration.ts`  | ✅ Done | central admin create/patch/deactivate user and area-assignment lifecycle              |
+| Masters/mapping frame  | `apps/api/src/masters.integration.ts`      | ✅ Done | central admin sites, localities, mapping-frame create/read/patch/bulk/conflict coverage |
 
 ## Protocol Forms API Alignment (2026-06-04)
 

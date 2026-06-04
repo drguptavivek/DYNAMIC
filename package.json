@@ -18,7 +18,8 @@
   "scripts": {
     "start": "npm --workspace expo-prototype run start",
     "web": "npm --workspace expo-prototype run web",
-    "test": "npm run test --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present && npm run test:integration",
+    "test:integration": "npm --workspace @dynamic/api run test:integration",
     "test:prototype": "npm --workspace expo-prototype run test",
     "api": "npm --workspace @dynamic/api run start",
     "api:dev": "npm --workspace @dynamic/api run dev",
