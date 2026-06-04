@@ -217,3 +217,10 @@ _Last updated: 2026-06-03 — auto-maintained by Copilot CLI session_
 | `apps/api` — Form catalog       | `src/lib/formCatalog.ts`, `formCatalog.test.ts` | ✅ Done | reads bundled `expo-prototype/src/data/forms` index/files, normalizes version, computes SHA-256 checksums                                             |
 | `apps/api` — Protocol endpoints | `src/routes/protocol.ts`                        | ✅ Done | aligns with plan endpoints: `/protocol/forms`, `/protocol/forms/:code`, `/protocol/forms/batch`; keeps aliases                                        |
 | Verification                    | root scripts + Ox tools                         | ✅ Done | `npm test`, `npm run typecheck`, `npm run build`, touched-path `oxfmt --check`, `oxlint`, and `git diff --check` pass; `oxlint` reports warnings only |
+
+## Sync Form Version Manifest (2026-06-04)
+
+| Package/App                     | Files                                          | Status  | Notes                                                                               |
+| ------------------------------- | ---------------------------------------------- | ------- | ----------------------------------------------------------------------------------- |
+| `apps/api` — Sync form manifest | `src/routes/sync.ts`, `src/lib/formCatalog.ts` | ✅ Done | `/sync/pull` form_versions now come from the bundled catalog with SHA-256 checksums |
+| Verification                    | API tests + API typecheck                      | ✅ Done | 6/6 API form-catalog tests pass; API typecheck passes                               |

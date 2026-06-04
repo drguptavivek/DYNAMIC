@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   getAllFormMetadata,
   getFormJson,
+  getFormVersionManifest,
   getLatestFormMetadata,
   getRequestedFormsWithJson,
 } from "./formCatalog";
@@ -27,6 +28,16 @@ test("lists all bundled form metadata with checksums", () => {
     ["HHQ", "WQ", "HRF", "PEF", "UF", "PFF", "POF", "BAF", "SBF", "NFF", "CDF"],
   );
   assert.ok(forms.every((form) => /^[a-f0-9]{64}$/.test(form.checksum)));
+});
+
+test("returns slim form version manifest for sync pull", () => {
+  const manifest = getFormVersionManifest();
+
+  assert.equal(manifest.length, 11);
+  assert.deepEqual(Object.keys(manifest[0]).sort(), ["checksum", "form_code", "version"]);
+  assert.equal(manifest[0].form_code, "HHQ");
+  assert.equal(manifest[0].version, "2026.05.09");
+  assert.match(manifest[0].checksum, /^[a-f0-9]{64}$/);
 });
 
 test("returns full SurveyJS JSON for a bundled form", () => {

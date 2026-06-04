@@ -24,6 +24,8 @@ export type FormWithJson = FormMetadata & {
   json: Record<string, unknown>;
 };
 
+export type FormVersionManifestEntry = Pick<FormMetadata, "form_code" | "version" | "checksum">;
+
 const FORM_DIR_CANDIDATES = [
   path.resolve(process.cwd(), "expo-prototype/src/data/forms"),
   path.resolve(process.cwd(), "../../expo-prototype/src/data/forms"),
@@ -78,6 +80,14 @@ export function getAllFormMetadata(): FormMetadata[] {
   return readFormIndex()
     .map((entry) => getLatestFormMetadata(entry.form_code))
     .filter((metadata): metadata is FormMetadata => metadata !== null);
+}
+
+export function getFormVersionManifest(): FormVersionManifestEntry[] {
+  return getAllFormMetadata().map(({ form_code, version, checksum }) => ({
+    form_code,
+    version,
+    checksum,
+  }));
 }
 
 export function getFormJsonPath(code: string): string | null {

@@ -4,6 +4,7 @@ import { db, schema } from "../db";
 import { requireAuth } from "../middleware/auth";
 import { sendError, sendSuccess } from "../lib/errors";
 import { processFormResponse } from "../services/eventProcessor";
+import { getFormVersionManifest } from "../lib/formCatalog";
 
 const router = Router();
 
@@ -246,20 +247,7 @@ router.get("/pull", requireAuth, async (req: Request, res: Response) => {
             .offset(offset)
         : [];
 
-    // Form versions for all 11 forms
-    const formVersions = [
-      { form_code: "HHQ", version: "2026.05.09" },
-      { form_code: "WQ", version: "2026.05.11" },
-      { form_code: "HRF", version: "2026.05.13" },
-      { form_code: "PEF", version: "2026.05.14" },
-      { form_code: "UF", version: "2026.05.11" },
-      { form_code: "PFF", version: "2026.05.13" },
-      { form_code: "POF", version: "2026.05.09" },
-      { form_code: "BAF", version: "2026.05.11" },
-      { form_code: "SBF", version: "2026.05.14" },
-      { form_code: "NFF", version: "2026.05.11" },
-      { form_code: "CDF", version: "2026.05.09" },
-    ];
+    const formVersions = getFormVersionManifest();
 
     // Determine if there are more pages
     const hasMore =
