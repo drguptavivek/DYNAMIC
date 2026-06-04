@@ -232,3 +232,20 @@ _Last updated: 2026-06-03 — auto-maintained by Copilot CLI session_
 | `expo-prototype` — Form cache sync  | `src/modules/sync/syncService.js`, `syncWorkflow.js` | ✅ Done | compares pull `form_versions` checksums, downloads changed forms from `/protocol/forms/batch`, stores JSON in `sync_meta` |
 | `expo-prototype` — Sync UI feedback | `SyncScreen.js` via `formatSyncCompletionMessage`    | ✅ Done | sync completion message now reports updated form count                                                                    |
 | Verification                        | prototype tests + root typecheck                     | ✅ Done | sync workflow helper tests pass; root typecheck passes                                                                    |
+
+## Custom Dev Ports + Live API Smoke (2026-06-04)
+
+| Area                    | Files / Commands                                                                         | Status  | Notes                                                                                                  |
+| ----------------------- | ---------------------------------------------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------ |
+| Custom local ports      | `docker-compose.yml`, API/admin/Expo scripts and API config                              | ✅ Done | Postgres `55432`, Redis `56379`, API `3310`, admin dev `5317`, admin preview `5318`, Expo `8088`       |
+| Shared Postgres test DB | `apps/api/src/dev/ensure-test-db.ts`, `npm --workspace @dynamic/api run db:test:migrate` | ✅ Done | creates/migrates `dynamic_test` inside the same Postgres container and host port as `dynamic_dev`      |
+| Live API smoke          | `apps/api/src/dev/smoke-dev.ts`, `npm --workspace @dynamic/api run smoke:dev`            | ✅ Done | seeded dev user/data, then verified login, `/users/me`, protocol forms, sync pull, and empty sync push |
+| Runtime hygiene         | API process on port `3310`                                                               | ✅ Done | stopped after smoke; port `3310` verified free                                                         |
+
+## Same-VM Edge Routing (2026-06-04)
+
+| Area                 | Files                                             | Status  | Notes                                                                                                     |
+| -------------------- | ------------------------------------------------- | ------- | --------------------------------------------------------------------------------------------------------- |
+| Nginx edge container | `docker-compose.yml`, `deploy/nginx/default.conf` | ✅ Done | proxies admin Vite dev server with HMR and proxies `/api/v1/*` plus `/health` to API port `3310`; local edge port `58080` |
+| Deployment note      | `docs/deployment/same-vm-nginx.md`                | ✅ Done | recommends Nginx for same-VM admin/API routing; HAProxy reserved for later multi-node load balancing      |
+| Dev proxy verification | curl + API smoke through `http://localhost:58080` | ✅ Done | verified admin HTML, Vite client, `/health`, and full API smoke through Nginx                             |

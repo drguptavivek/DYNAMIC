@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "expo start",
-    "web": "expo start --web",
+    "start": "expo start --port 8088",
+    "web": "expo start --web --port 8088",
     "test": "node src/tests/validateForms.mjs && node src/tests/validateStudyMasters.mjs && node src/tests/validateHouseholdRepository.mjs && node src/tests/validateSyncWorkflow.mjs"
   },
   "dependencies": {

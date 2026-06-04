@@ -3,14 +3,17 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "tsx src/index.ts",
     "test": "tsx --test \"src/**/*.test.ts\"",
     "build": "tsc --project tsconfig.json",
     "typecheck": "tsc --noEmit --project tsconfig.json",
     "start": "node dist/index.js",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:push": "drizzle-kit push"
+    "db:test:ensure": "tsx src/dev/ensure-test-db.ts",
+    "db:test:migrate": "npm run db:test:ensure && DATABASE_URL=${TEST_DATABASE_URL:-postgresql://dynamic:dynamic_dev_password@localhost:55432/dynamic_test} drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "smoke:dev": "tsx src/dev/smoke-dev.ts"
   },
   "dependencies": {
     "@dynamic/shared-domain": "*",

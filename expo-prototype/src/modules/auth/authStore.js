@@ -1,7 +1,7 @@
 import { getDb } from "../tasks/taskSchema.js";
+import { API_BASE_URL } from "../sync/apiConfig.js";
 
 let currentUser = null;
-const API_BASE_URL = "http://localhost:3000/api/v1";
 
 function unwrapApiData(payload) {
   return payload && Object.prototype.hasOwnProperty.call(payload, "data") ? payload.data : payload;

@@ -1,14 +1,13 @@
 import { getDb } from "../tasks/taskSchema.js";
 import * as taskRepository from "../tasks/taskRepository.js";
 import * as authStore from "../auth/authStore.js";
+import { API_BASE_URL } from "./apiConfig.js";
 import {
   buildPushRecords,
   collectAcceptedSyncIds,
   collectAssignedLocalityCodes,
   selectChangedFormCodes,
 } from "./syncWorkflow.js";
-
-const API_BASE_URL = "http://localhost:3000/api/v1";
 
 function unwrapApiData(payload) {
   return payload && Object.prototype.hasOwnProperty.call(payload, "data") ? payload.data : payload;

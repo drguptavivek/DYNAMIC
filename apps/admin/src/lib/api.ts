@@ -1,4 +1,4 @@
-const BASE = "http://localhost:3000/api/v1";
+const BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3310/api/v1";
 
 function getToken(): string | null {
   return localStorage.getItem("access_token");
