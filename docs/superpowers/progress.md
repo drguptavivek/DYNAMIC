@@ -257,3 +257,4 @@ _Last updated: 2026-06-03 — auto-maintained by Copilot CLI session_
 | Express app factory       | `apps/api/src/app.ts`, `apps/api/src/app.test.ts`             | ✅ Done | route setup can be tested in-process without binding API port `3310`                                |
 | Reusable dev/test seed    | `apps/api/src/dev/dev-seed.ts`, `smoke-dev.ts`                | ✅ Done | smoke script and integration tests share deterministic seed data                                    |
 | Test DB integration smoke | `apps/api/src/smoke.integration.ts`, `npm --workspace @dynamic/api run test:integration` | ✅ Done | migrates `dynamic_test`, then verifies login, `/users/me`, protocol forms, sync pull, and sync push |
+| Admin user integration    | `apps/api/src/admin-users.integration.ts`, `apps/api/src/app.ts` | ✅ Done | covers central-admin user create/patch/deactivate and area assignment create/list/delete; fixed area-assignment router mount |

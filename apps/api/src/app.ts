@@ -28,7 +28,7 @@ export function createApp() {
   app.use("/api/v1/auth", authRouter);
   app.use("/api/v1/devices", requireAuth, devicesRouter);
   app.use("/api/v1/users", requireAuth, usersRouter);
-  app.use("/api/v1/users", requireAuth, areaAssignmentsRouter);
+  app.use("/api/v1", requireAuth, areaAssignmentsRouter);
   app.use("/api/v1/masters", requireAuth, mastersRouter);
   app.use("/api/v1/households", requireAuth, householdsRouter);
   app.use("/api/v1/tasks", requireAuth, tasksRouter);

@@ -8,9 +8,16 @@ export const smokeUser = {
   password: "dev-password",
 };
 
+export const adminUser = {
+  user_id: "dev-central-admin",
+  username: "dev-central-admin",
+  password: "dev-admin-password",
+};
+
 export async function upsertDevSeed() {
   const now = new Date();
   const passwordHash = await hashPassword(smokeUser.password);
+  const adminPasswordHash = await hashPassword(adminUser.password);
 
   await db
     .insert(schema.studySites)
@@ -109,6 +116,31 @@ export async function upsertDevSeed() {
         role: "field_worker",
         site_id: 1,
         password_hash: passwordHash,
+        active: true,
+        updated_at: now,
+      },
+    });
+
+  await db
+    .insert(schema.users)
+    .values({
+      user_id: adminUser.user_id,
+      username: adminUser.username,
+      display_name: "Dev Central Admin",
+      role: "central_admin",
+      site_id: null,
+      password_hash: adminPasswordHash,
+      active: true,
+      created_at: now,
+      updated_at: now,
+    })
+    .onConflictDoUpdate({
+      target: schema.users.user_id,
+      set: {
+        display_name: "Dev Central Admin",
+        role: "central_admin",
+        site_id: null,
+        password_hash: adminPasswordHash,
         active: true,
         updated_at: now,
       },
