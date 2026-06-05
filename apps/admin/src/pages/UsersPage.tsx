@@ -13,6 +13,28 @@ interface User {
   created_at?: string;
 }
 
+interface AreaAssignment {
+  assignment_id: string;
+  user_id: string;
+  site_id: number;
+  locality_code: string;
+  role: string;
+  active_from?: string;
+  active_to?: string;
+}
+
+interface Locality {
+  site_id: number;
+  locality_code: string;
+  locality_name: string;
+}
+
+interface Site {
+  site_id: number;
+  site_code: string;
+  site_name: string;
+}
+
 const ROLES = [
   "field_worker",
   "field_supervisor",
@@ -22,6 +44,9 @@ const ROLES = [
 
 export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
+  const [assignmentsByUser, setAssignmentsByUser] = useState<Record<string, AreaAssignment[]>>({});
+  const [localityNamesByKey, setLocalityNamesByKey] = useState<Record<string, string>>({});
+  const [siteNamesById, setSiteNamesById] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
@@ -34,6 +59,11 @@ export default function UsersPage() {
     loadUsers();
   }, [search, roleFilter, activeFilter]);
 
+  useEffect(() => {
+    loadSiteNames();
+    loadLocalityNames();
+  }, []);
+
   async function loadUsers() {
     setLoading(true);
     setError("");
@@ -45,10 +75,56 @@ export default function UsersPage() {
 
       const data = await api.get<User[]>(`/users?${params.toString()}`);
       setUsers(data);
+      await loadAreaAssignments(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load users");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadAreaAssignments(usersToLoad: User[]) {
+    const entries = await Promise.all(
+      usersToLoad.map(async (user) => {
+        try {
+          const assignments = await api.get<AreaAssignment[]>(
+            `/users/${user.user_id}/area-assignments`,
+          );
+          return [user.user_id, assignments] as const;
+        } catch {
+          return [user.user_id, []] as const;
+        }
+      }),
+    );
+    setAssignmentsByUser(Object.fromEntries(entries));
+  }
+
+  async function loadLocalityNames() {
+    try {
+      const localities = await api.get<Locality[]>("/masters/localities");
+      setLocalityNamesByKey(
+        Object.fromEntries(
+          localities.map((locality) => [
+            `${locality.site_id}-${locality.locality_code}`,
+            locality.locality_name,
+          ]),
+        ),
+      );
+    } catch {
+      setLocalityNamesByKey({});
+    }
+  }
+
+  async function loadSiteNames() {
+    try {
+      const sites = await api.get<Site[]>("/masters/sites");
+      setSiteNamesById(
+        Object.fromEntries(
+          sites.map((site) => [site.site_id, `${site.site_name} (${site.site_code})`]),
+        ),
+      );
+    } catch {
+      setSiteNamesById({});
     }
   }
 
@@ -154,6 +230,7 @@ export default function UsersPage() {
                 <th>Display Name</th>
                 <th>Role</th>
                 <th>Site ID</th>
+                <th>Assigned Localities</th>
                 <th>Active</th>
                 <th>Actions</th>
               </tr>
@@ -164,7 +241,15 @@ export default function UsersPage() {
                   <td>{user.username}</td>
                   <td>{user.display_name || "—"}</td>
                   <td>{user.role.replace(/_/g, " ")}</td>
-                  <td>{user.site_id || "—"}</td>
+                  <td>
+                    <SiteId siteId={user.site_id} siteNamesById={siteNamesById} />
+                  </td>
+                  <td>
+                    <AssignmentBadges
+                      assignments={assignmentsByUser[user.user_id] ?? []}
+                      localityNamesByKey={localityNamesByKey}
+                    />
+                  </td>
                   <td>{user.active ? "Yes" : "No"}</td>
                   <td>
                     <button onClick={() => setEditingUser(user)} className={styles.actionBtn}>
@@ -197,6 +282,59 @@ export default function UsersPage() {
           onSubmit={handleEditUser}
         />
       )}
+    </div>
+  );
+}
+
+function SiteId({
+  siteId,
+  siteNamesById,
+}: {
+  siteId?: number;
+  siteNamesById: Record<number, string>;
+}) {
+  if (!siteId) {
+    return <span className={styles.muted}>—</span>;
+  }
+
+  return (
+    <span className={styles.siteId} title={siteNamesById[siteId] ?? String(siteId)}>
+      {siteId}
+    </span>
+  );
+}
+
+function AssignmentBadges({
+  assignments,
+  localityNamesByKey,
+}: {
+  assignments: AreaAssignment[];
+  localityNamesByKey: Record<string, string>;
+}) {
+  const now = new Date();
+  const activeAssignments = assignments.filter((assignment) => {
+    const activeFrom = assignment.active_from ? new Date(assignment.active_from) : null;
+    const activeTo = assignment.active_to ? new Date(assignment.active_to) : null;
+    return (!activeFrom || activeFrom <= now) && (!activeTo || activeTo >= now);
+  });
+
+  if (activeAssignments.length === 0) {
+    return <span className={styles.muted}>—</span>;
+  }
+
+  return (
+    <div className={styles.assignmentList}>
+      {activeAssignments.map((assignment) => {
+        const key = `${assignment.site_id}-${assignment.locality_code}`;
+        const localityName = localityNamesByKey[key];
+        const title = localityName ? `${localityName} (${key})` : key;
+
+        return (
+          <span key={assignment.assignment_id} className={styles.assignmentBadge} title={title}>
+            {key}
+          </span>
+        );
+      })}
     </div>
   );
 }

@@ -2,7 +2,7 @@
 
 ## Context
 
-The DYNAMIC PreTSING study needs a longitudinal data-capture system with offline Android data collection, a Postgres backend, a Vite React admin app, and shared workflow rules. The architecture design is approved (`docs/superpowers/specs/2026-06-03-dynamic-fullstack-offline-architecture-design.md`).
+The DYNAMIC - PreTESTING study needs a longitudinal data-capture system with offline Android data collection, a Postgres backend, a Vite React admin app, and shared workflow rules. The architecture design is approved (`docs/superpowers/specs/2026-06-03-dynamic-fullstack-offline-architecture-design.md`).
 
 **Current state**: A working prototype exists but is purely form-first — plain JavaScript, JSON file persistence, no task system, no domain model, no sync, no scheduling. The prototype must be rebuilt on a normalized domain model with immutable form responses, domain events, follow-up tasks, and area-scoped offline sync.
 

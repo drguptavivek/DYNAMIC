@@ -2,14 +2,15 @@ import assert from "node:assert/strict";
 
 const {
   extractHouseholdRegistryFields,
-  assertUniqueMembers
+  assertUniqueMembers,
+  buildHouseholdIdFromHhqData
 } = await import("../modules/households/householdIds.js");
 
 const sample = {
   hhq_site_id: 1,
   hhq_locality_code: 2,
-  hhq_structure_map_id: "42",
-  hhq_household_number: "3",
+  hhq_structure_map_id: "0042",
+  hhq_household_number: "03",
   hhq_household_address: "Test address",
   hhq_household_head_name: "Head Name",
   hhq_consent_study_provide_pis_explain_study_adult_member: 1,
@@ -39,10 +40,19 @@ const sample = {
 };
 
 const record = extractHouseholdRegistryFields(sample);
-assert.equal(record.household_id, "1-2-0042-03");
+assert.equal(record.household_id, "1-02-0042-03");
 assert.equal(record.members.length, 2);
-assert.equal(record.members[0].individual_id, "1-2-0042-03-01");
-assert.equal(record.members[1].individual_id, "1-2-0042-03-02");
+assert.equal(record.members[0].individual_id, "1-02-0042-03-01");
+assert.equal(record.members[1].individual_id, "1-02-0042-03-02");
+assert.equal(buildHouseholdIdFromHhqData(sample), "1-02-0042-03");
+assert.equal(
+  buildHouseholdIdFromHhqData({ ...sample, hhq_structure_map_id: "42" }),
+  ""
+);
+assert.equal(
+  buildHouseholdIdFromHhqData({ ...sample, hhq_household_number: "3" }),
+  ""
+);
 
 assert.doesNotThrow(() => assertUniqueMembers(record));
 

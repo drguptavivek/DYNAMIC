@@ -7,6 +7,7 @@ import DashboardPage from "./pages/DashboardPage";
 import UsersPage from "./pages/UsersPage";
 import MastersPage from "./pages/MastersPage";
 import HouseholdsPage from "./pages/HouseholdsPage";
+import HouseholdMembersPage from "./pages/HouseholdMembersPage";
 import TasksPage from "./pages/TasksPage";
 import DataQualityPage from "./pages/DataQualityPage";
 import SyncLogsPage from "./pages/SyncLogsPage";
@@ -26,10 +27,16 @@ export default function App() {
               <Route path="/users" element={<UsersPage />} />
               <Route path="/masters" element={<MastersPage />} />
               <Route path="/households" element={<HouseholdsPage />} />
+              <Route path="/household-members" element={<HouseholdMembersPage />} />
+              <Route path="/household-members/:householdId" element={<HouseholdMembersPage />} />
               <Route path="/tasks" element={<TasksPage />} />
               <Route path="/data-quality" element={<DataQualityPage />} />
               <Route path="/sync-logs" element={<SyncLogsPage />} />
               <Route path="/eligible-women" element={<EligibleWomenPage />} />
+              <Route
+                path="/eligible-pregnancy-tracking"
+                element={<EligibleWomenPage trackingOnly />}
+              />
               <Route path="/pregnant-women" element={<PregnantWomenPage />} />
               <Route path="/children" element={<ChildrenPage />} />
             </Route>

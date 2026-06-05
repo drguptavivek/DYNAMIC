@@ -14,12 +14,15 @@ import { surveyLocalization } from "survey-core";
 
 import { formCatalog } from "./data/formCatalog";
 import { HouseholdModule } from "./modules/households/HouseholdModule";
+import { HouseholdMembersModule } from "./modules/households/HouseholdMembersModule";
+import { initializeHouseholdRepository, listLocalities } from "./modules/households/householdRepository.js";
 import { QuestionnaireDashboard } from "./modules/questionnaires/QuestionnaireDashboard";
 import { ROUTES, navigateTo, parseHashRoute } from "./navigation/routes";
 import { initTaskDb } from "./modules/tasks/taskSchema.js";
 import { WorklistScreen } from "./modules/worklist/WorklistScreen.js";
 import { TaskDetailModal } from "./modules/worklist/TaskDetailModal.js";
 import { SyncScreen } from "./modules/sync/SyncScreen.js";
+import { FieldWorkerProfileScreen } from "./modules/profile/FieldWorkerProfileScreen.js";
 import * as authStore from "./modules/auth/authStore.js";
 import { getHouseholdContextSync } from "./lib/householdSync.js";
 import { buildPrefillForTask } from "./lib/prefillMapper.js";
@@ -27,9 +30,11 @@ import { buildPrefillForTask } from "./lib/prefillMapper.js";
 surveyLocalization.supportedLocales = ["default", "hi"];
 
 const HOUSEHOLDS_VIEW = "households";
+const HOUSEHOLD_MEMBERS_VIEW = "householdMembers";
 const QUESTIONNAIRE_VIEW = "questionnaire";
 const WORKLIST_VIEW = "worklist";
 const SYNC_VIEW = "sync";
+const PROFILE_VIEW = "profile";
 const LOGIN_VIEW = "login";
 const DEFAULT_FORM_CODE = formCatalog[0]?.form_code;
 
@@ -41,8 +46,8 @@ function getCurrentRoute() {
 }
 
 function LoginScreen({ onLogin }) {
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+  const [username, setUsername] = useState("dev-field-worker");
+  const [password, setPassword] = useState("dev-password");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -128,6 +133,8 @@ export default function App() {
   const [currentTaskContext, setCurrentTaskContext] = useState(null);
   const [prefillData, setPrefillData] = useState(null);
   const [readOnlyFields, setReadOnlyFields] = useState(null);
+  const [selectedLocalityCode, setSelectedLocalityCode] = useState("");
+  const [localities, setLocalities] = useState([]);
 
   useEffect(() => {
     async function initApp() {
@@ -139,6 +146,8 @@ export default function App() {
         if (restoreUser) {
           setUser(restoreUser);
         }
+
+        await refreshLocalities();
       } catch (error) {
         console.error("App init error:", error);
       }
@@ -164,6 +173,11 @@ export default function App() {
 
   if (!user) {
     return <LoginScreen onLogin={setUser} />;
+  }
+
+  async function refreshLocalities() {
+    await initializeHouseholdRepository();
+    setLocalities(await listLocalities());
   }
 
   function handleOpenTask(task) {
@@ -226,6 +240,22 @@ export default function App() {
           <View style={styles.userSection}>
             <Text style={styles.userName}>{user.username || user.email || "Field Worker"}</Text>
             <Pressable
+              onPress={() => navigateTo(ROUTES.profile)}
+              style={[
+                styles.profileButton,
+                route.view === PROFILE_VIEW && styles.profileButtonActive
+              ]}
+            >
+              <Text
+                style={[
+                  styles.profileButtonText,
+                  route.view === PROFILE_VIEW && styles.profileButtonTextActive
+                ]}
+              >
+                View Profile
+              </Text>
+            </Pressable>
+            <Pressable
               onPress={() => {
                 authStore.logout();
                 setUser(null);
@@ -236,6 +266,20 @@ export default function App() {
               <Text style={styles.logoutButtonText}>Logout</Text>
             </Pressable>
           </View>
+
+          <Pressable
+            onPress={() => navigateTo(ROUTES.profile)}
+            style={[styles.menuItem, route.view === PROFILE_VIEW && styles.activeMenuItem]}
+          >
+            <Text
+              style={[
+                styles.menuItemText,
+                route.view === PROFILE_VIEW && styles.activeMenuItemText,
+              ]}
+            >
+              👤 Profile
+            </Text>
+          </Pressable>
 
           <Pressable
             onPress={() => navigateTo(ROUTES.worklist)}
@@ -276,6 +320,23 @@ export default function App() {
             </Text>
           </Pressable>
 
+          <Pressable
+            onPress={() => navigateTo(ROUTES.householdMembers)}
+            style={[
+              styles.menuItem,
+              route.view === HOUSEHOLD_MEMBERS_VIEW && styles.activeMenuItem,
+            ]}
+          >
+            <Text
+              style={[
+                styles.menuItemText,
+                route.view === HOUSEHOLD_MEMBERS_VIEW && styles.activeMenuItemText,
+              ]}
+            >
+              👥 Household Members
+            </Text>
+          </Pressable>
+
           <View style={styles.menuSection}>
             <Text style={styles.menuSectionLabel}>Questionnaires</Text>
             {formCatalog.map((form) => {
@@ -309,25 +370,52 @@ export default function App() {
               <Text style={styles.subtle}>
                 {route.view === WORKLIST_VIEW
                   ? "Worklist"
+                  : route.view === PROFILE_VIEW
+                    ? "Profile"
                   : route.view === SYNC_VIEW
                     ? "Sync Status"
                     : route.view === HOUSEHOLDS_VIEW
                       ? "Households"
-                      : route.view === QUESTIONNAIRE_VIEW
-                        ? `${route.formCode}`
-                        : "Home"}
+                      : route.view === HOUSEHOLD_MEMBERS_VIEW
+                        ? "Household Members"
+                        : route.view === QUESTIONNAIRE_VIEW
+                          ? `${route.formCode}`
+                          : "Home"}
               </Text>
             </View>
+            <LocalitySwitcher
+              localities={localities}
+              selectedLocalityCode={selectedLocalityCode}
+              onChange={setSelectedLocalityCode}
+            />
           </View>
 
           {route.view === "home" ? (
             <View style={styles.homeCanvas} />
+          ) : route.view === PROFILE_VIEW ? (
+            <FieldWorkerProfileScreen user={user} localities={localities} />
           ) : route.view === WORKLIST_VIEW ? (
-            <WorklistScreen onOpenTask={handleOpenTask} />
+            <WorklistScreen
+              onOpenTask={handleOpenTask}
+              selectedLocalityCode={selectedLocalityCode}
+            />
           ) : route.view === SYNC_VIEW ? (
             <SyncScreen />
           ) : route.view === HOUSEHOLDS_VIEW ? (
-            <HouseholdModule locale={locale} mode={route.mode} onLocaleChange={setLocale} />
+            <HouseholdModule
+              locale={locale}
+              mode={route.mode}
+              onLocaleChange={setLocale}
+              user={user}
+              localities={localities}
+              selectedLocalityCode={selectedLocalityCode}
+              onDataSynced={refreshLocalities}
+            />
+          ) : route.view === HOUSEHOLD_MEMBERS_VIEW ? (
+            <HouseholdMembersModule
+              householdId={route.householdId}
+              selectedLocalityCode={selectedLocalityCode}
+            />
           ) : (
             <QuestionnaireDashboard
               formCode={route.formCode}
@@ -349,6 +437,62 @@ export default function App() {
         onOpenForm={handleOpenFormFromTask}
       />
     </SafeAreaView>
+  );
+}
+
+function LocalitySwitcher({ localities, selectedLocalityCode, onChange }) {
+  return (
+    <View style={styles.localitySwitcher}>
+      <Text style={styles.localityLabel}>Locality</Text>
+      <ScrollLocalities
+        localities={localities}
+        selectedLocalityCode={selectedLocalityCode}
+        onChange={onChange}
+      />
+    </View>
+  );
+}
+
+function ScrollLocalities({ localities, selectedLocalityCode, onChange }) {
+  return (
+    <View style={styles.localityOptions}>
+      <Pressable
+        onPress={() => onChange("")}
+        style={[
+          styles.localityOption,
+          !selectedLocalityCode && styles.localityOptionActive
+        ]}
+      >
+        <Text
+          style={[
+            styles.localityOptionText,
+            !selectedLocalityCode && styles.localityOptionTextActive
+          ]}
+        >
+          All
+        </Text>
+      </Pressable>
+      {localities.map((locality) => {
+        const active = selectedLocalityCode === locality.locality_code;
+        return (
+          <Pressable
+            key={locality.locality_code}
+            onPress={() => onChange(locality.locality_code)}
+            style={[styles.localityOption, active && styles.localityOptionActive]}
+          >
+            <Text
+              style={[
+                styles.localityOptionText,
+                active && styles.localityOptionTextActive
+              ]}
+              numberOfLines={1}
+            >
+              {locality.locality_name || locality.locality_code}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
   );
 }
 
@@ -375,6 +519,49 @@ const styles = StyleSheet.create({
     backgroundColor: "#ffffff",
     borderBottomWidth: 1,
     borderBottomColor: "#d8dee4",
+  },
+  localitySwitcher: {
+    marginLeft: "auto",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexShrink: 1,
+  },
+  localityLabel: {
+    fontSize: 12,
+    color: "#667085",
+    fontWeight: "800",
+    textTransform: "uppercase",
+  },
+  localityOptions: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    justifyContent: "flex-end",
+    gap: 6,
+    maxWidth: 620,
+  },
+  localityOption: {
+    minHeight: 34,
+    justifyContent: "center",
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#d8dee4",
+    backgroundColor: "#ffffff",
+  },
+  localityOptionActive: {
+    borderColor: "#1f6feb",
+    backgroundColor: "#eef6ff",
+  },
+  localityOptionText: {
+    maxWidth: 150,
+    fontSize: 13,
+    color: "#475467",
+    fontWeight: "800",
+  },
+  localityOptionTextActive: {
+    color: "#1f6feb",
   },
   menuButton: {
     width: 44,
@@ -447,6 +634,27 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#18202a",
     marginBottom: 8,
+  },
+  profileButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: "#eef6ff",
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "#bfdbfe",
+    marginBottom: 8,
+  },
+  profileButtonActive: {
+    backgroundColor: "#1f6feb",
+    borderColor: "#1f6feb",
+  },
+  profileButtonText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#1f6feb",
+  },
+  profileButtonTextActive: {
+    color: "#ffffff",
   },
   logoutButton: {
     paddingHorizontal: 12,

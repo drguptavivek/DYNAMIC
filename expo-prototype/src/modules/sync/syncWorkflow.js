@@ -73,7 +73,15 @@ export function formatSyncCompletionMessage(result = {}) {
     `${count} ${count === 1 ? singular : plural}`;
 
   if (typeof result.pulled === "number") {
-    parts.push(`${result.pulled} pulled`);
+    parts.push(`${pluralize(result.pulled, "task")} pulled`);
+  }
+
+  if (typeof result.pulledHouseholds === "number") {
+    parts.push(`${pluralize(result.pulledHouseholds, "household")} pulled`);
+  }
+
+  if (typeof result.pulledMembers === "number") {
+    parts.push(`${pluralize(result.pulledMembers, "member")} pulled`);
   }
 
   if (typeof result.pushed === "number") {

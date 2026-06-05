@@ -13,10 +13,34 @@ export function normalizeIdPart(value, fallback, width) {
 export function buildHouseholdId(record) {
   return [
     normalizeIdPart(record.site_id, "0"),
-    normalizeIdPart(record.locality_code, "000"),
+    normalizeIdPart(record.locality_code, "00", 2),
     normalizeIdPart(record.structure_number, "0000", 4),
     normalizeIdPart(record.household_number, "00", 2)
   ].join("-");
+}
+
+export function buildHouseholdIdFromHhqData(hhqData) {
+  const siteId = hhqData.hhq_site_id;
+  const localityCode = hhqData.hhq_locality_code;
+  const structureNumber = hhqData.hhq_structure_map_id;
+  const householdNumber = hhqData.hhq_household_number;
+
+  if (!siteId || !localityCode || !structureNumber || !householdNumber) {
+    return "";
+  }
+  if (!/^[0-9]{4}$/.test(String(structureNumber))) {
+    return "";
+  }
+  if (!/^[0-9]{2}$/.test(String(householdNumber))) {
+    return "";
+  }
+
+  return buildHouseholdId({
+    site_id: siteId,
+    locality_code: localityCode,
+    structure_number: structureNumber,
+    household_number: householdNumber
+  });
 }
 
 export function buildIndividualId(householdId, lineNumber) {
@@ -88,7 +112,7 @@ export function extractHouseholdRegistryFields(hhqData) {
     sync_status: "local",
     updated_at: updatedAt
   };
-  const householdId = buildHouseholdId(record);
+  const householdId = buildHouseholdIdFromHhqData(hhqData) || buildHouseholdId(record);
   return {
     ...record,
     household_id: householdId,

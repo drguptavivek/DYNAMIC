@@ -1,4 +1,4 @@
-# DYNAMIC PreTSING — Implementation Progress
+# DYNAMIC - PreTESTING — Implementation Progress
 
 _Last updated: 2026-06-03 — auto-maintained by Copilot CLI session_
 

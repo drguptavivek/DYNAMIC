@@ -1,6 +1,11 @@
 import { getDb } from "../tasks/taskSchema.js";
 import * as taskRepository from "../tasks/taskRepository.js";
 import * as authStore from "../auth/authStore.js";
+import {
+  clearHouseholdCacheForSync,
+  getHouseholdCacheInfo,
+  saveSyncedHouseholdsAndMembers,
+} from "../households/householdRepository.js";
 import { API_BASE_URL } from "./apiConfig.js";
 import {
   buildPushRecords,
@@ -74,9 +79,20 @@ export async function refreshAssignments() {
   }
 
   const user = unwrapApiData(await response.json());
+  authStore.storeUser(user);
   const localityCodes = collectAssignedLocalityCodes(user);
   setAssignedLocalities(localityCodes);
   return { user, localityCodes };
+}
+
+function emitProgress(onProgress, progress) {
+  if (typeof onProgress === "function") {
+    onProgress(progress);
+  }
+}
+
+function shouldShowBatchProgress(batch, totalBatches, hasNextBatch = true) {
+  return batch === 1 || batch % 50 === 0 || !hasNextBatch || batch === totalBatches;
 }
 
 export function getLastSyncAt() {
@@ -171,7 +187,8 @@ export async function refreshProtocolForms(formVersions = []) {
   return { formsUpdated: forms.length };
 }
 
-export async function pullSync() {
+export async function pullSync(options = {}) {
+  const { onProgress } = options;
   const token = authStore.getToken();
   if (!token) {
     throw new Error("Not authenticated");
@@ -180,49 +197,176 @@ export async function pullSync() {
   const lastSync = getLastSyncAt();
   const localities = getAssignedLocalities();
 
-  const params = new URLSearchParams();
+  const baseParams = new URLSearchParams();
   if (lastSync) {
-    params.append("since", lastSync);
+    baseParams.append("since", lastSync);
   }
   if (localities.length > 0) {
-    params.append("locality_codes", localities.join(","));
+    baseParams.append("locality_codes", localities.join(","));
   }
+  baseParams.append("include_members", "false");
+  baseParams.append("page_size", "500");
 
   try {
-    const response = await fetch(`${API_BASE_URL}/sync/pull?${params.toString()}`, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-    });
+    let nextPageToken = null;
+    let pulledTasks = 0;
+    let pulledHouseholds = 0;
+    let pulledMembers = 0;
+    let formsUpdated = 0;
+    let lastData = null;
+    let batch = 0;
 
-    if (!response.ok) {
-      throw new Error(`Pull sync failed: ${response.statusText}`);
-    }
+    do {
+      batch += 1;
+      if (shouldShowBatchProgress(batch, 0)) {
+        emitProgress(onProgress, {
+          stage: "pull-households",
+          message: `Fetching household batch ${batch}`,
+          batch,
+          pulledTasks,
+          pulledHouseholds,
+          pulledMembers,
+          formsUpdated,
+        });
+      }
+      const params = new URLSearchParams(baseParams);
+      if (nextPageToken) {
+        params.set("page_token", nextPageToken);
+      }
 
-    const data = unwrapApiData(await response.json());
-    const { tasks = [], form_versions: formVersions = [], protocol_config_version } = data;
+      const response = await fetch(`${API_BASE_URL}/sync/pull?${params.toString()}`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
 
-    if (tasks.length > 0) {
-      await taskRepository.saveTaskBatch(tasks);
-    }
+      if (!response.ok) {
+        throw new Error(`Pull sync failed: ${response.statusText}`);
+      }
 
-    const formRefresh = await refreshProtocolForms(formVersions);
-    if (protocol_config_version) {
-      setMeta("protocol_config_version", protocol_config_version);
-    }
+      const data = unwrapApiData(await response.json());
+      lastData = data;
+      const {
+        households = [],
+        tasks = [],
+        form_versions: formVersions = [],
+        protocol_config_version,
+        total_households: totalHouseholds = 0,
+        total_household_batches: totalHouseholdBatches = 0,
+        household_batch_number: householdBatchNumber = batch,
+      } = data;
 
-    const nextCursor = selectNextPullCursor(data, lastSync);
+      const showReceivedProgress = shouldShowBatchProgress(
+        householdBatchNumber,
+        totalHouseholdBatches,
+        Boolean(data.next_page_token),
+      );
+
+      if (showReceivedProgress) {
+        emitProgress(onProgress, {
+          stage: "pull-households-received",
+          message: `Fetched household batch ${householdBatchNumber} of ${totalHouseholdBatches || "?"}`,
+          batch: householdBatchNumber,
+          totalBatches: totalHouseholdBatches,
+          totalHouseholds,
+          currentHouseholds: households.length,
+          pulledTasks,
+          pulledHouseholds,
+          pulledMembers,
+          formsUpdated,
+        });
+      }
+
+      if (households.length > 0) {
+        if (showReceivedProgress) {
+          emitProgress(onProgress, {
+            stage: "pull-members",
+            message: `Fetching members for batch ${householdBatchNumber} of ${totalHouseholdBatches || "?"}`,
+            batch: householdBatchNumber,
+            totalBatches: totalHouseholdBatches,
+            totalHouseholds,
+            currentHouseholds: households.length,
+            pulledTasks,
+            pulledHouseholds,
+            pulledMembers,
+            formsUpdated,
+          });
+        }
+        const householdMembers = await pullMembersForHouseholds(
+          token,
+          households.map((household) => household.household_id),
+        );
+        await saveSyncedHouseholdsAndMembers(households, householdMembers);
+        pulledHouseholds += households.length;
+        pulledMembers += householdMembers.length;
+      }
+
+      if (tasks.length > 0) {
+        await taskRepository.saveTaskBatch(tasks);
+        pulledTasks += tasks.length;
+      }
+
+      const formRefresh = await refreshProtocolForms(formVersions);
+      formsUpdated += formRefresh.formsUpdated;
+      if (protocol_config_version) {
+        setMeta("protocol_config_version", protocol_config_version);
+      }
+
+      nextPageToken = data.next_page_token || null;
+      if (shouldShowBatchProgress(householdBatchNumber, totalHouseholdBatches, Boolean(nextPageToken))) {
+        emitProgress(onProgress, {
+          stage: nextPageToken ? "pull-next" : "pull-complete",
+          message: nextPageToken
+            ? `Completed batch ${householdBatchNumber} of ${totalHouseholdBatches || "?"}; next update at batch ${Math.min(householdBatchNumber + 50, totalHouseholdBatches || householdBatchNumber + 50)}`
+            : "All pull batches complete",
+          batch: householdBatchNumber,
+          totalBatches: totalHouseholdBatches,
+          totalHouseholds,
+          hasNextBatch: Boolean(nextPageToken),
+          pulledTasks,
+          pulledHouseholds,
+          pulledMembers,
+          formsUpdated,
+        });
+      }
+    } while (nextPageToken);
+
+    const nextCursor = lastData ? selectNextPullCursor(lastData, lastSync) : null;
     if (nextCursor) {
       setLastSyncAt(nextCursor);
     }
 
-    return { pulled: tasks.length, formsUpdated: formRefresh.formsUpdated };
+    return {
+      pulled: pulledTasks,
+      pulledHouseholds,
+      pulledMembers,
+      formsUpdated,
+    };
   } catch (error) {
     console.error("Pull sync error:", error);
     throw error;
   }
+}
+
+async function pullMembersForHouseholds(token, householdIds) {
+  if (!Array.isArray(householdIds) || householdIds.length === 0) return [];
+  const response = await fetch(`${API_BASE_URL}/sync/pull/members`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ household_ids: householdIds }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Pull household members failed: ${response.statusText}`);
+  }
+
+  const data = unwrapApiData(await response.json());
+  return Array.isArray(data.household_members) ? data.household_members : [];
 }
 
 export async function pushSync() {
@@ -294,15 +438,55 @@ export async function pushSync() {
   }
 }
 
-export async function syncAll() {
+export async function syncAll(options = {}) {
+  const { onProgress } = options;
   try {
+    emitProgress(onProgress, {
+      stage: "assignments",
+      message: "Refreshing assigned localities",
+    });
     const assignmentResult = await refreshAssignments();
+    emitProgress(onProgress, {
+      stage: "push",
+      message: "Uploading pending records",
+      localities: assignmentResult.localityCodes.length,
+    });
     const pushResult = await pushSync();
-    const pullResult = await pullSync();
+    emitProgress(onProgress, {
+      stage: "pull-start",
+      message: "Starting household sync batches",
+      localities: assignmentResult.localityCodes.length,
+      pushed: pushResult.pushed,
+      events: pushResult.events,
+    });
+    if (getHouseholdCacheInfo().isWebStorage) {
+      emitProgress(onProgress, {
+        stage: "clear-household-cache",
+        message: "Clearing browser household cache",
+        localities: assignmentResult.localityCodes.length,
+        pushed: pushResult.pushed,
+        events: pushResult.events,
+      });
+      clearHouseholdCacheForSync();
+    }
+    const pullResult = await pullSync({ onProgress });
+    emitProgress(onProgress, {
+      stage: "complete",
+      message: "Sync complete",
+      localities: assignmentResult.localityCodes.length,
+      pushed: pushResult.pushed,
+      events: pushResult.events,
+      pulled: pullResult.pulled,
+      pulledHouseholds: pullResult.pulledHouseholds,
+      pulledMembers: pullResult.pulledMembers,
+      formsUpdated: pullResult.formsUpdated,
+    });
     return {
       success: true,
       localities: assignmentResult.localityCodes.length,
       pulled: pullResult.pulled,
+      pulledHouseholds: pullResult.pulledHouseholds,
+      pulledMembers: pullResult.pulledMembers,
       pushed: pushResult.pushed,
       events: pushResult.events,
       formsUpdated: pullResult.formsUpdated,

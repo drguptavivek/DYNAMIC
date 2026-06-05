@@ -8,7 +8,7 @@ import {
 } from "../modules/studyMasters/studyMasters.js";
 
 assert.equal(STUDY_SITES.length, 4);
-assert.equal(getStudySiteName(1), "Bareilley");
+assert.equal(getStudySiteName(1), "Bareilly");
 assert.equal(getStudySiteName(2), "Ballabgarh");
 assert.equal(listStudyVillages(2).length, 4);
 assert.equal(getStudyVillageName(2, "101"), "Sunped");

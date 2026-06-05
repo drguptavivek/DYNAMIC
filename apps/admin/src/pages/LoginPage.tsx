@@ -30,7 +30,7 @@ export default function LoginPage() {
     <div className={styles.container}>
       <div className={styles.card}>
         <h1>DYNAMIC Admin</h1>
-        <p className={styles.subtitle}>PreTSING Study Management</p>
+        <p className={styles.subtitle}>DYNAMIC - PreTESTING Study Management</p>
 
         <form onSubmit={handleSubmit}>
           <div className={styles.formGroup}>

@@ -1,4 +1,4 @@
-const STORAGE_KEY = "dynamic_web_sqlite_v1";
+const STORAGE_KEY = "dynamic_web_sqlite_v2";
 
 function defaultState() {
   return {

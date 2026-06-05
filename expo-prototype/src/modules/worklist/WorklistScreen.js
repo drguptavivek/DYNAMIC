@@ -86,7 +86,7 @@ function TaskRow({ task, onPress, onLongPress }) {
   );
 }
 
-export function WorklistScreen({ onOpenTask, syncService: syncServiceProp }) {
+export function WorklistScreen({ onOpenTask, syncService: syncServiceProp, selectedLocalityCode }) {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -94,12 +94,15 @@ export function WorklistScreen({ onOpenTask, syncService: syncServiceProp }) {
 
   useEffect(() => {
     loadTasks();
-  }, []);
+  }, [selectedLocalityCode]);
 
   function loadTasks() {
     setLoading(true);
     try {
-      const allTasks = taskRepository.listTasks({ status: "open" });
+      const allTasks = taskRepository.listTasks({
+        status: "open",
+        locality_code: selectedLocalityCode || undefined,
+      });
       setTasks(allTasks);
       setSyncError(null);
     } catch (error) {

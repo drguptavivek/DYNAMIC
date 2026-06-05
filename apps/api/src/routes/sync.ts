@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { eq, and, gt, inArray } from "drizzle-orm";
+import { eq, and, gt, inArray, count } from "drizzle-orm";
 import { db, schema } from "../db";
 import { requireAuth } from "../middleware/auth";
 import { sendError, sendSuccess } from "../lib/errors";
@@ -117,6 +117,7 @@ router.get("/pull", requireAuth, async (req: Request, res: Response) => {
       since,
       page_size: pageSizeStr,
       page_token: pageTokenStr,
+      include_members: includeMembersStr,
     } = req.query;
 
     const siteId = siteIdStr ? parseInt(siteIdStr as string, 10) : undefined;
@@ -126,6 +127,7 @@ router.get("/pull", requireAuth, async (req: Request, res: Response) => {
     }
 
     let pageSize = Math.min(1000, Math.max(1, parseInt(pageSizeStr as string, 10) || 500));
+    const includeMembers = includeMembersStr !== "false";
     let offset = 0;
     const initialSyncCursor = new Date().toISOString();
     let sinceCursor = since ? (since as string) : new Date(0).toISOString();
@@ -145,20 +147,18 @@ router.get("/pull", requireAuth, async (req: Request, res: Response) => {
       return sendError(res, 400, "INVALID_SYNC_CURSOR", "Invalid sync cursor");
     }
     const syncCursorSince = since || pageTokenStr ? sinceCursor : initialSyncCursor;
-    const scopedHouseholdRows =
-      localityCodes.length > 0 || siteId !== undefined
-        ? await db
-            .select({ household_id: schema.households.household_id })
-            .from(schema.households)
-            .where(and(...buildLocationConditions(schema.households, siteId, localityCodes)))
-        : [];
-    const scopedHouseholdIds = scopedHouseholdRows.map((row) => row.household_id);
-
     // Query each entity
     const householdConditions: any[] = [
       gt(schema.households.updated_at, sinceDate),
       ...buildLocationConditions(schema.households, siteId, localityCodes),
     ];
+
+    const householdCountRows = await db
+      .select({ count: count() })
+      .from(schema.households)
+      .where(and(...householdConditions));
+    const totalHouseholds = householdCountRows[0]?.count || 0;
+    const totalHouseholdBatches = Math.ceil(totalHouseholds / pageSize);
 
     const householdsData = await db
       .select()
@@ -170,18 +170,21 @@ router.get("/pull", requireAuth, async (req: Request, res: Response) => {
     const householdsResult = householdsData.slice(0, pageSize);
     const hasMoreHouseholds = householdsData.length > pageSize;
 
-    // Query household members
-    const membersConditions: any[] = [
-      gt(schema.householdMembers.updated_at, sinceDate),
-      ...buildLocationConditions(schema.householdMembers, siteId, localityCodes),
-    ];
-
-    const householdMembers = await db
-      .select()
-      .from(schema.householdMembers)
-      .where(and(...membersConditions))
-      .limit(pageSize)
-      .offset(offset);
+    // Query household members only when requested. Large offline sync pulls
+    // households first, then pulls members for each household page.
+    const householdMembers = includeMembers
+      ? await db
+          .select()
+          .from(schema.householdMembers)
+          .where(
+            and(
+              gt(schema.householdMembers.updated_at, sinceDate),
+              ...buildLocationConditions(schema.householdMembers, siteId, localityCodes),
+            ),
+          )
+          .limit(pageSize)
+          .offset(offset)
+      : [];
 
     // Query eligible women
     const womenConditions: any[] = [
@@ -209,24 +212,52 @@ router.get("/pull", requireAuth, async (req: Request, res: Response) => {
       .limit(pageSize)
       .offset(offset);
 
-    // Query children
-    const childrenConditions: any[] = [gt(schema.children.updated_at, sinceDate)];
-    if (localityCodes.length > 0) {
-      if (scopedHouseholdIds.length > 0) {
-        childrenConditions.push(inArray(schema.children.household_id, scopedHouseholdIds));
-      } else {
-        childrenConditions.push(eq(schema.children.household_id, "__no_matching_household__"));
-      }
-    } else if (siteId !== undefined) {
-      childrenConditions.push(eq(schema.children.site_id, siteId));
-    }
-
-    const childrenData = await db
-      .select()
-      .from(schema.children)
-      .where(and(...childrenConditions))
-      .limit(pageSize)
-      .offset(offset);
+    // Query children. Children do not carry locality_code, so locality scope is
+    // applied through households instead of materializing a large household_id IN list.
+    const childrenBaseConditions: any[] = [gt(schema.children.updated_at, sinceDate)];
+    const childrenData =
+      localityCodes.length > 0
+        ? await db
+            .select({
+              child_id: schema.children.child_id,
+              birth_id: schema.children.birth_id,
+              pregnancy_id: schema.children.pregnancy_id,
+              woman_id: schema.children.woman_id,
+              household_id: schema.children.household_id,
+              site_id: schema.children.site_id,
+              birth_rank: schema.children.birth_rank,
+              birth_date: schema.children.birth_date,
+              birth_status: schema.children.birth_status,
+              live_birth_status: schema.children.live_birth_status,
+              current_vital_status: schema.children.current_vital_status,
+              death_date: schema.children.death_date,
+              gestational_age_at_birth: schema.children.gestational_age_at_birth,
+              sex: schema.children.sex,
+              birth_weight_grams: schema.children.birth_weight_grams,
+              source_event_id: schema.children.source_event_id,
+              sync_status: schema.children.sync_status,
+              created_at: schema.children.created_at,
+              updated_at: schema.children.updated_at,
+            })
+            .from(schema.children)
+            .innerJoin(
+              schema.households,
+              eq(schema.children.household_id, schema.households.household_id),
+            )
+            .where(and(...childrenBaseConditions, inArray(schema.households.locality_code, localityCodes)))
+            .limit(pageSize)
+            .offset(offset)
+        : await db
+            .select()
+            .from(schema.children)
+            .where(
+              and(
+                ...childrenBaseConditions,
+                ...(siteId !== undefined ? [eq(schema.children.site_id, siteId)] : []),
+              ),
+            )
+            .limit(pageSize)
+            .offset(offset);
 
     // Query tasks
     const tasksConditions: any[] = [gt(schema.followUpTasks.updated_at, sinceDate)];
@@ -260,7 +291,7 @@ router.get("/pull", requireAuth, async (req: Request, res: Response) => {
     // Determine if there are more pages
     const hasMore =
       hasMoreHouseholds ||
-      householdMembers.length >= pageSize ||
+      (includeMembers && householdMembers.length >= pageSize) ||
       eligibleWomenData.length >= pageSize ||
       pregnanciesData.length >= pageSize ||
       childrenData.length >= pageSize ||
@@ -279,6 +310,9 @@ router.get("/pull", requireAuth, async (req: Request, res: Response) => {
     sendSuccess(res, {
       sync_cursor: syncCursor,
       next_page_token: nextPageToken,
+      total_households: totalHouseholds,
+      total_household_batches: totalHouseholdBatches,
+      household_batch_number: Math.floor(offset / pageSize) + 1,
       households: householdsResult,
       household_members: householdMembers,
       eligible_women: eligibleWomenData,
@@ -292,6 +326,40 @@ router.get("/pull", requireAuth, async (req: Request, res: Response) => {
   } catch (error) {
     console.error("Sync pull error:", error);
     sendError(res, 500, "SYNC_PULL_ERROR", "Error pulling sync data");
+  }
+});
+
+/**
+ * POST /api/v1/sync/pull/members
+ * Pull household members for a bounded household page.
+ */
+router.post("/pull/members", requireAuth, async (req: Request, res: Response) => {
+  try {
+    const householdIds = Array.isArray(req.body?.household_ids)
+      ? req.body.household_ids.map((id: unknown) => String(id)).filter(Boolean)
+      : [];
+
+    if (householdIds.length === 0) {
+      return sendSuccess(res, { household_members: [] });
+    }
+    if (householdIds.length > 500) {
+      return sendError(
+        res,
+        400,
+        "HOUSEHOLD_BATCH_TOO_LARGE",
+        "At most 500 household_ids can be requested at once",
+      );
+    }
+
+    const householdMembers = await db
+      .select()
+      .from(schema.householdMembers)
+      .where(inArray(schema.householdMembers.household_id, householdIds));
+
+    sendSuccess(res, { household_members: householdMembers });
+  } catch (error) {
+    console.error("Sync pull members error:", error);
+    sendError(res, 500, "SYNC_PULL_MEMBERS_ERROR", "Error pulling household members");
   }
 });
 

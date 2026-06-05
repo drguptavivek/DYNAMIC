@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { eq, and, ilike, or, desc, sql } from "drizzle-orm";
+import { eq, and, ilike, or, desc, sql, inArray, ne } from "drizzle-orm";
 import { db, schema } from "../db";
 import { requireAuth } from "../middleware/auth";
 import { sendError, sendSuccess } from "../lib/errors";
@@ -69,7 +69,66 @@ router.get("/", requireAuth, async (req: Request, res: Response) => {
       .limit(perPage)
       .offset(offset);
 
-    sendSuccess(res, households, 200, { total, page, per_page: perPage });
+    const householdIds = households.map((household) => household.household_id);
+    const eligibleWomen =
+      householdIds.length > 0
+        ? await db
+            .select({
+              household_id: schema.householdMembers.household_id,
+              name: schema.householdMembers.name,
+            })
+            .from(schema.householdMembers)
+            .where(
+              and(
+                inArray(schema.householdMembers.household_id, householdIds),
+                eq(schema.householdMembers.woman_questionnaire_eligible, true),
+              ),
+            )
+        : [];
+    const pregnancyTrackingEligibleWomen =
+      householdIds.length > 0
+        ? await db
+            .select({
+              household_id: schema.eligibleWomen.household_id,
+              name: schema.householdMembers.name,
+            })
+            .from(schema.eligibleWomen)
+            .innerJoin(
+              schema.householdMembers,
+              eq(schema.eligibleWomen.household_member_id, schema.householdMembers.household_member_id),
+            )
+            .where(
+              and(
+                inArray(schema.eligibleWomen.household_id, householdIds),
+                eq(schema.eligibleWomen.wq_status, "completed"),
+                ne(schema.eligibleWomen.tracking_status, "not_tracked"),
+              ),
+            )
+        : [];
+    const eligibleWomenByHousehold = new Map<string, string[]>();
+    for (const woman of eligibleWomen) {
+      const names = eligibleWomenByHousehold.get(woman.household_id) || [];
+      if (woman.name) names.push(woman.name);
+      eligibleWomenByHousehold.set(woman.household_id, names);
+    }
+    const pregnancyTrackingEligibleByHousehold = new Map<string, string[]>();
+    for (const woman of pregnancyTrackingEligibleWomen) {
+      const names = pregnancyTrackingEligibleByHousehold.get(woman.household_id) || [];
+      if (woman.name) names.push(woman.name);
+      pregnancyTrackingEligibleByHousehold.set(woman.household_id, names);
+    }
+
+    sendSuccess(
+      res,
+      households.map((household) => ({
+        ...household,
+        eligible_women_names: eligibleWomenByHousehold.get(household.household_id) || [],
+        pregnancy_tracking_eligible_names:
+          pregnancyTrackingEligibleByHousehold.get(household.household_id) || [],
+      })),
+      200,
+      { total, page, per_page: perPage },
+    );
   } catch (error) {
     console.error("List households error:", error);
     sendError(res, 500, "INTERNAL_ERROR", "An error occurred");

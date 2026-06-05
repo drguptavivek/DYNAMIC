@@ -1,4 +1,4 @@
-# DYNAMIC PreTSING — Key Data Model Concepts
+# DYNAMIC - PreTESTING — Key Data Model Concepts
 
 > A plain-language guide to the boundaries and rules in the system.
 > Written for study managers, data managers, and site coordinators — not programmers.
@@ -193,14 +193,51 @@ Example: "Fill HRF for household 1-101-0234-01, Round 2, between 15 Sep – 28 S
 
 ```
 PUSH  (device → server):  completed form responses, domain events, failed attempts
-PULL  (server → device):  assigned household/member/task data for the worker's locality
+PULL  (server → device):  household/member/task data for the worker's assigned localities
 ```
 
 **Key rules:**
 
-- Each field worker syncs only the **households in their assigned localities** — not the whole study.
+- Locality assignment is many-to-many. A worker may cover one locality, many localities, or all localities in a site. A locality may also have multiple workers.
+- The Android device must support **locality-scoped worklists** and, where needed, a **full-site offline cache**. Locality is a filter and sync-scope dimension, not a hard limit on what the device can hold.
+- Sync is based on the **device outbox**, not only the currently logged-in user. If User A creates records offline, logs out, and User B logs in and syncs, User A's pending records are still uploaded.
+- Every record keeps its original attribution: who created it, which device created it, and when it was created offline. The sync event separately records who was logged in when the upload happened.
+- Logging out must not delete local data. A destructive reset is a separate action and must warn clearly when unsynced records exist. Android phone settings may still clear app storage, so supervisors need sync-status monitoring for devices that have not synced recently.
 - If two devices submit the same form response for the same task (e.g., sync collision), the first one wins. Later duplicates are flagged for data quality review — **not silently discarded**.
 - The raw form response is always accepted and preserved. Duplicate detection is based on unique response IDs, not content.
+
+---
+
+## Household and Member Search on the Device
+
+**What it is:** Field workers need fast local search for households and members while offline. The app should not load full form histories or all member records into the screen. It should keep a small searchable index in SQLite.
+
+**Thin search index fields:**
+
+- site ID
+- locality code
+- structure map ID
+- household number
+- household ID
+- household member ID
+- member number
+- member name
+- age or date/year of birth
+- sex
+- relationship to household head
+- member status
+- household status
+- address or landmark
+- GPS location, where available
+
+**Key rules:**
+
+- Household/member search uses SQLite, not large in-memory lists in React.
+- Search results are paginated and limited, for example 25-50 results at a time.
+- The minimum indexes are locality, household number, sex, and full-text search for member name.
+- Household number should be stored both as the field display value and a normalized searchable value, because local numbering may use leading zeros or other formatting.
+- A locality switcher should allow rapid access to one locality's households and worklists, but users assigned to all localities may also search across the whole site.
+- Detailed household/person state is loaded only after the field worker selects a household or member from the search results.
 
 ---
 

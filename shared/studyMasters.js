@@ -1,5 +1,5 @@
 export const STUDY_SITES = [
-  { site_id: 1, site_code: "BRL", site_name: "Bareilley" },
+  { site_id: 1, site_code: "BRL", site_name: "Bareilly" },
   { site_id: 2, site_code: "BLB", site_name: "Ballabgarh" },
   { site_id: 3, site_code: "BGM", site_name: "Belgavi" },
   { site_id: 4, site_code: "CHN", site_name: "Chennai" }

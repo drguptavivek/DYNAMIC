@@ -5,6 +5,7 @@ import usersRouter from "./routes/users";
 import areaAssignmentsRouter from "./routes/area-assignments";
 import mastersRouter from "./routes/masters";
 import householdsRouter from "./routes/households";
+import householdMembersRouter from "./routes/household-members";
 import tasksRouter from "./routes/tasks";
 import dataQualityRouter from "./routes/data-quality";
 import syncLogsRouter from "./routes/sync-logs";
@@ -58,6 +59,7 @@ export function createApp() {
   app.use("/api/v1", requireAuth, areaAssignmentsRouter);
   app.use("/api/v1/masters", requireAuth, mastersRouter);
   app.use("/api/v1/households", requireAuth, householdsRouter);
+  app.use("/api/v1/household-members", requireAuth, householdMembersRouter);
   app.use("/api/v1/tasks", requireAuth, tasksRouter);
   app.use("/api/v1/data-quality-flags", requireAuth, dataQualityRouter);
   app.use("/api/v1/sync-logs", requireAuth, syncLogsRouter);

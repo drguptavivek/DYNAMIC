@@ -87,6 +87,35 @@
   background-color: #f9f9f9;
 }
 
+.assignmentList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  max-width: 18rem;
+}
+
+.assignmentBadge {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #bfdbfe;
+  border-radius: 4px;
+  background-color: #eff6ff;
+  color: #1e40af;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1;
+  padding: 0.375rem 0.5rem;
+  white-space: nowrap;
+}
+
+.siteId {
+  cursor: help;
+}
+
+.muted {
+  color: #777;
+}
+
 .primaryBtn,
 .secondaryBtn,
 .actionBtn,

@@ -8,7 +8,7 @@ This environment has `python-docx`, `docx2txt`, `openpyxl`, `lxml`, ODF tooling 
 
 External document tools available on PATH include `pandoc`, `soffice`, Poppler tools (`pdfinfo`, `pdftotext`, `pdftoppm`), `exiftool`, `textutil`, `unzip`, and `file`.
 
-## DYNAMIC PreTSING project rules
+## DYNAMIC - PreTESTING project rules
 
 Architecture source of truth:
 

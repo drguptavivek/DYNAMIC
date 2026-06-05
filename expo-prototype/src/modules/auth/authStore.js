@@ -47,13 +47,37 @@ export async function login(username, password) {
     if (refresh_token) {
       setMeta("refresh_token", refresh_token);
     }
-    setMeta("auth_user", JSON.stringify(user));
-
-    currentUser = user;
-    return { ok: true, user };
+    const enrichedUser = await fetchCurrentUser(access_token, user);
+    storeUser(enrichedUser);
+    return { ok: true, user: enrichedUser };
   } catch (error) {
     console.error("Login error:", error);
     return { ok: false, error: error.message };
+  }
+}
+
+export function storeUser(user) {
+  setMeta("auth_user", JSON.stringify(user));
+  currentUser = user;
+}
+
+export async function fetchCurrentUser(token = getToken(), fallbackUser = null) {
+  if (!token) return fallbackUser;
+  try {
+    const response = await fetch(`${API_BASE_URL}/users/me`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+    });
+    if (!response.ok) {
+      return fallbackUser;
+    }
+    return unwrapApiData(await response.json());
+  } catch (error) {
+    console.error("Fetch current user error:", error);
+    return fallbackUser;
   }
 }
 
@@ -95,17 +119,26 @@ export function getUser() {
 }
 
 export async function restoreSession() {
+  let restoredUser = null;
   const userJson = getMeta("auth_user");
   if (userJson) {
     try {
-      currentUser = JSON.parse(userJson);
-      return currentUser;
+      restoredUser = JSON.parse(userJson);
     } catch (e) {
       console.error("Error restoring session:", e);
       return null;
     }
   }
-  return null;
+
+  if (!getToken()) {
+    return null;
+  }
+
+  const freshUser = await fetchCurrentUser(getToken(), restoredUser);
+  if (freshUser) {
+    storeUser(freshUser);
+  }
+  return freshUser;
 }
 
 export function isAuthenticated() {

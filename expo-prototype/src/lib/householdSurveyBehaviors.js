@@ -1,5 +1,12 @@
 const HHQ_CODE = "HHQ";
 const HH_MEMBER_PANEL = "hhq_household_members";
+const HOUSEHOLD_ID_FIELDS = new Set([
+  "hhq_site_id",
+  "hhq_locality_code",
+  "hhq_structure_map_id",
+  "hhq_household_number"
+]);
+const HOUSEHOLD_NUMBER_FIELD = "hhq_household_number";
 const GPS_FIELD_NAMES = new Set([
   "hhq_gps_latitude",
   "hhq_gps_longitude",
@@ -125,10 +132,52 @@ function italicizeVisibleMemberNames(model) {
   });
 }
 
-export function attachHouseholdSurveyBehaviors(model, selectedForm, onHouseholdSave) {
+function setDuplicateHouseholdError(model, duplicateHousehold) {
+  const question = model.getQuestionByName(HOUSEHOLD_NUMBER_FIELD);
+  if (!question) return;
+
+  question.clearErrors?.();
+  if (!duplicateHousehold) {
+    return;
+  }
+
+  const message = `Household ID ${duplicateHousehold.household_id} already exists. Use another structure or household number.`;
+  question.addError?.(message);
+}
+
+export function attachHouseholdSurveyBehaviors(
+  model,
+  selectedForm,
+  onHouseholdSave,
+  options = {}
+) {
   if (selectedForm?.form_code !== HHQ_CODE) return;
 
+  let duplicateCheckSequence = 0;
+  let duplicateHousehold = null;
+
+  async function checkDuplicateHousehold(sender) {
+    const findExistingHousehold = options.findExistingHousehold;
+    if (!findExistingHousehold) return null;
+
+    const sequence = ++duplicateCheckSequence;
+    const existing = await findExistingHousehold(sender.data);
+    if (sequence !== duplicateCheckSequence) return duplicateHousehold;
+
+    duplicateHousehold = existing || null;
+    setDuplicateHouseholdError(sender, duplicateHousehold);
+    return duplicateHousehold;
+  }
+
   model.onAfterRenderSurvey.add((sender) => updateHouseholdListingCalculations(sender));
+  model.onCompleting.add(async (sender, options) => {
+    const existing = await checkDuplicateHousehold(sender);
+    if (existing) {
+      options.allow = false;
+      options.allowComplete = false;
+      options.message = `Household ID ${existing.household_id} already exists.`;
+    }
+  });
   model.onComplete.add((sender) => onHouseholdSave?.(sender.data));
   model.onAfterRenderQuestion.add((sender, options) => {
     italicizeMemberNameInTitle(options);
@@ -191,6 +240,9 @@ export function attachHouseholdSurveyBehaviors(model, selectedForm, onHouseholdS
   });
   model.onValueChanged.add((sender, options) => {
     if (GPS_FIELD_NAMES.has(options.name) && !options.value) return;
+    if (HOUSEHOLD_ID_FIELDS.has(options.name)) {
+      checkDuplicateHousehold(sender);
+    }
     if (options.name === "member_name" || options.name === HH_MEMBER_PANEL) {
       refreshQuestionTitles(sender);
       setTimeout(() => italicizeVisibleMemberNames(sender), 0);

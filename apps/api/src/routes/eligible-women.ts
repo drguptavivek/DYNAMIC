@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { eq, and, ilike, or, desc, sql } from "drizzle-orm";
+import { eq, and, ilike, or, desc, sql, ne } from "drizzle-orm";
 import { db, schema } from "../db";
 import { requireAuth } from "../middleware/auth";
 import { sendError, sendSuccess } from "../lib/errors";
@@ -18,6 +18,7 @@ router.get("/", requireAuth, async (req: Request, res: Response) => {
       locality_code,
       wq_status,
       tracking_status,
+      tracking_eligible,
       current_eligibility_status,
       search,
       page: pageStr,
@@ -46,6 +47,11 @@ router.get("/", requireAuth, async (req: Request, res: Response) => {
 
     if (tracking_status) {
       conditions.push(eq(schema.eligibleWomen.tracking_status, tracking_status as string));
+    }
+
+    if (tracking_eligible === "true") {
+      conditions.push(eq(schema.eligibleWomen.wq_status, "completed"));
+      conditions.push(ne(schema.eligibleWomen.tracking_status, "not_tracked"));
     }
 
     if (current_eligibility_status) {

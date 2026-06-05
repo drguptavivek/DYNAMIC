@@ -3,10 +3,10 @@ import { api } from "../lib/api";
 import styles from "./EligibleWomenPage.module.css";
 
 interface EligibleWoman {
-  id: string;
+  woman_id: string;
   household_member_id: string;
-  full_name: string;
-  dob: string;
+  member_name: string;
+  date_of_birth?: string;
   age_years?: number;
   locality_code: string;
   wq_status: string;
@@ -28,7 +28,7 @@ const STATUS_COLORS: Record<string, string> = {
   lost_to_followup: "#dc2626",
 };
 
-export default function EligibleWomenPage() {
+export default function EligibleWomenPage({ trackingOnly = false }: { trackingOnly?: boolean }) {
   const [women, setWomen] = useState<EligibleWoman[]>([]);
   const [meta, setMeta] = useState<Meta>({ total: 0, page: 1, per_page: 20 });
   const [search, setSearch] = useState("");
@@ -40,13 +40,17 @@ export default function EligibleWomenPage() {
       setLoading(true);
       const params = new URLSearchParams({ page: String(page), per_page: "20" });
       if (search) params.set("search", search);
-      if (trackingStatus) params.set("tracking_status", trackingStatus);
+      if (trackingOnly) {
+        params.set("tracking_eligible", "true");
+      } else if (trackingStatus) {
+        params.set("tracking_status", trackingStatus);
+      }
       const res = await api.getPage<EligibleWoman[]>(`/eligible-women?${params}`);
       setWomen(res.data);
       setMeta(res.meta);
       setLoading(false);
     },
-    [search, trackingStatus],
+    [search, trackingOnly, trackingStatus],
   );
 
   useEffect(() => {
@@ -56,7 +60,7 @@ export default function EligibleWomenPage() {
   return (
     <div className={styles.page}>
       <div className={styles.header}>
-        <h1>Eligible Women</h1>
+        <h1>{trackingOnly ? "Eligible for Pregnancy Tracking" : "Eligible Women"}</h1>
         <span className={styles.count}>{meta.total} total</span>
       </div>
       <div className={styles.filters}>
@@ -65,14 +69,16 @@ export default function EligibleWomenPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <select value={trackingStatus} onChange={(e) => setTrackingStatus(e.target.value)}>
-          <option value="">All statuses</option>
-          <option value="eligible">Eligible</option>
-          <option value="enrolled">Enrolled</option>
-          <option value="not_eligible">Not eligible</option>
-          <option value="completed">Completed</option>
-          <option value="lost_to_followup">Lost to follow-up</option>
-        </select>
+        {!trackingOnly && (
+          <select value={trackingStatus} onChange={(e) => setTrackingStatus(e.target.value)}>
+            <option value="">All statuses</option>
+            <option value="not_tracked">Not tracked</option>
+            <option value="not_pregnant">Not pregnant</option>
+            <option value="enrolled">Enrolled</option>
+            <option value="completed">Completed</option>
+            <option value="lost_to_followup">Lost to follow-up</option>
+          </select>
+        )}
       </div>
       {loading ? (
         <p className={styles.loading}>Loading…</p>
@@ -89,9 +95,9 @@ export default function EligibleWomenPage() {
           </thead>
           <tbody>
             {women.map((w) => (
-              <tr key={w.id}>
-                <td>{w.full_name}</td>
-                <td>{w.dob}</td>
+              <tr key={w.woman_id}>
+                <td>{w.member_name || "—"}</td>
+                <td>{w.date_of_birth || "—"}</td>
                 <td>{w.locality_code}</td>
                 <td>
                   <span className={styles.badge}>{w.wq_status}</span>

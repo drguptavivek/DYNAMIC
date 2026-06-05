@@ -2,6 +2,9 @@ export const ROUTES = {
   home: "#/",
   households: "#/households",
   householdNew: "#/households/new",
+  householdMembers: "#/household-members",
+  householdMembersForHousehold: (householdId) => `#/household-members/${encodeURIComponent(householdId)}`,
+  profile: "#/profile",
   questionnaire: (formCode) => `#/questionnaires/${formCode}`,
   questionnaireNew: (formCode) => `#/questionnaires/${formCode}/new`,
   worklist: "#/worklist",
@@ -22,6 +25,19 @@ export function parseHashRoute(hash, defaultFormCode) {
       formCode: defaultFormCode,
       mode: parts[1] === "new" ? "new" : "dashboard",
     };
+  }
+
+  if (parts[0] === "household-members" || parts[0]?.toLowerCase() === "householdmembers") {
+    return {
+      view: "householdMembers",
+      householdId: parts[1] ? decodeURIComponent(parts[1]) : "",
+      formCode: defaultFormCode,
+      mode: "dashboard",
+    };
+  }
+
+  if (parts[0] === "profile") {
+    return { view: "profile", formCode: defaultFormCode, mode: "dashboard" };
   }
 
   if (parts[0] === "questionnaires" && parts[1]) {

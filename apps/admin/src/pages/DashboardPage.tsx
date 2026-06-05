@@ -7,7 +7,7 @@ export default function DashboardPage() {
   return (
     <div className={styles.container}>
       <h1>Dashboard</h1>
-      <p className={styles.subtitle}>DYNAMIC PreTSING Study — Admin Console</p>
+      <p className={styles.subtitle}>DYNAMIC - PreTESTING Study — Admin Console</p>
 
       <div className={styles.userCard}>
         <h2>Welcome, {user?.display_name || user?.username}!</h2>

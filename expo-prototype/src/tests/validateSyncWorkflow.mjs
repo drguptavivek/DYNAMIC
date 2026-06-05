@@ -30,7 +30,7 @@ const records = buildPushRecords({
       event_type: "household_enrolled",
       created_at: "2026-06-04T00:00:00.000Z",
       payload: {
-        household_id: "1-2-0042-03",
+        household_id: "1-02-0042-03",
         task_id: "task-1",
         timestamp: "2026-06-04T01:00:00.000Z",
       },
@@ -45,7 +45,7 @@ assert.deepEqual(records, [
     data: {
       id: "event-1",
       event_type: "household_enrolled",
-      household_id: "1-2-0042-03",
+      household_id: "1-02-0042-03",
       task_id: "task-1",
       timestamp: "2026-06-04T01:00:00.000Z",
       created_offline_at: "2026-06-04T00:00:00.000Z",
@@ -101,11 +101,13 @@ assert.equal(selectNextPullCursor({ sync_cursor: "server-cursor" }, "2026-06-03T
 assert.equal(
   formatSyncCompletionMessage({
     pulled: 4,
+    pulledHouseholds: 500,
+    pulledMembers: 500,
     pushed: 2,
     events: 1,
     formsUpdated: 3,
   }),
-  "Sync complete: 4 pulled, 2 responses pushed, 1 event pushed, 3 forms updated",
+  "Sync complete: 4 tasks pulled, 500 households pulled, 500 members pulled, 2 responses pushed, 1 event pushed, 3 forms updated",
 );
 
 console.log("Validated sync workflow helpers.");

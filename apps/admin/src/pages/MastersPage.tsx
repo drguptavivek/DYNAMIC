@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { api } from "../lib/api";
 import styles from "./MastersPage.module.css";
 
 interface Site {
@@ -26,13 +27,60 @@ interface MappingFrame {
 
 export default function MastersPage() {
   const [activeTab, setActiveTab] = useState<"sites" | "localities" | "mapping">("sites");
-  const [sites] = useState<Site[]>([]);
-  const [localities] = useState<Locality[]>([]);
+  const [sites, setSites] = useState<Site[]>([]);
+  const [localities, setLocalities] = useState<Locality[]>([]);
   const [mappingFrames] = useState<MappingFrame[]>([]);
+  const [loadingSites, setLoadingSites] = useState(false);
+  const [loadingLocalities, setLoadingLocalities] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    loadSites();
+    loadLocalities();
+  }, []);
+
+  async function loadSites() {
+    setLoadingSites(true);
+    setError("");
+    try {
+      const data = await api.get<Site[]>("/masters/sites");
+      setSites(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load sites");
+    } finally {
+      setLoadingSites(false);
+    }
+  }
+
+  async function loadLocalities() {
+    setLoadingLocalities(true);
+    setError("");
+    try {
+      const data = await api.get<Locality[]>("/masters/localities");
+      setLocalities(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load localities");
+    } finally {
+      setLoadingLocalities(false);
+    }
+  }
+
+  async function handleCreateSite(formData: Site) {
+    setError("");
+    try {
+      await api.post<Site>("/masters/sites", formData);
+      await loadSites();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to create site";
+      setError(message);
+      throw new Error(message);
+    }
+  }
 
   return (
     <div className={styles.container}>
       <h1>Study Masters</h1>
+      {error && <div className={styles.error}>{error}</div>}
 
       <div className={styles.tabs}>
         <button
@@ -56,23 +104,41 @@ export default function MastersPage() {
       </div>
 
       <div className={styles.tabContent}>
-        {activeTab === "sites" && <SitesTab sites={sites} />}
-        {activeTab === "localities" && <LocalitiesTab localities={localities} />}
+        {activeTab === "sites" && (
+          <SitesTab sites={sites} loading={loadingSites} onCreateSite={handleCreateSite} />
+        )}
+        {activeTab === "localities" && (
+          <LocalitiesTab sites={sites} localities={localities} loading={loadingLocalities} />
+        )}
         {activeTab === "mapping" && <MappingTab mappingFrames={mappingFrames} />}
       </div>
     </div>
   );
 }
 
-function SitesTab({ sites }: { sites: Site[] }) {
+function SitesTab({
+  sites,
+  loading,
+  onCreateSite,
+}: {
+  sites: Site[];
+  loading: boolean;
+  onCreateSite: (data: Site) => Promise<void>;
+}) {
+  const [showCreateModal, setShowCreateModal] = useState(false);
+
   return (
     <div>
       <div className={styles.tabHeader}>
         <h2>Study Sites</h2>
-        <button className={styles.primaryBtn}>Add Site</button>
+        <button className={styles.primaryBtn} onClick={() => setShowCreateModal(true)}>
+          Add Site
+        </button>
       </div>
 
-      {sites.length === 0 ? (
+      {loading ? (
+        <p>Loading sites...</p>
+      ) : sites.length === 0 ? (
         <div className={styles.empty}>No sites found</div>
       ) : (
         <div className={styles.tableContainer}>
@@ -96,11 +162,124 @@ function SitesTab({ sites }: { sites: Site[] }) {
           </table>
         </div>
       )}
+
+      {showCreateModal && (
+        <CreateSiteModal
+          onClose={() => setShowCreateModal(false)}
+          onSubmit={async (data) => {
+            await onCreateSite(data);
+            setShowCreateModal(false);
+          }}
+        />
+      )}
     </div>
   );
 }
 
-function LocalitiesTab({ localities }: { localities: Locality[] }) {
+function CreateSiteModal({
+  onClose,
+  onSubmit,
+}: {
+  onClose: () => void;
+  onSubmit: (data: Site) => Promise<void>;
+}) {
+  const [formData, setFormData] = useState({
+    site_id: "",
+    site_code: "",
+    site_name: "",
+  });
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    setSaving(true);
+    try {
+      await onSubmit({
+        site_id: Number(formData.site_id),
+        site_code: formData.site_code.trim(),
+        site_name: formData.site_name.trim(),
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create site");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className={styles.modal}>
+      <div className={styles.modalContent}>
+        <div className={styles.modalHeader}>
+          <h2>Add Site</h2>
+          <button type="button" onClick={onClose} className={styles.closeBtn} aria-label="Close">
+            X
+          </button>
+        </div>
+
+        {error && <div className={styles.error}>{error}</div>}
+
+        <form onSubmit={handleSubmit}>
+          <div className={styles.formGroup}>
+            <label htmlFor="site-id">Site ID *</label>
+            <input
+              id="site-id"
+              type="number"
+              min="1"
+              value={formData.site_id}
+              onChange={(e) => setFormData({ ...formData, site_id: e.target.value })}
+              required
+            />
+          </div>
+
+          <div className={styles.formGroup}>
+            <label htmlFor="site-code">Site Code *</label>
+            <input
+              id="site-code"
+              type="text"
+              value={formData.site_code}
+              onChange={(e) => setFormData({ ...formData, site_code: e.target.value })}
+              required
+            />
+          </div>
+
+          <div className={styles.formGroup}>
+            <label htmlFor="site-name">Site Name *</label>
+            <input
+              id="site-name"
+              type="text"
+              value={formData.site_name}
+              onChange={(e) => setFormData({ ...formData, site_name: e.target.value })}
+              required
+            />
+          </div>
+
+          <div className={styles.modalFooter}>
+            <button type="button" onClick={onClose} className={styles.secondaryBtn}>
+              Cancel
+            </button>
+            <button type="submit" disabled={saving} className={styles.primaryBtn}>
+              {saving ? "Saving..." : "Save Site"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function LocalitiesTab({
+  sites,
+  localities,
+  loading,
+}: {
+  sites: Site[];
+  localities: Locality[];
+  loading: boolean;
+}) {
+  const siteNamesById = new Map(sites.map((site) => [site.site_id, site.site_name]));
+
   return (
     <div>
       <div className={styles.tabHeader}>
@@ -108,13 +287,16 @@ function LocalitiesTab({ localities }: { localities: Locality[] }) {
         <button className={styles.primaryBtn}>Add Locality</button>
       </div>
 
-      {localities.length === 0 ? (
+      {loading ? (
+        <p>Loading localities...</p>
+      ) : localities.length === 0 ? (
         <div className={styles.empty}>No localities found</div>
       ) : (
         <div className={styles.tableContainer}>
           <table className={styles.table}>
             <thead>
               <tr>
+                <th>Site Name</th>
                 <th>Site ID</th>
                 <th>Locality Code</th>
                 <th>Locality Name</th>
@@ -124,6 +306,7 @@ function LocalitiesTab({ localities }: { localities: Locality[] }) {
             <tbody>
               {localities.map((loc) => (
                 <tr key={`${loc.site_id}-${loc.locality_code}`}>
+                  <td>{siteNamesById.get(loc.site_id) || "—"}</td>
                   <td>{loc.site_id}</td>
                   <td>{loc.locality_code}</td>
                   <td>{loc.locality_name}</td>

@@ -16,15 +16,17 @@ export default function Layout() {
   const isAdmin = user?.role === "central_admin" || user?.role === "site_research_scientist";
   const links = [
     { path: "/", label: "Dashboard" },
-    ...(isAdmin ? [{ path: "/users", label: "Users" }] : []),
-    { path: "/masters", label: "Study Masters" },
-    { path: "/households", label: "Households" },
     { path: "/tasks", label: "Tasks" },
     { path: "/data-quality", label: "Data Quality" },
     { path: "/sync-logs", label: "Sync Logs" },
+    { path: "/households", label: "Households" },
+    { path: "/household-members", label: "Household Members" },
     { path: "/eligible-women", label: "Eligible Women" },
+    { path: "/eligible-pregnancy-tracking", label: "Eligible for Pregnancy Tracking" },
     { path: "/pregnant-women", label: "Pregnant Women" },
     { path: "/children", label: "Children" },
+    { path: "/masters", label: "Study Masters" },
+    ...(isAdmin ? [{ path: "/users", label: "Users" }] : []),
   ];
 
   return (
