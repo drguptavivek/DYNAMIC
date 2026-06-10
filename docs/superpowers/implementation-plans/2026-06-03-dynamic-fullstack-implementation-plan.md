@@ -309,6 +309,7 @@ form_responses (
   response_status      TEXT DEFAULT 'primary',  -- 'primary', 'duplicate_task_completion', 'superseded_by_admin'
   created_at           TIMESTAMPTZ
 )
+
 ```
 
 ### A8. Domain Events
@@ -757,6 +758,34 @@ form_responses_local (
   device_id            TEXT,
   sync_status          TEXT DEFAULT 'pending',
   response_status      TEXT DEFAULT 'primary'
+)
+
+form_drafts_local (
+  form_draft_id        TEXT PRIMARY KEY,
+  draft_key            TEXT NOT NULL,
+  site_id              INTEGER NOT NULL,
+  locality_code        TEXT NOT NULL,
+  household_id         TEXT,
+  visit_id             TEXT,
+  task_id              TEXT,
+  form_code            TEXT NOT NULL,
+  form_version         TEXT NOT NULL,
+  subject_type         TEXT,
+  subject_id           TEXT,
+  lineage_ids_json     TEXT,             -- JSON
+  prefill_snapshot_json TEXT,            -- JSON
+  prefill_mapper_version TEXT,
+  answers_json         TEXT NOT NULL DEFAULT '{}',
+  completion_state_json TEXT,            -- JSON
+  validation_state_json TEXT,            -- JSON
+  draft_status         TEXT DEFAULT 'active',
+  created_offline_at   TEXT NOT NULL,
+  updated_offline_at   TEXT NOT NULL,
+  device_id            TEXT,
+  created_by_user_id   TEXT,
+  last_saved_by_user_id TEXT,
+  submitted_form_response_id TEXT,
+  local_status         TEXT DEFAULT 'saved'
 )
 
 visits_local (
@@ -1552,7 +1581,7 @@ Actions available per subject type and state:
 - Contextual trigger buttons per Section E registry; VA task visible but disabled (`va_json_pending`)
 - Missed-round display: mark expired tasks missed before showing current due
 - Task attempt recording with task-type disposition rules and final close reason when configured
-- SurveyJS form screen: receives form JSON, prefill values, read-only lineage fields, task context; on completion writes immutable form response + generates domain events + generates tasks + writes outbox records
+- SurveyJS form screen: receives form JSON, prefill values, read-only lineage fields, task context; renders Side Navigation / Table of Contents from SurveyJS pages/section metadata plus a progress bar; on open resumes or creates a local draft and restores last active section when available; autosaves dirty drafts every 30 seconds; Save Draft writes immediately; Preview is available anytime from the saved local draft and is required before finalization; only Finalize/Submit writes immutable form response + generates domain events + generates tasks + marks draft submitted + writes outbox records for upload
 
 **Depends on**: Phases 2, 3, 4
 

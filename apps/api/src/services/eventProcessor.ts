@@ -2,6 +2,7 @@ import { db, schema } from "../db";
 import { eq, and } from "drizzle-orm";
 import {
   onHouseholdEnrolled,
+  onEligibleWomanIdentified,
   onWqCompleted,
   onPregnancyEnrolled,
   onPregnancyOutcomeRecorded,
@@ -10,17 +11,13 @@ import {
 } from "@dynamic/shared-workflow";
 import { writeTasksFromDescriptors } from "./taskWriter";
 import { randomUUID } from "crypto";
+import {
+  buildHhqHouseholdPromotionValues,
+  buildHhqMemberPromotionValues,
+} from "./hhqPromotion";
 
 interface FormAnswers {
   [key: string]: any;
-}
-
-function parseHouseholdId(householdId: string): { site_id: number; locality_code: string } {
-  const parts = householdId.split("-");
-  return {
-    site_id: parseInt(parts[0]) || 0,
-    locality_code: parts[1] || "",
-  };
 }
 
 export async function processFormResponse(formResponseId: string): Promise<void> {
@@ -88,103 +85,128 @@ export async function processFormResponse(formResponseId: string): Promise<void>
 }
 
 async function promoteHhq(householdId: string, answers: FormAnswers): Promise<void> {
-  // Extract interview date
-  const interviewDate = answers.hhq_interview_date || new Date().toISOString().split("T")[0];
+  const now = new Date();
+  const household = buildHhqHouseholdPromotionValues(householdId, answers, now);
+  const interviewDate = household.baseline_completed_date;
 
-  // Update household
   await db
-    .update(schema.households)
-    .set({
-      baseline_completed_date: interviewDate,
-      baseline_enrollment_status: "enrolled",
-      updated_at: new Date(),
-    })
-    .where(eq(schema.households.household_id, householdId));
+    .insert(schema.households)
+    .values(household)
+    .onConflictDoUpdate({
+      target: [schema.households.household_id],
+      set: {
+        site_id: household.site_id,
+        locality_code: household.locality_code,
+        structure_map_id: household.structure_map_id,
+        household_number: household.household_number,
+        residence_area_type: household.residence_area_type,
+        address: household.address,
+        household_head_name: household.household_head_name,
+        contact_mobile: household.contact_mobile,
+        consent_status: household.consent_status,
+        result_interview: household.result_interview,
+        language_questionnaire: household.language_questionnaire,
+        baseline_enrollment_status: household.baseline_enrollment_status,
+        baseline_completed_date: household.baseline_completed_date,
+        sync_status: household.sync_status,
+        updated_at: now,
+      },
+    });
 
-  // Extract household members panel
   const membersPanel = (answers.hhq_household_members || []) as any[];
+  const wqTasks = [];
   for (const [index, member] of membersPanel.entries()) {
-    const memberNumber = member.member_line_number || index + 1;
-    const memberId = buildMemberId(householdId, memberNumber);
+    const promotedMember = buildHhqMemberPromotionValues(
+      household,
+      member,
+      index,
+      interviewDate,
+      now,
+    );
 
-    // Infer DOB from age if not provided
-    let dob = member.member_date_of_birth;
-    if (!dob && member.member_age_years) {
-      const currentYear = new Date().getFullYear();
-      const birthYear = currentYear - parseInt(member.member_age_years);
-      dob = `${birthYear}-01-01`;
-    }
-
-    // Get household info to extract site_id and locality_code
-    const household = await db
-      .select()
-      .from(schema.households)
-      .where(eq(schema.households.household_id, householdId))
-      .limit(1);
-
-    if (household.length === 0) {
-      throw new Error(`Household not found during HHQ promotion: ${householdId}`);
-    }
-
-    const hh = household[0];
-
-    // Upsert household member
     await db
       .insert(schema.householdMembers)
-      .values({
-        household_member_id: memberId,
-        household_id: householdId,
-        member_number: memberNumber,
-        site_id: hh.site_id,
-        locality_code: hh.locality_code,
-        name: member.member_name,
-        relationship_to_head: member.member_relationship_to_head,
-        sex: member.member_sex,
-        date_of_birth: dob,
-        date_of_birth_precision:
-          dob && !member.member_date_of_birth ? "inferred_from_age" : "reported",
-        reported_age_years: member.member_age_years,
-        reported_age_as_of_date: interviewDate,
-        dob_inference_rule_version: dob && !member.member_date_of_birth ? "1.0" : undefined,
-        member_status: "active",
-        usual_resident: true,
-        member_source: "baseline",
-        created_at: new Date(),
-        updated_at: new Date(),
-      })
+      .values(promotedMember)
       .onConflictDoUpdate({
         target: [schema.householdMembers.household_id, schema.householdMembers.member_number],
         set: {
-          name: member.member_name,
-          relationship_to_head: member.member_relationship_to_head,
-          sex: member.member_sex,
-          date_of_birth: dob,
-          date_of_birth_precision:
-            dob && !member.member_date_of_birth ? "inferred_from_age" : "reported",
-          reported_age_years: member.member_age_years,
+          site_id: promotedMember.site_id,
+          locality_code: promotedMember.locality_code,
+          name: promotedMember.name,
+          relationship_to_head: promotedMember.relationship_to_head,
+          sex: promotedMember.sex,
+          last_residence_place: promotedMember.last_residence_place,
+          residence_months: promotedMember.residence_months,
+          residence_years: promotedMember.residence_years,
+          date_of_birth: promotedMember.date_of_birth,
+          date_of_birth_precision: promotedMember.date_of_birth_precision,
+          reported_age_years: promotedMember.reported_age_years,
           reported_age_as_of_date: interviewDate,
-          updated_at: new Date(),
+          dob_inference_rule_version: promotedMember.dob_inference_rule_version,
+          marital_status: promotedMember.marital_status,
+          woman_questionnaire_eligible: promotedMember.woman_questionnaire_eligible,
+          birth_registration_status: promotedMember.birth_registration_status,
+          ever_attended_school: promotedMember.ever_attended_school,
+          highest_grade_completed: promotedMember.highest_grade_completed,
+          member_status: promotedMember.member_status,
+          usual_resident: promotedMember.usual_resident,
+          member_source: promotedMember.member_source,
+          sync_status: promotedMember.sync_status,
+          updated_at: now,
         },
       });
-  }
 
-  // Generate HRF tasks if this is baseline enrollment
-  const household = await db
-    .select()
-    .from(schema.households)
-    .where(eq(schema.households.household_id, householdId))
-    .limit(1);
+    if (promotedMember.woman_questionnaire_eligible) {
+      await db
+        .insert(schema.eligibleWomen)
+        .values({
+          woman_id: promotedMember.household_member_id,
+          household_member_id: promotedMember.household_member_id,
+          household_id: household.household_id,
+          site_id: household.site_id,
+          locality_code: household.locality_code,
+          eligibility_start_date: interviewDate,
+          eligibility_source_event_id: undefined,
+          wq_status: "pending",
+          tracking_status: "not_tracked",
+          current_eligibility_status: "eligible",
+          eligibility_basis: "baseline_hhq",
+          sync_status: "synced",
+          created_at: now,
+          updated_at: now,
+        })
+        .onConflictDoUpdate({
+          target: [schema.eligibleWomen.woman_id],
+          set: {
+            household_member_id: promotedMember.household_member_id,
+            household_id: household.household_id,
+            site_id: household.site_id,
+            locality_code: household.locality_code,
+            eligibility_start_date: interviewDate,
+            current_eligibility_status: "eligible",
+            eligibility_basis: "baseline_hhq",
+            sync_status: "synced",
+            updated_at: now,
+          },
+        });
 
-  if (household.length === 0) {
-    throw new Error(`Household not found after HHQ promotion: ${householdId}`);
+      wqTasks.push(
+        ...onEligibleWomanIdentified({
+          event_id: `hhq:${household.household_id}:${promotedMember.household_member_id}`,
+          household_id: household.household_id,
+          woman_id: promotedMember.household_member_id,
+          eligibility_start_date: interviewDate,
+        }),
+      );
+    }
   }
 
   const tasks = onHouseholdEnrolled({
     event_id: randomUUID(),
-    household_id: householdId,
+    household_id: household.household_id,
     baseline_completed_date: interviewDate,
   });
-  await writeTasksFromDescriptors(tasks);
+  await writeTasksFromDescriptors([...tasks, ...wqTasks]);
 }
 
 async function promoteWq(
@@ -213,7 +235,7 @@ async function promoteWq(
       .where(eq(schema.eligibleWomen.household_member_id, subjectId))
       .limit(1);
 
-    let womanId = existingWoman.length > 0 ? existingWoman[0].woman_id : randomUUID();
+    let womanId = existingWoman.length > 0 ? existingWoman[0].woman_id : subjectId || randomUUID();
 
     // Upsert eligible woman
     await db
@@ -232,10 +254,15 @@ async function promoteWq(
         updated_at: new Date(),
       })
       .onConflictDoUpdate({
-        target: [schema.eligibleWomen.household_member_id],
+        target: [schema.eligibleWomen.woman_id],
         set: {
+          household_member_id: subjectId,
+          household_id: householdId,
+          site_id: hh.site_id,
+          locality_code: hh.locality_code,
           wq_status: "completed",
           tracking_status: isPregnant ? "enrolled" : "not_pregnant",
+          current_eligibility_status: "eligible",
           updated_at: new Date(),
         },
       });
@@ -584,8 +611,4 @@ async function promoteCdf(childId: string, answers: FormAnswers): Promise<void> 
     console.error(`Error in promoteCdf for ${childId}:`, err);
     throw err;
   }
-}
-
-function buildMemberId(householdId: string, memberNumber: number): string {
-  return `${householdId}-${String(memberNumber).padStart(2, "0")}`;
 }

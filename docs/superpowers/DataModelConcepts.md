@@ -149,6 +149,33 @@ Child ID = birth_outcome_id + child_sequence
 
 **Key principle: Form responses are immutable.** If a field worker made a mistake, the response is not edited. A Site Research Scientist can make a **correction** through the admin app, which creates an audit trail entry — the original response remains intact.
 
+## The Form Draft: Work In Progress
+
+**What it is:** A form draft is the field worker's saved working copy before final submission. It is separate from the final form response.
+
+Drafts are needed because field workers may be interrupted, may need to confirm answers, or may be offline for long periods.
+
+**Key rules:**
+
+- A draft can be created only from a valid task or valid contextual trigger.
+- The Expo app autosaves dirty drafts locally every 30 seconds.
+- Save Draft writes the draft immediately.
+- Preview can be opened anytime and uses the latest saved local draft.
+- Drafts stay local on the field device and are not uploaded to the server.
+- Drafts remain under the field workflow until submitted, discarded, or superseded.
+- Drafts do not complete tasks, generate domain events, update eligibility, or trigger follow-up scheduling.
+- The field worker must Preview the saved draft before finalizing the form.
+- Only finalized forms are uploaded.
+- Finalize/Submit creates an immutable form response and links it back to the local draft.
+- Admin submission review and data-quality flags apply to submitted form responses, not drafts.
+
+**Simple distinction:**
+
+```
+Draft = mutable working copy
+Submitted form response = immutable raw evidence
+```
+
 **What happens after submission:**
 
 ```
@@ -185,6 +212,8 @@ Example: "Fill HRF for household 1-101-0234-01, Round 2, between 15 Sep – 28 S
 - If a field worker cannot complete a task (person not found, refused, etc.), they record a **failed attempt** with a reason. After the configured maximum attempts, they close the task with a final reason.
 - **Missed tasks are recorded as missed** — the next round picks up from the correct anchor date. Missed rounds are not back-filled as if they happened on time.
 
+Detailed schedule, observed-event, and survival-analysis data-model rules are maintained in `docs/superpowers/schedules-and-survival-data-model.md`.
+
 ---
 
 ## Sync: Connecting Field to Server
@@ -192,7 +221,7 @@ Example: "Fill HRF for household 1-101-0234-01, Round 2, between 15 Sep – 28 S
 **What it is:** Field workers collect data offline on their Android devices. When connectivity is available, data is synced:
 
 ```
-PUSH  (device → server):  completed form responses, domain events, failed attempts
+PUSH  (device → server):  finalized form responses, domain events, failed attempts
 PULL  (server → device):  household/member/task data for the worker's assigned localities
 ```
 

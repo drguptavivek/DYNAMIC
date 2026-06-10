@@ -174,31 +174,125 @@ export function saveTaskBatch(tasks) {
   }
 }
 
-export function completeTask(taskId, formCode, formVersion, answersJson, deviceId) {
+export function saveEligibleWoman(woman) {
   const db = getDb();
   const now = new Date().toISOString();
+  const row = {
+    woman_id: woman.woman_id,
+    household_member_id: woman.household_member_id,
+    household_id: woman.household_id,
+    site_id: woman.site_id ?? null,
+    locality_code: woman.locality_code || null,
+    eligibility_start_date: woman.eligibility_start_date || null,
+    wq_status: woman.wq_status || "pending",
+    tracking_status: woman.tracking_status || "not_tracked",
+    current_eligibility_status: woman.current_eligibility_status || "eligible",
+    eligibility_basis: woman.eligibility_basis || null,
+    sync_status: woman.sync_status || "local",
+    created_at: woman.created_at || now,
+    updated_at: woman.updated_at || now,
+  };
+
+  try {
+    db.runSync(
+      `INSERT OR REPLACE INTO eligible_women
+       (woman_id, household_member_id, household_id, site_id, locality_code,
+        eligibility_start_date, wq_status, tracking_status, current_eligibility_status,
+        eligibility_basis, sync_status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        row.woman_id,
+        row.household_member_id,
+        row.household_id,
+        row.site_id,
+        row.locality_code,
+        row.eligibility_start_date,
+        row.wq_status,
+        row.tracking_status,
+        row.current_eligibility_status,
+        row.eligibility_basis,
+        row.sync_status,
+        row.created_at,
+        row.updated_at,
+      ],
+    );
+    return row;
+  } catch (error) {
+    console.error("Error saving eligible woman:", error);
+    throw error;
+  }
+}
+
+export function saveEligibleWomenBatch(women = []) {
+  for (const woman of women) {
+    saveEligibleWoman(woman);
+  }
+}
+
+export function completeTask(taskId, formCode, formVersion, answersJson, deviceId) {
+  const now = new Date().toISOString();
+  return saveFormResponse({
+    id: `${taskId}-${now}`,
+    task_id: taskId,
+    form_code: formCode,
+    form_version: formVersion,
+    answers_json: answersJson,
+    submitted_at: now,
+    sync_status: "pending",
+    device_id: deviceId,
+    created_at: now,
+  });
+}
+
+export function saveFormResponse(response) {
+  const db = getDb();
+  const now = new Date().toISOString();
+  const responseId = response.id || response.submission_id || `${response.form_code}-${now}`;
+  const submittedAt = response.submitted_at || now;
+  const answersJson =
+    typeof response.answers_json === "string"
+      ? response.answers_json
+      : JSON.stringify(response.answers_json || response.json_payload || {});
 
   try {
     db.runSync("BEGIN TRANSACTION");
 
-    const responseId = `${taskId}-${now}`;
     db.runSync(
       `INSERT INTO form_responses
-       (id, task_id, form_code, form_version, answers_json, submitted_at, sync_status, device_id, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [responseId, taskId, formCode, formVersion, answersJson, now, "pending", deviceId, now],
+       (id, task_id, form_code, form_version, household_id, site_id, locality_code,
+        subject_type, subject_id, answers_json, submitted_at, sync_status, device_id, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        responseId,
+        response.task_id || null,
+        response.form_code,
+        response.form_version,
+        response.household_id || null,
+        response.site_id ?? null,
+        response.locality_code || null,
+        response.subject_type || null,
+        response.subject_id || null,
+        answersJson,
+        submittedAt,
+        response.sync_status || "pending",
+        response.device_id || "unknown",
+        response.created_at || now,
+      ],
     );
 
-    db.runSync("UPDATE follow_up_tasks SET status = ?, updated_at = ? WHERE id = ?", [
-      "completed",
-      now,
-      taskId,
-    ]);
+    if (response.task_id) {
+      db.runSync("UPDATE follow_up_tasks SET status = ?, updated_at = ? WHERE id = ?", [
+        "completed",
+        now,
+        response.task_id,
+      ]);
+    }
 
     db.runSync("COMMIT");
+    return { ...response, id: responseId, submitted_at: submittedAt, created_at: response.created_at || now };
   } catch (error) {
     db.runSync("ROLLBACK");
-    console.error("Error completing task:", error);
+    console.error("Error saving form response:", error);
     throw error;
   }
 }

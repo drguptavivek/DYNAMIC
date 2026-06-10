@@ -51,12 +51,13 @@ Out of scope for this first design:
 
 SurveyJS JSON is the questionnaire rendering layer, not the core longitudinal data model.
 
-The system must have a normalized domain model for household, person, eligible woman, pregnancy, child, visit, event, task, attempt, correction, and sync state. SurveyJS form responses are immutable evidence linked to that domain model.
+The system must have a normalized domain model for household, person, eligible woman, pregnancy, child, visit, event, task, attempt, draft, correction, and sync state. SurveyJS form responses are immutable evidence linked to that domain model.
 
 The core pattern is:
 
 ```text
 normalized domain state
+  + mutable SurveyJS form drafts
   + immutable SurveyJS form responses
   + domain events
   + generated follow-up tasks
@@ -75,6 +76,8 @@ Responsibilities:
 - area-scoped offline data collection
 - SQLite local domain store
 - SurveyJS form rendering
+- local form drafts with 30-second autosave and explicit Save Draft
+- Side Navigation / Table of Contents and progress bar for SurveyJS forms
 - contextual trigger buttons
 - task and opportunity worklists
 - local workflow rule execution
@@ -438,6 +441,60 @@ Response status values:
 
 The PDF `Variable ID` remains the canonical question code in `sourceCode`. Globally unique analysis-safe keys are form-prefixed where needed.
 
+### Form Draft
+
+Form draft is mutable working state captured before final SurveyJS submission.
+
+Drafts are stored separately from immutable form responses. Do not represent drafts as `form_responses.response_status = draft`.
+
+Key fields:
+
+- `form_draft_id`
+- `draft_key`
+- `site_id`
+- `locality_code`
+- `household_id`
+- `visit_id`
+- `task_id`
+- `form_code`
+- `form_version`
+- `subject_type`
+- `subject_id`
+- `lineage_ids_json`
+- `prefill_snapshot_json`
+- `prefill_mapper_version`
+- `answers_json`
+- `completion_state_json`
+- `validation_state_json`
+- `draft_status`
+- `created_offline_at`
+- `updated_offline_at`
+- `device_id`
+- `created_by_user_id`
+- `last_saved_by_user_id`
+- `submitted_form_response_id`
+
+Draft status values:
+
+- `active`
+- `submitted`
+- `discarded`
+- `superseded`
+
+Draft rules:
+
+- Drafts can exist only for a valid task or valid contextual trigger.
+- Autosave writes locally every 30 seconds when the form is dirty.
+- Explicit Save Draft writes locally immediately.
+- The app saves before backgrounding, closing, or navigating away when unsaved changes exist.
+- Drafts stay local on the field device and are not uploaded.
+- Drafts do not complete tasks, generate domain events, update normalized domain state, or trigger follow-up scheduling.
+- Preview is available anytime from the current saved draft.
+- The field user must preview the saved draft before finalizing the form.
+- Only finalized forms are uploaded.
+- Finalize/Submit creates an immutable form response and then marks the local draft `submitted`.
+- When a different final response completes the same task, remaining active drafts for that task are marked `superseded`.
+
 ### Domain Event
 
 Domain events record meaningful state changes and trigger workflow rules.
@@ -748,6 +805,8 @@ Operational states are date-derived and status-derived:
 - `due`: window start through target date
 - `urgent`: after target date but before deadline
 - `overdue`: after deadline
+
+Detailed follow-up-window decisions and unresolved asymmetric-window questions are maintained in `docs/superpowers/Follow-up-windows.md`.
 
 ### Global Form-Type Deadline Rules
 
@@ -1168,7 +1227,7 @@ Backend behavior:
 The app follows this sequence on each sync:
 
 1. Read current area assignments from `GET /api/auth/me` → `area_assignments`
-2. POST outbox records to `/api/sync/push` with all pending records including task attempts and visits
+2. POST outbox records to `/api/sync/push` with all pending finalized form responses, task attempts, visits, domain events, and generated tasks
 3. GET `/api/sync/pull` with current `sync_cursor` and assigned `locality_codes`
 4. If `protocol_config_version` differs from cached version, call `GET /api/protocol/config` and batch-download updated form JSONs via `GET /api/protocol/forms/batch?codes=...`
 5. Apply pull response to local SQLite domain store
@@ -1454,14 +1513,56 @@ It receives:
 - task context
 - visit/session metadata
 
-On completion:
+Layout:
 
+- use a two-pane form layout on tablet/desktop-width screens
+- show SurveyJS Side Navigation / Table of Contents in the left pane
+- derive section labels from SurveyJS pages or explicit section metadata, not from question labels
+- show current section, completion state, and validation/error state where feasible
+- allow section click/tap to move within the form without submitting it
+- use a collapsible section drawer or equivalent compact control on narrow screens
+- show a progress bar based on SurveyJS page/section completion
+- recompute progress from current answers and the SurveyJS model rather than treating it as analysis data
+- keep Save Draft, Preview, and Submit actions available while navigating sections
+
+On open:
+
+- find the latest active local draft for the same task/form/version/subject/device/user context
+- if present, load its partial `answers_json` and original prefill snapshot
+- if absent, create a new draft shell from the task context and current prefill snapshot
+- restore the last active section/page from `completion_state_json` when available
+
+During entry:
+
+- autosave dirty forms locally every 30 seconds
+- expose explicit Save Draft
+- expose Preview anytime; opening Preview first saves the current draft
+- save on background, close, or navigation away when dirty
+- show local last-saved status
+
+Preview behavior:
+
+- force-save current draft data
+- show Preview from the saved local draft
+- allow return from Preview to edit the form
+- allow Preview even when the draft is incomplete, with incomplete or invalid sections clearly marked
+
+Before finalization:
+
+- force-save current draft data
+- show or return to Preview from the saved local draft
+- enable Finalize/Submit only after Preview and required validation
+
+On Finalize/Submit:
+
+- force-save current draft data
 - save immutable form response
 - generate domain events
 - apply local domain state updates
 - generate/supersede local tasks
 - update task context for affected tasks
-- write outbox records
+- mark the draft `submitted` with `submitted_form_response_id`
+- write finalized form response and derived records to the outbox for upload
 
 ### Task Attempt Screen
 

@@ -6,7 +6,7 @@
   "scripts": {
     "start": "expo start --port 8088",
     "web": "expo start --web --port 8088",
-    "test": "node src/tests/validateForms.mjs && node src/tests/validateStudyMasters.mjs && node src/tests/validateHouseholdRepository.mjs && node src/tests/validateHouseholdMasterChoices.mjs && node src/tests/validateHouseholdSurveyBehaviors.mjs && node src/tests/validateFieldWorkerProfile.mjs && node src/tests/validateSyncWorkflow.mjs"
+    "test": "node src/tests/validateForms.mjs && node src/tests/validateStudyMasters.mjs && node src/tests/validateHouseholdRepository.mjs && node src/tests/validateHouseholdMasterChoices.mjs && node src/tests/validateHouseholdSurveyBehaviors.mjs && node src/tests/validateQuestionnaireSurveyBehaviors.mjs && node src/tests/validateQuestionnaireSurveyJsonTransforms.mjs && node src/tests/validateHouseholdMemberSummary.mjs && node src/tests/validateFieldWorkerProfile.mjs && node src/tests/validateSyncWorkflow.mjs && node src/tests/validateQuestionnaireDraftWorkflow.mjs && node src/tests/validateQuestionnaireSubmissionWorkflow.mjs && node src/tests/validateSurveyNavigation.mjs"
   },
   "dependencies": {
     "@expo/metro-runtime": "6.1.2",

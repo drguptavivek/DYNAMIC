@@ -47,11 +47,34 @@ export function initTaskDb() {
       task_id TEXT REFERENCES follow_up_tasks(id),
       form_code TEXT NOT NULL,
       form_version TEXT,
+      household_id TEXT,
+      site_id INTEGER,
+      locality_code TEXT,
+      subject_type TEXT,
+      subject_id TEXT,
       answers_json TEXT NOT NULL,
       submitted_at TEXT,
       sync_status TEXT DEFAULT 'pending',
       device_id TEXT,
       created_at TEXT
+    )
+  `);
+
+  db.runSync(`
+    CREATE TABLE IF NOT EXISTS eligible_women (
+      woman_id TEXT PRIMARY KEY,
+      household_member_id TEXT NOT NULL,
+      household_id TEXT NOT NULL,
+      site_id INTEGER,
+      locality_code TEXT,
+      eligibility_start_date TEXT,
+      wq_status TEXT DEFAULT 'pending',
+      tracking_status TEXT DEFAULT 'not_tracked',
+      current_eligibility_status TEXT DEFAULT 'eligible',
+      eligibility_basis TEXT,
+      sync_status TEXT DEFAULT 'local',
+      created_at TEXT,
+      updated_at TEXT
     )
   `);
 
@@ -71,6 +94,20 @@ export function initTaskDb() {
       sync_status TEXT DEFAULT 'pending'
     )
   `);
+
+  for (const statement of [
+    "ALTER TABLE form_responses ADD COLUMN household_id TEXT",
+    "ALTER TABLE form_responses ADD COLUMN site_id INTEGER",
+    "ALTER TABLE form_responses ADD COLUMN locality_code TEXT",
+    "ALTER TABLE form_responses ADD COLUMN subject_type TEXT",
+    "ALTER TABLE form_responses ADD COLUMN subject_id TEXT",
+  ]) {
+    try {
+      db.runSync(statement);
+    } catch {
+      // Column already exists on upgraded local stores.
+    }
+  }
 
   dbInstance = db;
   return db;

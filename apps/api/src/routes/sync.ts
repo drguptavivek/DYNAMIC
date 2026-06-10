@@ -1,15 +1,17 @@
 import { Router, Request, Response } from "express";
-import { eq, and, gt, inArray, count } from "drizzle-orm";
+import { eq, and, gt, inArray, count, lte } from "drizzle-orm";
 import { db, schema } from "../db";
 import { requireAuth } from "../middleware/auth";
 import { sendError, sendSuccess } from "../lib/errors";
 import { processFormResponse } from "../services/eventProcessor";
 import { getFormVersionManifest } from "../lib/formCatalog";
+import { buildSyncClockMetadata } from "../lib/syncClock";
 
 const router = Router();
 
 interface PageToken {
   since: string;
+  sync_cursor?: string;
   offset: number;
 }
 
@@ -106,6 +108,17 @@ const mapTaskForExpo = (task: typeof schema.followUpTasks.$inferSelect) => ({
 });
 
 /**
+ * GET /api/v1/sync/time
+ * Return backend time and measured device/server delta for sync drift checks.
+ */
+router.get("/time", requireAuth, async (req: Request, res: Response) => {
+  const deviceTimeUtc = req.query.device_time_utc;
+  sendSuccess(res, {
+    clock: buildSyncClockMetadata(typeof deviceTimeUtc === "string" ? deviceTimeUtc : undefined),
+  });
+});
+
+/**
  * GET /api/v1/sync/pull
  * Pull data for offline sync
  */
@@ -118,6 +131,7 @@ router.get("/pull", requireAuth, async (req: Request, res: Response) => {
       page_size: pageSizeStr,
       page_token: pageTokenStr,
       include_members: includeMembersStr,
+      client_time_utc: clientTimeUtc,
     } = req.query;
 
     const siteId = siteIdStr ? parseInt(siteIdStr as string, 10) : undefined;
@@ -130,12 +144,14 @@ router.get("/pull", requireAuth, async (req: Request, res: Response) => {
     const includeMembers = includeMembersStr !== "false";
     let offset = 0;
     const initialSyncCursor = new Date().toISOString();
+    let syncCursor = initialSyncCursor;
     let sinceCursor = since ? (since as string) : new Date(0).toISOString();
 
     if (pageTokenStr) {
       try {
         const decoded = decodePageToken(pageTokenStr as string);
         sinceCursor = decoded.since;
+        syncCursor = decoded.sync_cursor || initialSyncCursor;
         offset = decoded.offset;
       } catch {
         return sendError(res, 400, "INVALID_PAGE_TOKEN", "Invalid page token");
@@ -146,10 +162,15 @@ router.get("/pull", requireAuth, async (req: Request, res: Response) => {
     if (!sinceDate) {
       return sendError(res, 400, "INVALID_SYNC_CURSOR", "Invalid sync cursor");
     }
-    const syncCursorSince = since || pageTokenStr ? sinceCursor : initialSyncCursor;
+    const syncCursorDate = parseSyncCursorDate(syncCursor);
+    if (!syncCursorDate) {
+      return sendError(res, 400, "INVALID_SYNC_CURSOR", "Invalid sync cursor");
+    }
+
     // Query each entity
     const householdConditions: any[] = [
       gt(schema.households.updated_at, sinceDate),
+      lte(schema.households.updated_at, syncCursorDate),
       ...buildLocationConditions(schema.households, siteId, localityCodes),
     ];
 
@@ -164,6 +185,7 @@ router.get("/pull", requireAuth, async (req: Request, res: Response) => {
       .select()
       .from(schema.households)
       .where(and(...householdConditions))
+      .orderBy(schema.households.household_id)
       .limit(pageSize + 1)
       .offset(offset);
 
@@ -179,9 +201,11 @@ router.get("/pull", requireAuth, async (req: Request, res: Response) => {
           .where(
             and(
               gt(schema.householdMembers.updated_at, sinceDate),
+              lte(schema.householdMembers.updated_at, syncCursorDate),
               ...buildLocationConditions(schema.householdMembers, siteId, localityCodes),
             ),
           )
+          .orderBy(schema.householdMembers.household_id, schema.householdMembers.member_number)
           .limit(pageSize)
           .offset(offset)
       : [];
@@ -189,6 +213,7 @@ router.get("/pull", requireAuth, async (req: Request, res: Response) => {
     // Query eligible women
     const womenConditions: any[] = [
       gt(schema.eligibleWomen.updated_at, sinceDate),
+      lte(schema.eligibleWomen.updated_at, syncCursorDate),
       ...buildLocationConditions(schema.eligibleWomen, siteId, localityCodes),
     ];
 
@@ -196,12 +221,14 @@ router.get("/pull", requireAuth, async (req: Request, res: Response) => {
       .select()
       .from(schema.eligibleWomen)
       .where(and(...womenConditions))
+      .orderBy(schema.eligibleWomen.woman_id)
       .limit(pageSize)
       .offset(offset);
 
     // Query pregnancies
     const pregnanciesConditions: any[] = [
       gt(schema.pregnancies.updated_at, sinceDate),
+      lte(schema.pregnancies.updated_at, syncCursorDate),
       ...buildLocationConditions(schema.pregnancies, siteId, localityCodes),
     ];
 
@@ -209,12 +236,16 @@ router.get("/pull", requireAuth, async (req: Request, res: Response) => {
       .select()
       .from(schema.pregnancies)
       .where(and(...pregnanciesConditions))
+      .orderBy(schema.pregnancies.pregnancy_id)
       .limit(pageSize)
       .offset(offset);
 
     // Query children. Children do not carry locality_code, so locality scope is
     // applied through households instead of materializing a large household_id IN list.
-    const childrenBaseConditions: any[] = [gt(schema.children.updated_at, sinceDate)];
+    const childrenBaseConditions: any[] = [
+      gt(schema.children.updated_at, sinceDate),
+      lte(schema.children.updated_at, syncCursorDate),
+    ];
     const childrenData =
       localityCodes.length > 0
         ? await db
@@ -245,6 +276,7 @@ router.get("/pull", requireAuth, async (req: Request, res: Response) => {
               eq(schema.children.household_id, schema.households.household_id),
             )
             .where(and(...childrenBaseConditions, inArray(schema.households.locality_code, localityCodes)))
+            .orderBy(schema.children.child_id)
             .limit(pageSize)
             .offset(offset)
         : await db
@@ -256,11 +288,15 @@ router.get("/pull", requireAuth, async (req: Request, res: Response) => {
                 ...(siteId !== undefined ? [eq(schema.children.site_id, siteId)] : []),
               ),
             )
+            .orderBy(schema.children.child_id)
             .limit(pageSize)
             .offset(offset);
 
     // Query tasks
-    const tasksConditions: any[] = [gt(schema.followUpTasks.updated_at, sinceDate)];
+    const tasksConditions: any[] = [
+      gt(schema.followUpTasks.updated_at, sinceDate),
+      lte(schema.followUpTasks.updated_at, syncCursorDate),
+    ];
     if (localityCodes.length > 0) {
       tasksConditions.push(inArray(schema.followUpTasks.locality_code, localityCodes));
     } else if (siteId !== undefined) {
@@ -271,6 +307,7 @@ router.get("/pull", requireAuth, async (req: Request, res: Response) => {
       .select()
       .from(schema.followUpTasks)
       .where(and(...tasksConditions))
+      .orderBy(schema.followUpTasks.task_id)
       .limit(pageSize)
       .offset(offset);
 
@@ -282,6 +319,7 @@ router.get("/pull", requireAuth, async (req: Request, res: Response) => {
             .select()
             .from(schema.taskAttempts)
             .where(inArray(schema.taskAttempts.task_id, taskIds))
+            .orderBy(schema.taskAttempts.task_id, schema.taskAttempts.attempt_number)
             .limit(pageSize)
             .offset(offset)
         : [];
@@ -298,16 +336,16 @@ router.get("/pull", requireAuth, async (req: Request, res: Response) => {
       tasksData.length >= pageSize ||
       taskAttempts.length >= pageSize;
 
-    const syncCursor = syncCursorSince;
-
     const nextPageToken = hasMore
       ? encodePageToken({
           since: sinceCursor,
+          sync_cursor: syncCursor,
           offset: offset + pageSize,
         })
       : undefined;
 
     sendSuccess(res, {
+      clock: buildSyncClockMetadata(typeof clientTimeUtc === "string" ? clientTimeUtc : undefined),
       sync_cursor: syncCursor,
       next_page_token: nextPageToken,
       total_households: totalHouseholds,
@@ -369,7 +407,7 @@ router.post("/pull/members", requireAuth, async (req: Request, res: Response) =>
  */
 router.post("/push", requireAuth, async (req: Request, res: Response) => {
   try {
-    const { device_id: deviceId, records } = req.body;
+    const { device_id: deviceId, records, client_time_utc: clientTimeUtc } = req.body;
 
     if (!deviceId || !Array.isArray(records)) {
       return sendError(res, 400, "INVALID_REQUEST", "Missing device_id or records");
@@ -584,6 +622,7 @@ router.post("/push", requireAuth, async (req: Request, res: Response) => {
     }
 
     sendSuccess(res, {
+      clock: buildSyncClockMetadata(clientTimeUtc),
       accepted,
       accepted_records: acceptedRecords,
       duplicates,

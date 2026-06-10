@@ -33,8 +33,11 @@ This file captures findings from discussion with site investigators. Notes here 
 - HHQ form review should check whether the current contact-number field supports multiple HOH mobile numbers or needs a repeatable/alternate-number structure.
 - After a proforma/form is filled on the tablet, the FDC should have a way to preview the entered data before final submission.
 - In Preview, the FDC should review the filled data and be able to go back to the form to make corrections before submitting.
+- Preview should also be available anytime while filling the form, using the current saved local draft.
+- SurveyJS forms should include Side Navigation / Table of Contents and a progress bar so FDCs can move through long forms by section and see completion progress.
 - FDCs need a Save Draft option for partially completed or not-yet-finalized forms.
-- Draft forms should sync to the server as drafts.
+- Draft forms should stay local on the field device; only finalized forms should upload.
+- This has now been promoted into the approved local `form_drafts` design with 30-second local autosave, explicit Save Draft, Preview anytime, required Preview before final save, and finalize-only upload; see `docs/superpowers/specs/2026-06-07-form-drafts-autosave-design.md`.
 - The draft state should be distinct from submitted state; submitted forms enter the SiteDataManager review/edit workflow, while drafts remain under the FDC's field workflow until submitted.
 
 ### Admin, Correction, And Data Quality Workflow
@@ -70,23 +73,37 @@ This file captures findings from discussion with site investigators. Notes here 
   - Percent of stillbirths with weight recorded.
 - Indicator definitions are being maintained in `docs/superpowers/Indicators.md`.
 
+### Follow-Up Visit Windows
+
+- Consolidated follow-up window rules and open decisions are being maintained in `docs/superpowers/Follow-up-windows.md`.
+- Follow-up visit proforma windows for pregnant women and children may not be symmetrical on the left and right side of the expected/due date.
+- Example windows discussed:
+  - 7-day follow-up may allow day 5 to day 14.
+  - 28-day follow-up after birth may allow day 20 to day 35.
+  - 60-day follow-up may allow day 53 to day 67.
+- The gap between consecutive follow-up dates/windows needs to be distributed to either the left side or right side of adjacent events/windows.
+- This needs brainstorming and protocol decision before final task-window configuration.
+- The software should support asymmetric windows per follow-up type, rather than assuming equal days before and after the expected date.
+
 ### Offline Sync And Android Worklist Implications
 
 - Offline sync and Android worklists must respect the assigned locality plus household-number range. The field app should not download or display households outside the FDC's assigned range.
 - The Android app needs local draft storage for forms saved before submission.
 - Preview should work offline from the locally saved form data before the FDC submits.
-- Draft forms should be included in sync as draft records.
+- Draft forms should not be included in sync as draft records. Only finalized form responses should upload.
 
 ## Decisions Or Tentative Agreements
 
 - Tentative: field assignment scope is not just site/locality. It may need a household-number range within a locality.
 - Tentative: SiteDataManager role users can view submitted forms for their site, flag them as having Minor issues or Major issues, and edit submitted FDC forms for 48 hours with full audit logging. After 48 hours, form corrections require central approval.
-- Tentative: FDC tablet workflow should include Preview and Save Draft before final form submission, and draft forms should sync to the server as drafts.
+- Promoted: FDC tablet workflow includes SurveyJS Side Navigation / Table of Contents, a progress bar, 30-second local autosave, explicit Save Draft, Preview anytime, required Preview before final save/finalization, and upload only after the form is finalized.
 - Tentative: edits to key outcome/workflow-linked fields require Site Investigator or Central Investigator approval before the edit is finalized.
 
 ## Open Questions
 
 - What are the exact denominators, time windows, and exclusion rules for each data-quality indicator?
+- For each pregnancy and child follow-up proforma, what is the exact allowed visit window: expected date, left-side start offset, and right-side end offset?
+- When there is a gap between adjacent follow-up windows, should that gap be assigned to the earlier visit window, the later visit window, or left as no-valid-visit time?
 
 ## Action Items
 

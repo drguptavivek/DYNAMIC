@@ -12,7 +12,21 @@ function createEvent() {
   };
 }
 
-function createModel(data) {
+function createQuestion(name, parentData = null) {
+  return {
+    name,
+    parent: parentData ? { data: parentData } : null,
+    errors: [],
+    addError(error) {
+      this.errors.push(typeof error === "string" ? error : error.text || String(error));
+    },
+    clearErrors() {
+      this.errors = [];
+    }
+  };
+}
+
+function createModel(data, questions = []) {
   const householdNumberQuestion = {
     errors: [],
     addError(error) {
@@ -25,6 +39,7 @@ function createModel(data) {
 
   return {
     data,
+    notifications: [],
     onAfterRenderSurvey: createEvent(),
     onCompleting: createEvent(),
     onComplete: createEvent(),
@@ -32,17 +47,21 @@ function createModel(data) {
     onDynamicPanelAdded: createEvent(),
     onDynamicPanelRemoved: createEvent(),
     onValueChanged: createEvent(),
+    onValidateQuestion: createEvent(),
     getQuestionByName(name) {
       return name === "hhq_household_number" ? householdNumberQuestion : null;
     },
     getAllQuestions() {
-      return [];
+      return questions;
     },
     getValue(name) {
       return this.data[name];
     },
     setValue(name, value) {
       this.data[name] = value;
+    },
+    notify(message, type) {
+      this.notifications.push({ message, type });
     },
     householdNumberQuestion
   };
@@ -109,5 +128,170 @@ const newCompletingOptions = { allow: true, allowComplete: true };
 await newModel.onCompleting.handlers[0](newModel, newCompletingOptions);
 assert.equal(newCompletingOptions.allow, true);
 assert.equal(newCompletingOptions.allowComplete, true);
+
+const duplicateHeadMembers = [
+  { member_name: "Asha", member_relationship_to_head: 1 },
+  { member_name: "Bala", member_relationship_to_head: 1 }
+];
+const firstRelationshipQuestion = createQuestion(
+  "member_relationship_to_head",
+  duplicateHeadMembers[0]
+);
+const secondRelationshipQuestion = createQuestion(
+  "member_relationship_to_head",
+  duplicateHeadMembers[1]
+);
+const duplicateHeadModel = createModel(
+  { hhq_household_members: duplicateHeadMembers },
+  [firstRelationshipQuestion, secondRelationshipQuestion]
+);
+
+attachHouseholdSurveyBehaviors(
+  duplicateHeadModel,
+  { form_code: "HHQ" },
+  () => {},
+  {
+    findExistingHousehold: async () => null
+  }
+);
+
+duplicateHeadModel.onValueChanged.handlers[0](duplicateHeadModel, {
+  name: "member_relationship_to_head",
+  value: 1
+});
+
+assert.deepEqual(
+  duplicateHeadModel.getValue("hhq_household_members").map((member) => member.member_relationship_to_head),
+  [1, 1]
+);
+assert.deepEqual(firstRelationshipQuestion.errors, [
+  "Only one household member can be marked as Head."
+]);
+assert.deepEqual(secondRelationshipQuestion.errors, [
+  "Only one household member can be marked as Head."
+]);
+assert.deepEqual(duplicateHeadModel.notifications, [
+  {
+    message: "Only one household member can be marked as Head.",
+    type: "error"
+  }
+]);
+
+const duplicateHeadCompletingOptions = { allow: true, allowComplete: true };
+await duplicateHeadModel.onCompleting.handlers[0](
+  duplicateHeadModel,
+  duplicateHeadCompletingOptions
+);
+assert.equal(duplicateHeadCompletingOptions.allow, false);
+assert.equal(duplicateHeadCompletingOptions.allowComplete, false);
+assert.equal(
+  duplicateHeadCompletingOptions.message,
+  "Only one household member can be marked as Head."
+);
+
+duplicateHeadModel.data.hhq_household_members[1].member_relationship_to_head = 2;
+duplicateHeadModel.onValueChanged.handlers[0](duplicateHeadModel, {
+  name: "member_relationship_to_head",
+  value: 2
+});
+assert.deepEqual(firstRelationshipQuestion.errors, []);
+assert.deepEqual(secondRelationshipQuestion.errors, []);
+
+const enforceSingleHeadMembers = [
+  { member_name: "Asha", member_relationship_to_head: 1 },
+  { member_name: "Dcss", member_relationship_to_head: 1 }
+];
+const enforceSecondRelationshipQuestion = createQuestion(
+  "member_relationship_to_head",
+  enforceSingleHeadMembers[1]
+);
+const enforceSingleHeadModel = createModel(
+  { hhq_household_members: enforceSingleHeadMembers },
+  [createQuestion("member_relationship_to_head", enforceSingleHeadMembers[0]), enforceSecondRelationshipQuestion]
+);
+
+attachHouseholdSurveyBehaviors(
+  enforceSingleHeadModel,
+  { form_code: "HHQ" },
+  () => {},
+  {
+    findExistingHousehold: async () => null
+  }
+);
+
+enforceSingleHeadModel.onValueChanged.handlers[0](enforceSingleHeadModel, {
+  name: "member_relationship_to_head",
+  value: 1,
+  question: enforceSecondRelationshipQuestion
+});
+
+assert.deepEqual(
+  enforceSingleHeadModel.getValue("hhq_household_members").map((member) => member.member_relationship_to_head),
+  [1, 1]
+);
+
+const ageDurationMember = {
+  member_name: "Sita",
+  member_residence_duration: { months: 1, years: 12 },
+  member_age_years: 11
+};
+const ageQuestion = createQuestion("member_age_years", ageDurationMember);
+const residenceDurationQuestion = createQuestion("member_residence_duration", ageDurationMember);
+const ageDurationModel = createModel(
+  { hhq_household_members: [ageDurationMember] },
+  [residenceDurationQuestion, ageQuestion]
+);
+
+attachHouseholdSurveyBehaviors(
+  ageDurationModel,
+  { form_code: "HHQ" },
+  () => {},
+  {
+    findExistingHousehold: async () => null
+  }
+);
+
+ageDurationModel.onValueChanged.handlers[0](ageDurationModel, {
+  name: "member_age_years",
+  value: 11,
+  question: ageQuestion
+});
+
+assert.deepEqual(ageQuestion.errors, [
+  "Age in completed years cannot be less than years continuously living here."
+]);
+assert.deepEqual(residenceDurationQuestion.errors, []);
+
+const ageValidateOptions = {
+  name: "member_age_years",
+  question: ageQuestion,
+  value: 11,
+  error: ""
+};
+ageDurationModel.onValidateQuestion.handlers[0](ageDurationModel, ageValidateOptions);
+assert.equal(
+  ageValidateOptions.error,
+  "Age in completed years cannot be less than years continuously living here."
+);
+
+const ageDurationCompletingOptions = { allow: true, allowComplete: true };
+await ageDurationModel.onCompleting.handlers[0](
+  ageDurationModel,
+  ageDurationCompletingOptions
+);
+assert.equal(ageDurationCompletingOptions.allow, false);
+assert.equal(ageDurationCompletingOptions.allowComplete, false);
+assert.equal(
+  ageDurationCompletingOptions.message,
+  "Age in completed years cannot be less than years continuously living here."
+);
+
+ageDurationModel.data.hhq_household_members[0].member_age_years = 12;
+ageDurationModel.onValueChanged.handlers[0](ageDurationModel, {
+  name: "member_age_years",
+  value: 12,
+  question: ageQuestion
+});
+assert.deepEqual(ageQuestion.errors, []);
 
 console.log("Validated HHQ duplicate household checks.");

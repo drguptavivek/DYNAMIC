@@ -8,6 +8,7 @@ const SUPPORTED_SURVEY_KEYS = new Set([
   "choices",
   "items",
   "visibleIf",
+  "isRequired",
   "validators",
   "inputType",
   "readOnly",

@@ -44,6 +44,7 @@ assert.equal(record.household_id, "1-02-0042-03");
 assert.equal(record.members.length, 2);
 assert.equal(record.members[0].individual_id, "1-02-0042-03-01");
 assert.equal(record.members[1].individual_id, "1-02-0042-03-02");
+assert.equal(record.mobile_number, "9999999999");
 assert.equal(buildHouseholdIdFromHhqData(sample), "1-02-0042-03");
 assert.equal(
   buildHouseholdIdFromHhqData({ ...sample, hhq_structure_map_id: "42" }),
@@ -65,5 +66,17 @@ const duplicate = extractHouseholdRegistryFields({
 });
 
 assert.throws(() => assertUniqueMembers(duplicate), /Duplicate/);
+
+const multipleMobileRecord = extractHouseholdRegistryFields({
+  ...sample,
+  hhq_contact_mobile: "",
+  hhq_contact_mobile_numbers: [
+    { mobile_number: "9999999999" },
+    { mobile_number: "8888888888" },
+    { mobile_number: "" }
+  ]
+});
+
+assert.equal(multipleMobileRecord.mobile_number, "9999999999, 8888888888");
 
 console.log("Validated household and individual ID extraction.");

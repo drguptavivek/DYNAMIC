@@ -1,4 +1,5 @@
 import { and, eq } from "drizzle-orm";
+import { fileURLToPath } from "node:url";
 import { db, schema } from "../db";
 import { hashPassword } from "../lib/password";
 
@@ -201,5 +202,16 @@ export async function upsertDevSeed() {
         status: "planned",
         updated_at: now,
       },
+    });
+}
+
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  upsertDevSeed()
+    .then(() => {
+      console.log("Development seed upserted");
+    })
+    .catch((error) => {
+      console.error(error);
+      process.exitCode = 1;
     });
 }

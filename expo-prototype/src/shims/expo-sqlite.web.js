@@ -6,6 +6,7 @@ function defaultState() {
     follow_up_tasks: [],
     task_attempts: [],
     form_responses: [],
+    eligible_women: [],
     domain_events_outbox: [],
   };
 }
@@ -80,24 +81,68 @@ class WebDatabase {
       const row = rowFromColumns(columns, params);
       this.state.follow_up_tasks = [
         row,
-        ...this.state.follow_up_tasks.filter((task) => task.id !== row.id),
+        ...this.state.follow_up_tasks.filter(
+          (task) => task.id !== row.id && task.task_key !== row.task_key,
+        ),
+      ];
+      this.persist();
+      return { changes: 1 };
+    }
+
+    if (/INSERT OR REPLACE INTO eligible_women/i.test(normalized)) {
+      const columns = [
+        "woman_id",
+        "household_member_id",
+        "household_id",
+        "site_id",
+        "locality_code",
+        "eligibility_start_date",
+        "wq_status",
+        "tracking_status",
+        "current_eligibility_status",
+        "eligibility_basis",
+        "sync_status",
+        "created_at",
+        "updated_at",
+      ];
+      const row = rowFromColumns(columns, params);
+      this.state.eligible_women = [
+        row,
+        ...this.state.eligible_women.filter((woman) => woman.woman_id !== row.woman_id),
       ];
       this.persist();
       return { changes: 1 };
     }
 
     if (/INSERT INTO form_responses/i.test(normalized)) {
-      const columns = [
-        "id",
-        "task_id",
-        "form_code",
-        "form_version",
-        "answers_json",
-        "submitted_at",
-        "sync_status",
-        "device_id",
-        "created_at",
-      ];
+      const columns = /household_id/i.test(normalized)
+        ? [
+            "id",
+            "task_id",
+            "form_code",
+            "form_version",
+            "household_id",
+            "site_id",
+            "locality_code",
+            "subject_type",
+            "subject_id",
+            "answers_json",
+            "submitted_at",
+            "sync_status",
+            "device_id",
+            "created_at",
+          ]
+        : [
+            "id",
+            "task_id",
+            "form_code",
+            "form_version",
+            "answers_json",
+            "submitted_at",
+            "sync_status",
+            "device_id",
+            "created_at",
+          ];
       this.state.form_responses.push(rowFromColumns(columns, params));
       this.persist();
       return { changes: 1 };

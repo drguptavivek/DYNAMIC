@@ -93,6 +93,12 @@ export function extractHouseholdRegistryFields(hhqData) {
   const localityCode = hhqData.hhq_locality_code || "";
   const structureNumber = hhqData.hhq_structure_map_id || "";
   const householdNumber = hhqData.hhq_household_number || "";
+  const mobileNumbers = Array.isArray(hhqData.hhq_contact_mobile_numbers)
+    ? hhqData.hhq_contact_mobile_numbers
+        .map((row) => row?.mobile_number)
+        .filter(Boolean)
+        .map(String)
+    : [];
   const updatedAt = new Date().toISOString();
   const record = {
     site_id: siteId,
@@ -108,7 +114,9 @@ export function extractHouseholdRegistryFields(hhqData) {
     interview_date: hhqData.hhq_interview_date || "",
     result_interview: hhqData.hhq_result_interview || "",
     language_questionnaire: hhqData.hhq_language_questionnaire || "",
-    mobile_number: hhqData.hhq_contact_mobile || "",
+    mobile_number: mobileNumbers.length
+      ? mobileNumbers.join(", ")
+      : hhqData.hhq_contact_mobile || "",
     sync_status: "local",
     updated_at: updatedAt
   };

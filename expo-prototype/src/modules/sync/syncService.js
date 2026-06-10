@@ -13,6 +13,7 @@ import {
   collectAssignedLocalityCodes,
   selectChangedFormCodes,
   selectNextPullCursor,
+  summarizeClockStatus,
 } from "./syncWorkflow.js";
 
 function unwrapApiData(payload) {
@@ -117,6 +118,79 @@ function setLastSyncAt(timestamp) {
   }
 }
 
+function setClockMetadata(clock) {
+  if (!clock || typeof clock !== "object") return null;
+
+  const capturedAt = new Date().toISOString();
+  const storedClock = {
+    ...clock,
+    checked_at_utc: capturedAt,
+  };
+
+  setMeta("sync_clock_metadata", JSON.stringify(storedClock));
+  setMeta("sync_clock_checked_at_utc", capturedAt);
+
+  if (typeof clock.server_time_utc === "string") {
+    setMeta("sync_clock_server_time_utc", clock.server_time_utc);
+  }
+  if (typeof clock.device_time_utc === "string") {
+    setMeta("sync_clock_device_time_utc", clock.device_time_utc);
+  }
+  if (typeof clock.server_device_delta_ms === "number") {
+    setMeta("sync_clock_delta_ms", String(clock.server_device_delta_ms));
+  }
+  if (typeof clock.clock_status === "string") {
+    setMeta("sync_clock_status", clock.clock_status);
+  }
+
+  return storedClock;
+}
+
+export function getClockStatus() {
+  const value = getMeta("sync_clock_metadata");
+  if (!value) return null;
+
+  try {
+    const clock = JSON.parse(value);
+    return {
+      ...summarizeClockStatus(clock),
+      clock,
+      checkedAt: clock.checked_at_utc || null,
+      serverTimeUtc: clock.server_time_utc || null,
+      deviceTimeUtc: clock.device_time_utc || null,
+    };
+  } catch (error) {
+    console.error("Error parsing sync clock metadata:", error);
+    setMeta("sync_clock_metadata", "");
+    return null;
+  }
+}
+
+export async function refreshServerClock() {
+  const token = authStore.getToken();
+  if (!token) {
+    throw new Error("Not authenticated");
+  }
+
+  const clientTimeUtc = new Date().toISOString();
+  const params = new URLSearchParams({ device_time_utc: clientTimeUtc });
+  const response = await fetch(`${API_BASE_URL}/sync/time?${params.toString()}`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Time sync check failed: ${response.statusText}`);
+  }
+
+  const result = unwrapApiData(await response.json());
+  setClockMetadata(result.clock);
+  return getClockStatus();
+}
+
 function getCachedFormVersions() {
   const value = getMeta("form_versions");
   if (!value) return [];
@@ -204,6 +278,7 @@ export async function pullSync(options = {}) {
   if (localities.length > 0) {
     baseParams.append("locality_codes", localities.join(","));
   }
+  baseParams.append("client_time_utc", new Date().toISOString());
   baseParams.append("include_members", "false");
   baseParams.append("page_size", "500");
 
@@ -212,6 +287,7 @@ export async function pullSync(options = {}) {
     let pulledTasks = 0;
     let pulledHouseholds = 0;
     let pulledMembers = 0;
+    let pulledEligibleWomen = 0;
     let formsUpdated = 0;
     let lastData = null;
     let batch = 0;
@@ -223,10 +299,11 @@ export async function pullSync(options = {}) {
           stage: "pull-households",
           message: `Fetching household batch ${batch}`,
           batch,
-          pulledTasks,
-          pulledHouseholds,
-          pulledMembers,
-          formsUpdated,
+        pulledTasks,
+        pulledHouseholds,
+        pulledMembers,
+        pulledEligibleWomen,
+        formsUpdated,
         });
       }
       const params = new URLSearchParams(baseParams);
@@ -248,9 +325,11 @@ export async function pullSync(options = {}) {
 
       const data = unwrapApiData(await response.json());
       lastData = data;
+      setClockMetadata(data.clock);
       const {
         households = [],
         tasks = [],
+        eligible_women: eligibleWomen = [],
         form_versions: formVersions = [],
         protocol_config_version,
         total_households: totalHouseholds = 0,
@@ -275,6 +354,7 @@ export async function pullSync(options = {}) {
           pulledTasks,
           pulledHouseholds,
           pulledMembers,
+          pulledEligibleWomen,
           formsUpdated,
         });
       }
@@ -291,6 +371,7 @@ export async function pullSync(options = {}) {
             pulledTasks,
             pulledHouseholds,
             pulledMembers,
+            pulledEligibleWomen,
             formsUpdated,
           });
         }
@@ -306,6 +387,11 @@ export async function pullSync(options = {}) {
       if (tasks.length > 0) {
         await taskRepository.saveTaskBatch(tasks);
         pulledTasks += tasks.length;
+      }
+
+      if (eligibleWomen.length > 0) {
+        taskRepository.saveEligibleWomenBatch(eligibleWomen);
+        pulledEligibleWomen += eligibleWomen.length;
       }
 
       const formRefresh = await refreshProtocolForms(formVersions);
@@ -328,6 +414,7 @@ export async function pullSync(options = {}) {
           pulledTasks,
           pulledHouseholds,
           pulledMembers,
+          pulledEligibleWomen,
           formsUpdated,
         });
       }
@@ -342,6 +429,7 @@ export async function pullSync(options = {}) {
       pulled: pulledTasks,
       pulledHouseholds,
       pulledMembers,
+      pulledEligibleWomen,
       formsUpdated,
     };
   } catch (error) {
@@ -398,6 +486,7 @@ export async function pushSync() {
       },
       body: JSON.stringify({
         device_id: deviceId,
+        client_time_utc: new Date().toISOString(),
         records,
       }),
     });
@@ -407,6 +496,7 @@ export async function pushSync() {
     }
 
     const result = unwrapApiData(await response.json());
+    setClockMetadata(result.clock);
     const acceptedIds = collectAcceptedSyncIds(result);
     const serverErrors = Array.isArray(result.errors) ? result.errors : [];
 
@@ -442,14 +532,21 @@ export async function syncAll(options = {}) {
   const { onProgress } = options;
   try {
     emitProgress(onProgress, {
+      stage: "clock-check",
+      message: "Checking server time",
+    });
+    const clockStatus = await refreshServerClock();
+    emitProgress(onProgress, {
       stage: "assignments",
       message: "Refreshing assigned localities",
+      clockStatus,
     });
     const assignmentResult = await refreshAssignments();
     emitProgress(onProgress, {
       stage: "push",
       message: "Uploading pending records",
       localities: assignmentResult.localityCodes.length,
+      clockStatus,
     });
     const pushResult = await pushSync();
     emitProgress(onProgress, {
@@ -458,6 +555,7 @@ export async function syncAll(options = {}) {
       localities: assignmentResult.localityCodes.length,
       pushed: pushResult.pushed,
       events: pushResult.events,
+      clockStatus: getClockStatus(),
     });
     if (getHouseholdCacheInfo().isWebStorage) {
       emitProgress(onProgress, {
@@ -480,9 +578,11 @@ export async function syncAll(options = {}) {
       pulledHouseholds: pullResult.pulledHouseholds,
       pulledMembers: pullResult.pulledMembers,
       formsUpdated: pullResult.formsUpdated,
+      clockStatus: getClockStatus(),
     });
     return {
       success: true,
+      clockStatus: getClockStatus(),
       localities: assignmentResult.localityCodes.length,
       pulled: pullResult.pulled,
       pulledHouseholds: pullResult.pulledHouseholds,

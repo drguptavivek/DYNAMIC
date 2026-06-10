@@ -1,8 +1,11 @@
 import {
+  addDays,
   generateHrfSchedule,
   generatePffSchedule,
   generateNffSchedule,
   generateVaTask,
+  parseISODate,
+  toISODate,
 } from "./schedule-rules";
 import { ProtocolConfig, DEFAULT_PROTOCOL_CONFIG } from "./protocol-config";
 
@@ -138,6 +141,60 @@ export function onHouseholdEnrolled(params: {
     action_state: "pending",
     disabled_reason: availability.disabled_reason,
   }));
+}
+
+export function onEligibleWomanIdentified(params: {
+  event_id: string;
+  household_id: string;
+  woman_id: string;
+  eligibility_start_date: string;
+  config?: ProtocolConfig;
+}): TaskDescriptor[] {
+  const config = params.config || DEFAULT_PROTOCOL_CONFIG;
+  const scheduleRule = config.task_schedule_rules.find((rule) => rule.task_type === "WQ");
+  const modeRule = getModeRule(config, "WQ");
+  const disposition = getAttemptDisposition(config, "WQ");
+  const availability = getFormAvailability(config, "WQ");
+  const targetDate = params.eligibility_start_date;
+  const target = parseISODate(targetDate);
+  const windowStart = addDays(target, -(scheduleRule?.window_days_before || 0));
+  const deadline = addDays(target, scheduleRule?.window_days_after || 30);
+
+  return [
+    {
+      task_key: buildTaskKey(
+        params.household_id,
+        "person",
+        params.woman_id,
+        "WQ",
+        "baseline",
+        targetDate,
+        config.rules_version,
+      ),
+      household_id: params.household_id,
+      subject_type: "person",
+      subject_id: params.woman_id,
+      woman_id: params.woman_id,
+      task_type: "WQ",
+      form_code: "WQ",
+      protocol_visit_label: "baseline",
+      generation_source: "event_triggered",
+      source_event_id: params.event_id,
+      anchor_date: params.eligibility_start_date,
+      window_start: toISODate(windowStart),
+      target_date: targetDate,
+      deadline_date: toISODate(deadline),
+      default_expected_mode: modeRule.default_mode,
+      allowed_modes: modeRule.allowed_modes,
+      mode_rule_strength: modeRule.strength,
+      max_failed_attempts: disposition.max_failed_attempts,
+      requires_final_close_reason: disposition.requires_final_close_reason,
+      rules_version: config.rules_version,
+      form_availability: availability.availability,
+      action_state: availability.availability === "available" ? "enabled" : "disabled",
+      disabled_reason: availability.disabled_reason,
+    },
+  ];
 }
 
 export function onWqCompleted(params: {

@@ -54,8 +54,23 @@ test("API smoke flow passes against dynamic_test without a fixed port", async ()
     const pull = await fetchData(`${baseUrl}/sync/pull?locality_codes=DEV001`, {
       headers: { Authorization: authorization },
     });
-    assert.equal(pull.tasks.length, 1);
+    assert.ok(pull.tasks.some((task: { id: string; form_code: string }) => task.id === "dev-task-hhq-1" && task.form_code === "HHQ"));
     assert.ok(pull.form_versions[0].checksum);
+
+    const oldCursor = "1970-01-01T00:00:00.000Z";
+    const firstPage = await fetchData(
+      `${baseUrl}/sync/pull?locality_codes=DEV001&include_members=false&page_size=1&since=${encodeURIComponent(oldCursor)}`,
+      { headers: { Authorization: authorization } },
+    );
+    assert.notEqual(firstPage.sync_cursor, oldCursor);
+    assert.ok(new Date(firstPage.sync_cursor).getTime() > new Date(oldCursor).getTime());
+    assert.ok(firstPage.next_page_token);
+
+    const secondPage = await fetchData(
+      `${baseUrl}/sync/pull?include_members=false&page_token=${encodeURIComponent(firstPage.next_page_token)}`,
+      { headers: { Authorization: authorization } },
+    );
+    assert.equal(secondPage.sync_cursor, firstPage.sync_cursor);
 
     const push = await fetchData(`${baseUrl}/sync/push`, {
       method: "POST",
@@ -63,6 +78,85 @@ test("API smoke flow passes against dynamic_test without a fixed port", async ()
       body: JSON.stringify({ device_id: "test-smoke-device", records: [] }),
     });
     assert.equal(push.accepted, 0);
+
+    const hhqResponseId = `hhq-${randomUUID()}`;
+    const hhqHouseholdId = `1-DEV001-${randomUUID().slice(0, 4)}-01`;
+    const hhqPush = await fetchData(`${baseUrl}/sync/push`, {
+      method: "POST",
+      headers: { Authorization: authorization },
+      body: JSON.stringify({
+        device_id: "test-smoke-device",
+        records: [
+          {
+            type: "form_response",
+            data: {
+              id: hhqResponseId,
+              household_id: hhqHouseholdId,
+              site_id: 1,
+              locality_code: "DEV001",
+              subject_id: hhqHouseholdId,
+              subject_type: "household",
+              form_code: "HHQ",
+              form_version: "2026.05.17",
+              answers_json: {
+                hhq_site_id: 1,
+                hhq_locality_code: "DEV001",
+                hhq_structure_map_id: hhqHouseholdId.split("-")[2],
+                hhq_household_number: "01",
+                hhq_household_address: "Smoke HHQ address",
+                hhq_household_head_name: "Smoke Head",
+                hhq_consent_study_provide_pis_explain_study_adult_member: 1,
+                hhq_interview_date: "2026-09-01",
+                hhq_result_interview: 1,
+                hhq_language_questionnaire: 1,
+                hhq_household_members: [
+                  {
+                    member_line_number: 1,
+                    member_name: "Smoke Head",
+                    member_relationship_to_head: 1,
+                    member_sex: 1,
+                    member_age_years: 40,
+                    member_marital_status: 1,
+                  },
+                  {
+                    member_line_number: 2,
+                    member_name: "Smoke Eligible Woman",
+                    member_relationship_to_head: 2,
+                    member_sex: 2,
+                    member_age_years: 28,
+                    member_marital_status: 1,
+                    member_woman_questionnaire_eligible: 1,
+                  },
+                ],
+              },
+              submitted_at: "2026-09-01T10:00:00.000Z",
+            },
+          },
+        ],
+      }),
+    });
+    assert.equal(hhqPush.accepted, 1);
+
+    const promotedMembers = await db
+      .select()
+      .from(schema.householdMembers)
+      .where(eq(schema.householdMembers.household_id, hhqHouseholdId));
+    assert.equal(promotedMembers.length, 2);
+    const promotedWomanMemberId = `${hhqHouseholdId}-02`;
+    const promotedEligibleWomen = await db
+      .select()
+      .from(schema.eligibleWomen)
+      .where(eq(schema.eligibleWomen.household_member_id, promotedWomanMemberId));
+    assert.equal(promotedEligibleWomen.length, 1);
+    assert.equal(promotedEligibleWomen[0].woman_id, promotedWomanMemberId);
+    assert.equal(promotedEligibleWomen[0].wq_status, "pending");
+    assert.equal(promotedEligibleWomen[0].tracking_status, "not_tracked");
+
+    const promotedWqTasks = await db
+      .select()
+      .from(schema.followUpTasks)
+      .where(eq(schema.followUpTasks.subject_id, promotedWomanMemberId));
+    assert.equal(promotedWqTasks.filter((task) => task.task_type === "WQ").length, 1);
 
     const failedPromotionResponseId = `failed-pef-${randomUUID()}`;
     const failedPromotionPush = await fetchData(`${baseUrl}/sync/push`, {

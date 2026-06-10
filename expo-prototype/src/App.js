@@ -24,6 +24,8 @@ import { TaskDetailModal } from "./modules/worklist/TaskDetailModal.js";
 import { SyncScreen } from "./modules/sync/SyncScreen.js";
 import { FieldWorkerProfileScreen } from "./modules/profile/FieldWorkerProfileScreen.js";
 import * as authStore from "./modules/auth/authStore.js";
+import * as syncService from "./modules/sync/syncService.js";
+import { buildClockDriftAlert } from "./modules/sync/syncWorkflow.js";
 import { getHouseholdContextSync } from "./lib/householdSync.js";
 import { buildPrefillForTask } from "./lib/prefillMapper.js";
 
@@ -135,6 +137,7 @@ export default function App() {
   const [readOnlyFields, setReadOnlyFields] = useState(null);
   const [selectedLocalityCode, setSelectedLocalityCode] = useState("");
   const [localities, setLocalities] = useState([]);
+  const [clockStatus, setClockStatus] = useState(null);
 
   useEffect(() => {
     async function initApp() {
@@ -148,6 +151,7 @@ export default function App() {
         }
 
         await refreshLocalities();
+        setClockStatus(syncService.getClockStatus());
       } catch (error) {
         console.error("App init error:", error);
       }
@@ -165,6 +169,7 @@ export default function App() {
       setCurrentTaskContext(null);
       setPrefillData(null);
       setReadOnlyFields(null);
+      setClockStatus(syncService.getClockStatus());
     };
     window.addEventListener("hashchange", onHashChange);
     onHashChange();
@@ -213,6 +218,8 @@ export default function App() {
 
     navigateTo(ROUTES.questionnaire(task.task_type));
   }
+
+  const clockAlert = buildClockDriftAlert(clockStatus);
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -390,6 +397,8 @@ export default function App() {
             />
           </View>
 
+          {clockAlert && <ClockDriftAlert alert={clockAlert} />}
+
           {route.view === "home" ? (
             <View style={styles.homeCanvas} />
           ) : route.view === PROFILE_VIEW ? (
@@ -400,7 +409,7 @@ export default function App() {
               selectedLocalityCode={selectedLocalityCode}
             />
           ) : route.view === SYNC_VIEW ? (
-            <SyncScreen />
+            <SyncScreen onClockStatusChange={setClockStatus} />
           ) : route.view === HOUSEHOLDS_VIEW ? (
             <HouseholdModule
               locale={locale}
@@ -425,6 +434,7 @@ export default function App() {
               taskContext={currentTaskContext}
               prefillData={prefillData}
               readOnlyFields={readOnlyFields}
+              user={user}
             />
           )}
         </View>
@@ -437,6 +447,15 @@ export default function App() {
         onOpenForm={handleOpenFormFromTask}
       />
     </SafeAreaView>
+  );
+}
+
+function ClockDriftAlert({ alert }) {
+  return (
+    <View style={styles.clockAlert}>
+      <Text style={styles.clockAlertTitle}>{alert.title}</Text>
+      <Text style={styles.clockAlertText}>{alert.message}</Text>
+    </View>
   );
 }
 
@@ -519,6 +538,28 @@ const styles = StyleSheet.create({
     backgroundColor: "#ffffff",
     borderBottomWidth: 1,
     borderBottomColor: "#d8dee4",
+  },
+  clockAlert: {
+    marginHorizontal: 20,
+    marginTop: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#d97706",
+    backgroundColor: "#fff7ed",
+  },
+  clockAlertTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#9a3412",
+    marginBottom: 4,
+  },
+  clockAlertText: {
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "600",
+    color: "#9a3412",
   },
   localitySwitcher: {
     marginLeft: "auto",

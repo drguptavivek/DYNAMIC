@@ -5,7 +5,7 @@ import * as eventOutbox from "../events/eventOutbox.js";
 import * as taskRepository from "../tasks/taskRepository.js";
 import { formatSyncCompletionMessage, summarizePendingSyncData } from "./syncWorkflow.js";
 
-export function SyncScreen() {
+export function SyncScreen({ onClockStatusChange } = {}) {
   const [lastSync, setLastSync] = useState(null);
   const [pendingSummary, setPendingSummary] = useState({
     responses: 0,
@@ -16,6 +16,7 @@ export function SyncScreen() {
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState(null);
   const [syncError, setSyncError] = useState(null);
+  const [clockStatus, setClockStatus] = useState(null);
 
   useEffect(() => {
     loadSyncInfo();
@@ -28,6 +29,11 @@ export function SyncScreen() {
 
       const assigned = syncService.getAssignedLocalities();
       setLocalities(assigned);
+      const currentClockStatus = syncService.getClockStatus();
+      setClockStatus(currentClockStatus);
+      if (typeof onClockStatusChange === "function") {
+        onClockStatusChange(currentClockStatus);
+      }
 
       const pendingResponses = taskRepository.getPendingResponses();
       const pendingEvents = eventOutbox.getPendingEvents();
@@ -55,12 +61,16 @@ export function SyncScreen() {
     } catch (error) {
       console.error("Sync error:", error);
       setSyncError(`Sync failed: ${error.message}`);
+      loadSyncInfo();
     } finally {
       setSyncing(false);
     }
   }
 
   const lastSyncDisplay = lastSync ? new Date(lastSync).toLocaleString() : "Never";
+  const clockCheckedDisplay = clockStatus?.checkedAt
+    ? new Date(clockStatus.checkedAt).toLocaleString()
+    : "Not checked";
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -69,6 +79,28 @@ export function SyncScreen() {
         <View style={styles.infoBox}>
           <Text style={styles.infoLabel}>Last synced at:</Text>
           <Text style={styles.infoValue}>{lastSyncDisplay}</Text>
+        </View>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Device Time</Text>
+        <View
+          style={[
+            styles.infoBox,
+            clockStatus?.shouldWarn && styles.warningInfoBox,
+          ]}
+        >
+          <Text style={styles.infoLabel}>Last checked:</Text>
+          <Text style={styles.infoValue}>{clockCheckedDisplay}</Text>
+          <Text style={[styles.infoLabel, { marginTop: 10 }]}>Server time difference:</Text>
+          <Text
+            style={[
+              styles.infoValue,
+              clockStatus?.shouldWarn && styles.warningText,
+            ]}
+          >
+            {clockStatus ? clockStatus.message : "Server time not checked yet."}
+          </Text>
         </View>
       </View>
 
@@ -184,6 +216,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
+  warningInfoBox: {
+    borderColor: "#f39c12",
+    backgroundColor: "#fff8e6",
+  },
   infoLabel: {
     fontSize: 14,
     fontWeight: "600",
@@ -219,6 +255,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#c0392b",
     fontWeight: "500",
+  },
+  warningText: {
+    color: "#9a5b00",
   },
   successBox: {
     backgroundColor: "#dfd",
