@@ -163,6 +163,7 @@ export function QuestionnaireDashboard({
   prefillData,
   readOnlyFields,
   user,
+  allowNewResponse = false,
 }) {
   const [submissions, setSubmissions] = useState([]);
   const [saveMessage, setSaveMessage] = useState("");
@@ -728,14 +729,16 @@ export function QuestionnaireDashboard({
             </Text>
           </View>
         </View>
-        <View style={styles.toolbarActions}>
-          <Pressable
-            onPress={() => navigateTo(ROUTES.questionnaireNew(formCode))}
-            style={styles.primaryButton}
-          >
-            <Text style={styles.primaryButtonText}>Add</Text>
-          </Pressable>
-        </View>
+        {allowNewResponse ? (
+          <View style={styles.toolbarActions}>
+            <Pressable
+              onPress={() => navigateTo(ROUTES.questionnaireNew(formCode))}
+              style={styles.primaryButton}
+            >
+              <Text style={styles.primaryButtonText}>Add</Text>
+            </Pressable>
+          </View>
+        ) : null}
       </View>
 
       {saveMessage ? <Text style={styles.saveMessage}>{saveMessage}</Text> : null}

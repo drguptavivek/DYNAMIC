@@ -1,0 +1,536 @@
+import React, { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+import { TaskDetailModal } from "../modules/worklist/TaskDetailModal.js";
+import { SHELL_NAV_ITEMS } from "../navigation/appNavigation.js";
+import { navigateTo } from "../navigation/routes.js";
+import { buildClockDriftAlert } from "../modules/sync/syncWorkflow.js";
+import { useFieldApp } from "./FieldAppProvider.js";
+
+export function FieldAppShell({ route, title, children }) {
+  const app = useFieldApp();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const clockAlert = buildClockDriftAlert(app.clockStatus);
+
+  useEffect(() => {
+    const isTaskForm = route?.view === "questionnaire" && route?.mode === "new";
+    if (!isTaskForm) {
+      app.clearFormContext();
+    }
+  }, [route?.view, route?.mode, route?.formCode]);
+
+  if (!app.user) {
+    return <LoginScreen />;
+  }
+
+  return (
+    <SafeAreaView style={styles.safe}>
+      <View style={styles.appShell}>
+        {menuOpen && (
+          <Pressable
+            accessibilityLabel="Close menu"
+            onPress={() => setMenuOpen(false)}
+            style={styles.scrim}
+          />
+        )}
+
+        <View style={[styles.drawer, menuOpen && styles.drawerOpen]}>
+          <View style={styles.drawerHeader}>
+            <Text style={styles.appTitle}>DYNAMIC</Text>
+            <Pressable
+              accessibilityLabel="Close menu"
+              onPress={() => setMenuOpen(false)}
+              style={styles.closeButton}
+            >
+              <Text style={styles.closeButtonText}>x</Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.userSection}>
+            <Text style={styles.userName}>{app.user.username || app.user.email || "Field Worker"}</Text>
+            <Pressable
+              onPress={() => {
+                navigateTo("/profile");
+                setMenuOpen(false);
+              }}
+              style={[styles.profileButton, route?.view === "profile" && styles.profileButtonActive]}
+            >
+              <Text
+                style={[
+                  styles.profileButtonText,
+                  route?.view === "profile" && styles.profileButtonTextActive,
+                ]}
+              >
+                View Profile
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                app.logout();
+                setMenuOpen(false);
+              }}
+              style={styles.logoutButton}
+            >
+              <Text style={styles.logoutButtonText}>Logout</Text>
+            </Pressable>
+          </View>
+
+          {SHELL_NAV_ITEMS.map((item) => {
+            const active = route?.view === item.id;
+            return (
+              <Pressable
+                key={item.id}
+                onPress={() => {
+                  navigateTo(item.route);
+                  setMenuOpen(false);
+                }}
+                style={[styles.menuItem, active && styles.activeMenuItem]}
+              >
+                <Text style={[styles.menuItemText, active && styles.activeMenuItemText]}>
+                  {item.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <View style={styles.main}>
+          <View style={styles.topBar}>
+            <Pressable
+              accessibilityLabel="Open menu"
+              onPress={() => setMenuOpen(true)}
+              style={styles.menuButton}
+            >
+              <Text style={styles.menuButtonText}>☰</Text>
+            </Pressable>
+            <View style={styles.titleGroup}>
+              <Text style={styles.appTitle}>DYNAMIC</Text>
+              <Text style={styles.subtle}>{title || "Field App"}</Text>
+            </View>
+            <LocalitySwitcher />
+          </View>
+
+          {clockAlert && <ClockDriftAlert alert={clockAlert} />}
+          {children}
+        </View>
+      </View>
+
+      <TaskDetailModal
+        visible={app.showTaskModal}
+        task={app.selectedTask}
+        onClose={app.closeTaskModal}
+        onOpenForm={app.openFormFromTask}
+      />
+    </SafeAreaView>
+  );
+}
+
+function LoginScreen() {
+  const app = useFieldApp();
+  const [username, setUsername] = useState("dev-field-worker");
+  const [password, setPassword] = useState("dev-password");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleLogin() {
+    if (!username || !password) {
+      setError("Please enter username and password");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+
+    try {
+      const result = await app.login(username, password);
+      if (!result.ok) {
+        setError(result.error || "Login failed");
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <SafeAreaView style={styles.safe}>
+      <View style={styles.loginContainer}>
+        <View style={styles.loginBox}>
+          <Text style={styles.loginTitle}>DYNAMIC</Text>
+          <Text style={styles.loginSubtitle}>Field Worker Login</Text>
+
+          <TextInput
+            style={styles.loginInput}
+            placeholder="Username"
+            value={username}
+            onChangeText={setUsername}
+            editable={!loading}
+            placeholderTextColor="#999"
+          />
+          <TextInput
+            style={styles.loginInput}
+            placeholder="Password"
+            secureTextEntry={true}
+            value={password}
+            onChangeText={setPassword}
+            editable={!loading}
+            placeholderTextColor="#999"
+          />
+
+          {error ? <Text style={styles.loginError}>{error}</Text> : null}
+
+          <Pressable
+            onPress={handleLogin}
+            disabled={loading}
+            style={({ pressed }) => [
+              styles.loginButton,
+              (pressed || loading) && styles.loginButtonPressed,
+            ]}
+          >
+            {loading ? (
+              <ActivityIndicator color="#ffffff" />
+            ) : (
+              <Text style={styles.loginButtonText}>Login</Text>
+            )}
+          </Pressable>
+        </View>
+        <Text style={styles.demoText}>Use credentials issued for this study device</Text>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+function ClockDriftAlert({ alert }) {
+  return (
+    <View style={styles.clockAlert}>
+      <Text style={styles.clockAlertTitle}>{alert.title}</Text>
+      <Text style={styles.clockAlertText}>{alert.message}</Text>
+    </View>
+  );
+}
+
+function LocalitySwitcher() {
+  const app = useFieldApp();
+  return (
+    <View style={styles.localitySwitcher}>
+      <Text style={styles.localityLabel}>Locality</Text>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.localityOptions}
+      >
+        <Pressable
+          onPress={() => app.setSelectedLocalityCode("")}
+          style={[styles.localityOption, !app.selectedLocalityCode && styles.localityOptionActive]}
+        >
+          <Text
+            style={[
+              styles.localityOptionText,
+              !app.selectedLocalityCode && styles.localityOptionTextActive,
+            ]}
+          >
+            All
+          </Text>
+        </Pressable>
+        {app.localities.map((locality) => {
+          const active = app.selectedLocalityCode === locality.locality_code;
+          return (
+            <Pressable
+              key={locality.locality_code}
+              onPress={() => app.setSelectedLocalityCode(locality.locality_code)}
+              style={[styles.localityOption, active && styles.localityOptionActive]}
+            >
+              <Text
+                style={[styles.localityOptionText, active && styles.localityOptionTextActive]}
+                numberOfLines={1}
+              >
+                {locality.locality_name || locality.locality_code}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: {
+    flex: 1,
+    backgroundColor: "#eef2f5",
+  },
+  appShell: {
+    flex: 1,
+    backgroundColor: "#eef2f5",
+  },
+  main: {
+    flex: 1,
+  },
+  topBar: {
+    minHeight: 76,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    paddingHorizontal: 20,
+    backgroundColor: "#ffffff",
+    borderBottomWidth: 1,
+    borderBottomColor: "#d8dee4",
+  },
+  titleGroup: {
+    minWidth: 150,
+  },
+  appTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#17202a",
+  },
+  subtle: {
+    fontSize: 13,
+    color: "#667085",
+  },
+  menuButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#17202a",
+  },
+  menuButtonText: {
+    color: "#ffffff",
+    fontSize: 20,
+    fontWeight: "800",
+  },
+  scrim: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    backgroundColor: "rgba(15, 23, 42, 0.38)",
+    zIndex: 9,
+  },
+  drawer: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    left: -300,
+    width: 300,
+    backgroundColor: "#ffffff",
+    borderRightWidth: 1,
+    borderRightColor: "#d8dee4",
+    padding: 18,
+    gap: 10,
+    zIndex: 10,
+  },
+  drawerOpen: {
+    left: 0,
+  },
+  drawerHeader: {
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  closeButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#eef2f5",
+  },
+  closeButtonText: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#17202a",
+  },
+  userSection: {
+    gap: 8,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e5e7eb",
+  },
+  userName: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#17202a",
+  },
+  profileButton: {
+    minHeight: 36,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#eef2f5",
+  },
+  profileButtonActive: {
+    backgroundColor: "#dbeafe",
+  },
+  profileButtonText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#344054",
+  },
+  profileButtonTextActive: {
+    color: "#1d4ed8",
+  },
+  logoutButton: {
+    minHeight: 36,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#fee2e2",
+  },
+  logoutButtonText: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#991b1b",
+  },
+  menuItem: {
+    minHeight: 42,
+    borderRadius: 8,
+    justifyContent: "center",
+    paddingHorizontal: 12,
+    backgroundColor: "#ffffff",
+  },
+  activeMenuItem: {
+    backgroundColor: "#e0f2fe",
+  },
+  menuItemText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#344054",
+  },
+  activeMenuItemText: {
+    color: "#0369a1",
+  },
+  localitySwitcher: {
+    flex: 1,
+    minWidth: 0,
+    gap: 4,
+  },
+  localityLabel: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#667085",
+    textTransform: "uppercase",
+  },
+  localityOptions: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  localityOption: {
+    maxWidth: 160,
+    minHeight: 34,
+    borderRadius: 8,
+    justifyContent: "center",
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: "#d8dee4",
+    backgroundColor: "#ffffff",
+  },
+  localityOptionActive: {
+    borderColor: "#0369a1",
+    backgroundColor: "#e0f2fe",
+  },
+  localityOptionText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#344054",
+  },
+  localityOptionTextActive: {
+    color: "#0369a1",
+  },
+  clockAlert: {
+    marginHorizontal: 20,
+    marginTop: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#d97706",
+    backgroundColor: "#fff7ed",
+  },
+  clockAlertTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#9a3412",
+    marginBottom: 4,
+  },
+  clockAlertText: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: "#9a3412",
+  },
+  loginContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+    backgroundColor: "#eef2f5",
+  },
+  loginBox: {
+    width: "100%",
+    maxWidth: 420,
+    gap: 14,
+    padding: 24,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#d8dee4",
+    backgroundColor: "#ffffff",
+  },
+  loginTitle: {
+    fontSize: 32,
+    fontWeight: "900",
+    color: "#17202a",
+  },
+  loginSubtitle: {
+    fontSize: 16,
+    color: "#667085",
+    marginBottom: 8,
+  },
+  loginInput: {
+    minHeight: 44,
+    borderWidth: 1,
+    borderColor: "#d8dee4",
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    fontSize: 15,
+    backgroundColor: "#ffffff",
+  },
+  loginError: {
+    color: "#b42318",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  loginButton: {
+    minHeight: 46,
+    borderRadius: 6,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#17202a",
+  },
+  loginButtonPressed: {
+    opacity: 0.8,
+  },
+  loginButtonText: {
+    color: "#ffffff",
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  demoText: {
+    marginTop: 14,
+    color: "#667085",
+    fontSize: 13,
+  },
+});

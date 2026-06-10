@@ -123,32 +123,42 @@ export function HouseholdMembersModule({ householdId = "", selectedLocalityCode 
             </Pressable>
           </View>
         </View>
-        <View style={[styles.row, styles.headerRow]}>
-          <Text style={[styles.cell, styles.memberCell]}>Member</Text>
-          <Text style={[styles.cell, styles.hhCell]}>HH ID</Text>
-          <Text style={[styles.cell, styles.metaCell]}>Age / sex</Text>
-          <Text style={[styles.cell, styles.relationCell]}>Relation to HOH</Text>
-          <Text style={[styles.cell, styles.statusCell]}>Status</Text>
-        </View>
-        <ScrollView style={styles.rows}>
-          {members.map((member) => (
-            <View key={member.individual_id} style={styles.row}>
-              <Text style={[styles.cell, styles.memberCell]}>{member.member_name || member.individual_id}</Text>
-              <Pressable
-                style={[styles.cellPressable, styles.hhCell]}
-                onPress={() => navigateTo(ROUTES.householdMembersForHousehold(member.household_id))}
-              >
-                <Text style={styles.linkText}>{member.household_id}</Text>
-              </Pressable>
-              <Text style={[styles.cell, styles.metaCell]}>
-                {`${member.age_years ?? "-"} / ${formatSex(member.sex)}`}
-              </Text>
-              <Text style={[styles.cell, styles.relationCell]}>
-                {formatRelationship(member.relationship_to_head)}
-              </Text>
-              <Text style={[styles.cell, styles.statusCell]}>{formatMemberStatus(member)}</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={true}>
+          <View style={styles.tableContent}>
+            <View style={[styles.row, styles.headerRow]}>
+              <Text style={[styles.cell, styles.memberCell]} numberOfLines={1}>Member</Text>
+              <Text style={[styles.cell, styles.hhCell]} numberOfLines={1}>HH ID</Text>
+              <Text style={[styles.cell, styles.metaCell]} numberOfLines={1}>Age / sex</Text>
+              <Text style={[styles.cell, styles.relationCell]} numberOfLines={2}>Relation to HOH</Text>
+              <Text style={[styles.cell, styles.statusCell]} numberOfLines={1}>Status</Text>
             </View>
-          ))}
+            <ScrollView style={styles.rows}>
+              {members.map((member) => (
+                <View key={member.individual_id} style={styles.row}>
+                  <Text style={[styles.cell, styles.memberCell]} numberOfLines={2}>
+                    {member.member_name || member.individual_id}
+                  </Text>
+                  <Pressable
+                    style={[styles.cellPressable, styles.hhCell]}
+                    onPress={() => navigateTo(ROUTES.householdMembersForHousehold(member.household_id))}
+                  >
+                    <Text style={styles.linkText} numberOfLines={1} selectable>
+                      {member.household_id}
+                    </Text>
+                  </Pressable>
+                  <Text style={[styles.cell, styles.metaCell]} numberOfLines={1}>
+                    {`${member.age_years ?? "-"} / ${formatSex(member.sex)}`}
+                  </Text>
+                  <Text style={[styles.cell, styles.relationCell]} numberOfLines={2}>
+                    {formatRelationship(member.relationship_to_head)}
+                  </Text>
+                  <Text style={[styles.cell, styles.statusCell]} numberOfLines={2}>
+                    {formatMemberStatus(member)}
+                  </Text>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
         </ScrollView>
       </View>
     </View>
@@ -248,6 +258,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#ffffff",
     overflow: "hidden",
   },
+  tableContent: {
+    minWidth: 820,
+  },
   rows: {
     maxHeight: 420,
   },
@@ -278,16 +291,16 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   hhCell: {
-    flex: 1,
+    width: 170,
   },
   metaCell: {
-    width: 140,
+    width: 120,
   },
   relationCell: {
-    width: 150,
+    width: 155,
   },
   statusCell: {
-    width: 150,
+    width: 155,
     fontWeight: "700",
   },
   linkText: {
