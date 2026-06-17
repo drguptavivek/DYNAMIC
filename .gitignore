@@ -10,7 +10,12 @@ node_modules/
 .expo-shared/
 web-build/
 dist/
-
+CVs/
+# CV / candidate-recruiting data (PII)
+cv_texts.json
+matrix_data.json
+llm_cache.json
+*.xlsx
 # Logs
 *.log
 npm-debug.log*
