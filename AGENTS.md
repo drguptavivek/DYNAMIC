@@ -12,11 +12,15 @@ Keep this file high-signal. Put detailed replay history in `session-log-archive.
 
 - Read [Architecture](docs/architecture.md) before backend schema, sync, event/replay, Expo offline workflow, task scheduling, or admin correction changes.
 - Core shape: offline-first Expo field app, authoritative Node/Postgres API, Vite admin, shared event/workflow packages, SurveyJS rendering only.
+- Monorepo map: `apps/api` is backend, `apps/admin` is admin UI, `expo-prototype` is field app, `packages/event-core` is shared event logic, and `packages/shared-*` hold shared workflow/domain code.
 
-## Runtime
+## Runtime And App Startup
 
-- Use root Make targets for local services; do not hand-roll Docker, workspace dev commands, or port kills when a Make target exists.
-- Main entry points: `make dev-up`, `make dev-prepare`, `make hmr-up`, `make dev-stop`, `make dev-status`.
+- Start from the repo root. Use root Make targets; do not hand-roll Docker, workspace dev commands, or port kills when a Make target exists.
+- Full app: `make dev-up` starts Docker DB/Redis, pushes schema, seeds, starts edge, then runs backend/admin/Expo HMR in the foreground.
+- Prepared services only: `make dev-prepare`; HMR only after prepare: `make hmr-up`.
+- Individual HMR when needed: `make backend-up`, `make app-up`, `make expo-up`.
+- Stop/check: `make dev-stop`, `make dev-status`.
 - Container logs: `make db-logs`, `make edge-logs`, `make dev-logs`; host HMR logs stream in the foreground Make target.
 - Do not create host log files or PID files for backend/admin/Expo dev servers.
 
