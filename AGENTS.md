@@ -8,23 +8,26 @@ Keep this file high-signal. Put detailed replay history in `session-log-archive.
 - `session-log-archive.md` is for replayable detail: command order, root causes, verification output, changed files, and commit ids.
 - When a saved `session-log.md` entry grows beyond compact context, move detail to `session-log-archive.md` and link it from `Archive`.
 
+## Architecture Overview
+
+- Turborepo monorepo: TypeScript/Node API, Vite React admin, Expo Android/web field app, shared packages, Postgres, Redis, and Nginx edge.
+- Field app is offline-first with SQLite/local storage; backend sync accepts immutable evidence and returns area-scoped canonical state.
+- SurveyJS renders questionnaires only. Longitudinal state lives in normalized domain records, domain events, task records, attempts, corrections, and audit/sync metadata.
+- `packages/event-core` owns shared event envelopes, reducers, task lifecycle rules, and workflow orchestration used by backend and Expo.
+- Backend/API owns authoritative ingest, replay/rebuild, admin corrections, data-quality flags, and canonical pull state.
+- Expo owns provisional local evidence/events/projections so field workflows work offline, then reconciles through sync.
+
 ## Runtime
 
-- Use root Make targets for local services. Do not hand-roll `docker compose`, workspace dev commands, or port-kill commands when a Make target exists.
-- `make dev-up`: full dev stack with Docker DB/Redis/edge plus backend/admin/Expo HMR.
-- `make dev-prepare`: Docker DB/Redis, full schema push, seed, and edge without HMR.
-- `make hmr-up`, `make backend-up`, `make app-up`, `make expo-up`: foreground HMR logs.
-- `make dev-stop`: stop HMR, edge, Postgres, and Redis.
-- Container logs: `make db-logs`, `make edge-logs`, `make dev-logs`.
+- Use root Make targets for local services; do not hand-roll Docker, workspace dev commands, or port kills when a Make target exists.
+- Main entry points: `make dev-up`, `make dev-prepare`, `make hmr-up`, `make dev-stop`, `make dev-status`.
+- Container logs: `make db-logs`, `make edge-logs`, `make dev-logs`; host HMR logs stream in the foreground Make target.
 - Do not create host log files or PID files for backend/admin/Expo dev servers.
 
 ## Dev Database
 
 - This is a dev repo: use full DB reset/push, not migration churn, unless explicitly asked.
-- `make db-reset-full`: destroy local DB/Redis volumes, recreate containers, push full schema, and seed.
-- `make db-push`: full Drizzle schema push using explicit schema files.
-- `make db-status`: verify containers and localhost port bindings.
-- `make db-smoke`: verify dev login/sync after backend is running.
+- Main entry points: `make db-reset-full`, `make db-push`, `make db-status`, `make db-smoke`.
 - `make db-migrate` is legacy only.
 - Dev credentials after seed: `dev-field-worker` / `dev-password`; `dev-central-admin` / `dev-admin-password`.
 
