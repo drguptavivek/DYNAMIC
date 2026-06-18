@@ -426,6 +426,160 @@ test("HHQ offline submission creates local WQ workflow, syncs backend, and pulls
     assert.equal(duplicatePefFlags[0].flag_type, "duplicate_task_completion");
     assert.equal(duplicatePefFlags[0].primary_response_id, pefSubmission.submission_id);
 
+    const firstPffTask = pregnancyFollowUpTasks.find((task) => task.task_type === "PFF");
+    assert.ok(firstPffTask);
+    const pffResponseId = randomUUID();
+    const pffPush = await fetchData(`${baseUrl}/sync/push`, {
+      method: "POST",
+      headers: { Authorization: authorization },
+      body: JSON.stringify({
+        device_id: "e2e-device",
+        records: [
+          {
+            type: "form_response",
+            data: {
+              id: pffResponseId,
+              task_id: firstPffTask.task_id,
+              form_code: "PFF",
+              form_version: "2026.05.17",
+              household_id: householdId,
+              site_id: 1,
+              locality_code: "DEV001",
+              subject_type: "pregnancy",
+              subject_id: activePregnancies[0].pregnancy_id,
+              answers_json: {
+                household_id: householdId,
+                pff_visit_date: "2026-10-15",
+                pff_pregnancy_status: 1,
+              },
+              submitted_at: "2026-10-15T09:00:00.000Z",
+            },
+          },
+        ],
+      }),
+    });
+    assert.equal(pffPush.accepted, 1);
+    assert.deepEqual(pffPush.errors, []);
+
+    const pffEvents = (await db
+      .select()
+      .from(schema.domainEvents)
+      .where(eq(schema.domainEvents.household_id, householdId))).filter(
+      (event) => event.event_type === "pregnancy_followup_completed",
+    );
+    assert.equal(pffEvents.length, 1);
+    assert.equal(pffEvents[0].form_response_id, pffResponseId);
+    assert.equal(pffEvents[0].apply_status, "applied");
+    const pregnancyAfterPff = await db
+      .select()
+      .from(schema.pregnancies)
+      .where(eq(schema.pregnancies.pregnancy_id, activePregnancies[0].pregnancy_id));
+    assert.equal(pregnancyAfterPff[0].pregnancy_status, "enrolled");
+    assert.equal(pregnancyAfterPff[0].enrollment_date, "2026-09-15");
+
+    const duplicatePffResponseId = randomUUID();
+    const duplicatePffPush = await fetchData(`${baseUrl}/sync/push`, {
+      method: "POST",
+      headers: { Authorization: authorization },
+      body: JSON.stringify({
+        device_id: "e2e-device-2",
+        records: [
+          {
+            type: "form_response",
+            data: {
+              ...pffPushRecordsData(firstPffTask, householdId, activePregnancies[0].pregnancy_id),
+              id: duplicatePffResponseId,
+              submitted_at: "2026-10-15T10:00:00.000Z",
+            },
+          },
+        ],
+      }),
+    });
+    assert.equal(duplicatePffPush.accepted, 1);
+    assert.deepEqual(duplicatePffPush.errors, []);
+    const duplicatePffResponse = await db
+      .select()
+      .from(schema.formResponses)
+      .where(eq(schema.formResponses.form_response_id, duplicatePffResponseId));
+    assert.equal(duplicatePffResponse[0].response_status, "duplicate");
+    const heldPffEvents = (await db
+      .select()
+      .from(schema.domainEvents)
+      .where(eq(schema.domainEvents.household_id, householdId))).filter(
+      (event) =>
+        event.event_type === "pregnancy_followup_completed" &&
+        event.form_response_id === duplicatePffResponseId &&
+        event.apply_status === "held_duplicate",
+    );
+    assert.equal(heldPffEvents.length, 1);
+
+    const pofResponseId = randomUUID();
+    const pofPush = await fetchData(`${baseUrl}/sync/push`, {
+      method: "POST",
+      headers: { Authorization: authorization },
+      body: JSON.stringify({
+        device_id: "e2e-device",
+        records: [
+          {
+            type: "form_response",
+            data: {
+              id: pofResponseId,
+              form_code: "POF",
+              form_version: "2026.05.17",
+              household_id: householdId,
+              site_id: 1,
+              locality_code: "DEV001",
+              subject_type: "pregnancy",
+              subject_id: activePregnancies[0].pregnancy_id,
+              answers_json: {
+                household_id: householdId,
+                pof_delivery_date: "2026-11-20",
+                pof_pregnancy_outcome_type: 3,
+                pof_number_live_born_infants_fill_one_birth_assessment: 1,
+                pof_number_miscarriages_stillbirths_fill_one_birth_assessment_form: 0,
+              },
+              submitted_at: "2026-11-20T09:00:00.000Z",
+            },
+          },
+        ],
+      }),
+    });
+    assert.equal(pofPush.accepted, 1);
+    assert.deepEqual(pofPush.errors, []);
+
+    const outcomeEvents = (await db
+      .select()
+      .from(schema.domainEvents)
+      .where(eq(schema.domainEvents.household_id, householdId))).filter(
+      (event) => event.event_type === "pregnancy_outcome_recorded",
+    );
+    assert.equal(outcomeEvents.length, 1);
+    assert.equal(outcomeEvents[0].form_response_id, pofResponseId);
+    assert.equal(outcomeEvents[0].apply_status, "applied");
+
+    const outcomeRows = await db
+      .select()
+      .from(schema.pregnancyOutcomes)
+      .where(eq(schema.pregnancyOutcomes.pregnancy_id, activePregnancies[0].pregnancy_id));
+    assert.equal(outcomeRows.length, 1);
+    assert.equal(outcomeRows[0].source_form_response_id, pofResponseId);
+
+    const childRows = await db
+      .select()
+      .from(schema.children)
+      .where(eq(schema.children.pregnancy_id, activePregnancies[0].pregnancy_id));
+    assert.equal(childRows.length, 1);
+    assert.equal(childRows[0].source_event_id, outcomeEvents[0].event_id);
+
+    const bafTasks = (await db
+      .select()
+      .from(schema.followUpTasks)
+      .where(eq(schema.followUpTasks.household_id, householdId))).filter(
+      (task) => task.task_type === "BAF",
+    );
+    assert.equal(bafTasks.length, 1);
+    assert.equal(bafTasks[0].source_event_id, outcomeEvents[0].event_id);
+
     const pulled = await fetchData(
       `${baseUrl}/sync/pull?locality_codes=DEV001&include_members=false&page_size=100&since=${encodeURIComponent(sinceBeforePush)}`,
       { headers: { Authorization: authorization } },
@@ -445,7 +599,7 @@ test("HHQ offline submission creates local WQ workflow, syncs backend, and pulls
       pulled.pregnancies.some(
         (pregnancy: { pregnancy_id: string; pregnancy_status: string; enrollment_date: string }) =>
           pregnancy.pregnancy_id === activePregnancies[0].pregnancy_id &&
-          pregnancy.pregnancy_status === "enrolled" &&
+          pregnancy.pregnancy_status === "closed" &&
           pregnancy.enrollment_date === "2026-09-15",
       ),
     );
@@ -486,6 +640,24 @@ function createLocalStorage() {
     },
     removeItem(key: string) {
       store.delete(key);
+    },
+  };
+}
+
+function pffPushRecordsData(firstPffTask: any, householdId: string, pregnancyId: string) {
+  return {
+    task_id: firstPffTask.task_id,
+    form_code: "PFF",
+    form_version: "2026.05.17",
+    household_id: householdId,
+    site_id: 1,
+    locality_code: "DEV001",
+    subject_type: "pregnancy",
+    subject_id: pregnancyId,
+    answers_json: {
+      household_id: householdId,
+      pff_visit_date: "2026-10-15",
+      pff_pregnancy_status: 1,
     },
   };
 }

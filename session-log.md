@@ -60,3 +60,13 @@ Rejected:
 - Using device/server wall-clock as the primary PEF protocol anchor when `pef_enrollment_date` is present.
 Open:
 - Refactor Expo HHQ and PEF local task generation to import the shared TS event/workflow kernel once the Expo test/runtime can load workspace TS packages directly.
+
+## 2026-06-18 12:42 [saved]
+Goal: Extend event path through PFF evidence and POF outcome.
+Decisions:
+- PFF sync now records `pregnancy_followup_completed` and holds duplicate task completions.
+- POF sync records `pregnancy_outcome_recorded`, outcome rows, child provenance, and BAF tasks from one event.
+Rejected:
+- Shifting pregnancy enrollment anchors from PFF completion dates.
+Open:
+- Add Expo provisional POF child/outcome tasks when offline outcome completion is needed.

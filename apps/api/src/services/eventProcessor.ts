@@ -179,6 +179,9 @@ export async function processFormResponse(formResponseId: string): Promise<void>
       case "PEF":
         await promotePef(response, response.household_id || "", response.subject_id || "", answers);
         break;
+      case "PFF":
+        await promotePff(response, response.household_id || "", response.subject_id || "", answers);
+        break;
       case "UF":
         // Ultrasound follow-up - may refine EDD only
         if (response.subject_id) {
@@ -186,7 +189,7 @@ export async function processFormResponse(formResponseId: string): Promise<void>
         }
         break;
       case "POF":
-        await promotePof(response.household_id || "", response.subject_id || "", answers);
+        await promotePof(response, response.household_id || "", response.subject_id || "", answers);
         break;
       case "BAF":
         if (response.subject_id) {
@@ -743,25 +746,173 @@ async function promoteUf(pregnancyId: string, answers: FormAnswers): Promise<voi
   }
 }
 
-async function promotePof(
+async function findPregnancyForResponse(
+  response: FormResponseRow,
+  subjectId: string,
+): Promise<typeof schema.pregnancies.$inferSelect | null> {
+  if (response.subject_type === "pregnancy" && subjectId) {
+    const [pregnancy] = await db
+      .select()
+      .from(schema.pregnancies)
+      .where(eq(schema.pregnancies.pregnancy_id, subjectId))
+      .limit(1);
+    if (pregnancy) {
+      return pregnancy;
+    }
+  }
+
+  const [pregnancy] = await db
+    .select()
+    .from(schema.pregnancies)
+    .where(eq(schema.pregnancies.household_member_id, subjectId))
+    .limit(1);
+  return pregnancy ?? null;
+}
+
+async function promotePff(
+  response: FormResponseRow,
   householdId: string,
   subjectId: string,
   answers: FormAnswers,
 ): Promise<void> {
   try {
-    // Find pregnancy by household member
-    const pregnancies = await db
-      .select()
-      .from(schema.pregnancies)
-      .where(eq(schema.pregnancies.household_member_id, subjectId))
-      .limit(1);
+    const pregnancy = await findPregnancyForResponse(response, subjectId);
+    if (!pregnancy) {
+      throw new Error(`No pregnancy found for PFF subject ${subjectId}`);
+    }
 
-    if (pregnancies.length === 0) {
+    const now = new Date();
+    const visitDate =
+      typeof answers.pff_visit_date === "string" && answers.pff_visit_date
+        ? answers.pff_visit_date
+        : toIsoDate(response.created_offline_at ?? response.created_at ?? now);
+    const priorResponses = await db
+      .select()
+      .from(schema.formResponses)
+      .where(
+        response.task_id
+          ? and(
+              eq(schema.formResponses.form_code, "PFF"),
+              eq(schema.formResponses.task_id, response.task_id),
+            )
+          : and(
+              eq(schema.formResponses.form_code, "PFF"),
+              eq(schema.formResponses.subject_id, subjectId),
+            ),
+      );
+    const primaryResponse = priorResponses.find(
+      (candidate) =>
+        candidate.form_response_id !== response.form_response_id &&
+        candidate.response_status !== "duplicate",
+    );
+    const applyStatus = primaryResponse ? "held_duplicate" : "applied";
+    const eventId = randomUUID();
+
+    if (primaryResponse) {
+      await db
+        .update(schema.formResponses)
+        .set({ response_status: "duplicate" })
+        .where(eq(schema.formResponses.form_response_id, response.form_response_id));
+    }
+
+    await db.insert(schema.domainEvents).values({
+      event_id: eventId,
+      event_type: "pregnancy_followup_completed",
+      site_id: pregnancy.site_id,
+      locality_code: pregnancy.locality_code,
+      household_id: pregnancy.household_id || householdId,
+      subject_type: "pregnancy",
+      subject_id: pregnancy.pregnancy_id,
+      task_id: response.task_id,
+      form_response_id: response.form_response_id,
+      event_datetime: response.created_offline_at ?? now,
+      created_offline_at: response.created_offline_at,
+      device_id: response.device_id,
+      sync_status: "synced",
+      apply_status: applyStatus,
+      created_at: now,
+    });
+
+    if (primaryResponse) {
+      await db.insert(schema.dataQualityFlags).values({
+        flag_id: `duplicate:${primaryResponse.form_response_id}:${response.form_response_id}`,
+        site_id: pregnancy.site_id,
+        flag_type: "duplicate_task_completion",
+        subject_type: "pregnancy",
+        subject_id: pregnancy.pregnancy_id,
+        task_id: response.task_id,
+        primary_response_id: primaryResponse.form_response_id,
+        duplicate_response_id: response.form_response_id,
+        severity: "warning",
+        status: "open",
+        created_at: now,
+      });
+      return;
+    }
+
+    if (answers.pff_pregnancy_status === 2 || answers.pff_pregnancy_status === "2") {
+      await db
+        .update(schema.pregnancies)
+        .set({
+          outcome_recorded_date: visitDate,
+          updated_at: now,
+        })
+        .where(eq(schema.pregnancies.pregnancy_id, pregnancy.pregnancy_id));
+    }
+  } catch (err) {
+    console.error(`Error in promotePff for ${householdId}/${subjectId}:`, err);
+    throw err;
+  }
+}
+
+async function promotePof(
+  response: FormResponseRow,
+  householdId: string,
+  subjectId: string,
+  answers: FormAnswers,
+): Promise<void> {
+  try {
+    const pregnancy = await findPregnancyForResponse(response, subjectId);
+    if (!pregnancy) {
       throw new Error(`No pregnancy found for woman ${subjectId}`);
     }
 
-    const pregnancy = pregnancies[0];
     const deliveryDate = answers.pof_delivery_date || new Date().toISOString().split("T")[0];
+    const livebirths =
+      parseInt(answers.pof_number_live_born_infants_fill_one_birth_assessment) || 0;
+    const stillbirths =
+      parseInt(answers.pof_number_miscarriages_stillbirths_fill_one_birth_assessment_form) || 0;
+    const eventId = randomUUID();
+    const now = new Date();
+
+    await db.insert(schema.domainEvents).values({
+      event_id: eventId,
+      event_type: "pregnancy_outcome_recorded",
+      site_id: pregnancy.site_id,
+      locality_code: pregnancy.locality_code,
+      household_id: pregnancy.household_id || householdId,
+      subject_type: "pregnancy",
+      subject_id: pregnancy.pregnancy_id,
+      task_id: response.task_id,
+      form_response_id: response.form_response_id,
+      event_datetime: response.created_offline_at ?? now,
+      created_offline_at: response.created_offline_at,
+      device_id: response.device_id,
+      sync_status: "synced",
+      apply_status: "applied",
+      created_at: now,
+    });
+
+    await db.insert(schema.pregnancyOutcomes).values({
+      pregnancy_outcome_id: randomUUID(),
+      pregnancy_id: pregnancy.pregnancy_id,
+      outcome_date: deliveryDate,
+      outcome_type: livebirths > 0 ? "live_birth" : "stillbirth",
+      live_birth_count: livebirths,
+      fetal_loss_count: stillbirths,
+      source_form_response_id: response.form_response_id,
+      created_at: now,
+    });
 
     // Update pregnancy outcome
     await db
@@ -769,15 +920,9 @@ async function promotePof(
       .set({
         pregnancy_status: "closed",
         outcome_recorded_date: deliveryDate,
-        updated_at: new Date(),
+        updated_at: now,
       })
       .where(eq(schema.pregnancies.pregnancy_id, pregnancy.pregnancy_id));
-
-    // Determine outcome type
-    const livebirths =
-      parseInt(answers.pof_number_live_born_infants_fill_one_birth_assessment) || 0;
-    const stillbirths =
-      parseInt(answers.pof_number_miscarriages_stillbirths_fill_one_birth_assessment_form) || 0;
 
     // Create child records for live births and stillbirths
     for (let i = 0; i < livebirths; i++) {
@@ -795,8 +940,9 @@ async function promotePof(
         birth_status: "live_birth",
         live_birth_status: true,
         current_vital_status: "alive",
-        created_at: new Date(),
-        updated_at: new Date(),
+        source_event_id: eventId,
+        created_at: now,
+        updated_at: now,
       });
     }
 
@@ -815,14 +961,15 @@ async function promotePof(
         birth_status: "stillbirth",
         live_birth_status: false,
         current_vital_status: "stillbirth",
-        created_at: new Date(),
-        updated_at: new Date(),
+        source_event_id: eventId,
+        created_at: now,
+        updated_at: now,
       });
     }
 
     // Generate tasks for outcome
     const tasks = onPregnancyOutcomeRecorded({
-      event_id: randomUUID(),
+      event_id: eventId,
       household_id: householdId,
       woman_id: pregnancy.woman_id,
       pregnancy_id: pregnancy.pregnancy_id,
