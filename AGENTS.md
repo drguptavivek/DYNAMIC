@@ -10,12 +10,8 @@ Keep this file high-signal. Put detailed replay history in `session-log-archive.
 
 ## Architecture Overview
 
-- Turborepo monorepo: TypeScript/Node API, Vite React admin, Expo Android/web field app, shared packages, Postgres, Redis, and Nginx edge.
-- Field app is offline-first with SQLite/local storage; backend sync accepts immutable evidence and returns area-scoped canonical state.
-- SurveyJS renders questionnaires only. Longitudinal state lives in normalized domain records, domain events, task records, attempts, corrections, and audit/sync metadata.
-- `packages/event-core` owns shared event envelopes, reducers, task lifecycle rules, and workflow orchestration used by backend and Expo.
-- Backend/API owns authoritative ingest, replay/rebuild, admin corrections, data-quality flags, and canonical pull state.
-- Expo owns provisional local evidence/events/projections so field workflows work offline, then reconciles through sync.
+- Read [Architecture](docs/architecture.md) before backend schema, sync, event/replay, Expo offline workflow, task scheduling, or admin correction changes.
+- Core shape: offline-first Expo field app, authoritative Node/Postgres API, Vite admin, shared event/workflow packages, SurveyJS rendering only.
 
 ## Runtime
 
@@ -36,11 +32,13 @@ Keep this file high-signal. Put detailed replay history in `session-log-archive.
 - Run the smallest relevant test/typecheck set for the files changed.
 - Use `make db-reset-full && make db-smoke` after DB/schema/runtime changes.
 - Common checks: `npm --workspace @dynamic/api test`, `npm --workspace @dynamic/api run typecheck`, `npm --workspace @dynamic/event-core test`, `npm --workspace expo-prototype test`.
-- Put long replay command sequences in `session-log-archive.md`, not here.
+- Detailed command sets and DB push caveats live in [Testing](docs/testing.md).
 
 ## Event/Sync Constraints
 
 Key docs:
+- [Architecture](docs/architecture.md)
+- [Testing](docs/testing.md)
 - [Event architecture](docs/event-driven-architecture-policy.md)
 - [Form field event rules](docs/superpowers/form-field-event-rules.md)
 - [Offline/mobile save-sync policy](docs/surveyjs/Mobile-save-sync-policy.md)
