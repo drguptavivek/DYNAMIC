@@ -30,3 +30,6 @@ yarn-error.log*
 screenshots/
 expo-prototype/*.png
 outputs/pretsing-flowchart-pptx/rendered/
+
+# AI assistant artifacts
+context-snapshot.json

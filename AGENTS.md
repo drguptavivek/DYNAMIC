@@ -1,12 +1,59 @@
-For Python scripts that create or edit `.docx`/OOXML files, Excel workbooks, PDFs, ODF files, RTF/HTML/Markdown text, YAML/TOML, JSON files, or PowerPoint files, use:
+DYNAMIC Study Data Management System
 
-```bash
-/Users/vivekgupta/.codex/.venv/bin/python
-```
+A Cohort study spanning multiple sites for detecing and following up eligible women through ther pregnancies, preganancy outcomes, and thereafter infants and children as they grow up
 
-This environment has `python-docx`, `docx2txt`, `openpyxl`, `lxml`, ODF tooling (`odfpy`, `odfdo`), PDF tooling (`pypdf`, `pdfplumber`, `pdfminer.six`, `PyMuPDF`), HTML/text tooling (`beautifulsoup4`, `html2text`, `markdownify`, `striprtf`), YAML/TOML tooling (`PyYAML`, `ruamel.yaml`, `tomlkit`, `tomli-w`), JSON support from the standard library, and `python-pptx` installed.
+# Conventions
+- Turborepo monorepo
+- Docker based nginx, api and vite backend with makefile
+- Offline first - Expo based
+- Event Driven
+- docs folder contain policies
+- Refs folder contains workflows and project references
+- Clean architecture
 
-External document tools available on PATH include `pandoc`, `soffice`, Poppler tools (`pdfinfo`, `pdftotext`, `pdftoppm`), `exiftool`, `textutil`, `unzip`, and `file`.
+## Local Dev Runtime Workflow
+
+Use the root `Makefile` for local development services. Do not hand-roll
+`docker compose`, `npm --workspace ... run dev`, or ad hoc port-kill commands
+unless the Makefile target is missing or broken.
+
+Primary targets:
+
+- `make dev-up` starts the full dev stack:
+  - Postgres and Redis containers
+  - API migrations
+  - development seed data
+  - Nginx edge container
+  - backend API HMR on `3310`
+  - admin Vite HMR on `5317`
+  - Expo web HMR on `8088`
+- `make dev-prepare` starts DB, runs migrations, seeds dev data, and starts the
+  edge container without starting the host HMR processes.
+- `make hmr-up` starts backend/admin/Expo HMR together in the foreground with
+  live logs.
+- `make backend-up`, `make app-up`, and `make expo-up` start those HMR services
+  individually in the foreground.
+- `make db-migrate` applies API Drizzle migrations to the dev database.
+- `make db-seed` upserts the standard dev users, area assignment, and seed task.
+- `make db-smoke` seeds and verifies dev login/sync against the running API;
+  run it after `make backend-up` or from another terminal while `make dev-up`
+  is running.
+- `make edge-up` or `make edge-start` starts Nginx edge on `58080`.
+- `make dev-status` checks DB, backend, admin, edge, and Expo listener state.
+- `make dev-stop` stops host HMR processes, edge, Postgres, and Redis.
+
+Logging rules:
+
+- Container logs: use `make db-logs`, `make edge-logs`, or `make dev-logs` for
+  live tails from Docker stdout/stderr.
+- Host-run HMR logs: keep the Makefile target running in the terminal
+  (`make hmr-up`, `make backend-up`, `make app-up`, or `make expo-up`).
+- Do not create host log files or PID files for backend/admin/Expo dev servers.
+
+Default dev credentials after `make db-seed` or `make db-smoke`:
+
+- Field worker: `dev-field-worker` / `dev-password`
+- Central admin: `dev-central-admin` / `dev-admin-password`
 
 ## DYNAMIC - PreTESTING project rules
 
@@ -37,7 +84,7 @@ Before changing questionnaire JSON, Expo app routing, calculated fields, IDs, or
 - `Refs/pretsing forms/forms_summary table_v2026.05.17.pdf`
 - the specific source questionnaire PDF in `Refs/pretsing forms/`
 
-Key constraints:
+### Key constraints:
 
 - The forms summary table is the operational reference for form order, respondent, timing, mode, purpose, and downstream flow.
 - The PDF `Variable ID` is the canonical question code. Preserve it in `sourceCode`; use form-prefixed analysis-safe codes only where globally unique answer keys are needed.
@@ -53,7 +100,7 @@ Key constraints:
 - Stillbirth and child death trigger verbal autopsy 30 days after the stillbirth/death event.
 - Planned household survey start is 1 September 2026. Enrollment is planned for 2.5 years, followed by 1.5 years of outcome follow-up.
 
-Questionnaire editing rules:
+## Questionnaire editing rules:
 
 - Do a question-by-question PDF comparison for each form before changing JSON.
 - Do not mix labels, instructions, hints, validation, and choices.
@@ -63,3 +110,14 @@ Questionnaire editing rules:
 - `RECORD ALL` / `ANSWER UP TO` fields should be checkboxes unless the PDF defines a single coded response.
 - Auto-filled fields should be read-only and have explicit calculation/source metadata.
 - After JSON changes, copy the maintained JSON into `expo-prototype/src/data/forms/`, rebuild `outputs/pretsing-form-json/all_forms.json`, run `npm test` in `expo-prototype`, and use the in-app browser to verify visible rendering when the change affects UI.
+
+
+For Python scripts that create or edit `.docx`/OOXML files, Excel workbooks, PDFs, ODF files, RTF/HTML/Markdown text, YAML/TOML, JSON files, or PowerPoint files, use:
+
+```bash
+/Users/vivekgupta/.codex/.venv/bin/python
+```
+
+This environment has `python-docx`, `docx2txt`, `openpyxl`, `lxml`, ODF tooling (`odfpy`, `odfdo`), PDF tooling (`pypdf`, `pdfplumber`, `pdfminer.six`, `PyMuPDF`), HTML/text tooling (`beautifulsoup4`, `html2text`, `markdownify`, `striprtf`), YAML/TOML tooling (`PyYAML`, `ruamel.yaml`, `tomlkit`, `tomli-w`), JSON support from the standard library, and `python-pptx` installed.
+
+External document tools available on PATH include `pandoc`, `soffice`, Poppler tools (`pdfinfo`, `pdftotext`, `pdftoppm`), `exiftool`, `textutil`, `unzip`, and `file`.
