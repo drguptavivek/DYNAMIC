@@ -14,6 +14,12 @@ Keep this file high-signal. Put detailed replay history in `session-log-archive.
 - Core shape: offline-first Expo field app, authoritative Node/Postgres API, Vite admin, shared event/workflow packages, SurveyJS rendering only.
 - Monorepo map: `apps/api` is backend, `apps/admin` is admin UI, `expo-prototype` is field app, `packages/event-core` is shared event logic, and `packages/shared-*` hold shared workflow/domain code.
 
+## Exploration Tooling
+
+- `rtk` is installed at `/opt/homebrew/bin/rtk`; use it for token-optimized exploration and noisy command output.
+- Prefer `rtk tree`, `rtk read`, `rtk grep`, `rtk diff`, `rtk git`, `rtk test`, `rtk tsc`, and `rtk npm` when summarized output is enough.
+- Use raw commands when exact output is required, when `rtk` hides needed detail, or when running the canonical Make targets below.
+
 ## Runtime And App Startup
 
 - Start from the repo root. Use root Make targets; do not hand-roll Docker, workspace dev commands, or port kills when a Make target exists.
