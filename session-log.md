@@ -25,3 +25,15 @@ Open:
 - Wire next workflow slice beyond HHQ baseline replay.
 Archive:
 - `session-log-archive.md#2026-06-18-1004-hhq-event-ingest-and-replay`
+
+## 2026-06-18 10:46 [saved]
+Goal: Keep agent instructions concise but replayable.
+Decisions:
+- `AGENTS.md` stays pointer-focused so startup/runtime rules are hard to miss.
+- `docs/architecture.md` holds system design detail because agents need architecture without bloating prompts.
+- `docs/testing.md` holds command order and DB caveats because verification sequences are too verbose for AGENTS.
+Rejected:
+- Long Makefile target lists in `AGENTS.md`.
+- Detailed replay sequences in active prompt context.
+Open:
+- Keep new durable decisions linked from AGENTS or archive.
