@@ -288,6 +288,7 @@ export async function pullSync(options = {}) {
     let pulledHouseholds = 0;
     let pulledMembers = 0;
     let pulledEligibleWomen = 0;
+    let pulledPregnancies = 0;
     let formsUpdated = 0;
     let lastData = null;
     let batch = 0;
@@ -303,6 +304,7 @@ export async function pullSync(options = {}) {
         pulledHouseholds,
         pulledMembers,
         pulledEligibleWomen,
+        pulledPregnancies,
         formsUpdated,
         });
       }
@@ -330,6 +332,7 @@ export async function pullSync(options = {}) {
         households = [],
         tasks = [],
         eligible_women: eligibleWomen = [],
+        pregnancies = [],
         form_versions: formVersions = [],
         protocol_config_version,
         total_households: totalHouseholds = 0,
@@ -355,6 +358,7 @@ export async function pullSync(options = {}) {
           pulledHouseholds,
           pulledMembers,
           pulledEligibleWomen,
+          pulledPregnancies,
           formsUpdated,
         });
       }
@@ -372,6 +376,7 @@ export async function pullSync(options = {}) {
             pulledHouseholds,
             pulledMembers,
             pulledEligibleWomen,
+            pulledPregnancies,
             formsUpdated,
           });
         }
@@ -392,6 +397,11 @@ export async function pullSync(options = {}) {
       if (eligibleWomen.length > 0) {
         taskRepository.saveEligibleWomenBatch(eligibleWomen);
         pulledEligibleWomen += eligibleWomen.length;
+      }
+
+      if (pregnancies.length > 0) {
+        taskRepository.savePregnancyBatch(pregnancies);
+        pulledPregnancies += pregnancies.length;
       }
 
       const formRefresh = await refreshProtocolForms(formVersions);
@@ -415,6 +425,7 @@ export async function pullSync(options = {}) {
           pulledHouseholds,
           pulledMembers,
           pulledEligibleWomen,
+          pulledPregnancies,
           formsUpdated,
         });
       }
@@ -430,6 +441,7 @@ export async function pullSync(options = {}) {
       pulledHouseholds,
       pulledMembers,
       pulledEligibleWomen,
+      pulledPregnancies,
       formsUpdated,
     };
   } catch (error) {

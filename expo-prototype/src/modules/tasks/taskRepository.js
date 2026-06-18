@@ -229,6 +229,67 @@ export function saveEligibleWomenBatch(women = []) {
   }
 }
 
+export function savePregnancy(pregnancy) {
+  const db = getDb();
+  const now = new Date().toISOString();
+  const row = {
+    pregnancy_id: pregnancy.pregnancy_id,
+    woman_id: pregnancy.woman_id,
+    household_member_id: pregnancy.household_member_id || pregnancy.woman_id,
+    household_id: pregnancy.household_id,
+    site_id: pregnancy.site_id ?? null,
+    locality_code: pregnancy.locality_code || null,
+    pregnancy_sequence: pregnancy.pregnancy_sequence || 1,
+    pregnancy_status: pregnancy.pregnancy_status || "active",
+    detected_date: pregnancy.detected_date || null,
+    enrollment_date: pregnancy.enrollment_date || null,
+    usg_available: pregnancy.usg_available ? 1 : 0,
+    source_form_response_id: pregnancy.source_form_response_id || null,
+    source_event_id: pregnancy.source_event_id || null,
+    sync_status: pregnancy.sync_status || "local",
+    created_at: pregnancy.created_at || now,
+    updated_at: pregnancy.updated_at || now,
+  };
+
+  try {
+    db.runSync(
+      `INSERT OR REPLACE INTO pregnancies
+       (pregnancy_id, woman_id, household_member_id, household_id, site_id, locality_code,
+        pregnancy_sequence, pregnancy_status, detected_date, enrollment_date, usg_available,
+        source_form_response_id, source_event_id, sync_status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        row.pregnancy_id,
+        row.woman_id,
+        row.household_member_id,
+        row.household_id,
+        row.site_id,
+        row.locality_code,
+        row.pregnancy_sequence,
+        row.pregnancy_status,
+        row.detected_date,
+        row.enrollment_date,
+        row.usg_available,
+        row.source_form_response_id,
+        row.source_event_id,
+        row.sync_status,
+        row.created_at,
+        row.updated_at,
+      ],
+    );
+    return row;
+  } catch (error) {
+    console.error("Error saving pregnancy:", error);
+    throw error;
+  }
+}
+
+export function savePregnancyBatch(pregnancies = []) {
+  for (const pregnancy of pregnancies) {
+    savePregnancy(pregnancy);
+  }
+}
+
 export function completeTask(taskId, formCode, formVersion, answersJson, deviceId) {
   const now = new Date().toISOString();
   return saveFormResponse({

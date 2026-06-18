@@ -3,8 +3,11 @@ import {
   getFailedAttemptDisposition,
   isTerminalTaskLifecycleStatus,
   type HouseholdProjection,
+  type PregnancyProjection,
   reduceHouseholdProjection,
   reduceHouseholdProjectionEvents,
+  reducePregnancyProjection,
+  reducePregnancyProjectionEvents,
   orchestrateWorkflowForEvent,
 } from "../index";
 import {
@@ -122,6 +125,65 @@ const workflowProjection: HouseholdProjection = {
   source_response_id: null,
   rules_version: "v1",
   projection_version: 2,
+};
+
+const pregnancyEnrolledEvent = {
+  event_id: "evt-pregnancy-enrolled-1",
+  event_type: "pregnancy_enrolled",
+  event_version: 1,
+  aggregate_type: "pregnancy",
+  aggregate_id: "preg-001",
+  site_id: 1,
+  locality_code: "LC-01",
+  household_id: "hh-001",
+  subject_type: "pregnancy",
+  subject_id: "preg-001",
+  event_date: "2026-10-10",
+  recorded_at: "2026-10-10T08:00:00.000Z",
+  rules_version: "v1",
+  payload: {
+    pregnancy_id: "preg-001",
+    woman_id: "woman-001",
+    household_member_id: "member-001",
+    household_id: "hh-001",
+    enrollment_date: "2026-10-10",
+    pregnancy_status: "enrolled",
+    usg_available: true,
+  },
+  apply_status: "applied",
+  source_response_id: "resp-pef-1",
+  source_task_id: "task-pef-1",
+} as const;
+
+const pregnancyHeldDuplicateEvent = {
+  ...pregnancyEnrolledEvent,
+  event_id: "evt-pregnancy-enrolled-duplicate",
+  source_response_id: "resp-pef-duplicate",
+  apply_status: "held_duplicate",
+} as const;
+
+const pregnancyRejectedInvalidEvent = {
+  ...pregnancyEnrolledEvent,
+  event_id: "evt-pregnancy-enrolled-rejected",
+  source_response_id: "resp-pef-rejected",
+  apply_status: "rejected_invalid",
+} as const;
+
+const pregnancyWorkflowProjection: PregnancyProjection = {
+  pregnancy_id: "preg-001",
+  woman_id: "woman-001",
+  household_member_id: "member-001",
+  household_id: "hh-001",
+  site_id: 1,
+  locality_code: "LC-01",
+  enrollment_date: "2026-10-10",
+  pregnancy_status: "enrolled",
+  usg_available: true,
+  source_event_id: "evt-pregnancy-enrolled-1",
+  source_response_id: "resp-pef-1",
+  source_task_id: "task-pef-1",
+  rules_version: "v1",
+  projection_version: 1,
 };
 
 describe("event-core household projection reducer", () => {
@@ -497,6 +559,42 @@ describe("event-core task lifecycle rules", () => {
   });
 });
 
+describe("event-core pregnancy projection reducer", () => {
+  test("PEF pregnancy enrollment creates a projection with source provenance", () => {
+    const projection = reducePregnancyProjection(null, pregnancyEnrolledEvent);
+
+    expect(projection).toEqual(pregnancyWorkflowProjection);
+  });
+
+  test("held_duplicate and rejected_invalid pregnancy events do not mutate projection", () => {
+    const projection = reducePregnancyProjectionEvents([
+      pregnancyEnrolledEvent,
+      pregnancyHeldDuplicateEvent,
+      pregnancyRejectedInvalidEvent,
+    ]);
+
+    expect(projection).toEqual(pregnancyWorkflowProjection);
+  });
+
+  test("duplicate application of the same pregnancy event is idempotent", () => {
+    const projection = reducePregnancyProjectionEvents([
+      pregnancyEnrolledEvent,
+      pregnancyEnrolledEvent,
+    ]);
+
+    expect(projection).toEqual(pregnancyWorkflowProjection);
+  });
+
+  test("local-vs-backend reducer parity: same pregnancy event list produces the same projection", () => {
+    const events = [pregnancyEnrolledEvent];
+
+    const localProjection = reducePregnancyProjectionEvents(events);
+    const backendProjection = reducePregnancyProjectionEvents([...events]);
+
+    expect(localProjection).toEqual(backendProjection);
+  });
+});
+
 describe("event-core workflow orchestration", () => {
   test("household_enrolled wrapper task keys match direct shared-workflow output", () => {
     const directTasks = onHouseholdEnrolled({
@@ -555,6 +653,48 @@ describe("event-core workflow orchestration", () => {
         flag_type: "workflow_projection_missing",
         source_event_id: workflowEvent.event_id,
         message: "household projection required for household_enrolled workflow generation",
+      },
+    ]);
+  });
+
+  test("pregnancy_enrolled generates PFF and UF tasks anchored to pregnancy enrollment date", () => {
+    const orchestration = orchestrateWorkflowForEvent({
+      event: pregnancyEnrolledEvent,
+      pregnancy_projection: pregnancyWorkflowProjection,
+      config: DEFAULT_PROTOCOL_CONFIG,
+      rules_version: "v1",
+    });
+
+    expect(orchestration.decisions).toHaveLength(1);
+    expect(orchestration.decisions[0].kind).toBe("tasks_generated");
+    expect(orchestration.decisions[0].source_event_id).toBe("evt-pregnancy-enrolled-1");
+    expect(orchestration.decisions[0].task_descriptors.map((task) => task.task_type)).toContain(
+      "PFF",
+    );
+    expect(orchestration.decisions[0].task_descriptors.map((task) => task.task_type)).toContain(
+      "UF",
+    );
+    expect(
+      orchestration.decisions[0].task_descriptors.every(
+        (task) => task.anchor_date === "2026-10-10",
+      ),
+    ).toBe(true);
+  });
+
+  test("pregnancy_enrolled missing projection returns no tasks and a workflow_projection_missing flag", () => {
+    const result = orchestrateWorkflowForEvent({
+      event: pregnancyEnrolledEvent,
+      pregnancy_projection: null,
+      config: DEFAULT_PROTOCOL_CONFIG,
+      rules_version: "v1",
+    });
+
+    expect(result.decisions).toEqual([]);
+    expect(result.data_quality_flags).toEqual([
+      {
+        flag_type: "workflow_projection_missing",
+        source_event_id: pregnancyEnrolledEvent.event_id,
+        message: "pregnancy projection required for pregnancy_enrolled workflow generation",
       },
     ]);
   });

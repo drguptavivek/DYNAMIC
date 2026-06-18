@@ -545,6 +545,24 @@ router.post("/push", requireAuth, async (req: Request, res: Response) => {
             continue;
           }
 
+          if (data.form_response_id && event_type) {
+            const alreadyPromoted = await db
+              .select()
+              .from(schema.domainEvents)
+              .where(
+                and(
+                  eq(schema.domainEvents.form_response_id, data.form_response_id),
+                  eq(schema.domainEvents.event_type, event_type),
+                ),
+              )
+              .limit(1);
+
+            if (alreadyPromoted.length > 0) {
+              duplicates.push(id);
+              continue;
+            }
+          }
+
           const scope = resolveRecordScope(data);
 
           await db.insert(schema.domainEvents).values({
@@ -563,6 +581,8 @@ router.post("/push", requireAuth, async (req: Request, res: Response) => {
               ? new Date(data.created_offline_at)
               : undefined,
             device_id: deviceId,
+            sync_status: "synced",
+            apply_status: data.apply_status || "applied",
             created_at: new Date(),
           });
 

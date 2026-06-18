@@ -37,3 +37,26 @@ Rejected:
 - Detailed replay sequences in active prompt context.
 Open:
 - Keep new durable decisions linked from AGENTS or archive.
+
+## 2026-06-18 11:22 [saved]
+Goal: Start the pregnancy enrollment event-driven slice after HHQ replay.
+Decisions:
+- `pregnancy_enrolled` is now an event-core reducer/orchestration boundary.
+- PEF backend promotion emits `pregnancy_enrolled`, replays it into the pregnancy projection, then schedules PFF/UF through event-core orchestration.
+- Held duplicate/rejected pregnancy events are reducer-level no-ops.
+Rejected:
+- Adding Cedar/OPA before another concrete workflow slice exists.
+- Moving the whole WQ/PEF/POF chain in one edit.
+Open:
+- Add backend duplicate PEF completion classification and data-quality flags.
+- Add Expo provisional pregnancy events for offline PEF submit.
+
+## 2026-06-18 12:08 [saved]
+Goal: Complete HHQ and pregnancy enrollment end to end across Expo, sync, and backend.
+Decisions:
+- PEF finalization/sync/backend now completes `pregnancy_enrolled` through PFF/UF generation.
+- Duplicate PEF completions are preserved as held evidence with DQ flags.
+Rejected:
+- Using device/server wall-clock as the primary PEF protocol anchor when `pef_enrollment_date` is present.
+Open:
+- Refactor Expo HHQ and PEF local task generation to import the shared TS event/workflow kernel once the Expo test/runtime can load workspace TS packages directly.

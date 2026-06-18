@@ -129,22 +129,102 @@ assert.equal(promotedMembers.length, 2);
 assert.equal(promotedMembers[1].individual_id, "1-02-0042-03-02");
 assert.equal(promotedMembers[1].source_form_response_id, submission.submission_id);
 
-const syncRecords = buildPushRecords({ formResponses: webSqliteState.form_responses });
-assert.deepEqual(syncRecords, [
-  {
-    type: "form_response",
-    data: {
-      ...webSqliteState.form_responses[0],
-      form_code: "HHQ",
-      form_version: "9 MAY 2026",
-      household_id: "1-02-0042-03",
-      site_id: 1,
-      locality_code: "02",
-      subject_type: "household",
-      subject_id: "1-02-0042-03",
-      answers_json: hhqPayload,
-    },
-  },
-]);
+const pefTaskContext = {
+  id: "local-task-pef-1",
+  task_key: "1-02-0042-03|woman|1-02-0042-03-02|PEF|PEF-pregnancy-detected|2026-09-15|v1",
+  household_id: "1-02-0042-03",
+  subject_type: "woman",
+  subject_id: "1-02-0042-03-02",
+  woman_id: "1-02-0042-03-02",
+  pregnancy_id: "local-pregnancy:1-02-0042-03-02:1",
+  task_type: "PEF",
+  form_code: "PEF",
+};
+const pefPayload = {
+  household_id: "1-02-0042-03",
+  pef_enrollment_date: "2026-09-15",
+  pef_any_time_during_pregnancy_ultrasound: 1,
+};
+const pefSubmission = await saveQuestionnaireSubmission({
+  formCode: "PEF",
+  formVersion: "11 MAY 2026",
+  payload: pefPayload,
+  taskId: pefTaskContext.id,
+  taskContext: pefTaskContext,
+  deviceId: "device-1",
+  userId: "fieldworker-1",
+});
+
+assert.equal(pefSubmission.form_code, "PEF");
+assert.equal(pefSubmission.household_id, "1-02-0042-03");
+assert.equal(pefSubmission.subject_type, "woman");
+assert.equal(pefSubmission.subject_id, "1-02-0042-03-02");
+
+const webSqliteAfterPef = JSON.parse(window.localStorage.getItem("dynamic_web_sqlite_v2") || "{}");
+assert.equal(webSqliteAfterPef.form_responses.length, 2);
+assert.equal(webSqliteAfterPef.pregnancies.length, 1);
+assert.equal(webSqliteAfterPef.pregnancies[0].pregnancy_id, "local-pregnancy:1-02-0042-03-02:1");
+assert.equal(webSqliteAfterPef.pregnancies[0].pregnancy_status, "enrolled");
+assert.equal(webSqliteAfterPef.pregnancies[0].source_form_response_id, pefSubmission.submission_id);
+
+const pregnancyEvents = webSqliteAfterPef.domain_events_outbox.filter(
+  (event) => event.event_type === "pregnancy_enrolled",
+);
+assert.equal(pregnancyEvents.length, 1);
+const pregnancyEvent = JSON.parse(pregnancyEvents[0].payload);
+assert.equal(pregnancyEvent.event_type, "pregnancy_enrolled");
+assert.equal(pregnancyEvent.apply_status, "applied");
+assert.equal(pregnancyEvent.household_id, "1-02-0042-03");
+assert.equal(pregnancyEvent.form_response_id, pefSubmission.submission_id);
+assert.equal(pregnancyEvent.payload.pregnancy_id, "local-pregnancy:1-02-0042-03-02:1");
+assert.equal(pregnancyEvent.payload.woman_id, "1-02-0042-03-02");
+assert.equal(pregnancyEvent.payload.enrollment_date, "2026-09-15");
+assert.equal(pregnancyEvent.payload.usg_available, true);
+
+const pffTasks = webSqliteAfterPef.follow_up_tasks.filter((task) => task.task_type === "PFF");
+const ufTasks = webSqliteAfterPef.follow_up_tasks.filter((task) => task.task_type === "UF");
+assert.ok(pffTasks.length > 0);
+assert.equal(ufTasks.length, 1);
+assert.equal(pffTasks[0].household_id, "1-02-0042-03");
+assert.equal(pffTasks[0].subject_type, "pregnancy");
+assert.equal(pffTasks[0].subject_id, "local-pregnancy:1-02-0042-03-02:1");
+assert.equal(pffTasks[0].source_event_id, pregnancyEvent.event_id);
+assert.equal(ufTasks[0].source_event_id, pregnancyEvent.event_id);
+
+const syncRecords = buildPushRecords({
+  formResponses: webSqliteAfterPef.form_responses,
+  domainEvents: webSqliteAfterPef.domain_events_outbox,
+});
+const normalizedPregnancyEvent = syncRecords.find(
+  (record) => record.type === "domain_event" && record.data.event_type === "pregnancy_enrolled",
+);
+assert.ok(normalizedPregnancyEvent);
+assert.equal(normalizedPregnancyEvent.data.id, pregnancyEvent.event_id);
+assert.equal(normalizedPregnancyEvent.data.form_response_id, pefSubmission.submission_id);
+assert.equal(normalizedPregnancyEvent.data.household_id, "1-02-0042-03");
+assert.equal(normalizedPregnancyEvent.data.event_datetime, pregnancyEvent.recorded_at);
+
+const hhqSyncRecords = buildPushRecords({ formResponses: [webSqliteState.form_responses[0]] });
+const normalizedHhqResponse = syncRecords.find(
+  (record) => record.type === "form_response" && record.data.id === submission.submission_id,
+);
+const normalizedPefResponse = syncRecords.find(
+  (record) => record.type === "form_response" && record.data.id === pefSubmission.submission_id,
+);
+assert.deepEqual(normalizedHhqResponse, {
+  type: "form_response",
+  data: hhqSyncRecords[0].data,
+});
+assert.equal(normalizedPefResponse.data.form_code, "PEF");
+assert.equal(normalizedPefResponse.data.household_id, "1-02-0042-03");
+assert.equal(normalizedPefResponse.data.subject_type, "woman");
+assert.equal(normalizedPefResponse.data.subject_id, "1-02-0042-03-02");
+const normalizedHhqEvent = syncRecords.find(
+  (record) =>
+    record.type === "domain_event" && record.data.event_type === "household_baseline_confirmed",
+);
+assert.ok(normalizedHhqEvent);
+assert.equal(normalizedHhqEvent.data.locality_code, "02");
+assert.equal(syncRecords.filter((record) => record.type === "domain_event").length, 2);
 
 console.log("Validated questionnaire final submission workflow.");

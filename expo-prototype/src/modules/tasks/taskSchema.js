@@ -79,6 +79,27 @@ export function initTaskDb() {
   `);
 
   db.runSync(`
+    CREATE TABLE IF NOT EXISTS pregnancies (
+      pregnancy_id TEXT PRIMARY KEY,
+      woman_id TEXT NOT NULL,
+      household_member_id TEXT,
+      household_id TEXT NOT NULL,
+      site_id INTEGER,
+      locality_code TEXT,
+      pregnancy_sequence INTEGER,
+      pregnancy_status TEXT DEFAULT 'active',
+      detected_date TEXT,
+      enrollment_date TEXT,
+      usg_available INTEGER DEFAULT 0,
+      source_form_response_id TEXT,
+      source_event_id TEXT,
+      sync_status TEXT DEFAULT 'local',
+      created_at TEXT,
+      updated_at TEXT
+    )
+  `);
+
+  db.runSync(`
     CREATE TABLE IF NOT EXISTS sync_meta (
       key TEXT PRIMARY KEY,
       value TEXT
@@ -101,6 +122,9 @@ export function initTaskDb() {
     "ALTER TABLE form_responses ADD COLUMN locality_code TEXT",
     "ALTER TABLE form_responses ADD COLUMN subject_type TEXT",
     "ALTER TABLE form_responses ADD COLUMN subject_id TEXT",
+    "ALTER TABLE pregnancies ADD COLUMN usg_available INTEGER DEFAULT 0",
+    "ALTER TABLE pregnancies ADD COLUMN source_form_response_id TEXT",
+    "ALTER TABLE pregnancies ADD COLUMN source_event_id TEXT",
   ]) {
     try {
       db.runSync(statement);

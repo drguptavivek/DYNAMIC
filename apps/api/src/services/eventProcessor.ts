@@ -3,13 +3,16 @@ import { eq, and } from "drizzle-orm";
 import {
   DomainEventEnvelope,
   HouseholdBaselineConfirmedPayload,
+  PregnancyEnrolledPayload,
+  PregnancyProjection,
+  orchestrateWorkflowForEvent,
   reduceHouseholdProjectionEvents,
+  reducePregnancyProjectionEvents,
 } from "@dynamic/event-core";
 import {
   onHouseholdEnrolled,
   onEligibleWomanIdentified,
   onWqCompleted,
-  onPregnancyEnrolled,
   onPregnancyOutcomeRecorded,
   onBirthAssessmentCompleted,
   onChildDeath,
@@ -29,6 +32,7 @@ type FormResponseRow = typeof schema.formResponses.$inferSelect;
 type DomainEventRow = typeof schema.domainEvents.$inferSelect;
 
 const HHQ_RULES_VERSION = "hhq-backend-1";
+const PREGNANCY_RULES_VERSION = "pregnancy-backend-1";
 
 function buildHhqBaselinePayload(
   household: ReturnType<typeof buildHhqHouseholdPromotionValues>,
@@ -81,6 +85,73 @@ function toHhqProjectionEvent(
   };
 }
 
+function toIsoDate(value: Date): string {
+  return value.toISOString().split("T")[0];
+}
+
+function isTruthyAnswer(value: unknown): boolean {
+  return value === "1" || value === 1 || value === true;
+}
+
+function getPefEnrollmentDate(answers: FormAnswers, fallbackDate: string): string {
+  return typeof answers.pef_enrollment_date === "string" && answers.pef_enrollment_date
+    ? answers.pef_enrollment_date
+    : fallbackDate;
+}
+
+function buildPregnancyEnrolledPayload(
+  pregnancy: typeof schema.pregnancies.$inferSelect,
+  enrollmentDate: string,
+  answers: FormAnswers,
+): PregnancyEnrolledPayload {
+  return {
+    pregnancy_id: pregnancy.pregnancy_id,
+    woman_id: pregnancy.woman_id,
+    household_member_id: pregnancy.household_member_id,
+    household_id: pregnancy.household_id,
+    enrollment_date: enrollmentDate,
+    pregnancy_status: "enrolled",
+    usg_available: isTruthyAnswer(answers.pef_any_time_during_pregnancy_ultrasound),
+  };
+}
+
+function toPregnancyProjectionEvent(params: {
+  event_id: string;
+  response: FormResponseRow;
+  pregnancy: typeof schema.pregnancies.$inferSelect;
+  enrollment_date: string;
+  payload: PregnancyEnrolledPayload;
+  now: Date;
+  apply_status?: DomainEventEnvelope["apply_status"];
+}): DomainEventEnvelope {
+  const eventDateTime =
+    params.response.created_offline_at ?? params.response.created_at ?? params.now;
+
+  return {
+    event_id: params.event_id,
+    event_type: "pregnancy_enrolled",
+    event_version: 1,
+    aggregate_type: "pregnancy",
+    aggregate_id: params.pregnancy.pregnancy_id,
+    site_id: params.pregnancy.site_id,
+    locality_code: params.pregnancy.locality_code,
+    household_id: params.pregnancy.household_id,
+    subject_type: "pregnancy",
+    subject_id: params.pregnancy.pregnancy_id,
+    task_id: params.response.task_id,
+    form_response_id: params.response.form_response_id,
+    source_response_id: params.response.form_response_id,
+    source_task_id: params.response.task_id,
+    event_date: params.enrollment_date,
+    recorded_at: eventDateTime.toISOString(),
+    created_offline_at: params.response.created_offline_at?.toISOString() ?? undefined,
+    device_id: params.response.device_id,
+    rules_version: PREGNANCY_RULES_VERSION,
+    payload: params.payload as unknown as Record<string, unknown>,
+    apply_status: params.apply_status ?? "applied",
+  };
+}
+
 export async function processFormResponse(formResponseId: string): Promise<void> {
   try {
     // Load form response with task and household context
@@ -106,7 +177,7 @@ export async function processFormResponse(formResponseId: string): Promise<void>
         await promoteWq(response.household_id || "", response.subject_id || "", answers);
         break;
       case "PEF":
-        await promotePef(response.household_id || "", response.subject_id || "", answers);
+        await promotePef(response, response.household_id || "", response.subject_id || "", answers);
         break;
       case "UF":
         // Ultrasound follow-up - may refine EDD only
@@ -495,53 +566,158 @@ async function promoteWq(
 }
 
 async function promotePef(
+  response: FormResponseRow,
   householdId: string,
   subjectId: string,
   answers: FormAnswers,
 ): Promise<void> {
   try {
-    // Find active pregnancy for this woman
     const pregnancies = await db
       .select()
       .from(schema.pregnancies)
-      .where(
-        and(
-          eq(schema.pregnancies.household_member_id, subjectId),
-          eq(schema.pregnancies.pregnancy_status, "active"),
-        ),
-      )
-      .limit(1);
+      .where(eq(schema.pregnancies.household_member_id, subjectId));
 
     if (pregnancies.length === 0) {
+      throw new Error(`No pregnancy found for woman ${subjectId}`);
+    }
+
+    const activePregnancy =
+      pregnancies.find((candidate) => candidate.pregnancy_status === "active") ?? null;
+    const pregnancy = activePregnancy ?? pregnancies[0];
+
+    const now = new Date();
+    const enrollmentDate = getPefEnrollmentDate(
+      answers,
+      toIsoDate(response.created_offline_at ?? response.created_at ?? now),
+    );
+    const priorResponses = await db
+      .select()
+      .from(schema.formResponses)
+      .where(
+        and(
+          eq(schema.formResponses.form_code, "PEF"),
+          eq(schema.formResponses.household_id, pregnancy.household_id),
+          eq(schema.formResponses.subject_id, subjectId),
+        ),
+      );
+    const primaryResponse = priorResponses.find(
+      (candidate) =>
+        candidate.form_response_id !== response.form_response_id &&
+        candidate.response_status !== "duplicate",
+    );
+
+    if (primaryResponse) {
+      const duplicateEventId = randomUUID();
+      const duplicatePayload = buildPregnancyEnrolledPayload(
+        pregnancy,
+        pregnancy.enrollment_date ?? enrollmentDate,
+        answers,
+      );
+      const duplicateEnvelope = toPregnancyProjectionEvent({
+        event_id: duplicateEventId,
+        response,
+        pregnancy,
+        enrollment_date: pregnancy.enrollment_date ?? enrollmentDate,
+        payload: duplicatePayload,
+        now,
+        apply_status: "held_duplicate",
+      });
+
+      await db
+        .update(schema.formResponses)
+        .set({ response_status: "duplicate" })
+        .where(eq(schema.formResponses.form_response_id, response.form_response_id));
+
+      await db.insert(schema.domainEvents).values({
+        event_id: duplicateEnvelope.event_id,
+        event_type: duplicateEnvelope.event_type,
+        site_id: pregnancy.site_id,
+        locality_code: pregnancy.locality_code,
+        household_id: pregnancy.household_id,
+        subject_type: "pregnancy",
+        subject_id: pregnancy.pregnancy_id,
+        task_id: response.task_id,
+        form_response_id: response.form_response_id,
+        event_datetime: response.created_offline_at ?? now,
+        created_offline_at: response.created_offline_at,
+        device_id: response.device_id,
+        sync_status: "synced",
+        apply_status: "held_duplicate",
+        created_at: now,
+      });
+
+      await db.insert(schema.dataQualityFlags).values({
+        flag_id: `duplicate:${primaryResponse.form_response_id}:${response.form_response_id}`,
+        site_id: pregnancy.site_id,
+        flag_type: "duplicate_task_completion",
+        subject_type: "pregnancy",
+        subject_id: pregnancy.pregnancy_id,
+        task_id: response.task_id,
+        primary_response_id: primaryResponse.form_response_id,
+        duplicate_response_id: response.form_response_id,
+        severity: "warning",
+        status: "open",
+        created_at: now,
+      });
+      return;
+    }
+
+    if (!activePregnancy) {
       throw new Error(`No active pregnancy found for woman ${subjectId}`);
     }
 
-    const pregnancy = pregnancies[0];
+    const eventId = randomUUID();
+    const payload = buildPregnancyEnrolledPayload(pregnancy, enrollmentDate, answers);
+    const envelope = toPregnancyProjectionEvent({
+      event_id: eventId,
+      response,
+      pregnancy,
+      enrollment_date: enrollmentDate,
+      payload,
+      now,
+    });
+    const projection = reducePregnancyProjectionEvents([envelope]);
 
-    // Update pregnancy with enrollment info
-    const enrollmentDate = new Date().toISOString().split("T")[0];
+    if (!projection) {
+      throw new Error(`Pregnancy projection not generated for ${pregnancy.pregnancy_id}`);
+    }
+
+    await db.insert(schema.domainEvents).values({
+      event_id: eventId,
+      event_type: "pregnancy_enrolled",
+      site_id: pregnancy.site_id,
+      locality_code: pregnancy.locality_code,
+      household_id: pregnancy.household_id,
+      subject_type: "pregnancy",
+      subject_id: pregnancy.pregnancy_id,
+      task_id: response.task_id,
+      form_response_id: response.form_response_id,
+      event_datetime: response.created_offline_at ?? now,
+      created_offline_at: response.created_offline_at,
+      device_id: response.device_id,
+      sync_status: "synced",
+      apply_status: "applied",
+      created_at: now,
+    });
+
     await db
       .update(schema.pregnancies)
       .set({
-        enrollment_date: enrollmentDate,
-        pregnancy_status: "enrolled",
-        updated_at: new Date(),
+        enrollment_date: projection.enrollment_date,
+        pregnancy_status: projection.pregnancy_status,
+        source_event_id: projection.source_event_id,
+        updated_at: now,
       })
-      .where(eq(schema.pregnancies.pregnancy_id, pregnancy.pregnancy_id));
+      .where(eq(schema.pregnancies.pregnancy_id, projection.pregnancy_id));
 
-    // Generate PFF schedule tasks
-    const tasks = onPregnancyEnrolled({
-      event_id: randomUUID(),
-      household_id: householdId,
-      woman_id: pregnancy.woman_id,
-      pregnancy_id: pregnancy.pregnancy_id,
-      enrollment_date: enrollmentDate,
-      usg_available:
-        answers.pef_any_time_during_pregnancy_ultrasound === "1" ||
-        answers.pef_any_time_during_pregnancy_ultrasound === 1 ||
-        answers.pef_any_time_during_pregnancy_ultrasound === true,
+    const orchestration = orchestrateWorkflowForEvent({
+      event: envelope,
+      pregnancy_projection: projection as PregnancyProjection,
+      rules_version: "v1",
     });
-    await writeTasksFromDescriptors(tasks);
+    await writeTasksFromDescriptors(
+      orchestration.decisions.flatMap((decision) => decision.task_descriptors),
+    );
   } catch (err) {
     console.error(`Error in promotePef for ${householdId}/${subjectId}:`, err);
     throw err;

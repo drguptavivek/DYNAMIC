@@ -22,6 +22,16 @@ function parseAnswersJson(answersJson) {
   }
 }
 
+function parseJsonObject(value) {
+  if (typeof value !== "string") return value || {};
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
 function parseHouseholdScope(householdId) {
   if (!householdId) return {};
   const [siteId, localityCode] = String(householdId).split("-");
@@ -76,16 +86,19 @@ export function buildPushRecords({ formResponses = [], domainEvents = [] } = {})
       type: "form_response",
       data: normalizeFormResponseForPush(response),
     })),
-    ...domainEvents.map((event) => ({
-      type: "domain_event",
-      data: {
-        ...event.payload,
-        id: event.id,
-        event_type: event.event_type,
-        created_offline_at: event.created_at,
-        event_datetime: event.payload?.timestamp || event.created_at,
-      },
-    })),
+    ...domainEvents.map((event) => {
+      const payload = parseJsonObject(event.payload);
+      return {
+        type: "domain_event",
+        data: {
+          ...payload,
+          id: event.id || payload.event_id,
+          event_type: event.event_type || payload.event_type,
+          created_offline_at: payload.created_offline_at || event.created_at,
+          event_datetime: payload.recorded_at || payload.timestamp || event.created_at,
+        },
+      };
+    }),
   ];
 }
 

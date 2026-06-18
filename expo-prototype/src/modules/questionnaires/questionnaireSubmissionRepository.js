@@ -31,6 +31,7 @@ function readWebSqliteState(storage) {
       task_attempts: [],
       form_responses: [],
       eligible_women: [],
+      pregnancies: [],
       domain_events_outbox: [],
       ...JSON.parse(storage.getItem(WEB_SQLITE_STORAGE_KEY) || "{}"),
     };
@@ -41,6 +42,7 @@ function readWebSqliteState(storage) {
       task_attempts: [],
       form_responses: [],
       eligible_women: [],
+      pregnancies: [],
       domain_events_outbox: [],
     };
   }
@@ -213,6 +215,16 @@ function addDaysIso(dateText, days) {
   return date.toISOString().split("T")[0];
 }
 
+function addCalendarMonthsIso(dateText, months) {
+  const date = new Date(`${dateText}T00:00:00Z`);
+  const originalDay = date.getUTCDate();
+  date.setUTCDate(1);
+  date.setUTCMonth(date.getUTCMonth() + months);
+  const lastDay = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0)).getUTCDate();
+  date.setUTCDate(Math.min(originalDay, lastDay));
+  return date.toISOString().split("T")[0];
+}
+
 function isWqEligible(member) {
   return (
     member.woman_questionnaire_eligible === true ||
@@ -284,7 +296,7 @@ function buildHhqBaselineEvent(record, response) {
     aggregate_type: "household",
     aggregate_id: record.household_id,
     site_id: Number(record.site_id),
-    locality_code: String(record.locality_code || ""),
+    locality_code: normalizeIdPart(record.locality_code, "00", 2),
     household_id: record.household_id,
     subject_type: "household",
     subject_id: record.household_id,
@@ -307,6 +319,165 @@ function buildHhqBaselineEvent(record, response) {
     },
     apply_status: "applied",
   };
+}
+
+function isTruthyAnswer(value) {
+  return value === true || value === 1 || value === "1";
+}
+
+function buildPregnancyId(response, taskContext) {
+  return (
+    taskContext?.pregnancy_id ||
+    response.answers_json?.pregnancy_id ||
+    `local-pregnancy:${response.subject_id}:1`
+  );
+}
+
+function buildPregnancyProjection(response, taskContext) {
+  const enrollmentDate = response.answers_json?.pef_enrollment_date || response.submitted_at.split("T")[0];
+  const pregnancyId = buildPregnancyId(response, taskContext);
+  return {
+    pregnancy_id: pregnancyId,
+    woman_id: taskContext?.woman_id || response.subject_id,
+    household_member_id: response.subject_id,
+    household_id: response.household_id,
+    site_id: response.site_id,
+    locality_code: response.locality_code,
+    pregnancy_sequence: taskContext?.pregnancy_sequence || 1,
+    pregnancy_status: "enrolled",
+    enrollment_date: enrollmentDate,
+    usg_available: isTruthyAnswer(response.answers_json?.pef_any_time_during_pregnancy_ultrasound),
+    source_form_response_id: response.id,
+    source_sync_status: response.sync_status,
+    sync_status: "pending",
+    created_at: response.submitted_at,
+    updated_at: response.submitted_at,
+  };
+}
+
+function buildPregnancyEnrolledEvent(pregnancy, response) {
+  const eventId = `local-pregnancy-enrolled:${pregnancy.pregnancy_id}:${response.id}`;
+  return {
+    event_id: eventId,
+    event_type: "pregnancy_enrolled",
+    event_version: 1,
+    aggregate_type: "pregnancy",
+    aggregate_id: pregnancy.pregnancy_id,
+    site_id: Number(pregnancy.site_id),
+    locality_code: String(pregnancy.locality_code || ""),
+    household_id: pregnancy.household_id,
+    subject_type: "pregnancy",
+    subject_id: pregnancy.pregnancy_id,
+    task_id: response.task_id,
+    form_response_id: response.id,
+    source_response_id: response.id,
+    source_task_id: response.task_id,
+    event_date: pregnancy.enrollment_date,
+    recorded_at: response.submitted_at,
+    created_offline_at: response.submitted_at,
+    device_id: response.device_id,
+    rules_version: "pregnancy-local-1",
+    payload: {
+      pregnancy_id: pregnancy.pregnancy_id,
+      woman_id: pregnancy.woman_id,
+      household_member_id: pregnancy.household_member_id,
+      household_id: pregnancy.household_id,
+      enrollment_date: pregnancy.enrollment_date,
+      pregnancy_status: "enrolled",
+      usg_available: pregnancy.usg_available,
+    },
+    apply_status: "applied",
+  };
+}
+
+function buildPregnancyTaskKey({
+  householdId,
+  pregnancyId,
+  taskType,
+  protocolVisitLabel,
+  targetDate,
+}) {
+  return [householdId, "pregnancy", pregnancyId, taskType, protocolVisitLabel, targetDate, "v1"].join("|");
+}
+
+function buildPffTasks(pregnancy, event, submittedAt) {
+  const studyEnd = "2030-08-31";
+  const tasks = [];
+  let round = 1;
+  while (true) {
+    const targetDate = addCalendarMonthsIso(pregnancy.enrollment_date, round);
+    if (targetDate > studyEnd) break;
+    const protocolVisitLabel = `PFF-M${round}`;
+    tasks.push({
+      id: createLocalUuid("local-task"),
+      task_key: buildPregnancyTaskKey({
+        householdId: pregnancy.household_id,
+        pregnancyId: pregnancy.pregnancy_id,
+        taskType: "PFF",
+        protocolVisitLabel,
+        targetDate,
+      }),
+      household_id: pregnancy.household_id,
+      subject_type: "pregnancy",
+      subject_id: pregnancy.pregnancy_id,
+      woman_id: pregnancy.woman_id,
+      pregnancy_id: pregnancy.pregnancy_id,
+      task_type: "PFF",
+      form_code: "PFF",
+      protocol_visit_label: protocolVisitLabel,
+      target_date: targetDate,
+      window_start: addDaysIso(targetDate, -7),
+      window_end: addDaysIso(targetDate, 14),
+      status: "open",
+      form_availability: "available",
+      disabled_reason: null,
+      assigned_locality_code: String(pregnancy.locality_code || ""),
+      rules_version: "v1",
+      generation_source: "scheduled",
+      source_event_id: event.event_id,
+      created_at: submittedAt,
+      updated_at: submittedAt,
+    });
+    round += 1;
+  }
+  return tasks;
+}
+
+function buildUfTasks(pregnancy, event, submittedAt) {
+  if (!pregnancy.usg_available) return [];
+  const protocolVisitLabel = "UF-pregnancy-enrolled";
+  return [
+    {
+      id: createLocalUuid("local-task"),
+      task_key: buildPregnancyTaskKey({
+        householdId: pregnancy.household_id,
+        pregnancyId: pregnancy.pregnancy_id,
+        taskType: "UF",
+        protocolVisitLabel,
+        targetDate: pregnancy.enrollment_date,
+      }),
+      household_id: pregnancy.household_id,
+      subject_type: "pregnancy",
+      subject_id: pregnancy.pregnancy_id,
+      woman_id: pregnancy.woman_id,
+      pregnancy_id: pregnancy.pregnancy_id,
+      task_type: "UF",
+      form_code: "UF",
+      protocol_visit_label: protocolVisitLabel,
+      target_date: pregnancy.enrollment_date,
+      window_start: pregnancy.enrollment_date,
+      window_end: addDaysIso(pregnancy.enrollment_date, 14),
+      status: "open",
+      form_availability: "available",
+      disabled_reason: null,
+      assigned_locality_code: String(pregnancy.locality_code || ""),
+      rules_version: "v1",
+      generation_source: "event_triggered",
+      source_event_id: event.event_id,
+      created_at: submittedAt,
+      updated_at: submittedAt,
+    },
+  ];
 }
 
 function saveWebDomainEvent(event, createdAt) {
@@ -341,6 +512,29 @@ async function saveDomainEvent(event, createdAt) {
   }
 
   saveWebDomainEvent(event, createdAt);
+}
+
+function saveWebPregnancy(pregnancy) {
+  const storage = getStorage();
+  if (!storage) return;
+  const state = readWebSqliteState(storage);
+  state.pregnancies = mergeById([pregnancy], state.pregnancies || [], "pregnancy_id");
+  storage.setItem(WEB_SQLITE_STORAGE_KEY, JSON.stringify(state));
+}
+
+async function savePregnancy(pregnancy) {
+  let taskRepository = null;
+  try {
+    taskRepository = await import("../tasks/taskRepository.js");
+  } catch {
+    // Node tests do not load the Metro-resolved expo-sqlite module.
+  }
+  if (typeof taskRepository?.savePregnancy === "function") {
+    taskRepository.savePregnancy(pregnancy);
+    return;
+  }
+
+  saveWebPregnancy(pregnancy);
 }
 
 function buildHhqDerivedWorkflow(record, response) {
@@ -405,6 +599,36 @@ async function saveHhqDerivedWorkflow(record, response) {
   saveWebHhqDerivedWorkflow(derivedRows);
 }
 
+function saveWebPefDerivedWorkflow(pregnancy, tasks) {
+  const storage = getStorage();
+  if (!storage) return;
+  const state = readWebSqliteState(storage);
+  state.pregnancies = mergeById([pregnancy], state.pregnancies || [], "pregnancy_id");
+  state.follow_up_tasks = mergeById(tasks, state.follow_up_tasks || [], "task_key");
+  storage.setItem(WEB_SQLITE_STORAGE_KEY, JSON.stringify(state));
+}
+
+async function savePefDerivedWorkflow(pregnancy, tasks) {
+  let taskRepository = null;
+  try {
+    taskRepository = await import("../tasks/taskRepository.js");
+  } catch {
+    // Node tests do not load the Metro-resolved expo-sqlite module.
+  }
+  if (
+    typeof taskRepository?.savePregnancy === "function" &&
+    typeof taskRepository?.saveTask === "function"
+  ) {
+    taskRepository.savePregnancy(pregnancy);
+    for (const task of tasks) {
+      taskRepository.saveTask(task);
+    }
+    return;
+  }
+
+  saveWebPefDerivedWorkflow(pregnancy, tasks);
+}
+
 async function promoteHhqLocally(response) {
   if (response.form_code !== "HHQ" || !response.household_id) return;
   const sourceFields = {
@@ -441,6 +665,17 @@ async function promoteHhqLocally(response) {
   await saveHhqDerivedWorkflow(promotedRecord, response);
 }
 
+async function promotePefLocally(response, taskContext) {
+  if (response.form_code !== "PEF" || !response.household_id || !response.subject_id) return;
+  const pregnancy = buildPregnancyProjection(response, taskContext);
+  const event = buildPregnancyEnrolledEvent(pregnancy, response);
+  const tasks = [...buildPffTasks(pregnancy, event, response.submitted_at), ...buildUfTasks(pregnancy, event, response.submitted_at)];
+
+  await saveDomainEvent(event, response.submitted_at);
+  await savePregnancy(pregnancy);
+  await savePefDerivedWorkflow(pregnancy, tasks);
+}
+
 export async function listQuestionnaireSubmissions(formCode) {
   const storage = getStorage();
   if (!storage) return [];
@@ -471,6 +706,7 @@ export async function saveQuestionnaireSubmission({
 
   await saveCanonicalFormResponse(response);
   await promoteHhqLocally(response);
+  await promotePefLocally(response, taskContext);
 
   if (!storage) {
     return submission;

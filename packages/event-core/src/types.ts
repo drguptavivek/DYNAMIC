@@ -4,7 +4,7 @@ export type EventApplyStatus =
   | "rejected_invalid"
   | "superseded";
 
-export type EventAggregateType = "household" | (string & {});
+export type EventAggregateType = "household" | "pregnancy" | (string & {});
 
 export interface DomainEventEnvelope<TPayload = Record<string, unknown>> {
   event_id: string;
@@ -65,6 +65,39 @@ export interface HouseholdProjection {
   follow_up_enabled: boolean;
   source_event_id: string;
   source_response_id?: string | null;
+  rules_version: string;
+  projection_version: number;
+}
+
+export type PregnancyStatus =
+  | "active"
+  | "enrolled"
+  | "closed"
+  | (string & {});
+
+export interface PregnancyEnrolledPayload {
+  pregnancy_id: string;
+  woman_id: string;
+  household_member_id: string;
+  household_id: string;
+  enrollment_date: string;
+  pregnancy_status: PregnancyStatus;
+  usg_available: boolean;
+}
+
+export interface PregnancyProjection {
+  pregnancy_id: string;
+  woman_id: string;
+  household_member_id: string;
+  household_id: string;
+  site_id: number;
+  locality_code: string;
+  enrollment_date?: string | null;
+  pregnancy_status: PregnancyStatus;
+  usg_available: boolean;
+  source_event_id: string;
+  source_response_id?: string | null;
+  source_task_id?: string | null;
   rules_version: string;
   projection_version: number;
 }
