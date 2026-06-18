@@ -23,6 +23,7 @@ test("HHQ offline submission creates local WQ workflow, syncs backend, and pulls
   const { createApp } = await import("./app");
   const { db, schema } = await import("./db");
   const { smokeUser, upsertDevSeed } = await import("./dev/dev-seed");
+  const { rebuildHhqHouseholdProjection } = await import("./services/eventProcessor");
   // @ts-ignore Expo prototype modules are JavaScript and intentionally imported by this e2e.
   const { saveQuestionnaireSubmission } = await import("../../../expo-prototype/src/modules/questionnaires/questionnaireSubmissionRepository.js");
   // @ts-ignore Expo prototype modules are JavaScript and intentionally imported by this e2e.
@@ -141,12 +142,89 @@ test("HHQ offline submission creates local WQ workflow, syncs backend, and pulls
     assert.equal(duplicatePush.accepted, 0);
     assert.deepEqual(duplicatePush.duplicates, [submission.submission_id]);
 
+    const secondResponseId = randomUUID();
+    const duplicateCompletionRecords = [
+      {
+        ...pushRecords[0],
+        data: {
+          ...pushRecords[0].data,
+          id: secondResponseId,
+          answers_json: {
+            ...pushRecords[0].data.answers_json,
+            hhq_household_head_name: "Duplicate Head Should Not Project",
+          },
+          submitted_at: "2026-09-01T12:00:00.000Z",
+        },
+      },
+    ];
+    const duplicateCompletionPush = await fetchData(`${baseUrl}/sync/push`, {
+      method: "POST",
+      headers: { Authorization: authorization },
+      body: JSON.stringify({ device_id: "e2e-device-2", records: duplicateCompletionRecords }),
+    });
+    assert.equal(duplicateCompletionPush.accepted, 1);
+    assert.deepEqual(duplicateCompletionPush.accepted_records, [secondResponseId]);
+    assert.deepEqual(duplicateCompletionPush.errors, []);
+
     const backendHousehold = await db
       .select()
       .from(schema.households)
       .where(eq(schema.households.household_id, householdId));
     assert.equal(backendHousehold.length, 1);
     assert.equal(backendHousehold[0].household_head_name, "E2E Head");
+
+    const duplicateFormResponse = await db
+      .select()
+      .from(schema.formResponses)
+      .where(eq(schema.formResponses.form_response_id, secondResponseId));
+    assert.equal(duplicateFormResponse.length, 1);
+    assert.equal(duplicateFormResponse[0].response_status, "duplicate");
+
+    const hhqEvents = await db
+      .select()
+      .from(schema.domainEvents)
+      .where(eq(schema.domainEvents.household_id, householdId));
+    assert.equal(
+      hhqEvents.filter(
+        (event) =>
+          event.event_type === "household_baseline_confirmed" &&
+          event.apply_status === "applied",
+      ).length,
+      1,
+    );
+    assert.equal(
+      hhqEvents.filter(
+        (event) =>
+          event.form_response_id === secondResponseId && event.apply_status === "held_duplicate",
+      ).length,
+      1,
+    );
+    const duplicateFlags = await db
+      .select()
+      .from(schema.dataQualityFlags)
+      .where(eq(schema.dataQualityFlags.duplicate_response_id, secondResponseId));
+    assert.equal(duplicateFlags.length, 1);
+    assert.equal(duplicateFlags[0].flag_type, "duplicate_task_completion");
+    assert.equal(duplicateFlags[0].primary_response_id, submission.submission_id);
+
+    await db
+      .update(schema.households)
+      .set({
+        household_number: "99",
+        structure_map_id: "9999",
+        baseline_enrollment_status: "pending",
+      })
+      .where(eq(schema.households.household_id, householdId));
+    await rebuildHhqHouseholdProjection(householdId);
+    const replayedHousehold = await db
+      .select()
+      .from(schema.households)
+      .where(eq(schema.households.household_id, householdId));
+    assert.equal(replayedHousehold.length, 1);
+    assert.equal(replayedHousehold[0].household_number, "01");
+    assert.equal(replayedHousehold[0].structure_map_id, structureMapId);
+    assert.equal(replayedHousehold[0].baseline_enrollment_status, "enrolled");
+    assert.equal(replayedHousehold[0].household_head_name, "E2E Head");
 
     const backendMembers = await db
       .select()

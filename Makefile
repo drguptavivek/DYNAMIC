@@ -4,8 +4,10 @@ API_PORT ?= 3310
 ADMIN_PORT ?= 5317
 EXPO_PORT ?= 8088
 EDGE_PORT ?= 58080
+POSTGRES_PORT ?= 55432
+REDIS_PORT ?= 56379
 DRIZZLE_STUDIO_PORT ?= 4983
-DATABASE_URL ?= postgresql://dynamic:dynamic_dev_password@localhost:55432/dynamic_dev
+DATABASE_URL ?= postgresql://dynamic:dynamic_dev_password@localhost:$(POSTGRES_PORT)/dynamic_dev
 JWT_SECRET ?= dev_jwt_secret
 JWT_REFRESH_SECRET ?= dev_refresh_secret
 
@@ -14,7 +16,7 @@ JWT_REFRESH_SECRET ?= dev_refresh_secret
 	backend-up backend-stop backend-restart backend-logs backend-status \
 	api-up api-stop api-restart api-logs api-status \
 	app-up app-stop app-restart app-logs app-status \
-	db-up db-stop db-restart db-logs db-status db-migrate db-seed db-smoke \
+	db-up db-stop db-recreate db-restart db-reset-full db-logs db-status db-push db-migrate db-seed db-smoke \
 	edge-up edge-start edge-stop edge-restart edge-logs edge-status \
 	expo-up expo-stop expo-restart \
 	bacedn-up bacedn-restart \
@@ -22,8 +24,8 @@ JWT_REFRESH_SECRET ?= dev_refresh_secret
 
 help:
 	@echo "Targets:"
-	@echo "  dev-up            Start DB, migrate, seed, edge, then backend/admin/Expo HMR with live logs"
-	@echo "  dev-prepare       Start DB, run migrations, seed dev data, and start edge"
+	@echo "  dev-up            Start DB, push full schema, seed, edge, then backend/admin/Expo HMR with live logs"
+	@echo "  dev-prepare       Start DB, push full schema, seed dev data, and start edge"
 	@echo "  dev-stop          Stop backend, admin, Expo, edge, Postgres, and Redis"
 	@echo "  dev-restart       Stop and start the full dev stack"
 	@echo "  dev-status        Show DB, backend, admin, Expo, and edge status"
@@ -32,10 +34,13 @@ help:
 	@echo "  hmr-logs          Explain host-run HMR log streaming"
 	@echo "  db-up             Start Postgres and Redis containers"
 	@echo "  db-stop           Stop Postgres and Redis containers"
+	@echo "  db-recreate       Recreate Postgres and Redis containers with current host port bindings"
 	@echo "  db-restart        Restart Postgres and Redis containers"
+	@echo "  db-reset-full     Destroy local DB/Redis volumes, start fresh containers, push full schema, and seed"
 	@echo "  db-logs           Show last 200 Postgres/Redis log lines, then follow"
-	@echo "  db-status         Show Postgres and Redis container status"
-	@echo "  db-migrate        Run API Drizzle migrations against $(DATABASE_URL)"
+	@echo "  db-status         Show Postgres/Redis container status and localhost port bindings"
+	@echo "  db-push           Push the full API schema to $(DATABASE_URL)"
+	@echo "  db-migrate        Legacy: run API Drizzle migrations against $(DATABASE_URL)"
 	@echo "  db-seed           Upsert development users, assignments, and seed task"
 	@echo "  db-smoke          Seed and smoke-test dev login/sync against the API"
 	@echo "  backend-up        Start the backend API on port $(API_PORT)"
@@ -61,7 +66,7 @@ help:
 
 dev-up: dev-prepare hmr-up
 
-dev-prepare: db-up db-migrate db-seed edge-up
+dev-prepare: db-up db-push db-seed edge-up
 
 dev-stop: backend-stop app-stop expo-stop edge-stop db-stop
 
@@ -92,20 +97,44 @@ hmr-logs:
 	@echo "  make expo-up"
 
 db-up:
-	docker compose up -d postgres redis
+	DYNAMIC_POSTGRES_PORT="$(POSTGRES_PORT)" DYNAMIC_REDIS_PORT="$(REDIS_PORT)" docker compose up -d --wait --wait-timeout 60 postgres redis
 
 db-stop:
 	docker compose stop postgres redis
 
+db-recreate:
+	DYNAMIC_POSTGRES_PORT="$(POSTGRES_PORT)" DYNAMIC_REDIS_PORT="$(REDIS_PORT)" docker compose up -d --wait --wait-timeout 60 --force-recreate postgres redis
+
 db-restart: db-stop db-up
+
+db-reset-full:
+	docker compose --profile edge down -v
+	$(MAKE) db-up
+	$(MAKE) db-push
+	$(MAKE) db-seed
 
 db-logs:
 	docker compose logs --tail=200 -f postgres redis
 
 db-status:
 	docker compose ps postgres redis
+	@echo
+	@if lsof -nP -iTCP:$(POSTGRES_PORT) -sTCP:LISTEN >/dev/null 2>&1; then \
+		echo "Postgres reachable on localhost:$(POSTGRES_PORT)"; \
+	else \
+		echo "Postgres is not bound on localhost:$(POSTGRES_PORT). Run 'make db-recreate'."; \
+	fi
+	@if lsof -nP -iTCP:$(REDIS_PORT) -sTCP:LISTEN >/dev/null 2>&1; then \
+		echo "Redis reachable on localhost:$(REDIS_PORT)"; \
+	else \
+		echo "Redis is not bound on localhost:$(REDIS_PORT). Run 'make db-recreate'."; \
+	fi
+
+db-push:
+	cd apps/api && npx drizzle-kit push --dialect postgresql --schema './src/db/schema/*.ts' --url "$(DATABASE_URL)"
 
 db-migrate:
+	@echo "Legacy migration path. Prefer 'make db-push' or 'make db-reset-full' for local dev."
 	DATABASE_URL="$(DATABASE_URL)" npm --workspace @dynamic/api run db:migrate
 
 db-seed:

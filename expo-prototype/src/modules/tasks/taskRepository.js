@@ -297,6 +297,27 @@ export function saveFormResponse(response) {
   }
 }
 
+export function saveDomainEvent(event, createdAt) {
+  const db = getDb();
+  try {
+    db.runSync(
+      `INSERT OR REPLACE INTO domain_events_outbox
+       (id, event_type, payload, created_at, sync_status)
+       VALUES (?, ?, ?, ?, ?)`,
+      [
+        event.event_id,
+        event.event_type,
+        JSON.stringify(event),
+        createdAt || event.recorded_at || new Date().toISOString(),
+        "pending",
+      ],
+    );
+  } catch (error) {
+    console.error("Error saving domain event:", error);
+    throw error;
+  }
+}
+
 export function saveAttempt(attempt) {
   const db = getDb();
   const {

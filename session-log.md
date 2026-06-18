@@ -22,10 +22,3 @@ Rejected:
 Open:
 - Implement backend HHQ ingest/replay slice.
 - Wire Expo HHQ local provisional path.
-Next due steps:
-- Commit current event-core/runtime foundation before schema churn.
-- Reset backend dev schema to authoritative evidence/events plus projections.
-- Build HHQ sync ingest vertical slice using `@dynamic/event-core`.
-- Add household-scoped replay/rebuild for HHQ projections.
-- Add Expo HHQ local provisional evidence/events/projection path.
-- Verify duplicate task completion: one primary, one duplicate, one DQ flag.

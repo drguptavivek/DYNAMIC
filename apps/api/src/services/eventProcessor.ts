@@ -1,6 +1,11 @@
 import { db, schema } from "../db";
 import { eq, and } from "drizzle-orm";
 import {
+  DomainEventEnvelope,
+  HouseholdBaselineConfirmedPayload,
+  reduceHouseholdProjectionEvents,
+} from "@dynamic/event-core";
+import {
   onHouseholdEnrolled,
   onEligibleWomanIdentified,
   onWqCompleted,
@@ -18,6 +23,62 @@ import {
 
 interface FormAnswers {
   [key: string]: any;
+}
+
+type FormResponseRow = typeof schema.formResponses.$inferSelect;
+type DomainEventRow = typeof schema.domainEvents.$inferSelect;
+
+const HHQ_RULES_VERSION = "hhq-backend-1";
+
+function buildHhqBaselinePayload(
+  household: ReturnType<typeof buildHhqHouseholdPromotionValues>,
+): HouseholdBaselineConfirmedPayload {
+  return {
+    household_id: household.household_id,
+    household_number: household.household_number,
+    structure_map_id: household.structure_map_id,
+    baseline_date: household.baseline_completed_date,
+    occupancy_status: "occupied",
+    enrollment_status: "enrolled",
+  };
+}
+
+function toHhqProjectionEvent(
+  event: DomainEventRow,
+  response: FormResponseRow,
+): DomainEventEnvelope {
+  const household = buildHhqHouseholdPromotionValues(
+    response.household_id || event.household_id || "",
+    (response.answers_json || {}) as FormAnswers,
+    response.created_at ?? new Date(),
+  );
+  const eventDate = household.baseline_completed_date;
+  const eventDateTime = event.event_datetime ?? response.created_offline_at ?? response.created_at ?? new Date();
+  const recordedAt = event.created_at ?? response.synced_at ?? response.created_at ?? eventDateTime;
+
+  return {
+    event_id: event.event_id,
+    event_type: event.event_type,
+    event_version: 1,
+    aggregate_type: "household",
+    aggregate_id: household.household_id,
+    site_id: event.site_id,
+    locality_code: event.locality_code,
+    household_id: household.household_id,
+    subject_type: event.subject_type,
+    subject_id: event.subject_id,
+    task_id: event.task_id,
+    form_response_id: event.form_response_id,
+    source_response_id: event.form_response_id,
+    source_task_id: event.task_id,
+    event_date: eventDate,
+    recorded_at: recordedAt.toISOString(),
+    created_offline_at: event.created_offline_at?.toISOString() ?? undefined,
+    device_id: event.device_id,
+    rules_version: HHQ_RULES_VERSION,
+    payload: buildHhqBaselinePayload(household) as unknown as Record<string, unknown>,
+    apply_status: (event.apply_status || "applied") as DomainEventEnvelope["apply_status"],
+  };
 }
 
 export async function processFormResponse(formResponseId: string): Promise<void> {
@@ -39,7 +100,7 @@ export async function processFormResponse(formResponseId: string): Promise<void>
     // Dispatch to promotion function based on form_code
     switch (response.form_code) {
       case "HHQ":
-        await promoteHhq(response.household_id || "", answers);
+        await promoteHhq(response, answers);
         break;
       case "WQ":
         await promoteWq(response.household_id || "", response.subject_id || "", answers);
@@ -84,10 +145,116 @@ export async function processFormResponse(formResponseId: string): Promise<void>
   }
 }
 
-async function promoteHhq(householdId: string, answers: FormAnswers): Promise<void> {
+export async function rebuildHhqHouseholdProjection(householdId: string): Promise<void> {
+  const events = await db
+    .select()
+    .from(schema.domainEvents)
+    .where(
+      and(
+        eq(schema.domainEvents.household_id, householdId),
+        eq(schema.domainEvents.event_type, "household_baseline_confirmed"),
+      ),
+    );
+
+  if (events.length === 0) {
+    return;
+  }
+
+  const envelopes: DomainEventEnvelope[] = [];
+  for (const event of events) {
+    if (!event.form_response_id) {
+      continue;
+    }
+
+    const [response] = await db
+      .select()
+      .from(schema.formResponses)
+      .where(eq(schema.formResponses.form_response_id, event.form_response_id))
+      .limit(1);
+    if (!response) {
+      continue;
+    }
+
+    envelopes.push(toHhqProjectionEvent(event, response));
+  }
+
+  const projection = reduceHouseholdProjectionEvents(envelopes);
+  if (!projection) {
+    return;
+  }
+
+  await db
+    .update(schema.households)
+    .set({
+      site_id: projection.site_id,
+      locality_code: projection.locality_code,
+      structure_map_id: projection.structure_map_id || undefined,
+      household_number: projection.household_number || undefined,
+      baseline_enrollment_status: projection.enrollment_status,
+      baseline_completed_date: projection.baseline_date || undefined,
+      updated_at: new Date(),
+    })
+    .where(eq(schema.households.household_id, projection.household_id));
+}
+
+async function promoteHhq(response: FormResponseRow, answers: FormAnswers): Promise<void> {
   const now = new Date();
-  const household = buildHhqHouseholdPromotionValues(householdId, answers, now);
+  const household = buildHhqHouseholdPromotionValues(response.household_id || "", answers, now);
   const interviewDate = household.baseline_completed_date;
+  const priorResponses = await db
+    .select()
+    .from(schema.formResponses)
+    .where(
+      and(
+        eq(schema.formResponses.form_code, "HHQ"),
+        eq(schema.formResponses.household_id, household.household_id),
+      ),
+    );
+  const primaryResponse = priorResponses.find(
+    (candidate) =>
+      candidate.form_response_id !== response.form_response_id &&
+      candidate.response_status !== "duplicate",
+  );
+
+  if (primaryResponse) {
+    await db
+      .update(schema.formResponses)
+      .set({ response_status: "duplicate" })
+      .where(eq(schema.formResponses.form_response_id, response.form_response_id));
+
+    await db.insert(schema.domainEvents).values({
+      event_id: randomUUID(),
+      event_type: "household_baseline_confirmed",
+      site_id: household.site_id,
+      locality_code: household.locality_code,
+      household_id: household.household_id,
+      subject_type: "household",
+      subject_id: household.household_id,
+      task_id: response.task_id,
+      form_response_id: response.form_response_id,
+      event_datetime: response.created_offline_at ?? now,
+      created_offline_at: response.created_offline_at,
+      device_id: response.device_id,
+      sync_status: "synced",
+      apply_status: "held_duplicate",
+      created_at: now,
+    });
+
+    await db.insert(schema.dataQualityFlags).values({
+      flag_id: `duplicate:${primaryResponse.form_response_id}:${response.form_response_id}`,
+      site_id: household.site_id,
+      flag_type: "duplicate_task_completion",
+      subject_type: "household",
+      subject_id: household.household_id,
+      task_id: response.task_id,
+      primary_response_id: primaryResponse.form_response_id,
+      duplicate_response_id: response.form_response_id,
+      severity: "warning",
+      status: "open",
+      created_at: now,
+    });
+    return;
+  }
 
   await db
     .insert(schema.households)
@@ -207,6 +374,24 @@ async function promoteHhq(householdId: string, answers: FormAnswers): Promise<vo
     baseline_completed_date: interviewDate,
   });
   await writeTasksFromDescriptors([...tasks, ...wqTasks]);
+
+  await db.insert(schema.domainEvents).values({
+    event_id: randomUUID(),
+    event_type: "household_baseline_confirmed",
+    site_id: household.site_id,
+    locality_code: household.locality_code,
+    household_id: household.household_id,
+    subject_type: "household",
+    subject_id: household.household_id,
+    task_id: response.task_id,
+    form_response_id: response.form_response_id,
+    event_datetime: response.created_offline_at ?? now,
+    created_offline_at: response.created_offline_at,
+    device_id: response.device_id,
+    sync_status: "synced",
+    apply_status: "applied",
+    created_at: now,
+  });
 }
 
 async function promoteWq(

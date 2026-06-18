@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "test": "tsx --test \"src/**/*.test.ts\"",
-    "test:integration": "npm run db:test:migrate && DATABASE_URL=${TEST_DATABASE_URL:-postgresql://dynamic:dynamic_dev_password@localhost:55432/dynamic_test} JWT_SECRET=test_jwt_secret JWT_REFRESH_SECRET=test_refresh_secret tsx --test \"src/**/*.integration.ts\"",
+    "test:integration": "npm run db:test:push && DATABASE_URL=${TEST_DATABASE_URL:-postgresql://dynamic:dynamic_dev_password@localhost:55432/dynamic_test} JWT_SECRET=test_jwt_secret JWT_REFRESH_SECRET=test_refresh_secret tsx --test \"src/**/*.integration.ts\"",
     "build": "tsc --project tsconfig.json",
     "typecheck": "tsc --noEmit --project tsconfig.json",
     "start": "node dist/index.js",
@@ -13,11 +13,13 @@
     "db:migrate": "drizzle-kit migrate",
     "db:test:ensure": "tsx src/dev/ensure-test-db.ts",
     "db:test:migrate": "npm run db:test:ensure && DATABASE_URL=${TEST_DATABASE_URL:-postgresql://dynamic:dynamic_dev_password@localhost:55432/dynamic_test} drizzle-kit migrate",
-    "db:push": "drizzle-kit push",
+    "db:test:push": "npm run db:test:ensure && DATABASE_URL=${TEST_DATABASE_URL:-postgresql://dynamic:dynamic_dev_password@localhost:55432/dynamic_test} sh -c 'drizzle-kit push --dialect postgresql --schema \"./src/db/schema/*.ts\" --url \"$DATABASE_URL\"'",
+    "db:push": "sh -c 'drizzle-kit push --dialect postgresql --schema \"./src/db/schema/*.ts\" --url \"$DATABASE_URL\"'",
     "smoke:dev": "tsx src/dev/smoke-dev.ts",
     "seed:large": "tsx src/dev/large-field-seed.ts"
   },
   "dependencies": {
+    "@dynamic/event-core": "*",
     "@dynamic/shared-domain": "*",
     "@dynamic/shared-workflow": "*",
     "@types/express": "^4.17.21",

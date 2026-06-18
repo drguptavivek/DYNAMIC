@@ -274,6 +274,75 @@ function buildEligibleWoman({ householdId, household, member, interviewDate, sub
   };
 }
 
+function buildHhqBaselineEvent(record, response) {
+  const eventDate = record.interview_date || response.submitted_at.split("T")[0];
+  const eventId = `local-hhq-baseline:${record.household_id}:${response.id}`;
+  return {
+    event_id: eventId,
+    event_type: "household_baseline_confirmed",
+    event_version: 1,
+    aggregate_type: "household",
+    aggregate_id: record.household_id,
+    site_id: Number(record.site_id),
+    locality_code: String(record.locality_code || ""),
+    household_id: record.household_id,
+    subject_type: "household",
+    subject_id: record.household_id,
+    task_id: response.task_id,
+    form_response_id: response.id,
+    source_response_id: response.id,
+    source_task_id: response.task_id,
+    event_date: eventDate,
+    recorded_at: response.submitted_at,
+    created_offline_at: response.submitted_at,
+    device_id: response.device_id,
+    rules_version: "hhq-local-1",
+    payload: {
+      household_id: record.household_id,
+      household_number: String(record.household_number || ""),
+      structure_map_id: String(record.structure_map_id || record.structure_number || ""),
+      baseline_date: eventDate,
+      occupancy_status: "occupied",
+      enrollment_status: "enrolled",
+    },
+    apply_status: "applied",
+  };
+}
+
+function saveWebDomainEvent(event, createdAt) {
+  const storage = getStorage();
+  if (!storage) return;
+  const state = readWebSqliteState(storage);
+  const row = {
+    id: event.event_id,
+    event_type: event.event_type,
+    payload: JSON.stringify(event),
+    created_at: createdAt,
+    sync_status: "pending",
+  };
+  state.domain_events_outbox = mergeById(
+    [row],
+    state.domain_events_outbox || [],
+    "id",
+  );
+  storage.setItem(WEB_SQLITE_STORAGE_KEY, JSON.stringify(state));
+}
+
+async function saveDomainEvent(event, createdAt) {
+  let taskRepository = null;
+  try {
+    taskRepository = await import("../tasks/taskRepository.js");
+  } catch {
+    // Node tests do not load the Metro-resolved expo-sqlite module.
+  }
+  if (typeof taskRepository?.saveDomainEvent === "function") {
+    taskRepository.saveDomainEvent(event, createdAt);
+    return;
+  }
+
+  saveWebDomainEvent(event, createdAt);
+}
+
 function buildHhqDerivedWorkflow(record, response) {
   const householdId = record.household_id;
   const interviewDate = record.interview_date || response.submitted_at.split("T")[0];
@@ -355,6 +424,7 @@ async function promoteHhqLocally(response) {
       ...sourceFields,
     })),
   };
+  await saveDomainEvent(buildHhqBaselineEvent(promotedRecord, response), response.submitted_at);
 
   let householdRepository = null;
   try {
