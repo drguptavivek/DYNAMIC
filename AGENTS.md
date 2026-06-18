@@ -31,22 +31,12 @@ Keep this file high-signal. Put detailed replay history in `session-log-archive.
 - `make db-migrate` is legacy only.
 - Dev credentials after seed: `dev-field-worker` / `dev-password`; `dev-central-admin` / `dev-admin-password`.
 
-## Verification Order
+## Verification
 
-Use the smallest relevant subset, but this is the full local order:
-
-```bash
-make db-reset-full
-make db-status
-make db-smoke
-npm --workspace @dynamic/api test
-npm --workspace @dynamic/api run typecheck
-npm --workspace @dynamic/event-core test
-npm --workspace @dynamic/event-core run typecheck
-npm --workspace expo-prototype test
-npm --workspace @dynamic/api run db:test:push
-TEST_DATABASE_URL=postgresql://dynamic:dynamic_dev_password@localhost:55432/dynamic_test JWT_SECRET=test_jwt_secret JWT_REFRESH_SECRET=test_refresh_secret npx tsx --test apps/api/src/hhq-offline-sync.e2e.integration.ts
-```
+- Run the smallest relevant test/typecheck set for the files changed.
+- Use `make db-reset-full && make db-smoke` after DB/schema/runtime changes.
+- Common checks: `npm --workspace @dynamic/api test`, `npm --workspace @dynamic/api run typecheck`, `npm --workspace @dynamic/event-core test`, `npm --workspace expo-prototype test`.
+- Put long replay command sequences in `session-log-archive.md`, not here.
 
 ## Event/Sync Constraints
 
