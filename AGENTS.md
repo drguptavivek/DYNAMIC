@@ -47,6 +47,13 @@ TEST_DATABASE_URL=postgresql://dynamic:dynamic_dev_password@localhost:55432/dyna
 
 ## Event/Sync Constraints
 
+Key docs:
+- [Event architecture](docs/event-driven-architecture-policy.md)
+- [Form field event rules](docs/superpowers/form-field-event-rules.md)
+- [Offline/mobile save-sync policy](docs/surveyjs/Mobile-save-sync-policy.md)
+- [Full-stack offline architecture spec](docs/superpowers/specs/2026-06-03-dynamic-fullstack-offline-architecture-design.md)
+- [Follow-up windows](docs/superpowers/Follow-up-windows.md)
+
 - `packages/event-core` is the shared event/reducer kernel for backend and Expo parity.
 - SurveyJS JSON is a rendering layer, not the longitudinal data model.
 - Core state must be normalized domain records plus immutable form responses, domain events, tasks/attempts, corrections, and sync/audit metadata.
@@ -58,9 +65,11 @@ TEST_DATABASE_URL=postgresql://dynamic:dynamic_dev_password@localhost:55432/dyna
 
 Before changing questionnaire JSON, Expo routing, calculated fields, IDs, or flow logic, read:
 
-- `Refs/FLOW.md`
-- `Refs/Unique_Ids.md`
-- `Refs/pretsing forms/forms_summary table_v2026.05.17.pdf`
+- [Workflow flow](Refs/FLOW.md)
+- [Unique IDs](Refs/Unique_Ids.md)
+- [Site interviewers workplan indicators](Refs/site_interviewers_workplan_indicators.md)
+- [Indicators](docs/superpowers/Indicators.md)
+- [Forms summary table](Refs/pretsing%20forms/forms_summary%20table_v2026.05.17.pdf)
 - the specific source questionnaire PDF in `Refs/pretsing forms/`
 
 Rules:
