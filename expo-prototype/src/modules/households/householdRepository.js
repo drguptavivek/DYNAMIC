@@ -10,7 +10,7 @@ import {
   STUDY_SITES,
   STUDY_VILLAGES,
   getStudySiteName
-} from "../studyMasters/studyMasters.js";
+} from "../../../../shared/studyMasters.js";
 
 export { extractHouseholdRegistryFields };
 

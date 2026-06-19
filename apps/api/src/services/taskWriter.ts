@@ -53,7 +53,3 @@ export async function writeTasksFromDescriptors(descriptors: TaskDescriptor[]): 
       .onConflictDoNothing();
   }
 }
-
-export async function writeTaskDescriptor(descriptor: TaskDescriptor): Promise<void> {
-  await writeTasksFromDescriptors([descriptor]);
-}

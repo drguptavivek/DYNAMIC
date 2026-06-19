@@ -213,6 +213,7 @@ export function onWqCompleted(params: {
   const modeRule = getModeRule(config, "PEF");
   const disposition = getAttemptDisposition(config, "PEF");
   const availability = getFormAvailability(config, "PEF");
+  const today = new Date().toISOString().split("T")[0];
 
   return [
     {
@@ -222,7 +223,7 @@ export function onWqCompleted(params: {
         params.woman_id,
         "PEF",
         "PEF-pregnancy-detected",
-        new Date().toISOString().split("T")[0],
+        today,
         config.rules_version,
       ),
       household_id: params.household_id,
@@ -234,9 +235,9 @@ export function onWqCompleted(params: {
       protocol_visit_label: "PEF-pregnancy-detected",
       generation_source: "event_triggered",
       source_event_id: params.event_id,
-      anchor_date: new Date().toISOString().split("T")[0],
-      window_start: new Date().toISOString().split("T")[0],
-      target_date: new Date().toISOString().split("T")[0],
+      anchor_date: today,
+      window_start: today,
+      target_date: today,
       deadline_date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
       default_expected_mode: modeRule.default_mode,
       allowed_modes: modeRule.allowed_modes,

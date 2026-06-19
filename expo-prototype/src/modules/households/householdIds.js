@@ -1,4 +1,4 @@
-import { getStudyVillageName } from "../studyMasters/studyMasters.js";
+import { getStudyVillageName } from "../../../../shared/studyMasters.js";
 
 export const CONSENT_LABELS = {
   1: "Yes",

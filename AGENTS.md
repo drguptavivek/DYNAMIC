@@ -1,6 +1,7 @@
 # DYNAMIC Agent Instructions
 
-Keep this file high-signal. Put detailed replay history in `session-log-archive.md`, not here.
+Keep this file high-signal. Architecture and policy detail lives in `docs/`.
+Replay detail lives in `session-log-archive.md`.
 
 ## Session Logs
 
@@ -8,17 +9,32 @@ Keep this file high-signal. Put detailed replay history in `session-log-archive.
 - `session-log-archive.md` is for replayable detail: command order, root causes, verification output, changed files, and commit ids.
 - When a saved `session-log.md` entry grows beyond compact context, move detail to `session-log-archive.md` and link it from `Archive`.
 
-## Architecture Overview
+## Current Canon
 
-- Read [Architecture](docs/architecture.md) before backend schema, sync, event/replay, Expo offline workflow, task scheduling, or admin correction changes.
-- Core shape: offline-first Expo field app, authoritative Node/Postgres API, Vite admin, shared event/workflow packages, SurveyJS rendering only.
-- Monorepo map: `apps/api` is backend, `apps/admin` is admin UI, `expo-prototype` is field app, `packages/event-core` is shared event logic, and `packages/shared-*` hold shared workflow/domain code.
+Before backend schema, sync, event/replay, Expo offline workflow, task scheduling, questionnaire routing, or admin correction changes, read:
+
+- [Architecture](docs/architecture.md) - single agreed system architecture.
+- [Cohort and identity policy](docs/policies/cohort-and-identity.md).
+- [Form lifecycle and sync policy](docs/policies/form-lifecycle-and-sync.md).
+- [Form drafts and autosave policy](docs/policies/form-drafts-and-autosave.md).
+- [Form preview and final-submit policy](docs/policies/form-preview-and-final-submit.md).
+- [Survey navigation and progress policy](docs/policies/survey-navigation-and-progress.md).
+- [Workflow and scheduling policy](docs/policies/workflow-and-scheduling.md).
+- [Questionnaire authoring policy](docs/policies/questionnaire-authoring.md).
+- [App surfaces and routes policy](docs/policies/app-surfaces-and-routes.md).
+- [Auth, device, and role-scope policy](docs/policies/auth-device-and-role-scope.md).
+- [Admin corrections and data-quality policy](docs/policies/admin-corrections-and-data-quality.md).
+- [Testing](docs/testing.md).
+
+Archived docs under `docs/archive/` are historical background only. Do not treat them as current rules unless their content has been promoted into the active architecture or policy docs above.
+
+Do not create new active policy docs under `docs/superpowers/`. If a Superpower skill suggests that location, put durable DYNAMIC rules in `docs/architecture.md` or `docs/policies/` instead.
 
 ## Exploration Tooling
 
 - `rtk` is installed at `/opt/homebrew/bin/rtk`; use it for token-optimized exploration and noisy command output.
 - Prefer `rtk tree`, `rtk read`, `rtk grep`, `rtk diff`, `rtk git`, `rtk test`, `rtk tsc`, and `rtk npm` when summarized output is enough.
-- Use raw commands when exact output is required, when `rtk` hides needed detail, or when running the canonical Make targets below.
+- Use raw commands when exact output is required, when `rtk` hides needed detail, or when running canonical Make targets.
 
 ## Runtime And App Startup
 
@@ -43,56 +59,6 @@ Keep this file high-signal. Put detailed replay history in `session-log-archive.
 - Use `make db-reset-full && make db-smoke` after DB/schema/runtime changes.
 - Common checks: `npm --workspace @dynamic/api test`, `npm --workspace @dynamic/api run typecheck`, `npm --workspace @dynamic/event-core test`, `npm --workspace expo-prototype test`.
 - Detailed command sets and DB push caveats live in [Testing](docs/testing.md).
-
-## Event/Sync Constraints
-
-Key docs:
-- [Architecture](docs/architecture.md)
-- [Testing](docs/testing.md)
-- [Event architecture](docs/event-driven-architecture-policy.md)
-- [Form field event rules](docs/superpowers/form-field-event-rules.md)
-- [Offline/mobile save-sync policy](docs/surveyjs/Mobile-save-sync-policy.md)
-- [Full-stack offline architecture spec](docs/superpowers/specs/2026-06-03-dynamic-fullstack-offline-architecture-design.md)
-- [Follow-up windows](docs/superpowers/Follow-up-windows.md)
-
-- `packages/event-core` is the shared event/reducer kernel for backend and Expo parity.
-- SurveyJS JSON is a rendering layer, not the longitudinal data model.
-- Core state must be normalized domain records plus immutable form responses, domain events, tasks/attempts, corrections, and sync/audit metadata.
-- Offline duplicate task completions are valid evidence. First valid completion closes operational state; later completions are duplicate evidence and data-quality flags.
-- Do not add a global open-any-form workflow. Forms open from scheduled tasks or valid contextual trigger buttons.
-- Do not create an Android correction-request queue. Core corrections happen in the admin app with audit history and rule recalculation.
-
-## Questionnaire/ID Constraints
-
-Before changing questionnaire JSON, Expo routing, calculated fields, IDs, or flow logic, read:
-
-- [Workflow flow](Refs/FLOW.md)
-- [Unique IDs](Refs/Unique_Ids.md)
-- [Site interviewers workplan indicators](Refs/site_interviewers_workplan_indicators.md)
-- [Indicators](docs/superpowers/Indicators.md)
-- [Forms summary table](Refs/pretsing%20forms/forms_summary%20table_v2026.05.17.pdf)
-- the specific source questionnaire PDF in `Refs/pretsing forms/`
-
-Rules:
-- Do question-by-question PDF comparison before questionnaire JSON changes.
-- Preserve PDF `Variable ID` in `sourceCode`; use form-prefixed analysis-safe keys only where global answer-key uniqueness is needed.
-- Labels contain only question text. Put instructions, probes, skip notes, hints, and auto-fill notes in metadata/description/validation/app logic.
-- Numeric boxes are numeric/text inputs, not radio choices.
-- `RECORD ALL` / `ANSWER UP TO` fields are checkboxes unless the PDF defines one coded response.
-- Auto-filled lineage/core fields are read-only with explicit source metadata.
-- After JSON changes, update `expo-prototype/src/data/forms/`, rebuild `outputs/pretsing-form-json/all_forms.json`, run `npm --workspace expo-prototype test`, and browser-check UI-affecting changes.
-
-## Cohort Rules That Affect Code
-
-- Household identity: `site_id + locality_code + structure_map_id + household_number = household_id`.
-- Person identity: `household_id + member_number = household_member_id/person_id`.
-- Baseline HHQ validates/enrolls households from the mapped frame; do not create arbitrary new households.
-- Future visits are only for households enrolled at baseline. Empty/vacant/not-occupied households at baseline stay out.
-- Household splits keep the original `household_id`; do not create split events or new analytic household numbers.
-- Temporary visitors are not roster members and must not become eligible from that household.
-- Notes are field context only; do not use notes for analysis, routing, eligibility, skip logic, or cohort definition.
-- HRF is anchored to HHQ baseline completion; PFF is anchored to PEF/pregnancy enrollment; late completion must not shift future scheduled dates.
-- VA tasks are 30 days after stillbirth or child death; disabled until VA SurveyJS JSON exists.
 
 ## Document Tooling
 

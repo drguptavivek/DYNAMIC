@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 
 const {
-  attachQuestionnaireSurveyBehaviors,
-  refreshQuestionnaireSurveyBehaviors,
+  attachHouseholdSurveyBehaviors,
+  refreshHouseholdSurveyBehaviors,
 } = await import(
-  "../modules/questionnaires/questionnaireSurveyBehaviors.js"
+  "../lib/householdSurveyBehaviors.js"
 );
 
 function createEvent() {
@@ -50,7 +50,7 @@ const mandatoryQuestions = [
   { name: "member_name", readOnly: false, isRequired: false },
 ];
 const mandatoryModel = createModel({}, {}, mandatoryQuestions);
-attachQuestionnaireSurveyBehaviors(mandatoryModel, { form_code: "HHQ" });
+attachHouseholdSurveyBehaviors(mandatoryModel, { form_code: "HHQ" });
 mandatoryModel.onAfterRenderSurvey.handlers[0](mandatoryModel);
 
 assert.equal(mandatoryQuestions[0].isRequired, false);
@@ -66,7 +66,7 @@ const model = createModel({
   ]
 });
 
-attachQuestionnaireSurveyBehaviors(model, { form_code: "HHQ" });
+attachHouseholdSurveyBehaviors(model, { form_code: "HHQ" });
 
 assert.equal(model.onAfterRenderSurvey.handlers.length, 1);
 model.onAfterRenderSurvey.handlers[0](model);
@@ -78,7 +78,7 @@ assert.deepEqual(
 assert.equal(model.getValue("hhq_total_household_members"), 2);
 
 const restoredDraftModel = createModel({});
-attachQuestionnaireSurveyBehaviors(restoredDraftModel, { form_code: "HHQ" });
+attachHouseholdSurveyBehaviors(restoredDraftModel, { form_code: "HHQ" });
 restoredDraftModel.data = {
   hhq_household_members: [
     { member_name: "Asha", member_sex: 2, member_age_years: 25, member_marital_status: 1 },
@@ -86,7 +86,7 @@ restoredDraftModel.data = {
   ]
 };
 
-refreshQuestionnaireSurveyBehaviors(restoredDraftModel, { form_code: "HHQ" });
+refreshHouseholdSurveyBehaviors(restoredDraftModel, { form_code: "HHQ" });
 
 assert.deepEqual(
   restoredDraftModel.getValue("hhq_household_members").map((member) => member.member_line_number),
@@ -101,7 +101,7 @@ const visibleEmptyPanelModel = createModel(
     hhq_household_members: { panelCount: 1 }
   }
 );
-attachQuestionnaireSurveyBehaviors(visibleEmptyPanelModel, { form_code: "HHQ" });
+attachHouseholdSurveyBehaviors(visibleEmptyPanelModel, { form_code: "HHQ" });
 visibleEmptyPanelModel.onAfterRenderSurvey.handlers[0](visibleEmptyPanelModel);
 
 assert.deepEqual(visibleEmptyPanelModel.getValue("hhq_household_members"), [

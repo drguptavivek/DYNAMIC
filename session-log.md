@@ -70,3 +70,36 @@ Rejected:
 - Shifting pregnancy enrollment anchors from PFF completion dates.
 Open:
 - Add Expo provisional POF child/outcome tasks when offline outcome completion is needed.
+
+## 2026-06-19 10:10 [saved]
+Goal: Consolidate repo architecture and policy docs into one current canon.
+Decisions:
+- `docs/architecture.md` is the single agreed architecture.
+- Current policy docs live only in `docs/policies/`.
+- Superpower skills must not create active DYNAMIC policy docs under `docs/superpowers/`.
+- Prior audits, specs, SurveyJS policy notes, and superpowers drafts are archived under `docs/archive/2026-06-19-pre-canonical/`.
+- `AGENTS.md` points to the current canon and treats archived docs as historical only.
+Rejected:
+- Continuing multiple active docs with conflicting architecture and rule precedence.
+Open:
+- Keep future durable rules promoted into `docs/architecture.md` or `docs/policies/`, not new parallel drafts.
+
+## 2026-06-19 10:35 [saved]
+Goal: Promote missing code-direction policies into current canon.
+Decisions:
+- Preview, drafts/autosave, navigation/progress, route surfaces, and auth/device/scope now have active policies.
+- Policy may lead implementation; code drift is debt against `docs/policies/`.
+Rejected:
+- Waiting for complete code before documenting these operating rules.
+Open:
+- Implement gaps against the active policy set.
+
+## 2026-06-19 10:50 [saved]
+Goal: Checkpoint all current refactor and policy-canon work in git.
+Decisions:
+- Commit all dirty files together because the user requested one all-file checkpoint.
+- Session log records the policy canon before commit so future sessions inherit it.
+Rejected:
+- Splitting this checkpoint despite explicit all-files commit request.
+Open:
+- Implement policy/code drift gaps in later commits.

@@ -5,7 +5,7 @@ import {
   getStudySiteName,
   getStudyVillageName,
   listStudyVillages
-} from "../modules/studyMasters/studyMasters.js";
+} from "../../../shared/studyMasters.js";
 
 assert.equal(STUDY_SITES.length, 4);
 assert.equal(getStudySiteName(1), "Bareilly");

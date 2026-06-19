@@ -30,6 +30,7 @@ interface FormAnswers {
 
 type FormResponseRow = typeof schema.formResponses.$inferSelect;
 type DomainEventRow = typeof schema.domainEvents.$inferSelect;
+type PromotionHandler = (response: FormResponseRow, answers: FormAnswers) => Promise<void>;
 
 const HHQ_RULES_VERSION = "hhq-backend-1";
 const PREGNANCY_RULES_VERSION = "pregnancy-backend-1";
@@ -167,52 +168,12 @@ export async function processFormResponse(formResponseId: string): Promise<void>
 
     const response = formResponse[0];
     const answers = (response.answers_json || {}) as FormAnswers;
+    const handler = FORM_PROMOTION_HANDLERS[response.form_code];
 
-    // Dispatch to promotion function based on form_code
-    switch (response.form_code) {
-      case "HHQ":
-        await promoteHhq(response, answers);
-        break;
-      case "WQ":
-        await promoteWq(response.household_id || "", response.subject_id || "", answers);
-        break;
-      case "PEF":
-        await promotePef(response, response.household_id || "", response.subject_id || "", answers);
-        break;
-      case "PFF":
-        await promotePff(response, response.household_id || "", response.subject_id || "", answers);
-        break;
-      case "UF":
-        // Ultrasound follow-up - may refine EDD only
-        if (response.subject_id) {
-          await promoteUf(response.subject_id, answers);
-        }
-        break;
-      case "POF":
-        await promotePof(response, response.household_id || "", response.subject_id || "", answers);
-        break;
-      case "BAF":
-        if (response.subject_id) {
-          await promoteBaf(response.subject_id, answers);
-        }
-        break;
-      case "NFF":
-        if (response.subject_id) {
-          const protocolVisitLabel = response.subject_id; // May need to extract from task context
-          await promoteNff(response.subject_id, answers, protocolVisitLabel);
-        }
-        break;
-      case "CDF":
-        if (response.subject_id) {
-          await promoteCdf(response.subject_id, answers);
-        }
-        break;
-      case "SBF":
-        // Stillbirth follow-up - handle separately if needed
-        break;
-      default:
-        throw new Error(`Unknown form code, cannot promote: ${response.form_code}`);
+    if (!handler) {
+      throw new Error(`Unknown form code, cannot promote: ${response.form_code}`);
     }
+    await handler(response, answers);
   } catch (err) {
     console.error(`Error processing form response ${formResponseId}:`, err);
     throw err;
@@ -270,6 +231,39 @@ export async function rebuildHhqHouseholdProjection(householdId: string): Promis
     })
     .where(eq(schema.households.household_id, projection.household_id));
 }
+
+const FORM_PROMOTION_HANDLERS: Record<string, PromotionHandler> = {
+  HHQ: (response, answers) => promoteHhq(response, answers),
+  WQ: (response, answers) =>
+    promoteWq(response.household_id || "", response.subject_id || "", answers),
+  PEF: (response, answers) =>
+    promotePef(response, response.household_id || "", response.subject_id || "", answers),
+  PFF: (response, answers) =>
+    promotePff(response, response.household_id || "", response.subject_id || "", answers),
+  UF: async (response, answers) => {
+    if (response.subject_id) {
+      await promoteUf(response.subject_id, answers);
+    }
+  },
+  POF: (response, answers) =>
+    promotePof(response, response.household_id || "", response.subject_id || "", answers),
+  BAF: async (response, answers) => {
+    if (response.subject_id) {
+      await promoteBaf(response.subject_id, answers);
+    }
+  },
+  NFF: async (response, answers) => {
+    if (response.subject_id) {
+      await promoteNff(response.subject_id, answers, response.subject_id);
+    }
+  },
+  CDF: async (response, answers) => {
+    if (response.subject_id) {
+      await promoteCdf(response.subject_id, answers);
+    }
+  },
+  SBF: async () => {},
+};
 
 async function promoteHhq(response: FormResponseRow, answers: FormAnswers): Promise<void> {
   const now = new Date();
@@ -581,7 +575,7 @@ async function promotePef(
       .where(eq(schema.pregnancies.household_member_id, subjectId));
 
     if (pregnancies.length === 0) {
-      throw new Error(`No pregnancy found for woman ${subjectId}`);
+      throw new Error(`No active pregnancy found for woman ${subjectId}`);
     }
 
     const activePregnancy =

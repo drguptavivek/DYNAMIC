@@ -1,4 +1,4 @@
-import { getStudySiteName } from "../studyMasters/studyMasters.js";
+import { getStudySiteName } from "../../../../shared/studyMasters.js";
 
 function isActiveAssignment(assignment, today) {
   if (!assignment?.locality_code) return false;

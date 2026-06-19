@@ -23,9 +23,9 @@ import {
   goToSurveySection,
 } from "./surveyNavigation";
 import {
-  attachQuestionnaireSurveyBehaviors,
-  refreshQuestionnaireSurveyBehaviors,
-} from "./questionnaireSurveyBehaviors";
+  attachHouseholdSurveyBehaviors,
+  refreshHouseholdSurveyBehaviors,
+} from "../../lib/householdSurveyBehaviors.js";
 import { buildHouseholdMemberSummaryRows } from "./householdMemberSummary";
 import {
   normalizeQuestionnaireSurveyData,
@@ -256,7 +256,7 @@ export function QuestionnaireDashboard({
 
   function openMemberSummaryFromModel(model) {
     if (!model || form?.form_code !== "HHQ") return;
-    refreshQuestionnaireSurveyBehaviors(model, form);
+    refreshHouseholdSurveyBehaviors(model, form);
     setPreviewOpen(false);
     setMemberSummaryOpen(true);
     updateSurveyStatus(model);
@@ -265,7 +265,7 @@ export function QuestionnaireDashboard({
 
   async function confirmMemberSummary(model) {
     if (!model) return;
-    refreshQuestionnaireSurveyBehaviors(model, form);
+    refreshHouseholdSurveyBehaviors(model, form);
     memberSummaryConfirmedRef.current = true;
     setMemberSummaryConfirmed(true);
     setMemberSummaryOpen(false);
@@ -335,7 +335,7 @@ export function QuestionnaireDashboard({
       applyReadOnlyFields(model, readOnlyFields);
     }
 
-    attachQuestionnaireSurveyBehaviors(model, form);
+    attachHouseholdSurveyBehaviors(model, form);
 
     model.onValueChanged.add((sender) => {
       markDirty();
@@ -420,7 +420,7 @@ export function QuestionnaireDashboard({
           ...(survey.data || {}),
           ...(draft.json_payload || {}),
         });
-        refreshQuestionnaireSurveyBehaviors(survey, form);
+        refreshHouseholdSurveyBehaviors(survey, form);
         hasPreviewedRef.current = false;
         setPreviewConfirmed(false);
         memberSummaryConfirmedRef.current = false;

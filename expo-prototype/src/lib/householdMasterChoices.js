@@ -1,7 +1,7 @@
 import {
   getStudySiteName,
   getStudyVillageName
-} from "../modules/studyMasters/studyMasters.js";
+} from "../../../shared/studyMasters.js";
 
 const SITE_FIELD = "hhq_site_id";
 const LOCALITY_FIELD = "hhq_locality_code";
