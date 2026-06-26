@@ -23,7 +23,7 @@ test("HHQ offline submission creates local WQ workflow, syncs backend, and pulls
   const { createApp } = await import("./app");
   const { db, schema } = await import("./db");
   const { smokeUser, upsertDevSeed } = await import("./dev/dev-seed");
-  const { rebuildHhqHouseholdProjection } = await import("./services/eventProcessor");
+  const { rebuildHhqHouseholdProjection, rebuildPregnancyProjection } = await import("./services/eventProcessor");
   // @ts-ignore Expo prototype modules are JavaScript and intentionally imported by this e2e.
   const { saveQuestionnaireSubmission } = await import("../../../expo-prototype/src/modules/questionnaires/questionnaireSubmissionRepository.js");
   // @ts-ignore Expo prototype modules are JavaScript and intentionally imported by this e2e.
@@ -400,6 +400,24 @@ test("HHQ offline submission creates local WQ workflow, syncs backend, and pulls
     );
     assert.equal(pregnancyEvents.filter((event) => event.apply_status === "applied").length, 1);
     assert.equal(pregnancyEvents[0].form_response_id, pefSubmission.submission_id);
+
+    await db
+      .update(schema.pregnancies)
+      .set({
+        enrollment_date: "2026-01-01",
+        pregnancy_status: "active",
+        source_event_id: null,
+      })
+      .where(eq(schema.pregnancies.pregnancy_id, activePregnancies[0].pregnancy_id));
+    await rebuildPregnancyProjection(activePregnancies[0].pregnancy_id);
+    const replayedPregnancy = await db
+      .select()
+      .from(schema.pregnancies)
+      .where(eq(schema.pregnancies.pregnancy_id, activePregnancies[0].pregnancy_id));
+    assert.equal(replayedPregnancy.length, 1);
+    assert.equal(replayedPregnancy[0].pregnancy_status, "enrolled");
+    assert.equal(replayedPregnancy[0].enrollment_date, "2026-09-15");
+    assert.equal(replayedPregnancy[0].source_event_id, pregnancyEvents[0].event_id);
 
     const pregnancyFollowUpTasks = (await db
       .select()

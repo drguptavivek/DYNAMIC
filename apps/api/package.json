@@ -9,6 +9,7 @@
     "build": "tsc --project tsconfig.json",
     "typecheck": "tsc --noEmit --project tsconfig.json",
     "start": "node dist/index.js",
+    "replay:projections": "tsx src/dev/rebuild-projections.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:test:ensure": "tsx src/dev/ensure-test-db.ts",

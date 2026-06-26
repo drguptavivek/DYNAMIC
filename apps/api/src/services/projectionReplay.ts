@@ -1,10 +1,29 @@
-import { reduceHouseholdProjectionEvents, type DomainEventEnvelope } from "@dynamic/event-core";
+import {
+  reduceHouseholdProjectionEvents,
+  reducePregnancyProjectionEvents,
+  type DomainEventEnvelope,
+} from "@dynamic/event-core";
 import { and, eq } from "drizzle-orm";
 import { schema } from "../db";
 import { getDb } from "../lib/dbContext";
-import { toHhqProjectionEvent } from "./promotionEventBridge";
+import {
+  buildPregnancyEnrolledPayload,
+  getPefEnrollmentDate,
+  toHhqProjectionEvent,
+  toIsoDate,
+  toPregnancyProjectionEvent,
+  type FormAnswers,
+} from "./promotionEventBridge";
 
-export async function rebuildHhqHouseholdProjection(householdId: string): Promise<void> {
+export interface ProjectionReplayResult {
+  rebuilt: number;
+  skipped: number;
+}
+
+type DomainEventRow = typeof schema.domainEvents.$inferSelect;
+type FormResponseRow = typeof schema.formResponses.$inferSelect;
+
+export async function rebuildHhqHouseholdProjection(householdId: string): Promise<ProjectionReplayResult> {
   const events = await getDb()
     .select()
     .from(schema.domainEvents)
@@ -16,7 +35,7 @@ export async function rebuildHhqHouseholdProjection(householdId: string): Promis
     );
 
   if (events.length === 0) {
-    return;
+    return { rebuilt: 0, skipped: 1 };
   }
 
   const envelopes: DomainEventEnvelope[] = [];
@@ -39,7 +58,7 @@ export async function rebuildHhqHouseholdProjection(householdId: string): Promis
 
   const projection = reduceHouseholdProjectionEvents(envelopes);
   if (!projection) {
-    return;
+    return { rebuilt: 0, skipped: 1 };
   }
 
   await getDb()
@@ -54,4 +73,147 @@ export async function rebuildHhqHouseholdProjection(householdId: string): Promis
       updated_at: new Date(),
     })
     .where(eq(schema.households.household_id, projection.household_id));
+
+  return { rebuilt: 1, skipped: 0 };
+}
+
+export async function rebuildPregnancyProjection(
+  pregnancyId: string,
+): Promise<ProjectionReplayResult> {
+  const events = await getDb()
+    .select()
+    .from(schema.domainEvents)
+    .where(
+      and(
+        eq(schema.domainEvents.subject_type, "pregnancy"),
+        eq(schema.domainEvents.subject_id, pregnancyId),
+        eq(schema.domainEvents.event_type, "pregnancy_enrolled"),
+      ),
+    );
+
+  if (events.length === 0) {
+    return { rebuilt: 0, skipped: 1 };
+  }
+
+  const [pregnancy] = await getDb()
+    .select()
+    .from(schema.pregnancies)
+    .where(eq(schema.pregnancies.pregnancy_id, pregnancyId))
+    .limit(1);
+  if (!pregnancy) {
+    return { rebuilt: 0, skipped: 1 };
+  }
+
+  const envelopes: DomainEventEnvelope[] = [];
+  for (const event of events) {
+    const envelope = await toStoredPregnancyProjectionEvent(event, pregnancy);
+    if (envelope) {
+      envelopes.push(envelope);
+    }
+  }
+
+  const projection = reducePregnancyProjectionEvents(envelopes);
+  if (!projection) {
+    return { rebuilt: 0, skipped: 1 };
+  }
+
+  await getDb()
+    .update(schema.pregnancies)
+    .set({
+      enrollment_date: projection.enrollment_date || undefined,
+      pregnancy_status: projection.pregnancy_status,
+      source_event_id: projection.source_event_id,
+      updated_at: new Date(),
+    })
+    .where(eq(schema.pregnancies.pregnancy_id, projection.pregnancy_id));
+
+  return { rebuilt: 1, skipped: 0 };
+}
+
+export async function rebuildHouseholdProjections(
+  householdId: string,
+): Promise<ProjectionReplayResult> {
+  const householdResult = await rebuildHhqHouseholdProjection(householdId);
+  const pregnancies = await getDb()
+    .select({ pregnancy_id: schema.pregnancies.pregnancy_id })
+    .from(schema.pregnancies)
+    .where(eq(schema.pregnancies.household_id, householdId));
+
+  let rebuilt = householdResult.rebuilt;
+  let skipped = householdResult.skipped;
+  for (const pregnancy of pregnancies) {
+    const result = await rebuildPregnancyProjection(pregnancy.pregnancy_id);
+    rebuilt += result.rebuilt;
+    skipped += result.skipped;
+  }
+
+  return { rebuilt, skipped };
+}
+
+export async function rebuildAllProjectionRows(): Promise<ProjectionReplayResult> {
+  const householdEvents = await getDb()
+    .selectDistinct({ household_id: schema.domainEvents.household_id })
+    .from(schema.domainEvents)
+    .where(eq(schema.domainEvents.event_type, "household_baseline_confirmed"));
+  const pregnancyEvents = await getDb()
+    .selectDistinct({ pregnancy_id: schema.domainEvents.subject_id })
+    .from(schema.domainEvents)
+    .where(eq(schema.domainEvents.event_type, "pregnancy_enrolled"));
+
+  let rebuilt = 0;
+  let skipped = 0;
+  for (const event of householdEvents) {
+    if (!event.household_id) {
+      skipped++;
+      continue;
+    }
+    const result = await rebuildHhqHouseholdProjection(event.household_id);
+    rebuilt += result.rebuilt;
+    skipped += result.skipped;
+  }
+
+  for (const event of pregnancyEvents) {
+    if (!event.pregnancy_id) {
+      skipped++;
+      continue;
+    }
+    const result = await rebuildPregnancyProjection(event.pregnancy_id);
+    rebuilt += result.rebuilt;
+    skipped += result.skipped;
+  }
+
+  return { rebuilt, skipped };
+}
+
+async function toStoredPregnancyProjectionEvent(
+  event: DomainEventRow,
+  pregnancy: typeof schema.pregnancies.$inferSelect,
+): Promise<DomainEventEnvelope | null> {
+  if (!event.form_response_id) {
+    return null;
+  }
+
+  const [response] = await getDb()
+    .select()
+    .from(schema.formResponses)
+    .where(eq(schema.formResponses.form_response_id, event.form_response_id))
+    .limit(1);
+  if (!response) {
+    return null;
+  }
+
+  const answers = (response.answers_json || {}) as FormAnswers;
+  const fallbackDate = toIsoDate(response.created_offline_at ?? response.created_at ?? new Date());
+  const enrollmentDate = getPefEnrollmentDate(answers, fallbackDate);
+  const payload = buildPregnancyEnrolledPayload(pregnancy, enrollmentDate, answers);
+
+  return toPregnancyProjectionEvent({
+    event_id: event.event_id,
+    response: response as FormResponseRow,
+    pregnancy,
+    enrollment_date: enrollmentDate,
+    payload,
+    now: event.event_datetime ?? event.created_at ?? new Date(),
+    apply_status: (event.apply_status || "applied") as DomainEventEnvelope["apply_status"],
+  });
 }

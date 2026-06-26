@@ -16,7 +16,12 @@ import {
 import { promoteHhq } from "./hhqFormPromotion";
 import { promotePef } from "./pregnancyEnrollmentPromotion";
 import { holdUnsupportedFormForReview } from "./unsupportedFormPromotion";
-export { rebuildHhqHouseholdProjection } from "./projectionReplay";
+export {
+  rebuildAllProjectionRows,
+  rebuildHhqHouseholdProjection,
+  rebuildHouseholdProjections,
+  rebuildPregnancyProjection,
+} from "./projectionReplay";
 
 type FormResponseRow = typeof schema.formResponses.$inferSelect;
 type PromotionHandler = (response: FormResponseRow, answers: FormAnswers) => Promise<void>;
