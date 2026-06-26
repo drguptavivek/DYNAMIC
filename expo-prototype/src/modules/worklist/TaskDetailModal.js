@@ -12,6 +12,7 @@ import {
   Picker,
 } from "react-native";
 import * as taskRepository from "../tasks/taskRepository.js";
+import { getTaskOpenBlockReason } from "./taskOpenPolicy.js";
 
 const STATUS_COLORS = {
   open: "#3498db",
@@ -82,8 +83,9 @@ export function TaskDetailModal({ visible, task, onClose, onOpenForm }) {
 
   if (!task) return null;
 
-  const isDisabled = task.form_availability === "disabled";
-  const canOpenForm = task.status === "open" && !isDisabled;
+  const openBlockReason = getTaskOpenBlockReason(task);
+  const isDisabled = Boolean(openBlockReason);
+  const canOpenForm = openBlockReason === null;
 
   return (
     <Modal visible={visible} animationType="slide" transparent={true} onRequestClose={onClose}>
@@ -134,11 +136,9 @@ export function TaskDetailModal({ visible, task, onClose, onOpenForm }) {
                 </View>
               </View>
 
-              {isDisabled && (
+              {openBlockReason && (
                 <View style={styles.disabledWarning}>
-                  <Text style={styles.warningText}>
-                    🔒 {task.disabled_reason || "Form not yet available"}
-                  </Text>
+                  <Text style={styles.warningText}>🔒 {openBlockReason}</Text>
                 </View>
               )}
             </View>

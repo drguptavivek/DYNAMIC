@@ -6,6 +6,8 @@ import { sendError, sendSuccess } from "../lib/errors";
 import { processFormResponse } from "../services/eventProcessor";
 import { getFormVersionManifest } from "../lib/formCatalog";
 import { buildSyncClockMetadata } from "../lib/syncClock";
+import { appendAreaScopeCondition, canAccessLocation } from "../lib/areaScope";
+import { runWithDb } from "../lib/dbContext";
 
 const router = Router();
 
@@ -104,6 +106,7 @@ const mapTaskForExpo = (task: typeof schema.followUpTasks.$inferSelect) => ({
   id: task.task_id,
   window_end: task.deadline_date,
   assigned_locality_code: task.locality_code,
+  lifecycle_status: task.status,
   status: toExpoTaskStatus(task.status),
 });
 
@@ -173,6 +176,7 @@ router.get("/pull", requireAuth, async (req: Request, res: Response) => {
       lte(schema.households.updated_at, syncCursorDate),
       ...buildLocationConditions(schema.households, siteId, localityCodes),
     ];
+    await appendAreaScopeCondition(req.user!, schema.households, householdConditions);
 
     const householdCountRows = await db
       .select({ count: count() })
@@ -194,17 +198,18 @@ router.get("/pull", requireAuth, async (req: Request, res: Response) => {
 
     // Query household members only when requested. Large offline sync pulls
     // households first, then pulls members for each household page.
+    const memberConditions: any[] = [
+      gt(schema.householdMembers.updated_at, sinceDate),
+      lte(schema.householdMembers.updated_at, syncCursorDate),
+      ...buildLocationConditions(schema.householdMembers, siteId, localityCodes),
+    ];
+    await appendAreaScopeCondition(req.user!, schema.householdMembers, memberConditions);
+
     const householdMembers = includeMembers
       ? await db
           .select()
           .from(schema.householdMembers)
-          .where(
-            and(
-              gt(schema.householdMembers.updated_at, sinceDate),
-              lte(schema.householdMembers.updated_at, syncCursorDate),
-              ...buildLocationConditions(schema.householdMembers, siteId, localityCodes),
-            ),
-          )
+          .where(and(...memberConditions))
           .orderBy(schema.householdMembers.household_id, schema.householdMembers.member_number)
           .limit(pageSize)
           .offset(offset)
@@ -216,6 +221,7 @@ router.get("/pull", requireAuth, async (req: Request, res: Response) => {
       lte(schema.eligibleWomen.updated_at, syncCursorDate),
       ...buildLocationConditions(schema.eligibleWomen, siteId, localityCodes),
     ];
+    await appendAreaScopeCondition(req.user!, schema.eligibleWomen, womenConditions);
 
     const eligibleWomenData = await db
       .select()
@@ -231,6 +237,7 @@ router.get("/pull", requireAuth, async (req: Request, res: Response) => {
       lte(schema.pregnancies.updated_at, syncCursorDate),
       ...buildLocationConditions(schema.pregnancies, siteId, localityCodes),
     ];
+    await appendAreaScopeCondition(req.user!, schema.pregnancies, pregnanciesConditions);
 
     const pregnanciesData = await db
       .select()
@@ -246,51 +253,41 @@ router.get("/pull", requireAuth, async (req: Request, res: Response) => {
       gt(schema.children.updated_at, sinceDate),
       lte(schema.children.updated_at, syncCursorDate),
     ];
-    const childrenData =
-      localityCodes.length > 0
-        ? await db
-            .select({
-              child_id: schema.children.child_id,
-              birth_id: schema.children.birth_id,
-              pregnancy_id: schema.children.pregnancy_id,
-              woman_id: schema.children.woman_id,
-              household_id: schema.children.household_id,
-              site_id: schema.children.site_id,
-              birth_rank: schema.children.birth_rank,
-              birth_date: schema.children.birth_date,
-              birth_status: schema.children.birth_status,
-              live_birth_status: schema.children.live_birth_status,
-              current_vital_status: schema.children.current_vital_status,
-              death_date: schema.children.death_date,
-              gestational_age_at_birth: schema.children.gestational_age_at_birth,
-              sex: schema.children.sex,
-              birth_weight_grams: schema.children.birth_weight_grams,
-              source_event_id: schema.children.source_event_id,
-              sync_status: schema.children.sync_status,
-              created_at: schema.children.created_at,
-              updated_at: schema.children.updated_at,
-            })
-            .from(schema.children)
-            .innerJoin(
-              schema.households,
-              eq(schema.children.household_id, schema.households.household_id),
-            )
-            .where(and(...childrenBaseConditions, inArray(schema.households.locality_code, localityCodes)))
-            .orderBy(schema.children.child_id)
-            .limit(pageSize)
-            .offset(offset)
-        : await db
-            .select()
-            .from(schema.children)
-            .where(
-              and(
-                ...childrenBaseConditions,
-                ...(siteId !== undefined ? [eq(schema.children.site_id, siteId)] : []),
-              ),
-            )
-            .orderBy(schema.children.child_id)
-            .limit(pageSize)
-            .offset(offset);
+    if (localityCodes.length > 0) {
+      childrenBaseConditions.push(inArray(schema.households.locality_code, localityCodes));
+    } else if (siteId !== undefined) {
+      childrenBaseConditions.push(eq(schema.children.site_id, siteId));
+    }
+    await appendAreaScopeCondition(req.user!, schema.households, childrenBaseConditions);
+
+    const childrenData = await db
+      .select({
+        child_id: schema.children.child_id,
+        birth_id: schema.children.birth_id,
+        pregnancy_id: schema.children.pregnancy_id,
+        woman_id: schema.children.woman_id,
+        household_id: schema.children.household_id,
+        site_id: schema.children.site_id,
+        birth_rank: schema.children.birth_rank,
+        birth_date: schema.children.birth_date,
+        birth_status: schema.children.birth_status,
+        live_birth_status: schema.children.live_birth_status,
+        current_vital_status: schema.children.current_vital_status,
+        death_date: schema.children.death_date,
+        gestational_age_at_birth: schema.children.gestational_age_at_birth,
+        sex: schema.children.sex,
+        birth_weight_grams: schema.children.birth_weight_grams,
+        source_event_id: schema.children.source_event_id,
+        sync_status: schema.children.sync_status,
+        created_at: schema.children.created_at,
+        updated_at: schema.children.updated_at,
+      })
+      .from(schema.children)
+      .innerJoin(schema.households, eq(schema.children.household_id, schema.households.household_id))
+      .where(and(...childrenBaseConditions))
+      .orderBy(schema.children.child_id)
+      .limit(pageSize)
+      .offset(offset);
 
     // Query tasks
     const tasksConditions: any[] = [
@@ -302,6 +299,7 @@ router.get("/pull", requireAuth, async (req: Request, res: Response) => {
     } else if (siteId !== undefined) {
       tasksConditions.push(eq(schema.followUpTasks.site_id, siteId));
     }
+    await appendAreaScopeCondition(req.user!, schema.followUpTasks, tasksConditions);
 
     const tasksData = await db
       .select()
@@ -413,6 +411,20 @@ router.post("/push", requireAuth, async (req: Request, res: Response) => {
       return sendError(res, 400, "INVALID_REQUEST", "Missing device_id or records");
     }
 
+    const [device] = await db
+      .select()
+      .from(schema.devices)
+      .where(eq(schema.devices.device_id, deviceId))
+      .limit(1);
+
+    if (!device) {
+      return sendError(res, 403, "UNREGISTERED_DEVICE", "Device must be registered before sync");
+    }
+
+    if (device.user_id !== req.user!.sub) {
+      return sendError(res, 403, "DEVICE_USER_MISMATCH", "Device is not registered to this user");
+    }
+
     let accepted = 0;
     const acceptedRecords: string[] = [];
     const duplicates: string[] = [];
@@ -451,44 +463,43 @@ router.post("/push", requireAuth, async (req: Request, res: Response) => {
           }
 
           const scope = resolveRecordScope(data);
-
-          // Insert form response
-          await db.insert(schema.formResponses).values({
-            form_response_id: id,
-            response_id: id,
-            site_id: scope.site_id,
-            locality_code: scope.locality_code,
-            household_id: data.household_id,
-            visit_id: data.visit_id,
-            task_id,
-            form_code,
-            form_version,
-            subject_type: data.subject_type,
-            subject_id: data.subject_id,
-            prefill_snapshot_json,
-            answers_json,
-            created_offline_at: submitted_at ? new Date(submitted_at) : new Date(),
-            device_id: deviceId,
-            synced_at: new Date(),
-            created_at: new Date(),
-          });
-
-          try {
-            await processFormResponse(id);
-          } catch (promotionError) {
-            await db
-              .delete(schema.formResponses)
-              .where(eq(schema.formResponses.response_id, id));
-            throw promotionError;
+          if (!(await canAccessLocation(req.user!, scope.site_id, scope.locality_code))) {
+            errors.push({ id, error: "Record is outside the user's assigned area scope" });
+            continue;
           }
 
-          // Update task status to completed if provided
-          if (task_id) {
-            await db
-              .update(schema.followUpTasks)
-              .set({ status: "completed" })
-              .where(eq(schema.followUpTasks.task_id, task_id));
-          }
+          await db.transaction(async (tx) =>
+            runWithDb(tx as typeof db, async () => {
+              await tx.insert(schema.formResponses).values({
+                form_response_id: id,
+                response_id: id,
+                site_id: scope.site_id,
+                locality_code: scope.locality_code,
+                household_id: data.household_id,
+                visit_id: data.visit_id,
+                task_id,
+                form_code,
+                form_version,
+                subject_type: data.subject_type,
+                subject_id: data.subject_id,
+                prefill_snapshot_json,
+                answers_json,
+                created_offline_at: submitted_at ? new Date(submitted_at) : new Date(),
+                device_id: deviceId,
+                synced_at: new Date(),
+                created_at: new Date(),
+              });
+
+              await processFormResponse(id);
+
+              if (task_id) {
+                await tx
+                  .update(schema.followUpTasks)
+                  .set({ status: "completed" })
+                  .where(eq(schema.followUpTasks.task_id, task_id));
+              }
+            }),
+          );
 
           accepted++;
           acceptedRecords.push(id);
@@ -512,16 +523,36 @@ router.post("/push", requireAuth, async (req: Request, res: Response) => {
             continue;
           }
 
-          await db.insert(schema.taskAttempts).values({
-            attempt_id: id,
-            task_id,
-            attempt_number,
-            attempted_at: attempted_at ? new Date(attempted_at) : new Date(),
-            device_id: deviceId,
-            outcome,
-            notes,
-            created_at: new Date(),
-          });
+          const [task] = await db
+            .select()
+            .from(schema.followUpTasks)
+            .where(eq(schema.followUpTasks.task_id, task_id))
+            .limit(1);
+
+          if (!task) {
+            errors.push({ id, error: "Task not found for attempt" });
+            continue;
+          }
+
+          if (!(await canAccessLocation(req.user!, task.site_id, task.locality_code))) {
+            errors.push({ id, error: "Task attempt is outside the user's assigned area scope" });
+            continue;
+          }
+
+          await db.transaction(async (tx) =>
+            runWithDb(tx as typeof db, async () => {
+              await tx.insert(schema.taskAttempts).values({
+                attempt_id: id,
+                task_id,
+                attempt_number,
+                attempted_at: attempted_at ? new Date(attempted_at) : new Date(),
+                device_id: deviceId,
+                outcome,
+                notes,
+                created_at: new Date(),
+              });
+            }),
+          );
 
           accepted++;
           acceptedRecords.push(id);
@@ -564,27 +595,35 @@ router.post("/push", requireAuth, async (req: Request, res: Response) => {
           }
 
           const scope = resolveRecordScope(data);
+          if (!(await canAccessLocation(req.user!, scope.site_id, scope.locality_code))) {
+            errors.push({ id, error: "Domain event is outside the user's assigned area scope" });
+            continue;
+          }
 
-          await db.insert(schema.domainEvents).values({
-            event_id: id,
-            event_type,
-            site_id: site_id ?? scope.site_id,
-            locality_code: locality_code ?? scope.locality_code,
-            household_id: data.household_id,
-            subject_type: data.subject_type,
-            subject_id: data.subject_id,
-            visit_id: data.visit_id,
-            task_id: data.task_id,
-            form_response_id: data.form_response_id,
-            event_datetime: event_datetime ? new Date(event_datetime) : new Date(),
-            created_offline_at: data.created_offline_at
-              ? new Date(data.created_offline_at)
-              : undefined,
-            device_id: deviceId,
-            sync_status: "synced",
-            apply_status: data.apply_status || "applied",
-            created_at: new Date(),
-          });
+          await db.transaction(async (tx) =>
+            runWithDb(tx as typeof db, async () => {
+              await tx.insert(schema.domainEvents).values({
+                event_id: id,
+                event_type,
+                site_id: site_id ?? scope.site_id,
+                locality_code: locality_code ?? scope.locality_code,
+                household_id: data.household_id,
+                subject_type: data.subject_type,
+                subject_id: data.subject_id,
+                visit_id: data.visit_id,
+                task_id: data.task_id,
+                form_response_id: data.form_response_id,
+                event_datetime: event_datetime ? new Date(event_datetime) : new Date(),
+                created_offline_at: data.created_offline_at
+                  ? new Date(data.created_offline_at)
+                  : undefined,
+                device_id: deviceId,
+                sync_status: "synced",
+                apply_status: data.apply_status || "applied",
+                created_at: new Date(),
+              });
+            }),
+          );
 
           accepted++;
           acceptedRecords.push(id);
@@ -596,13 +635,33 @@ router.post("/push", requireAuth, async (req: Request, res: Response) => {
             continue;
           }
 
-          await db
-            .update(schema.followUpTasks)
-            .set({
-              status,
-              updated_at: updated_at ? new Date(updated_at) : new Date(),
-            })
-            .where(eq(schema.followUpTasks.task_key, task_key));
+          const [task] = await db
+            .select()
+            .from(schema.followUpTasks)
+            .where(eq(schema.followUpTasks.task_key, task_key))
+            .limit(1);
+
+          if (!task) {
+            errors.push({ id: task_key, error: "Task not found" });
+            continue;
+          }
+
+          if (!(await canAccessLocation(req.user!, task.site_id, task.locality_code))) {
+            errors.push({ id: task_key, error: "Task is outside the user's assigned area scope" });
+            continue;
+          }
+
+          await db.transaction(async (tx) =>
+            runWithDb(tx as typeof db, async () => {
+              await tx
+                .update(schema.followUpTasks)
+                .set({
+                  status,
+                  updated_at: updated_at ? new Date(updated_at) : new Date(),
+                })
+                .where(eq(schema.followUpTasks.task_key, task_key));
+            }),
+          );
 
           accepted++;
           acceptedRecords.push(task_key);

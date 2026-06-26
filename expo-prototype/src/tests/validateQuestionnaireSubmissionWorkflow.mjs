@@ -115,6 +115,7 @@ assert.equal(wqTasks[0].subject_name, "Member Two");
 assert.equal(wqTasks[0].target_date, "2026-09-01");
 assert.equal(wqTasks[0].window_end, "2026-10-01");
 assert.equal(wqTasks[0].status, "open");
+assert.equal(wqTasks[0].lifecycle_status, "open");
 
 const promotedHouseholds = JSON.parse(window.localStorage.getItem("dynamic_households_v4") || "[]");
 assert.equal(promotedHouseholds.length, 1);

@@ -4,6 +4,7 @@ import { db, schema } from "../db";
 import { requireAuth } from "../middleware/auth";
 import { sendError, sendSuccess } from "../lib/errors";
 import { getPagination } from "../lib/pagination";
+import { appendAreaScopeCondition } from "../lib/areaScope";
 
 const router = Router();
 
@@ -41,6 +42,7 @@ async function listHouseholdMembers(req: Request, res: Response, householdIdPara
         )!,
       );
     }
+    await appendAreaScopeCondition(req.user!, schema.householdMembers, conditions);
 
     const where = conditions.length > 0 ? and(...conditions) : undefined;
     const countResult = await db

@@ -4,6 +4,7 @@ import { db, schema } from "../db";
 import { requireAuth } from "../middleware/auth";
 import { sendError, sendSuccess } from "../lib/errors";
 import { getPagination } from "../lib/pagination";
+import { appendAreaScopeCondition } from "../lib/areaScope";
 
 const router = Router();
 
@@ -51,6 +52,8 @@ router.get("/", requireAuth, async (req: Request, res: Response) => {
         )!,
       );
     }
+
+    await appendAreaScopeCondition(req.user!, schema.households, conditions);
 
     // Get total count
     const countResult = await db
@@ -143,10 +146,13 @@ router.get("/:id", requireAuth, async (req: Request, res: Response) => {
   try {
     const householdId = req.params.id;
 
+    const conditions = [eq(schema.households.household_id, householdId)];
+    await appendAreaScopeCondition(req.user!, schema.households, conditions);
+
     const [household] = await db
       .select()
       .from(schema.households)
-      .where(eq(schema.households.household_id, householdId));
+      .where(and(...conditions));
 
     if (!household) {
       sendError(res, 404, "HOUSEHOLD_NOT_FOUND", "Household not found");
@@ -167,6 +173,19 @@ router.get("/:id", requireAuth, async (req: Request, res: Response) => {
 router.get("/:id/members", requireAuth, async (req: Request, res: Response) => {
   try {
     const householdId = req.params.id;
+
+    const householdConditions = [eq(schema.households.household_id, householdId)];
+    await appendAreaScopeCondition(req.user!, schema.households, householdConditions);
+
+    const [household] = await db
+      .select({ household_id: schema.households.household_id })
+      .from(schema.households)
+      .where(and(...householdConditions));
+
+    if (!household) {
+      sendError(res, 404, "HOUSEHOLD_NOT_FOUND", "Household not found");
+      return;
+    }
 
     const members = await db
       .select()
@@ -191,6 +210,7 @@ router.get("/:id/tasks", requireAuth, async (req: Request, res: Response) => {
     const { status, task_type: taskType } = req.query;
 
     const conditions: any[] = [eq(schema.followUpTasks.household_id, householdId)];
+    await appendAreaScopeCondition(req.user!, schema.followUpTasks, conditions);
 
     if (status) {
       conditions.push(eq(schema.followUpTasks.status, status as string));
@@ -221,10 +241,13 @@ router.get("/:id/events", requireAuth, async (req: Request, res: Response) => {
   try {
     const householdId = req.params.id;
 
+    const conditions = [eq(schema.domainEvents.household_id, householdId)];
+    await appendAreaScopeCondition(req.user!, schema.domainEvents, conditions);
+
     const events = await db
       .select()
       .from(schema.domainEvents)
-      .where(eq(schema.domainEvents.household_id, householdId))
+      .where(and(...conditions))
       .orderBy(desc(schema.domainEvents.event_datetime));
 
     sendSuccess(res, events);

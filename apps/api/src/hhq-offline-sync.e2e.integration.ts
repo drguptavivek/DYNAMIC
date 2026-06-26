@@ -30,6 +30,29 @@ test("HHQ offline submission creates local WQ workflow, syncs backend, and pulls
   const { buildPushRecords } = await import("../../../expo-prototype/src/modules/sync/syncWorkflow.js");
 
   await upsertDevSeed();
+  await db
+    .insert(schema.devices)
+    .values([
+      {
+        device_id: "e2e-device",
+        device_name: "E2E primary device",
+        user_id: smokeUser.user_id,
+        registered_at: new Date(),
+      },
+      {
+        device_id: "e2e-device-2",
+        device_name: "E2E duplicate device",
+        user_id: smokeUser.user_id,
+        registered_at: new Date(),
+      },
+    ])
+    .onConflictDoUpdate({
+      target: schema.devices.device_id,
+      set: {
+        user_id: smokeUser.user_id,
+        registered_at: new Date(),
+      },
+    });
 
   const structureMapId = String(randomInt(1000, 9999));
   const householdId = `1-DEV001-${structureMapId}-01`;
@@ -184,14 +207,13 @@ test("HHQ offline submission creates local WQ workflow, syncs backend, and pulls
       .select()
       .from(schema.domainEvents)
       .where(eq(schema.domainEvents.household_id, householdId));
-    assert.equal(
-      hhqEvents.filter(
-        (event) =>
-          event.event_type === "household_baseline_confirmed" &&
-          event.apply_status === "applied",
-      ).length,
-      1,
+    const appliedHhqEvents = hhqEvents.filter(
+      (event) =>
+        event.event_type === "household_baseline_confirmed" &&
+        event.apply_status === "applied",
     );
+    assert.equal(appliedHhqEvents.length, 1);
+    const appliedHhqEvent = appliedHhqEvents[0];
     assert.equal(
       hhqEvents.filter(
         (event) =>
@@ -255,6 +277,17 @@ test("HHQ offline submission creates local WQ workflow, syncs backend, and pulls
     assert.equal(backendWqTasks[0].form_code, "WQ");
     assert.equal(backendWqTasks[0].target_date, "2026-09-01");
     assert.equal(backendWqTasks[0].deadline_date, "2026-10-01");
+
+    const householdFollowUpTasks = (await db
+      .select()
+      .from(schema.followUpTasks)
+      .where(eq(schema.followUpTasks.household_id, householdId))).filter(
+      (task) => task.task_type === "HRF",
+    );
+    assert.ok(householdFollowUpTasks.length > 0);
+    assert.ok(
+      householdFollowUpTasks.every((task) => task.source_event_id === appliedHhqEvent.event_id),
+    );
 
     const wqResponseId = randomUUID();
     const wqPush = await fetchData(`${baseUrl}/sync/push`, {

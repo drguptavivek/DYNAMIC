@@ -4,6 +4,7 @@ import { db, schema } from "../db";
 import { requireAuth } from "../middleware/auth";
 import { sendError, sendSuccess } from "../lib/errors";
 import { getPagination } from "../lib/pagination";
+import { appendAreaScopeCondition } from "../lib/areaScope";
 
 const router = Router();
 
@@ -36,6 +37,7 @@ router.get("/", requireAuth, async (req: Request, res: Response) => {
     if (locality_code) {
       conditions.push(eq(schema.pregnancies.locality_code, locality_code as string));
     }
+    await appendAreaScopeCondition(req.user!, schema.pregnancies, conditions);
 
     // Get total count
     const countResult = await db
@@ -143,12 +145,14 @@ router.get("/", requireAuth, async (req: Request, res: Response) => {
 router.get("/:pregnancy_id", requireAuth, async (req: Request, res: Response) => {
   try {
     const pregnancyId = req.params.pregnancy_id;
+    const pregnancyConditions = [eq(schema.pregnancies.pregnancy_id, pregnancyId)];
+    await appendAreaScopeCondition(req.user!, schema.pregnancies, pregnancyConditions);
 
     // Get pregnancy with related data
     const [pregnancy] = await db
       .select()
       .from(schema.pregnancies)
-      .where(eq(schema.pregnancies.pregnancy_id, pregnancyId));
+      .where(and(...pregnancyConditions));
 
     if (!pregnancy) {
       sendError(res, 404, "PREGNANCY_NOT_FOUND", "Pregnancy not found");

@@ -48,34 +48,52 @@ router.post(
         return;
       }
 
-      // Create correction audit record
       const correctionId = crypto.randomUUID();
-      await db.insert(schema.adminCorrections).values({
-        id: correctionId,
-        entity_type: "household",
-        entity_id: householdId,
-        field,
-        old_value: String(old_value),
-        new_value: String(new_value),
-        reason,
-        corrected_by: correctedBy,
-      });
+      const correctedAt = new Date();
 
-      // Update household if field is known core field
-      const coreFields = [
-        "locality_code",
-        "household_number",
-        "baseline_enrollment_status",
-        "baseline_completed_date",
-      ];
-      if (coreFields.includes(field)) {
-        const updateData: Record<string, any> = {};
-        updateData[field] = new_value;
-        await db
-          .update(schema.households)
-          .set(updateData)
-          .where(eq(schema.households.household_id, householdId));
-      }
+      await db.transaction(async (tx) => {
+        await tx.insert(schema.adminCorrections).values({
+          id: correctionId,
+          entity_type: "household",
+          entity_id: householdId,
+          field,
+          old_value: String(old_value),
+          new_value: String(new_value),
+          reason,
+          corrected_by: correctedBy,
+        });
+
+        await tx.insert(schema.adminCorrectionEvents).values({
+          correction_event_id: correctionId,
+          site_id: household.site_id,
+          subject_type: "household",
+          subject_id: householdId,
+          field_name: field,
+          old_value: String(old_value),
+          new_value: String(new_value),
+          reason_code: "admin_correction",
+          reason_text: reason,
+          source_reference: `admin_corrections:${correctionId}`,
+          corrected_by_user_id: correctedBy,
+          corrected_at: correctedAt,
+          created_at: correctedAt,
+        });
+
+        const coreFields = [
+          "locality_code",
+          "household_number",
+          "baseline_enrollment_status",
+          "baseline_completed_date",
+        ];
+        if (coreFields.includes(field)) {
+          const updateData: Record<string, any> = {};
+          updateData[field] = new_value;
+          await tx
+            .update(schema.households)
+            .set(updateData)
+            .where(eq(schema.households.household_id, householdId));
+        }
+      });
 
       sendSuccess(
         res,
@@ -86,7 +104,7 @@ router.post(
           old_value,
           new_value,
           corrected_by: correctedBy,
-          corrected_at: new Date(),
+          corrected_at: correctedAt,
         },
         201,
       );
@@ -139,38 +157,55 @@ router.post(
         return;
       }
 
-      // Create correction audit record
       const correctionId = crypto.randomUUID();
-      await db.insert(schema.adminCorrections).values({
-        id: correctionId,
-        entity_type: "member",
-        entity_id: memberId,
-        field,
-        old_value: String(old_value),
-        new_value: String(new_value),
-        reason,
-        corrected_by: correctedBy,
-      });
+      const correctedAt = new Date();
 
-      // Update member if field is known core field
-      const coreFields = ["name", "date_of_birth", "sex", "relationship_to_head"];
-      if (coreFields.includes(field)) {
-        const updateData: Record<string, any> = {};
-        // Map frontend field names to db column names
-        if (field === "name") {
-          updateData.name = new_value;
-        } else if (field === "date_of_birth") {
-          updateData.date_of_birth = new_value;
-        } else if (field === "sex") {
-          updateData.sex = new_value;
-        } else if (field === "relationship_to_head") {
-          updateData.relationship_to_head = new_value;
+      await db.transaction(async (tx) => {
+        await tx.insert(schema.adminCorrections).values({
+          id: correctionId,
+          entity_type: "member",
+          entity_id: memberId,
+          field,
+          old_value: String(old_value),
+          new_value: String(new_value),
+          reason,
+          corrected_by: correctedBy,
+        });
+
+        await tx.insert(schema.adminCorrectionEvents).values({
+          correction_event_id: correctionId,
+          site_id: member.site_id,
+          subject_type: "member",
+          subject_id: memberId,
+          field_name: field,
+          old_value: String(old_value),
+          new_value: String(new_value),
+          reason_code: "admin_correction",
+          reason_text: reason,
+          source_reference: `admin_corrections:${correctionId}`,
+          corrected_by_user_id: correctedBy,
+          corrected_at: correctedAt,
+          created_at: correctedAt,
+        });
+
+        const coreFields = ["name", "date_of_birth", "sex", "relationship_to_head"];
+        if (coreFields.includes(field)) {
+          const updateData: Record<string, any> = {};
+          if (field === "name") {
+            updateData.name = new_value;
+          } else if (field === "date_of_birth") {
+            updateData.date_of_birth = new_value;
+          } else if (field === "sex") {
+            updateData.sex = new_value;
+          } else if (field === "relationship_to_head") {
+            updateData.relationship_to_head = new_value;
+          }
+          await tx
+            .update(schema.householdMembers)
+            .set(updateData)
+            .where(eq(schema.householdMembers.household_member_id, memberId));
         }
-        await db
-          .update(schema.householdMembers)
-          .set(updateData)
-          .where(eq(schema.householdMembers.household_member_id, memberId));
-      }
+      });
 
       sendSuccess(
         res,
@@ -181,7 +216,7 @@ router.post(
           old_value,
           new_value,
           corrected_by: correctedBy,
-          corrected_at: new Date(),
+          corrected_at: correctedAt,
         },
         201,
       );

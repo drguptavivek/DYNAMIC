@@ -67,6 +67,7 @@ export function saveTask(task) {
     window_start,
     window_end,
     status = "open",
+    lifecycle_status = task.lifecycle_status || status,
     form_availability = "available",
     disabled_reason,
     assigned_locality_code,
@@ -79,9 +80,9 @@ export function saveTask(task) {
       `INSERT OR REPLACE INTO follow_up_tasks
        (id, task_key, household_id, subject_type, subject_id, subject_name, task_type,
         protocol_visit_label, target_date, window_start, window_end, status,
-        form_availability, disabled_reason, assigned_locality_code, rules_version,
+        lifecycle_status, form_availability, disabled_reason, assigned_locality_code, rules_version,
         created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         task_key,
@@ -95,6 +96,7 @@ export function saveTask(task) {
         window_start,
         window_end,
         status,
+        lifecycle_status,
         form_availability,
         disabled_reason,
         assigned_locality_code,
@@ -130,6 +132,7 @@ export function saveTaskBatch(tasks) {
         window_start,
         window_end,
         status = "open",
+        lifecycle_status = task.lifecycle_status || status,
         form_availability = "available",
         disabled_reason,
         assigned_locality_code,
@@ -141,9 +144,9 @@ export function saveTaskBatch(tasks) {
         `INSERT OR REPLACE INTO follow_up_tasks
          (id, task_key, household_id, subject_type, subject_id, subject_name, task_type,
           protocol_visit_label, target_date, window_start, window_end, status,
-          form_availability, disabled_reason, assigned_locality_code, rules_version,
+          lifecycle_status, form_availability, disabled_reason, assigned_locality_code, rules_version,
           created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           id,
           task_key,
@@ -157,6 +160,7 @@ export function saveTaskBatch(tasks) {
           window_start,
           window_end,
           status,
+          lifecycle_status,
           form_availability,
           disabled_reason,
           assigned_locality_code,

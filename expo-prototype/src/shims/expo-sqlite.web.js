@@ -71,6 +71,7 @@ class WebDatabase {
         "window_start",
         "window_end",
         "status",
+        "lifecycle_status",
         "form_availability",
         "disabled_reason",
         "assigned_locality_code",

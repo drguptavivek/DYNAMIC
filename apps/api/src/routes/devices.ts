@@ -1,5 +1,6 @@
 import { Router, Request, Response } from "express";
 import { z } from "zod";
+import { eq } from "drizzle-orm";
 import { db, schema } from "../db";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { sendError, sendSuccess } from "../lib/errors";
@@ -36,22 +37,38 @@ router.post("/register", requireAuth, async (req: Request, res: Response) => {
 
     const now = new Date();
 
-    await db
-      .insert(schema.devices)
-      .values({
+    const [existingDevice] = await db
+      .select()
+      .from(schema.devices)
+      .where(eq(schema.devices.device_id, device_id))
+      .limit(1);
+
+    if (existingDevice && existingDevice.user_id !== req.user.sub) {
+      sendError(
+        res,
+        409,
+        "DEVICE_ALREADY_REGISTERED",
+        "Device is already registered to another user",
+      );
+      return;
+    }
+
+    if (existingDevice) {
+      await db
+        .update(schema.devices)
+        .set({
+          device_name: device_name || null,
+          registered_at: now,
+        })
+        .where(eq(schema.devices.device_id, device_id));
+    } else {
+      await db.insert(schema.devices).values({
         device_id,
         device_name: device_name || null,
         user_id: req.user.sub,
         registered_at: now,
-      })
-      .onConflictDoUpdate({
-        target: schema.devices.device_id,
-        set: {
-          device_name: device_name || null,
-          user_id: req.user.sub,
-          registered_at: now,
-        },
       });
+    }
 
     sendSuccess(res, {
       device_id,

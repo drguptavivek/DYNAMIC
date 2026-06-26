@@ -1,4 +1,5 @@
-import { db, schema } from "../db";
+import { schema } from "../db";
+import { getDb } from "../lib/dbContext";
 import { TaskDescriptor } from "@dynamic/shared-workflow";
 import { randomUUID } from "crypto";
 
@@ -16,7 +17,7 @@ export async function writeTasksFromDescriptors(descriptors: TaskDescriptor[]): 
   for (const descriptor of descriptors) {
     const { site_id, locality_code } = parseHouseholdId(descriptor.household_id);
 
-    await db
+    await getDb()
       .insert(schema.followUpTasks)
       .values({
         task_id: randomUUID(),

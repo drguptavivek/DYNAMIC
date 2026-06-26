@@ -31,6 +31,7 @@ import {
   normalizeQuestionnaireSurveyData,
   prepareQuestionnaireSurveyJson,
 } from "./questionnaireSurveyJsonTransforms";
+import { applyReadOnlyFields } from "./questionnaireReadOnlyFields.js";
 
 const AUTOSAVE_INTERVAL_MS = 30000;
 const HOUSEHOLD_SCHEDULE_PAGE_NAME = "page_02_household_schedule";
@@ -131,27 +132,6 @@ function buildPreviewRows(model, locale, form) {
         value: getValueLabel(displayValue),
       };
     });
-}
-
-/**
- * Apply read-only constraints to survey elements
- * Recursively traverses pages and sets readOnly on matching question names
- */
-function applyReadOnlyFields(model, readOnlyFields) {
-  if (!readOnlyFields || readOnlyFields.length === 0 || !model.pages) {
-    return;
-  }
-
-  const readOnlySet = new Set(readOnlyFields);
-
-  for (const page of model.pages) {
-    if (!page.elements) continue;
-    for (const element of page.elements) {
-      if (readOnlySet.has(element.name)) {
-        element.readOnly = true;
-      }
-    }
-  }
 }
 
 export function QuestionnaireDashboard({

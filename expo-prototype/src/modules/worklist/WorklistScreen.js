@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import * as taskRepository from "../tasks/taskRepository.js";
 import * as syncService from "../sync/syncService.js";
+import { getTaskOpenBlockReason } from "./taskOpenPolicy.js";
 
 const BADGE_COLORS = {
   HHQ: "#e74c3c",
@@ -52,7 +53,7 @@ function groupTasksByUrgency(tasks) {
 }
 
 function TaskRow({ task, onPress, onLongPress }) {
-  const isDisabled = task.form_availability === "disabled";
+  const isDisabled = Boolean(getTaskOpenBlockReason(task));
   const badgeColor = BADGE_COLORS[task.task_type] || "#95a5a6";
 
   return (
@@ -128,11 +129,9 @@ export function WorklistScreen({ onOpenTask, syncService: syncServiceProp, selec
   }
 
   function handleTaskPress(task) {
-    if (task.form_availability === "disabled") {
-      Alert.alert(
-        "Form Not Available",
-        `${task.disabled_reason || "This form is not yet available"}`,
-      );
+    const blockReason = getTaskOpenBlockReason(task);
+    if (blockReason) {
+      Alert.alert("Form Not Available", blockReason);
       return;
     }
     onOpenTask(task);

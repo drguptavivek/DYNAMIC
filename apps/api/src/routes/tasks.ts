@@ -4,6 +4,7 @@ import { db, schema } from "../db";
 import { requireAuth } from "../middleware/auth";
 import { sendError, sendSuccess } from "../lib/errors";
 import { getPagination } from "../lib/pagination";
+import { appendAreaScopeCondition } from "../lib/areaScope";
 
 const router = Router();
 
@@ -74,6 +75,7 @@ router.get("/", requireAuth, async (req: Request, res: Response) => {
         )!,
       );
     }
+    await appendAreaScopeCondition(req.user!, schema.followUpTasks, conditions);
 
     // Get total count
     const countResult = await db
@@ -107,10 +109,13 @@ router.get("/:id", requireAuth, async (req: Request, res: Response) => {
   try {
     const taskId = req.params.id;
 
+    const conditions = [eq(schema.followUpTasks.task_id, taskId)];
+    await appendAreaScopeCondition(req.user!, schema.followUpTasks, conditions);
+
     const [task] = await db
       .select()
       .from(schema.followUpTasks)
-      .where(eq(schema.followUpTasks.task_id, taskId));
+      .where(and(...conditions));
 
     if (!task) {
       sendError(res, 404, "TASK_NOT_FOUND", "Task not found");
@@ -131,6 +136,19 @@ router.get("/:id", requireAuth, async (req: Request, res: Response) => {
 router.get("/:id/attempts", requireAuth, async (req: Request, res: Response) => {
   try {
     const taskId = req.params.id;
+
+    const conditions = [eq(schema.followUpTasks.task_id, taskId)];
+    await appendAreaScopeCondition(req.user!, schema.followUpTasks, conditions);
+
+    const [task] = await db
+      .select({ task_id: schema.followUpTasks.task_id })
+      .from(schema.followUpTasks)
+      .where(and(...conditions));
+
+    if (!task) {
+      sendError(res, 404, "TASK_NOT_FOUND", "Task not found");
+      return;
+    }
 
     const attempts = await db
       .select()

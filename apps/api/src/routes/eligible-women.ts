@@ -4,6 +4,7 @@ import { db, schema } from "../db";
 import { requireAuth } from "../middleware/auth";
 import { sendError, sendSuccess } from "../lib/errors";
 import { getPagination } from "../lib/pagination";
+import { appendAreaScopeCondition } from "../lib/areaScope";
 
 const router = Router();
 
@@ -59,6 +60,7 @@ router.get("/", requireAuth, async (req: Request, res: Response) => {
         eq(schema.eligibleWomen.current_eligibility_status, current_eligibility_status as string),
       );
     }
+    await appendAreaScopeCondition(req.user!, schema.eligibleWomen, conditions);
 
     // Get total count
     const countResult = await db
@@ -160,6 +162,8 @@ router.get("/", requireAuth, async (req: Request, res: Response) => {
 router.get("/:id", requireAuth, async (req: Request, res: Response) => {
   try {
     const womanId = req.params.id;
+    const detailConditions: any[] = [eq(schema.eligibleWomen.woman_id, womanId)];
+    await appendAreaScopeCondition(req.user!, schema.eligibleWomen, detailConditions);
 
     const [result] = await db
       .select({
@@ -192,7 +196,7 @@ router.get("/:id", requireAuth, async (req: Request, res: Response) => {
         schema.householdMembers,
         eq(schema.eligibleWomen.household_member_id, schema.householdMembers.household_member_id),
       )
-      .where(eq(schema.eligibleWomen.woman_id, womanId));
+      .where(and(...detailConditions));
 
     if (!result) {
       sendError(res, 404, "ELIGIBLE_WOMAN_NOT_FOUND", "Eligible woman not found");
@@ -241,11 +245,13 @@ router.get("/:id", requireAuth, async (req: Request, res: Response) => {
 router.get("/:id/pregnancies", requireAuth, async (req: Request, res: Response) => {
   try {
     const womanId = req.params.id;
+    const conditions = [eq(schema.pregnancies.woman_id, womanId)];
+    await appendAreaScopeCondition(req.user!, schema.pregnancies, conditions);
 
     const pregnancies = await db
       .select()
       .from(schema.pregnancies)
-      .where(eq(schema.pregnancies.woman_id, womanId))
+      .where(and(...conditions))
       .orderBy(schema.pregnancies.pregnancy_sequence);
 
     sendSuccess(res, pregnancies);
@@ -271,6 +277,7 @@ router.get("/:id/tasks", requireAuth, async (req: Request, res: Response) => {
     if (status) {
       conditions.push(eq(schema.followUpTasks.status, status as string));
     }
+    await appendAreaScopeCondition(req.user!, schema.followUpTasks, conditions);
 
     const tasks = await db
       .select()

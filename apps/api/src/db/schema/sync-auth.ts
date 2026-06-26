@@ -21,6 +21,19 @@ export const devices = pgTable("devices", {
   registered_at: timestamp("registered_at", { withTimezone: true }),
 });
 
+export const refreshTokenSessions = pgTable("refresh_token_sessions", {
+  session_id: text("session_id").primaryKey(),
+  user_id: text("user_id")
+    .notNull()
+    .references(() => users.user_id),
+  token_hash: text("token_hash").notNull(),
+  issued_at: timestamp("issued_at", { withTimezone: true }).notNull(),
+  expires_at: timestamp("expires_at", { withTimezone: true }).notNull(),
+  revoked_at: timestamp("revoked_at", { withTimezone: true }),
+  replaced_by_session_id: text("replaced_by_session_id"),
+  created_at: timestamp("created_at", { withTimezone: true }),
+});
+
 export const userAreaAssignments = pgTable("user_area_assignments", {
   assignment_id: text("assignment_id").primaryKey(),
   user_id: text("user_id")

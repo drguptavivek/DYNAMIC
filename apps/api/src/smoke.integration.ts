@@ -12,12 +12,29 @@ test("API smoke flow passes against dynamic_test without a fixed port", async ()
   process.env.DATABASE_URL = testDatabaseUrl;
   process.env.JWT_SECRET = "test_jwt_secret";
   process.env.JWT_REFRESH_SECRET = "test_refresh_secret";
+  const originalConsoleError = console.error;
 
   const { createApp } = await import("./app");
   const { db, schema } = await import("./db");
   const { smokeUser, upsertDevSeed } = await import("./dev/dev-seed");
 
+  const seedSince = new Date(Date.now() - 1000).toISOString();
   await upsertDevSeed();
+  await db
+    .insert(schema.devices)
+    .values({
+      device_id: "test-smoke-device",
+      device_name: "Smoke test device",
+      user_id: smokeUser.user_id,
+      registered_at: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: schema.devices.device_id,
+      set: {
+        user_id: smokeUser.user_id,
+        registered_at: new Date(),
+      },
+    });
 
   const server = createServer(createApp());
   await new Promise<void>((resolve) => server.listen(0, resolve));
@@ -51,9 +68,10 @@ test("API smoke flow passes against dynamic_test without a fixed port", async ()
       ["HHQ", "PEF"],
     );
 
-    const pull = await fetchData(`${baseUrl}/sync/pull?locality_codes=DEV001`, {
-      headers: { Authorization: authorization },
-    });
+    const pull = await fetchData(
+      `${baseUrl}/sync/pull?locality_codes=DEV001&since=${encodeURIComponent(seedSince)}`,
+      { headers: { Authorization: authorization } },
+    );
     assert.ok(pull.tasks.some((task: { id: string; form_code: string }) => task.id === "dev-task-hhq-1" && task.form_code === "HHQ"));
     assert.ok(pull.form_versions[0].checksum);
 
@@ -159,28 +177,46 @@ test("API smoke flow passes against dynamic_test without a fixed port", async ()
     assert.equal(promotedWqTasks.filter((task) => task.task_type === "WQ").length, 1);
 
     const failedPromotionResponseId = `failed-pef-${randomUUID()}`;
-    const failedPromotionPush = await fetchData(`${baseUrl}/sync/push`, {
-      method: "POST",
-      headers: { Authorization: authorization },
-      body: JSON.stringify({
-        device_id: "test-smoke-device",
-        records: [
-          {
-            type: "form_response",
-            data: {
-              id: failedPromotionResponseId,
-              household_id: "1-DEV001-0001-01",
-              subject_id: "missing-active-pregnancy",
-              subject_type: "woman",
-              form_code: "PEF",
-              form_version: "2026.05.17",
-              answers_json: { pef_any_time_during_pregnancy_ultrasound: 0 },
-              submitted_at: "2026-09-02T00:00:00.000Z",
+    const expectedPromotionErrors: unknown[][] = [];
+    console.error = (...args: unknown[]) => {
+      if (
+        typeof args[0] === "string" &&
+        (args[0].includes(`Error processing form response ${failedPromotionResponseId}`) ||
+          args[0].includes("Error in promotePef for 1-DEV001-0001-01/missing-active-pregnancy"))
+      ) {
+        expectedPromotionErrors.push(args);
+        return;
+      }
+      originalConsoleError(...args);
+    };
+    let failedPromotionPush;
+    try {
+      failedPromotionPush = await fetchData(`${baseUrl}/sync/push`, {
+        method: "POST",
+        headers: { Authorization: authorization },
+        body: JSON.stringify({
+          device_id: "test-smoke-device",
+          records: [
+            {
+              type: "form_response",
+              data: {
+                id: failedPromotionResponseId,
+                household_id: "1-DEV001-0001-01",
+                subject_id: "missing-active-pregnancy",
+                subject_type: "woman",
+                form_code: "PEF",
+                form_version: "2026.05.17",
+                answers_json: { pef_any_time_during_pregnancy_ultrasound: 0 },
+                submitted_at: "2026-09-02T00:00:00.000Z",
+              },
             },
-          },
-        ],
-      }),
-    });
+          ],
+        }),
+      });
+    } finally {
+      console.error = originalConsoleError;
+    }
+    assert.equal(expectedPromotionErrors.length, 2);
     assert.equal(failedPromotionPush.accepted, 0);
     assert.deepEqual(failedPromotionPush.accepted_records, []);
     assert.equal(failedPromotionPush.errors.length, 1);
@@ -193,9 +229,13 @@ test("API smoke flow passes against dynamic_test without a fixed port", async ()
       .where(eq(schema.formResponses.response_id, failedPromotionResponseId));
     assert.equal(failedResponseRows.length, 0);
   } finally {
+    console.error = originalConsoleError;
     await new Promise<void>((resolve, reject) => {
       server.close((error) => (error ? reject(error) : resolve()));
     });
+    await db
+      .delete(schema.refreshTokenSessions)
+      .where(eq(schema.refreshTokenSessions.user_id, smokeUser.user_id));
   }
 });
 

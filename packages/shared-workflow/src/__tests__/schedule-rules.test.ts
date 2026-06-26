@@ -211,6 +211,20 @@ describe("schedule-rules", () => {
       }
     });
 
+    it("should use exact day offsets for fractional month labels", () => {
+      const schedules = generateNffSchedule({
+        birth_date: "2026-01-01",
+        study_end_date: "2028-09-01",
+        rules_version: "v1",
+      });
+
+      const byLabel = new Map(schedules.map((schedule) => [schedule.label, schedule]));
+
+      expect(byLabel.get("NFF-4.5m")?.target_date).toBe("2026-05-16");
+      expect(byLabel.get("NFF-7.5m")?.target_date).toBe("2026-08-14");
+      expect(byLabel.get("NFF-10.5m")?.target_date).toBe("2026-11-12");
+    });
+
     it("should apply correct window offsets", () => {
       const schedules = generateNffSchedule({
         birth_date: "2026-11-01",

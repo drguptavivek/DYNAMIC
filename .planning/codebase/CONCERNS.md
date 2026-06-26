@@ -2,19 +2,40 @@
 
 **Analysis Date:** 2026-06-19
 
+## Remediation Status (2026-06-19)
+
+Fixed in branch `vg-work/fix-codebase-concerns`:
+- Sync push now applies each accepted `form_response`, `task_attempt`, `domain_event`, and task update through a DB transaction; promotion/task writer services use the active transaction context.
+- Children locality filtering now scopes through household locality, and protected household/member/woman/pregnancy/child/task/form-response/sync routes now apply server-side area scope.
+- Fractional NFF `4.5m`, `7.5m`, and `10.5m` targets now use exact 135/225/315 day offsets.
+- Admin Data Quality loads flags from the API; nested SurveyJS read-only enforcement uses model lookup plus recursive traversal.
+- Unsupported `SBF` evidence is explicitly held for review with a DQ flag instead of silently no-oping.
+- JWT auth now requires production secrets, separates access/refresh secrets, locks HS256/type verification, rate-limits login/refresh, rotates durable hashed refresh sessions, and revokes refresh sessions on logout.
+- Device self-registration rejects reassignment, and sync push rejects unregistered or mismatched devices.
+- Admin corrections now write canonical `admin_correction_events` in the same transaction as the compatibility row/projection patch.
+- Expo preserves canonical task lifecycle state locally and blocks field opening of stale VA tasks without explicit VA form JSON.
+- Backend promotion has been split so HHQ, PEF pregnancy enrollment, projection replay, event-envelope bridge helpers, and unsupported-form review are no longer embedded in the `eventProcessor` monolith. HHQ household follow-up tasks now use the persisted HHQ domain event as their source event.
+
+Next development steps:
+- Backend promotion still needs full typed event-core reducer convergence and replay/rebuild tooling for WQ, PFF, POF, BAF, NFF, CDF, and stillbirth-specific promotion.
+- Expo finalization still needs broader convergence on shared event/reducer/workflow code beyond the targeted task/read-only/opening fixes.
+- Admin corrections still need approval/reject/hold and downstream recalculation workflows, not only canonical event capture.
+- Sync still uses timestamp/offset paging rather than per-entity keyset cursors or a server commit sequence.
+- Large module refactors, index strategy, production migration policy, and large-cache web storage replacement remain backlog.
+
 ## Tech Debt
 
-**Sync ingest is not an atomic event/projection pipeline:**
-- Issue: `POST /api/v1/sync/push` stores each `form_response`, calls `processFormResponse`, then separately marks the task complete. On promotion failure it deletes the response, but domain/projection/task writes created before the failure are not wrapped in a single DB transaction.
+**Sync ingest still needs cursor/replay convergence after transactional push:**
+- Issue: `POST /api/v1/sync/push` now applies accepted records through a transaction, but sync ordering and replay equivalence are still not based on a shared commit-sequence/event replay contract.
 - Files: `apps/api/src/routes/sync.ts`, `apps/api/src/services/eventProcessor.ts`, `apps/api/src/services/taskWriter.ts`, `apps/api/src/db/schema/visits.ts`, `apps/api/src/db/schema/events.ts`, `apps/api/src/db/schema/tasks.ts`
-- Impact: Partial promotion can leave domain events, projections, tasks, data-quality flags, or task status inconsistent with immutable evidence. This conflicts with `docs/architecture.md` and `docs/policies/form-lifecycle-and-sync.md`, which require evidence classification, event application, workflow decisions, and DQ flags to commit atomically per accepted record.
-- Fix approach: Move form-response ingest, classification, domain event append, projection updates, task generation, task lifecycle transition, sync log update, and DQ flag writes into one transaction. Keep the form response as immutable evidence and record `invalid_rejected` / `held_for_review` rather than deleting accepted input after partial work.
+- Impact: The branch addresses partial promotion commits, but pull paging and future rebuild workflows can still diverge from the target architecture in `docs/architecture.md` and `docs/policies/form-lifecycle-and-sync.md`.
+- Fix approach: Add per-entity keyset cursors or a server commit sequence, then validate replay/rebuild equivalence from accepted evidence/events instead of relying on timestamp/offset paging.
 
-**Backend promotion still mixes legacy projection mutation with event-core reducers:**
-- Issue: `processFormResponse` dispatches directly into large per-form mutators. Some paths use `@dynamic/event-core` reducers (`PEF`), while others mutate tables and call `@dynamic/shared-workflow` helpers directly (`HHQ`, `WQ`, `PFF`, `POF`, `BAF`, `NFF`, `CDF`). `SBF` has an empty handler.
+**Backend promotion still needs full typed reducer convergence:**
+- Issue: HHQ, PEF, projection replay helpers, event-envelope bridge helpers, and unsupported-form review are split out of the former `eventProcessor` monolith, but WQ, PFF, POF, BAF, NFF, CDF, and stillbirth-specific promotion still need full typed event-core reducer convergence.
 - Files: `apps/api/src/services/eventProcessor.ts`, `packages/event-core/src/workflow-orchestration.ts`, `packages/shared-workflow/src/task-generators.ts`
-- Impact: Backend behavior can diverge from the target architecture in `docs/architecture.md`: finalized evidence should classify into typed events, reduce projections, then run shared workflow generation. The mixed path makes projection rebuild equivalence and backend/Expo parity difficult to prove.
-- Fix approach: Promote each form through typed event envelopes and shared reducers first. Replace direct table mutation with reducer output persistence. Remove empty form handlers by marking unsupported forms as disabled/held or implementing their event path.
+- Impact: Backend behavior can still diverge from the target architecture in `docs/architecture.md`: finalized evidence should classify into typed events, reduce projections, then run shared workflow generation. The remaining mixed paths make projection rebuild equivalence and backend/Expo parity difficult to prove.
+- Fix approach: Promote each remaining form through typed event envelopes and shared reducers first. Replace direct table mutation with reducer output persistence, then add replay/rebuild tests.
 
 **Expo local workflow forks backend/shared workflow logic:**
 - Issue: Expo creates local HHQ/WQ/PEF tasks, pregnancy projections, and domain events inside `questionnaireSubmissionRepository.js` instead of using `packages/event-core` and `packages/shared-workflow`. It also has a separate older event generator in `eventGenerators.js`.
@@ -22,17 +43,17 @@
 - Impact: Local offline task keys, event names, rules versions, and task statuses can drift from backend authority. A task-backed form can emit both a form response and an older domain event type, while backend `processFormResponse` already promotes the form response.
 - Fix approach: Route Expo finalization through shared event/reducer/workflow functions for field-originated domain behavior. Delete or isolate legacy event names (`household_enrolled`, `form_submitted`, etc.) from push sync unless there is a typed backend handler.
 
-**Task lifecycle states are translated inconsistently:**
-- Issue: Backend policy uses lifecycle states such as `planned`, `due`, `completed_on_time`, `completed_late`, `closed_final_reason`, and `disabled`, while Expo local storage stores `open` / `completed`. Sync maps backend terminal states into Expo `completed`, losing detail.
+**Task lifecycle convergence is partial:**
+- Issue: Expo now preserves canonical lifecycle state locally, but field/backend/admin transitions still need broader convergence on `packages/event-core/src/task-lifecycle.ts` rather than direct status assignment in each surface.
 - Files: `apps/api/src/routes/sync.ts`, `apps/api/src/db/schema/tasks.ts`, `expo-prototype/src/modules/tasks/taskSchema.js`, `expo-prototype/src/modules/tasks/taskRepository.js`, `packages/event-core/src/task-lifecycle.ts`
-- Impact: Offline UI cannot reliably distinguish missed, cancelled, superseded, disabled, late, or closed-final-reason tasks. This weakens the task lifecycle rules in `docs/policies/workflow-and-scheduling.md`.
-- Fix approach: Keep canonical lifecycle state in local SQLite and derive display labels separately. Use `packages/event-core/src/task-lifecycle.ts` for field/backend/admin transitions instead of direct status assignment.
+- Impact: Offline UI has the canonical state available, but state transition behavior can still drift if each surface assigns lifecycle values independently.
+- Fix approach: Use `packages/event-core/src/task-lifecycle.ts` for field/backend/admin transitions and derive display labels separately.
 
-**Admin corrections bypass the correction event model:**
-- Issue: Correction routes write a simple `admin_corrections` row and directly update selected household/member fields. The richer `admin_correction_events` schema exists separately but is not used by the route.
+**Admin correction review/recalculation workflow remains incomplete:**
+- Issue: Correction routes now write canonical `admin_correction_events`, but approval/reject/hold states and downstream recalculation workflows are not complete.
 - Files: `apps/api/src/routes/corrections.ts`, `apps/api/src/db/schema/corrections.ts`, `apps/api/src/db/schema/sync-auth.ts`, `docs/policies/admin-corrections-and-data-quality.md`
-- Impact: Corrections lack review state, source references, recalculation triggers, and downstream rebuild/hold logic for identity, eligibility, outcome, and scheduling-impacting fields.
-- Fix approach: Store corrections as typed admin correction events with actor, reason, old/new values, source reference, review state, and recalculation decision. Apply approved corrections through projection rebuild/recalculation rather than direct field patches.
+- Impact: Corrections have a canonical capture path, but identity, eligibility, outcome, and scheduling-impacting fields still need safe review/rebuild behavior before operational use.
+- Fix approach: Apply approved corrections through projection rebuild/recalculation, with hold/reject decisions and downstream DQ/task impacts recorded explicitly.
 
 **Large files concentrate unrelated responsibilities:**
 - Issue: Several files combine UI orchestration, storage, workflow generation, sync, and validation logic in single modules.
@@ -40,69 +61,29 @@
 - Impact: Small changes to form finalization, promotion, sync, or task rules have broad blast radius and are hard to test surgically.
 - Fix approach: Split pure mapping/rules from persistence and UI state. Keep shared study rules in packages, API transaction code in services, and React components focused on presentation and flow state.
 
-## Known Bugs
+## Recently Fixed Bugs
 
-**Children locality filter uses the wrong column:**
-- Symptoms: `GET /api/v1/children?locality_code=...` filters `children.household_id` by the locality code instead of filtering through locality/site scope.
-- Files: `apps/api/src/routes/children.ts`, `apps/api/src/db/schema/children.ts`, `docs/policies/app-surfaces-and-routes.md`
-- Trigger: Call the children list route with a valid `locality_code`; records from that locality are omitted unless a child household ID literally equals the locality code.
-- Workaround: Filter by `site_id` or search manually until the route applies locality through `children.site_id` plus household join/locality.
-
-**Fractional NFF target dates do not match active policy:**
-- Symptoms: The active policy says NFF `4.5m`, `7.5m`, and `10.5m` map to day offsets of 135, 225, and 315 days. `generateNffSchedule` passes fractional month values into `addCalendarMonths`, which truncates to whole calendar months in JavaScript date arithmetic.
-- Files: `packages/shared-workflow/src/schedule-rules.ts`, `packages/shared-workflow/src/__tests__/schedule-rules.test.ts`, `docs/policies/workflow-and-scheduling.md`
-- Trigger: Generate NFF schedules for a birth date; label tests pass, but target dates for fractional month visits are too early.
-- Workaround: None in code. Use explicit day offsets for fractional NFF labels and add exact target-date assertions.
-
-**Data Quality admin page does not load flags:**
-- Symptoms: The page initializes `flags` as an empty array and defines review/resolve handlers, but no effect calls the API to fetch the flag list.
-- Files: `apps/admin/src/pages/DataQualityPage.tsx`, `apps/api/src/routes/data-quality.ts`, `docs/policies/app-surfaces-and-routes.md`
-- Trigger: Navigate to `/data-quality`; the UI can show an empty state even when `GET /api/v1/data-quality-flags` returns flags.
-- Workaround: Use the API directly or inspect the DB until the page fetches and refreshes flags.
-
-**Read-only SurveyJS enforcement misses nested questions:**
-- Symptoms: `applyReadOnlyFields` only walks top-level page elements. Nested panel and matrix questions can remain editable even when policy requires read-only auto-filled lineage/core fields.
-- Files: `expo-prototype/src/modules/questionnaires/QuestionnaireDashboard.js`, `docs/policies/questionnaire-authoring.md`
-- Trigger: Open a form with `readOnlyFields` that target nested SurveyJS elements.
-- Workaround: Add form-specific protections where available; the generic helper needs recursive traversal or SurveyJS model APIs such as `getQuestionByName`.
-
-**Stillbirth form promotion is a no-op:**
-- Symptoms: `FORM_PROMOTION_HANDLERS` maps `SBF` to an empty async handler.
-- Files: `apps/api/src/services/eventProcessor.ts`, `packages/shared-workflow/src/task-generators.ts`, `docs/policies/workflow-and-scheduling.md`
-- Trigger: Sync an `SBF` finalized response; evidence is stored, but no typed stillbirth event/projection/task effect is applied.
-- Workaround: Treat SBF responses as review-needed until the handler appends typed events or explicitly returns `held_for_review`.
+The 2026-06-19 remediation branch fixes the original children locality filter, fractional NFF target dates, Data Quality flag loading, nested SurveyJS read-only traversal, and unsupported SBF no-op behavior. Keep this section empty unless a currently reproducible bug remains after those fixes.
 
 ## Security Considerations
 
-**JWT configuration is not production-hardened:**
-- Risk: JWT signing falls back to a hard-coded development secret, uses one secret for both access and refresh tokens, verifies without locking algorithm/type at middleware level, and logout does not invalidate refresh capability.
+**Auth/session hardening still needs deployment policy and regression coverage:**
+- Risk: The branch adds production-secret enforcement, separate access/refresh secrets, HS256/type verification, refresh-session rotation/revocation, logout invalidation, and login/refresh rate limiting. These controls still need deployment defaults and regression coverage before field use.
 - Files: `apps/api/src/lib/jwt.ts`, `apps/api/src/routes/auth.ts`, `apps/api/src/middleware/auth.ts`, `docs/policies/auth-device-and-role-scope.md`, `Makefile`
-- Current mitigation: Login verifies password hashes and disabled users cannot login or refresh.
-- Recommendations: Require explicit secrets outside local development, use distinct access/refresh secrets, pass allowed algorithms into `jwt.verify`, reject refresh tokens in `requireAuth`, store refresh token families or versions for revocation, and make logout revoke refresh capability.
+- Current mitigation: Login verifies password hashes, disabled users cannot login or refresh, refresh sessions are durable/hashed, and auth endpoints are rate-limited.
+- Recommendations: Keep non-dev secret checks in deployment startup, run auth regression tests in CI, and document operational rotation/revocation handling.
 
-**Login and refresh lack rate limiting:**
-- Risk: Brute-force login and refresh attempts are not throttled by API middleware.
-- Files: `apps/api/src/app.ts`, `apps/api/src/routes/auth.ts`, `docs/policies/auth-device-and-role-scope.md`
-- Current mitigation: Generic credential errors avoid revealing whether username or password is wrong.
-- Recommendations: Add environment-aware rate limiting to `/api/v1/auth/login` and `/api/v1/auth/refresh`, with deployment defaults before field use.
-
-**Device registration permits silent reassignment:**
-- Risk: Any authenticated user can call `/api/v1/devices/register` with an existing `device_id`; the route upserts `user_id` to the caller without central-admin approval or audit.
+**Device lifecycle still needs admin reassignment workflow:**
+- Risk: Device self-registration now rejects silent reassignment, but there is no admin reassignment workflow with audit metadata for legitimate replacement/reassignment cases.
 - Files: `apps/api/src/routes/devices.ts`, `apps/api/src/db/schema/sync-auth.ts`, `docs/policies/auth-device-and-role-scope.md`
-- Current mitigation: Route requires authentication.
-- Recommendations: Reject reassignment for existing devices unless an admin endpoint performs it with audit metadata. Enforce device ownership during sync push.
+- Current mitigation: Route requires authentication, rejects reassignment, and sync push rejects unregistered or mismatched devices.
+- Recommendations: Add an admin-only reassignment/revocation endpoint with audit metadata before field deployment.
 
-**Area scope enforcement is incomplete on protected routes:**
-- Risk: Many protected API list/detail routes trust query filters and authentication but do not intersect with active server-side `user_area_assignments`. Sync push scope is resolved from client-provided payload/household ID parts when task/subject lookup is absent.
+**Area scope enforcement needs regression coverage and edge-case review:**
+- Risk: Protected household/member/woman/pregnancy/child/task/form-response/sync routes now apply server-side area scope, but scope behavior still needs broader regression tests for route edge cases and mixed-role users.
 - Files: `apps/api/src/routes/households.ts`, `apps/api/src/routes/household-members.ts`, `apps/api/src/routes/tasks.ts`, `apps/api/src/routes/eligible-women.ts`, `apps/api/src/routes/pregnant-women.ts`, `apps/api/src/routes/children.ts`, `apps/api/src/routes/sync.ts`, `apps/api/src/routes/area-assignments.ts`, `docs/policies/auth-device-and-role-scope.md`
-- Current mitigation: Some admin/user routes apply site-level role checks; sync pull can filter by requested locality codes.
-- Recommendations: Add shared scope helpers that load active assignments and apply them server-side for every household/member/task/form-response/sync route. Resolve push scope from server-known task/subject records whenever present and reject client-only out-of-scope claims.
-
-**Form responses expose raw evidence without per-record scope checks:**
-- Risk: Form response list/detail routes are mounted behind authentication but do not apply role or assignment constraints within the route.
-- Files: `apps/api/src/routes/form-responses.ts`, `apps/api/src/app.ts`, `docs/policies/auth-device-and-role-scope.md`
-- Current mitigation: `app.ts` mounts the route behind `requireAuth`.
-- Recommendations: Join to task/household/site scope and enforce role/assignment visibility before returning raw `answers_json`.
+- Current mitigation: Shared scope helpers load active assignments and apply server-side filters to protected routes.
+- Recommendations: Add assignment-intersection tests for every protected list/detail route and sync push/pull path, including raw `answers_json` visibility.
 
 ## Performance Bottlenecks
 
@@ -192,16 +173,6 @@
 
 ## Missing Critical Features
 
-**Production-grade auth/session controls:**
-- Problem: Refresh rotation/revocation, logout invalidation, JWT algorithm constraints, non-dev secret enforcement, and rate limiting are required by active policy.
-- Blocks: Field deployment with durable device sessions and safe credential handling.
-- Files: `apps/api/src/lib/jwt.ts`, `apps/api/src/routes/auth.ts`, `apps/api/src/app.ts`, `docs/policies/auth-device-and-role-scope.md`
-
-**Registered-device enforcement during sync:**
-- Problem: Sync push accepts any `device_id` string and Expo falls back to `unregistered-device` when no local device ID is stored.
-- Blocks: Device audit, device reassignment controls, and reliable per-device sync provenance.
-- Files: `apps/api/src/routes/sync.ts`, `apps/api/src/routes/devices.ts`, `expo-prototype/src/modules/sync/syncService.js`, `docs/policies/auth-device-and-role-scope.md`
-
 **Projection replay and rebuild tooling:**
 - Problem: `rebuildHhqHouseholdProjection` exists for one narrow HHQ path, but there is no general replay command that rebuilds households, members, women, pregnancies, outcomes, children, and tasks from accepted evidence/events.
 - Blocks: Correction recalculation, projection rebuild equivalence verification, and recovery after rule changes.
@@ -212,27 +183,22 @@
 - Blocks: Safe correction of identity, eligibility, outcome, death, stillbirth, and schedule anchors.
 - Files: `apps/api/src/routes/corrections.ts`, `apps/admin/src/pages/HouseholdsPage.tsx`, `apps/admin/src/pages/HouseholdMembersPage.tsx`, `docs/policies/admin-corrections-and-data-quality.md`
 
-**VA field-opening enforcement beyond generated task metadata:**
-- Problem: Shared workflow marks VA tasks disabled, but route/UI enforcement should prevent field opening even if a stale/local task is manipulated.
-- Blocks: Policy guarantee that VA tasks are visible but cannot be opened until VA JSON exists.
-- Files: `packages/shared-workflow/src/task-generators.ts`, `expo-prototype/src/modules/worklist/TaskDetailModal.js`, `expo-prototype/src/modules/tasks/taskRepository.js`, `docs/policies/workflow-and-scheduling.md`
-
 ## Test Coverage Gaps
 
 **Auth, tokens, and device security:**
-- What's not tested: Rate limiting, refresh-token revocation/rotation, logout invalidation, algorithm locking, production secret enforcement, registered-device sync checks, and device reassignment audit.
+- What's not tested broadly enough: Rate limiting, refresh-token revocation/rotation, logout invalidation, algorithm locking, production secret enforcement, registered-device sync checks, and device reassignment audit across CI and deployment-like settings.
 - Files: `apps/api/src/routes/auth.ts`, `apps/api/src/lib/jwt.ts`, `apps/api/src/routes/devices.ts`, `apps/api/src/routes/sync.ts`
 - Risk: Security regressions reach deployment despite basic login tests.
 - Priority: High
 
 **Server-side area scope:**
-- What's not tested: Assignment intersection for household/member/task/children/form-response routes, pull scope, push scope, and out-of-scope field worker access.
+- What's not tested broadly enough: Assignment intersection for household/member/task/children/form-response routes, pull scope, push scope, and out-of-scope field worker access.
 - Files: `apps/api/src/routes/households.ts`, `apps/api/src/routes/household-members.ts`, `apps/api/src/routes/tasks.ts`, `apps/api/src/routes/children.ts`, `apps/api/src/routes/form-responses.ts`, `apps/api/src/routes/sync.ts`, `apps/api/src/routes/area-assignments.ts`
 - Risk: Field users can read or write records outside assigned locality/site scope.
 - Priority: High
 
 **Exact workflow date anchors and task keys:**
-- What's not tested: Exact fractional NFF date offsets, WQ->PEF detected-date anchors without wall-clock defaults, failed-attempt final-close flow, current-due repeated-series behavior, and no backfill wall of actionable tasks.
+- What's not tested broadly enough: Exact fractional NFF date offsets, WQ->PEF detected-date anchors without wall-clock defaults, failed-attempt final-close flow, current-due repeated-series behavior, and no backfill wall of actionable tasks.
 - Files: `packages/shared-workflow/src/schedule-rules.ts`, `packages/shared-workflow/src/task-generators.ts`, `packages/shared-workflow/src/__tests__/schedule-rules.test.ts`, `packages/shared-workflow/src/__tests__/task-generators.test.ts`
 - Risk: Generated worklists drift from protocol windows while broad tests still pass.
 - Priority: High
@@ -250,7 +216,7 @@
 - Priority: Medium
 
 **Admin UI data loading:**
-- What's not tested: Data-quality flag fetch/empty state, sync log filters, children locality filters, and backend-driven list refresh behavior.
+- What's not tested broadly enough: Data-quality flag fetch/empty state, sync log filters, children locality filters, and backend-driven list refresh behavior.
 - Files: `apps/admin/src/pages/DataQualityPage.tsx`, `apps/admin/src/pages/SyncLogsPage.tsx`, `apps/admin/src/pages/ChildrenPage.tsx`, `apps/api/src/routes/children.ts`
 - Risk: Admin screens silently show stale or empty operational data.
 - Priority: Medium

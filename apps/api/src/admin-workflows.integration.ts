@@ -161,6 +161,15 @@ test("admin correction and review workflows expose audit-ready API behavior", as
     assert.equal(householdCorrection.household_id, "1-DEV001-0001-01");
     assert.equal(householdCorrection.corrected_by, adminUser.user_id);
 
+    const householdCorrectionEvents = await db
+      .select()
+      .from(schema.adminCorrectionEvents)
+      .where(eq(schema.adminCorrectionEvents.correction_event_id, householdCorrection.correction_id));
+    assert.equal(householdCorrectionEvents.length, 1);
+    assert.equal(householdCorrectionEvents[0].subject_type, "household");
+    assert.equal(householdCorrectionEvents[0].subject_id, "1-DEV001-0001-01");
+    assert.equal(householdCorrectionEvents[0].field_name, "baseline_enrollment_status");
+
     const householdCorrections = await fetchData(
       `${baseUrl}/households/1-DEV001-0001-01/corrections`,
       { headers: { Authorization: authorization } },
@@ -183,6 +192,15 @@ test("admin correction and review workflows expose audit-ready API behavior", as
     });
     assert.equal(memberCorrection.member_id, memberId);
 
+    const memberCorrectionEvents = await db
+      .select()
+      .from(schema.adminCorrectionEvents)
+      .where(eq(schema.adminCorrectionEvents.correction_event_id, memberCorrection.correction_id));
+    assert.equal(memberCorrectionEvents.length, 1);
+    assert.equal(memberCorrectionEvents[0].subject_type, "member");
+    assert.equal(memberCorrectionEvents[0].subject_id, memberId);
+    assert.equal(memberCorrectionEvents[0].field_name, "name");
+
     const [updatedMember] = await db
       .select()
       .from(schema.householdMembers)
@@ -204,6 +222,18 @@ test("admin correction and review workflows expose audit-ready API behavior", as
     assert.equal(outOfScopeHouseholdCorrection.status, 403);
     assert.equal(outOfScopeHouseholdCorrection.body.error.code, "OUT_OF_SCOPE");
   } finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => (error ? reject(error) : resolve()));
+    });
+    await db
+      .delete(schema.refreshTokenSessions)
+      .where(eq(schema.refreshTokenSessions.user_id, adminUser.user_id));
+    await db
+      .delete(schema.refreshTokenSessions)
+      .where(eq(schema.refreshTokenSessions.user_id, outOfScopeSrs.user_id));
+    await db
+      .delete(schema.adminCorrectionEvents)
+      .where(eq(schema.adminCorrectionEvents.corrected_by_user_id, adminUser.user_id));
     await db
       .delete(schema.adminCorrections)
       .where(eq(schema.adminCorrections.entity_id, "1-DEV001-0001-01"));
@@ -219,10 +249,6 @@ test("admin correction and review workflows expose audit-ready API behavior", as
         updated_at: new Date(),
       })
       .where(eq(schema.households.household_id, "1-DEV001-0001-01"));
-
-    await new Promise<void>((resolve, reject) => {
-      server.close((error) => (error ? reject(error) : resolve()));
-    });
   }
 });
 

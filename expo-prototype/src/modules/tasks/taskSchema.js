@@ -21,6 +21,7 @@ export function initTaskDb() {
       window_start TEXT,
       window_end TEXT,
       status TEXT DEFAULT 'open',
+      lifecycle_status TEXT DEFAULT 'open',
       form_availability TEXT DEFAULT 'available',
       disabled_reason TEXT,
       assigned_locality_code TEXT,
@@ -125,6 +126,7 @@ export function initTaskDb() {
     "ALTER TABLE pregnancies ADD COLUMN usg_available INTEGER DEFAULT 0",
     "ALTER TABLE pregnancies ADD COLUMN source_form_response_id TEXT",
     "ALTER TABLE pregnancies ADD COLUMN source_event_id TEXT",
+    "ALTER TABLE follow_up_tasks ADD COLUMN lifecycle_status TEXT DEFAULT 'open'",
   ]) {
     try {
       db.runSync(statement);

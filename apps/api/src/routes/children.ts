@@ -4,6 +4,7 @@ import { db, schema } from "../db";
 import { requireAuth } from "../middleware/auth";
 import { sendError, sendSuccess } from "../lib/errors";
 import { getPagination } from "../lib/pagination";
+import { appendAreaScopeCondition } from "../lib/areaScope";
 
 const router = Router();
 
@@ -36,7 +37,7 @@ router.get("/", requireAuth, async (req: Request, res: Response) => {
     }
 
     if (locality_code) {
-      conditions.push(eq(schema.children.household_id, locality_code as string));
+      conditions.push(eq(schema.households.locality_code, locality_code as string));
     }
 
     if (current_vital_status) {
@@ -46,11 +47,13 @@ router.get("/", requireAuth, async (req: Request, res: Response) => {
     if (birth_status) {
       conditions.push(eq(schema.children.birth_status, birth_status as string));
     }
+    await appendAreaScopeCondition(req.user!, schema.households, conditions);
 
     // Get total count
     const countResult = await db
       .select({ count: sql<number>`cast(count(*) as integer)` })
       .from(schema.children)
+      .leftJoin(schema.households, eq(schema.children.household_id, schema.households.household_id))
       .where(conditions.length > 0 ? and(...conditions) : undefined);
 
     const total = countResult[0]?.count || 0;
@@ -76,6 +79,7 @@ router.get("/", requireAuth, async (req: Request, res: Response) => {
         created_at: schema.children.created_at,
       })
       .from(schema.children)
+      .leftJoin(schema.households, eq(schema.children.household_id, schema.households.household_id))
       .leftJoin(
         schema.pregnancies,
         eq(schema.children.pregnancy_id, schema.pregnancies.pregnancy_id),
@@ -99,6 +103,7 @@ router.get("/", requireAuth, async (req: Request, res: Response) => {
       const searchCountResult = await db
         .select({ count: sql<number>`cast(count(*) as integer)` })
         .from(schema.children)
+        .leftJoin(schema.households, eq(schema.children.household_id, schema.households.household_id))
         .leftJoin(
           schema.pregnancies,
           eq(schema.children.pregnancy_id, schema.pregnancies.pregnancy_id),
@@ -129,6 +134,7 @@ router.get("/", requireAuth, async (req: Request, res: Response) => {
           created_at: schema.children.created_at,
         })
         .from(schema.children)
+        .leftJoin(schema.households, eq(schema.children.household_id, schema.households.household_id))
         .leftJoin(
           schema.pregnancies,
           eq(schema.children.pregnancy_id, schema.pregnancies.pregnancy_id),
@@ -169,10 +175,14 @@ router.get("/:id", requireAuth, async (req: Request, res: Response) => {
     const childId = req.params.id;
 
     // Get child record
+    const conditions = [eq(schema.children.child_id, childId)];
+    await appendAreaScopeCondition(req.user!, schema.households, conditions);
+
     const [child] = await db
       .select()
       .from(schema.children)
-      .where(eq(schema.children.child_id, childId));
+      .leftJoin(schema.households, eq(schema.children.household_id, schema.households.household_id))
+      .where(and(...conditions));
 
     if (!child) {
       sendError(res, 404, "CHILD_NOT_FOUND", "Child not found");
@@ -188,7 +198,7 @@ router.get("/:id", requireAuth, async (req: Request, res: Response) => {
         edd_date: schema.pregnancies.edd_date,
       })
       .from(schema.pregnancies)
-      .where(eq(schema.pregnancies.pregnancy_id, child.pregnancy_id));
+      .where(eq(schema.pregnancies.pregnancy_id, child.children.pregnancy_id));
 
     // Get mother info
     const [mother] = await db
@@ -202,7 +212,7 @@ router.get("/:id", requireAuth, async (req: Request, res: Response) => {
         schema.householdMembers,
         eq(schema.eligibleWomen.household_member_id, schema.householdMembers.household_member_id),
       )
-      .where(eq(schema.eligibleWomen.woman_id, child.woman_id));
+      .where(eq(schema.eligibleWomen.woman_id, child.children.woman_id));
 
     // Get tasks for this child
     const tasks = await db
@@ -212,7 +222,7 @@ router.get("/:id", requireAuth, async (req: Request, res: Response) => {
       .orderBy(schema.followUpTasks.target_date);
 
     const response = {
-      ...child,
+      ...child.children,
       pregnancy: pregnancy || null,
       mother: mother || null,
       tasks,

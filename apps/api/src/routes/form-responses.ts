@@ -3,6 +3,7 @@ import { eq, and, sql, desc } from "drizzle-orm";
 import { db, schema } from "../db";
 import { sendError, sendSuccess } from "../lib/errors";
 import { getPagination } from "../lib/pagination";
+import { appendAreaScopeCondition } from "../lib/areaScope";
 
 const router = Router();
 
@@ -44,6 +45,7 @@ router.get("/", async (req: Request, res: Response) => {
       // Map sync_status to response_status if needed
       conditions.push(eq(schema.formResponses.response_status, syncStatus as string));
     }
+    await appendAreaScopeCondition(req.user!, schema.formResponses, conditions);
 
     // Get total count
     const countResult = await db
@@ -84,12 +86,14 @@ router.get("/", async (req: Request, res: Response) => {
 router.get("/:id", async (req: Request, res: Response) => {
   try {
     const responseId = req.params.id;
+    const conditions = [eq(schema.formResponses.form_response_id, responseId)];
+    await appendAreaScopeCondition(req.user!, schema.formResponses, conditions);
 
     // Get form response
     const [response] = await db
       .select()
       .from(schema.formResponses)
-      .where(eq(schema.formResponses.form_response_id, responseId));
+      .where(and(...conditions));
 
     if (!response) {
       sendError(res, 404, "FORM_RESPONSE_NOT_FOUND", "Form response not found");

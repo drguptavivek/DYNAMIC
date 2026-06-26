@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import styles from "./DataQualityPage.module.css";
 
@@ -31,6 +31,35 @@ export default function DataQualityPage() {
   const [selectedFlag, setSelectedFlag] = useState<DataQualityFlag | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadFlags() {
+      setLoading(true);
+      setError("");
+      try {
+        const { data } = await api.getPage<DataQualityFlag[]>("/data-quality-flags");
+        if (!cancelled) {
+          setFlags(data);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Failed to load data quality flags");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void loadFlags();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function handleReviewFlag(note: string) {
     if (!selectedFlag) return;
@@ -134,7 +163,9 @@ export default function DataQualityPage() {
         </select>
       </div>
 
-      {flags.length === 0 ? (
+      {loading && flags.length === 0 ? (
+        <div className={styles.empty}>Loading data quality flags...</div>
+      ) : flags.length === 0 ? (
         <div className={styles.empty}>No data quality flags found</div>
       ) : (
         <div className={styles.tableContainer}>
