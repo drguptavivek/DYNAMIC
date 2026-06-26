@@ -101,3 +101,32 @@ export interface PregnancyProjection {
   rules_version: string;
   projection_version: number;
 }
+
+export interface PregnancyFollowupCompletedPayload {
+  pregnancy_id: string;
+  woman_id: string;
+  household_id: string;
+  visit_date: string;
+  pregnancy_status?: string | null;
+}
+
+export interface PregnancyOutcomeRecordedPayload {
+  pregnancy_id: string;
+  woman_id: string;
+  household_id: string;
+  outcome_date: string;
+  outcome_type: string;
+  live_birth_count: number;
+  stillbirth_count: number;
+}
+
+export interface BirthAssessmentCompletedPayload {
+  pregnancy_id: string;
+  woman_id: string;
+  child_id: string;
+  household_id: string;
+  birth_date: string;
+  birth_status: "live_birth" | "stillbirth" | "fetal_loss_20plus";
+  current_vital_status: "alive" | "deceased";
+  death_date?: string | null;
+}

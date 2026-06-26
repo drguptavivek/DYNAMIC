@@ -1,3 +1,4 @@
+import { eligibleWomanIdentified, promoteFormSubmission } from "@dynamic/event-core";
 import {
   buildHouseholdIdFromHhqData,
   extractHouseholdRegistryFields,
@@ -209,22 +210,6 @@ function saveWebPromotedHousehold(record) {
   );
 }
 
-function addDaysIso(dateText, days) {
-  const date = new Date(`${dateText}T00:00:00Z`);
-  date.setUTCDate(date.getUTCDate() + days);
-  return date.toISOString().split("T")[0];
-}
-
-function addCalendarMonthsIso(dateText, months) {
-  const date = new Date(`${dateText}T00:00:00Z`);
-  const originalDay = date.getUTCDate();
-  date.setUTCDate(1);
-  date.setUTCMonth(date.getUTCMonth() + months);
-  const lastDay = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0)).getUTCDate();
-  date.setUTCDate(Math.min(originalDay, lastDay));
-  return date.toISOString().split("T")[0];
-}
-
 function isWqEligible(member) {
   return (
     member.woman_questionnaire_eligible === true ||
@@ -233,37 +218,30 @@ function isWqEligible(member) {
   );
 }
 
-function buildWqTask({ householdId, household, member, interviewDate, sourceEventId, submittedAt }) {
-  const taskKey = [
-    householdId,
-    "person",
-    member.individual_id,
-    "WQ",
-    "baseline",
-    interviewDate,
-    "v1",
-  ].join("|");
+function toLocalTask(descriptor, { submittedAt, subjectName, localityCode }) {
   return {
     id: createLocalUuid("local-task"),
-    task_key: taskKey,
-    household_id: householdId,
-    subject_type: "person",
-    subject_id: member.individual_id,
-    subject_name: member.member_name,
-    task_type: "WQ",
-    form_code: "WQ",
-    protocol_visit_label: "baseline",
-    target_date: interviewDate,
-    window_start: interviewDate,
-    window_end: addDaysIso(interviewDate, 30),
+    task_key: descriptor.task_key,
+    household_id: descriptor.household_id,
+    subject_type: descriptor.subject_type,
+    subject_id: descriptor.subject_id,
+    subject_name: subjectName,
+    woman_id: descriptor.woman_id,
+    pregnancy_id: descriptor.pregnancy_id,
+    task_type: descriptor.task_type,
+    form_code: descriptor.form_code,
+    protocol_visit_label: descriptor.protocol_visit_label,
+    target_date: descriptor.target_date,
+    window_start: descriptor.window_start,
+    window_end: descriptor.deadline_date,
     status: "open",
     lifecycle_status: "open",
-    form_availability: "available",
-    disabled_reason: null,
-    assigned_locality_code: String(household.locality_code || ""),
-    rules_version: "v1",
-    generation_source: "event_triggered",
-    source_event_id: sourceEventId,
+    form_availability: descriptor.form_availability || "available",
+    disabled_reason: descriptor.disabled_reason || null,
+    assigned_locality_code: String(localityCode || ""),
+    rules_version: descriptor.rules_version,
+    generation_source: descriptor.generation_source,
+    source_event_id: descriptor.source_event_id,
     created_at: submittedAt,
     updated_at: submittedAt,
   };
@@ -287,200 +265,12 @@ function buildEligibleWoman({ householdId, household, member, interviewDate, sub
   };
 }
 
-function buildHhqBaselineEvent(record, response) {
-  const eventDate = record.interview_date || response.submitted_at.split("T")[0];
-  const eventId = `local-hhq-baseline:${record.household_id}:${response.id}`;
-  return {
-    event_id: eventId,
-    event_type: "household_baseline_confirmed",
-    event_version: 1,
-    aggregate_type: "household",
-    aggregate_id: record.household_id,
-    site_id: Number(record.site_id),
-    locality_code: normalizeIdPart(record.locality_code, "00", 2),
-    household_id: record.household_id,
-    subject_type: "household",
-    subject_id: record.household_id,
-    task_id: response.task_id,
-    form_response_id: response.id,
-    source_response_id: response.id,
-    source_task_id: response.task_id,
-    event_date: eventDate,
-    recorded_at: response.submitted_at,
-    created_offline_at: response.submitted_at,
-    device_id: response.device_id,
-    rules_version: "hhq-local-1",
-    payload: {
-      household_id: record.household_id,
-      household_number: String(record.household_number || ""),
-      structure_map_id: String(record.structure_map_id || record.structure_number || ""),
-      baseline_date: eventDate,
-      occupancy_status: "occupied",
-      enrollment_status: "enrolled",
-    },
-    apply_status: "applied",
-  };
-}
-
-function isTruthyAnswer(value) {
-  return value === true || value === 1 || value === "1";
-}
-
 function buildPregnancyId(response, taskContext) {
   return (
     taskContext?.pregnancy_id ||
     response.answers_json?.pregnancy_id ||
     `local-pregnancy:${response.subject_id}:1`
   );
-}
-
-function buildPregnancyProjection(response, taskContext) {
-  const enrollmentDate = response.answers_json?.pef_enrollment_date || response.submitted_at.split("T")[0];
-  const pregnancyId = buildPregnancyId(response, taskContext);
-  return {
-    pregnancy_id: pregnancyId,
-    woman_id: taskContext?.woman_id || response.subject_id,
-    household_member_id: response.subject_id,
-    household_id: response.household_id,
-    site_id: response.site_id,
-    locality_code: response.locality_code,
-    pregnancy_sequence: taskContext?.pregnancy_sequence || 1,
-    pregnancy_status: "enrolled",
-    enrollment_date: enrollmentDate,
-    usg_available: isTruthyAnswer(response.answers_json?.pef_any_time_during_pregnancy_ultrasound),
-    source_form_response_id: response.id,
-    source_sync_status: response.sync_status,
-    sync_status: "pending",
-    created_at: response.submitted_at,
-    updated_at: response.submitted_at,
-  };
-}
-
-function buildPregnancyEnrolledEvent(pregnancy, response) {
-  const eventId = `local-pregnancy-enrolled:${pregnancy.pregnancy_id}:${response.id}`;
-  return {
-    event_id: eventId,
-    event_type: "pregnancy_enrolled",
-    event_version: 1,
-    aggregate_type: "pregnancy",
-    aggregate_id: pregnancy.pregnancy_id,
-    site_id: Number(pregnancy.site_id),
-    locality_code: String(pregnancy.locality_code || ""),
-    household_id: pregnancy.household_id,
-    subject_type: "pregnancy",
-    subject_id: pregnancy.pregnancy_id,
-    task_id: response.task_id,
-    form_response_id: response.id,
-    source_response_id: response.id,
-    source_task_id: response.task_id,
-    event_date: pregnancy.enrollment_date,
-    recorded_at: response.submitted_at,
-    created_offline_at: response.submitted_at,
-    device_id: response.device_id,
-    rules_version: "pregnancy-local-1",
-    payload: {
-      pregnancy_id: pregnancy.pregnancy_id,
-      woman_id: pregnancy.woman_id,
-      household_member_id: pregnancy.household_member_id,
-      household_id: pregnancy.household_id,
-      enrollment_date: pregnancy.enrollment_date,
-      pregnancy_status: "enrolled",
-      usg_available: pregnancy.usg_available,
-    },
-    apply_status: "applied",
-  };
-}
-
-function buildPregnancyTaskKey({
-  householdId,
-  pregnancyId,
-  taskType,
-  protocolVisitLabel,
-  targetDate,
-}) {
-  return [householdId, "pregnancy", pregnancyId, taskType, protocolVisitLabel, targetDate, "v1"].join("|");
-}
-
-function buildPffTasks(pregnancy, event, submittedAt) {
-  const studyEnd = "2030-08-31";
-  const tasks = [];
-  let round = 1;
-  while (true) {
-    const targetDate = addCalendarMonthsIso(pregnancy.enrollment_date, round);
-    if (targetDate > studyEnd) break;
-    const protocolVisitLabel = `PFF-M${round}`;
-    tasks.push({
-      id: createLocalUuid("local-task"),
-      task_key: buildPregnancyTaskKey({
-        householdId: pregnancy.household_id,
-        pregnancyId: pregnancy.pregnancy_id,
-        taskType: "PFF",
-        protocolVisitLabel,
-        targetDate,
-      }),
-      household_id: pregnancy.household_id,
-      subject_type: "pregnancy",
-      subject_id: pregnancy.pregnancy_id,
-      woman_id: pregnancy.woman_id,
-      pregnancy_id: pregnancy.pregnancy_id,
-      task_type: "PFF",
-      form_code: "PFF",
-      protocol_visit_label: protocolVisitLabel,
-      target_date: targetDate,
-      window_start: addDaysIso(targetDate, -7),
-      window_end: addDaysIso(targetDate, 14),
-      status: "open",
-      lifecycle_status: "open",
-      form_availability: "available",
-      disabled_reason: null,
-      assigned_locality_code: String(pregnancy.locality_code || ""),
-      rules_version: "v1",
-      generation_source: "scheduled",
-      source_event_id: event.event_id,
-      created_at: submittedAt,
-      updated_at: submittedAt,
-    });
-    round += 1;
-  }
-  return tasks;
-}
-
-function buildUfTasks(pregnancy, event, submittedAt) {
-  if (!pregnancy.usg_available) return [];
-  const protocolVisitLabel = "UF-pregnancy-enrolled";
-  return [
-    {
-      id: createLocalUuid("local-task"),
-      task_key: buildPregnancyTaskKey({
-        householdId: pregnancy.household_id,
-        pregnancyId: pregnancy.pregnancy_id,
-        taskType: "UF",
-        protocolVisitLabel,
-        targetDate: pregnancy.enrollment_date,
-      }),
-      household_id: pregnancy.household_id,
-      subject_type: "pregnancy",
-      subject_id: pregnancy.pregnancy_id,
-      woman_id: pregnancy.woman_id,
-      pregnancy_id: pregnancy.pregnancy_id,
-      task_type: "UF",
-      form_code: "UF",
-      protocol_visit_label: protocolVisitLabel,
-      target_date: pregnancy.enrollment_date,
-      window_start: pregnancy.enrollment_date,
-      window_end: addDaysIso(pregnancy.enrollment_date, 14),
-      status: "open",
-      lifecycle_status: "open",
-      form_availability: "available",
-      disabled_reason: null,
-      assigned_locality_code: String(pregnancy.locality_code || ""),
-      rules_version: "v1",
-      generation_source: "event_triggered",
-      source_event_id: event.event_id,
-      created_at: submittedAt,
-      updated_at: submittedAt,
-    },
-  ];
 }
 
 function saveWebDomainEvent(event, createdAt) {
@@ -545,7 +335,19 @@ function buildHhqDerivedWorkflow(record, response) {
   const interviewDate = record.interview_date || response.submitted_at.split("T")[0];
   const eligibleMembers = (record.members || []).filter(isWqEligible);
   return eligibleMembers.map((member) => {
-    const sourceEventId = `hhq:${householdId}:${member.individual_id}`;
+    const event = eligibleWomanIdentified.buildEvent({
+      event_id: `hhq:${householdId}:${member.individual_id}`,
+      site_id: Number(record.site_id),
+      locality_code: normalizeIdPart(record.locality_code, "00", 2),
+      household_id: householdId,
+      woman_id: member.individual_id,
+      eligibility_start_date: interviewDate,
+      recorded_at: response.submitted_at,
+      task_id: response.task_id,
+      form_response_id: response.id,
+      device_id: response.device_id,
+    });
+    const [taskDescriptor] = eligibleWomanIdentified.planWorkflow({ event });
     return {
       eligibleWoman: buildEligibleWoman({
         householdId,
@@ -554,13 +356,10 @@ function buildHhqDerivedWorkflow(record, response) {
         interviewDate,
         submittedAt: response.submitted_at,
       }),
-      wqTask: buildWqTask({
-        householdId,
-        household: record,
-        member,
-        interviewDate,
-        sourceEventId,
+      wqTask: toLocalTask(taskDescriptor, {
         submittedAt: response.submitted_at,
+        subjectName: member.member_name,
+        localityCode: record.locality_code,
       }),
     };
   });
@@ -611,6 +410,32 @@ function saveWebPefDerivedWorkflow(pregnancy, tasks) {
   storage.setItem(WEB_SQLITE_STORAGE_KEY, JSON.stringify(state));
 }
 
+function saveWebTasks(tasks) {
+  const storage = getStorage();
+  if (!storage || tasks.length === 0) return;
+  const state = readWebSqliteState(storage);
+  state.follow_up_tasks = mergeById(tasks, state.follow_up_tasks || [], "task_key");
+  storage.setItem(WEB_SQLITE_STORAGE_KEY, JSON.stringify(state));
+}
+
+async function saveTasks(tasks) {
+  if (tasks.length === 0) return;
+  let taskRepository = null;
+  try {
+    taskRepository = await import("../tasks/taskRepository.js");
+  } catch {
+    // Node tests do not load the Metro-resolved expo-sqlite module.
+  }
+  if (typeof taskRepository?.saveTask === "function") {
+    for (const task of tasks) {
+      taskRepository.saveTask(task);
+    }
+    return;
+  }
+
+  saveWebTasks(tasks);
+}
+
 async function savePefDerivedWorkflow(pregnancy, tasks) {
   let taskRepository = null;
   try {
@@ -651,7 +476,31 @@ async function promoteHhqLocally(response) {
       ...sourceFields,
     })),
   };
-  await saveDomainEvent(buildHhqBaselineEvent(promotedRecord, response), response.submitted_at);
+  const promotion = promoteFormSubmission({
+    form_code: response.form_code,
+    event_id: `local-hhq-baseline:${promotedRecord.household_id}:${response.id}`,
+    site_id: Number(promotedRecord.site_id),
+    locality_code: normalizeIdPart(promotedRecord.locality_code, "00", 2),
+    household_id: promotedRecord.household_id,
+    answers_json: response.answers_json,
+    recorded_at: response.submitted_at,
+    task_id: response.task_id,
+    form_response_id: response.id,
+    device_id: response.device_id,
+    context: {
+      household_number: String(promotedRecord.household_number || ""),
+      structure_map_id: String(promotedRecord.structure_map_id || promotedRecord.structure_number || ""),
+    },
+  });
+  if (!promotion) return;
+  const hrfTasks = promotion.task_descriptors.map((descriptor) =>
+    toLocalTask(descriptor, {
+      submittedAt: response.submitted_at,
+      localityCode: promotedRecord.locality_code,
+    }),
+  );
+
+  await saveDomainEvent(promotion.event, response.submitted_at);
 
   let householdRepository = null;
   try {
@@ -662,19 +511,55 @@ async function promoteHhqLocally(response) {
   if (typeof householdRepository?.saveHousehold === "function") {
     await householdRepository.saveHousehold(promotedRecord);
     await saveHhqDerivedWorkflow(promotedRecord, response);
+    await saveTasks(hrfTasks);
     return;
   }
   saveWebPromotedHousehold(promotedRecord);
   await saveHhqDerivedWorkflow(promotedRecord, response);
+  await saveTasks(hrfTasks);
 }
 
 async function promotePefLocally(response, taskContext) {
   if (response.form_code !== "PEF" || !response.household_id || !response.subject_id) return;
-  const pregnancy = buildPregnancyProjection(response, taskContext);
-  const event = buildPregnancyEnrolledEvent(pregnancy, response);
-  const tasks = [...buildPffTasks(pregnancy, event, response.submitted_at), ...buildUfTasks(pregnancy, event, response.submitted_at)];
+  const pregnancyId = buildPregnancyId(response, taskContext);
+  const promotion = promoteFormSubmission({
+    form_code: response.form_code,
+    event_id: `local-pregnancy-enrolled:${pregnancyId}:${response.id}`,
+    site_id: Number(response.site_id),
+    locality_code: String(response.locality_code || ""),
+    household_id: response.household_id,
+    subject_id: response.subject_id,
+    answers_json: response.answers_json,
+    recorded_at: response.submitted_at,
+    task_id: response.task_id,
+    task_key: taskContext?.task_key,
+    form_response_id: response.id,
+    device_id: response.device_id,
+    context: {
+      pregnancy_id: pregnancyId,
+      woman_id: taskContext?.woman_id || response.subject_id,
+      household_member_id: response.subject_id,
+    },
+  });
+  if (!promotion) return;
+  const projection = promotion.projection || {};
+  const pregnancy = {
+    ...projection,
+    pregnancy_sequence: taskContext?.pregnancy_sequence || 1,
+    source_form_response_id: response.id,
+    source_sync_status: response.sync_status,
+    sync_status: "pending",
+    created_at: response.submitted_at,
+    updated_at: response.submitted_at,
+  };
+  const tasks = promotion.task_descriptors.map((descriptor) =>
+    toLocalTask(descriptor, {
+      submittedAt: response.submitted_at,
+      localityCode: response.locality_code,
+    }),
+  );
 
-  await saveDomainEvent(event, response.submitted_at);
+  await saveDomainEvent(promotion.event, response.submitted_at);
   await savePregnancy(pregnancy);
   await savePefDerivedWorkflow(pregnancy, tasks);
 }

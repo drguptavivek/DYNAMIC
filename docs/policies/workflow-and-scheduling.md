@@ -12,6 +12,45 @@ Field users can open forms only from:
 
 There is no global open-any-form workflow.
 
+## Form Submission Triggers
+
+Finalized form submissions can trigger cohort events. The trigger is shared kernel behavior in `@dynamic/event-core`; backend and Expo must not keep separate form-specific event builders for the same field-originated event.
+
+The trigger receives:
+
+- finalized response identity and timestamps
+- raw `answers_json` evidence
+- known cohort/task context, such as household, woman, pregnancy, or child ID
+
+The trigger returns:
+
+- canonical domain event envelope
+- event-owned projection result when applicable
+- deterministic task descriptors
+- data-quality flags when applicable
+
+Current trigger map:
+
+| Form | Event owner | Event |
+| --- | --- | --- |
+| HHQ | `householdBaselineConfirmed` | `household_baseline_confirmed` |
+| WQ | `wqCompleted` | `wq_completed` |
+| PEF | `pregnancyEnrolled` | `pregnancy_enrolled` |
+| PFF | `pregnancyFollowupCompleted` | `pregnancy_followup_completed` |
+| POF | `pregnancyOutcomeRecorded` | `pregnancy_outcome_recorded` |
+| BAF | `birthAssessmentCompleted` | `birth_assessment_completed` |
+| CDF | `childDeathRecorded` | `child_death_recorded` |
+| VA | `verbalAutopsyCompleted` | `verbal_autopsy_completed` |
+
+Rules:
+
+- One cohort event type has one owning event file under `packages/event-core/src/events/`.
+- Form-specific field extraction for event payloads belongs in the shared form-submission trigger layer.
+- Backend and Expo callers adapt storage only: response rows, event outbox/domain-event tables, projection tables, task tables, and sync status.
+- Drafts never trigger events.
+- Held or duplicate submissions may produce held events for evidence and data-quality review, but must not generate workflow tasks.
+- Offline Expo promotion is provisional but must use the same shared trigger outputs as backend promotion.
+
 ## Deterministic Task Keys
 
 Task keys must be deterministic:

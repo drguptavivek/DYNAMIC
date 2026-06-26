@@ -6,38 +6,6 @@
 import { getDb } from "../tasks/taskSchema.js";
 
 /**
- * Record a domain event in the outbox
- * @param {string} eventType - Type of event (e.g., 'household_enrolled', 'pregnancy_detected')
- * @param {object} payload - Event data (will be JSON stringified)
- * @returns {object} The recorded event with id and created_at
- */
-export function recordEvent(eventType, payload) {
-  const db = getDb();
-  const now = new Date().toISOString();
-  const eventId = `${eventType}-${now}`;
-
-  try {
-    db.runSync(
-      `INSERT INTO domain_events_outbox
-       (id, event_type, payload, created_at, sync_status)
-       VALUES (?, ?, ?, ?, ?)`,
-      [eventId, eventType, JSON.stringify(payload), now, "pending"],
-    );
-
-    return {
-      id: eventId,
-      event_type: eventType,
-      payload,
-      created_at: now,
-      sync_status: "pending",
-    };
-  } catch (error) {
-    console.error("Error recording domain event:", error);
-    throw error;
-  }
-}
-
-/**
  * Get all pending events waiting to be synced
  * @returns {array} Array of pending events
  */

@@ -12,9 +12,9 @@ import {
 } from "../index";
 import {
   DEFAULT_PROTOCOL_CONFIG,
-  onHouseholdEnrolled,
   type TaskDescriptor,
 } from "@dynamic/shared-workflow";
+import { householdBaselineConfirmed } from "../events";
 
 const baselineEvent = {
   event_id: "evt-baseline-1",
@@ -38,26 +38,6 @@ const baselineEvent = {
   },
   apply_status: "applied",
   source_response_id: "resp-baseline-1",
-} as const;
-
-const enrolledEvent = {
-  event_id: "evt-enrolled-1",
-  event_type: "household_enrolled",
-  event_version: 1,
-  aggregate_type: "household",
-  aggregate_id: "hh-001",
-  site_id: 1,
-  locality_code: "LC-01",
-  household_id: "hh-001",
-  event_date: "2026-06-02",
-  recorded_at: "2026-06-02T08:00:00.000Z",
-  rules_version: "v1",
-  payload: {
-    household_id: "hh-001",
-  },
-  apply_status: "applied",
-  source_event_id: "evt-baseline-1",
-  source_response_id: "resp-enrolled-1",
 } as const;
 
 const notEnrolledEvent = {
@@ -93,7 +73,7 @@ const rejectedInvalidEvent = {
 
 const workflowEvent = {
   event_id: "evt-workflow-1",
-  event_type: "household_enrolled",
+  event_type: "household_baseline_confirmed",
   event_version: 1,
   aggregate_type: "household",
   aggregate_id: "hh-900",
@@ -105,6 +85,11 @@ const workflowEvent = {
   rules_version: "v1",
   payload: {
     household_id: "hh-900",
+    household_number: "900",
+    structure_map_id: "sm-900",
+    baseline_date: "2026-09-01",
+    occupancy_status: "occupied",
+    enrollment_status: "enrolled",
   },
   apply_status: "applied",
   source_event_id: "evt-baseline-900",
@@ -187,29 +172,8 @@ const pregnancyWorkflowProjection: PregnancyProjection = {
 };
 
 describe("event-core household projection reducer", () => {
-  test("HHQ baseline confirmation creates a projection with provenance and follow_up_enabled false until enrollment event", () => {
+  test("HHQ baseline confirmation creates an enrolled projection with provenance", () => {
     const projection = reduceHouseholdProjection(null, baselineEvent);
-
-    expect(projection).toEqual({
-      household_id: "hh-001",
-      site_id: 1,
-      locality_code: "LC-01",
-      household_number: "12",
-      structure_map_id: "sm-12",
-      baseline_date: "2026-06-01",
-      occupancy_status: "occupied",
-      enrollment_status: "enrolled",
-      is_enrolled: false,
-      follow_up_enabled: false,
-      source_event_id: "evt-baseline-1",
-      source_response_id: "resp-baseline-1",
-      rules_version: "v1",
-      projection_version: 1,
-    });
-  });
-
-  test("baseline plus enrolled events produce enrolled follow_up_enabled true regardless of input order if event_date recorded_at ordering indicates baseline first", () => {
-    const projection = reduceHouseholdProjectionEvents([enrolledEvent, baselineEvent]);
 
     expect(projection).toEqual({
       household_id: "hh-001",
@@ -222,10 +186,31 @@ describe("event-core household projection reducer", () => {
       enrollment_status: "enrolled",
       is_enrolled: true,
       follow_up_enabled: true,
-      source_event_id: "evt-enrolled-1",
-      source_response_id: "resp-enrolled-1",
+      source_event_id: "evt-baseline-1",
+      source_response_id: "resp-baseline-1",
       rules_version: "v1",
-      projection_version: 2,
+      projection_version: 1,
+    });
+  });
+
+  test("baseline event produces enrolled follow_up_enabled true", () => {
+    const projection = reduceHouseholdProjectionEvents([baselineEvent]);
+
+    expect(projection).toEqual({
+      household_id: "hh-001",
+      site_id: 1,
+      locality_code: "LC-01",
+      household_number: "12",
+      structure_map_id: "sm-12",
+      baseline_date: "2026-06-01",
+      occupancy_status: "occupied",
+      enrollment_status: "enrolled",
+      is_enrolled: true,
+      follow_up_enabled: true,
+      source_event_id: "evt-baseline-1",
+      source_response_id: "resp-baseline-1",
+      rules_version: "v1",
+      projection_version: 1,
     });
   });
 
@@ -262,8 +247,8 @@ describe("event-core household projection reducer", () => {
       baseline_date: "2026-06-01",
       occupancy_status: "occupied",
       enrollment_status: "enrolled",
-      is_enrolled: false,
-      follow_up_enabled: false,
+      is_enrolled: true,
+      follow_up_enabled: true,
       source_event_id: "evt-baseline-1",
       source_response_id: "resp-baseline-1",
       rules_version: "v1",
@@ -287,8 +272,8 @@ describe("event-core household projection reducer", () => {
       baseline_date: "2026-06-01",
       occupancy_status: "occupied",
       enrollment_status: "enrolled",
-      is_enrolled: false,
-      follow_up_enabled: false,
+      is_enrolled: true,
+      follow_up_enabled: true,
       source_event_id: "evt-baseline-1",
       source_response_id: "resp-baseline-1",
       rules_version: "v1",
@@ -297,7 +282,7 @@ describe("event-core household projection reducer", () => {
   });
 
   test("local-vs-backend reducer parity: same event list produces the same projection for two simulated callers", () => {
-    const events = [baselineEvent, enrolledEvent];
+    const events = [baselineEvent];
 
     const localProjection = reduceHouseholdProjectionEvents(events);
     const backendProjection = reduceHouseholdProjectionEvents([...events]);
@@ -596,11 +581,19 @@ describe("event-core pregnancy projection reducer", () => {
 });
 
 describe("event-core workflow orchestration", () => {
-  test("household_enrolled wrapper task keys match direct shared-workflow output", () => {
-    const directTasks = onHouseholdEnrolled({
+  test("household_baseline_confirmed orchestration task keys match owning event module output", () => {
+    const directEvent = householdBaselineConfirmed.buildEvent({
       event_id: workflowEvent.event_id,
+      site_id: workflowEvent.site_id,
+      locality_code: workflowEvent.locality_code,
       household_id: workflowProjection.household_id,
-      baseline_completed_date: workflowProjection.baseline_date!,
+      household_number: workflowProjection.household_number ?? "",
+      structure_map_id: workflowProjection.structure_map_id ?? "",
+      baseline_date: workflowProjection.baseline_date!,
+      recorded_at: workflowEvent.recorded_at,
+    });
+    const directTasks = householdBaselineConfirmed.planWorkflow({
+      event: directEvent,
       config: DEFAULT_PROTOCOL_CONFIG,
     });
 
@@ -652,7 +645,7 @@ describe("event-core workflow orchestration", () => {
       {
         flag_type: "workflow_projection_missing",
         source_event_id: workflowEvent.event_id,
-        message: "household projection required for household_enrolled workflow generation",
+        message: "household projection required for household_baseline_confirmed workflow generation",
       },
     ]);
   });

@@ -1,12 +1,19 @@
 import {
   DEFAULT_PROTOCOL_CONFIG,
-  onHouseholdEnrolled,
-  onPregnancyEnrolled,
   type ProtocolConfig,
   type TaskDescriptor,
 } from "@dynamic/shared-workflow";
 
-import type { DomainEventEnvelope, HouseholdProjection, PregnancyProjection } from "./types";
+import type {
+  DomainEventEnvelope,
+  HouseholdBaselineConfirmedPayload,
+  HouseholdProjection,
+  PregnancyProjection,
+} from "./types";
+import {
+  householdBaselineConfirmed,
+  pregnancyEnrolled,
+} from "./events";
 
 export type WorkflowDecisionKind =
   | "tasks_generated"
@@ -60,14 +67,14 @@ export function orchestrateWorkflowForEvent(
   }
 
   switch (input.event.event_type) {
-    case "household_enrolled": {
+    case "household_baseline_confirmed": {
       const projection = input.household_projection ?? null;
       if (!projection?.household_id || !projection.baseline_date) {
         return buildResult([], [
           {
             flag_type: "workflow_projection_missing",
             source_event_id: input.event.event_id,
-            message: "household projection required for household_enrolled workflow generation",
+            message: "household projection required for household_baseline_confirmed workflow generation",
           },
         ]);
       }
@@ -77,10 +84,8 @@ export function orchestrateWorkflowForEvent(
           {
             kind: "tasks_generated",
             source_event_id: input.event.event_id,
-            task_descriptors: onHouseholdEnrolled({
-              event_id: input.event.event_id,
-              household_id: projection.household_id,
-              baseline_completed_date: projection.baseline_date,
+            task_descriptors: householdBaselineConfirmed.planWorkflow({
+              event: input.event as unknown as DomainEventEnvelope<HouseholdBaselineConfirmedPayload>,
               config,
             }),
           },
@@ -105,13 +110,20 @@ export function orchestrateWorkflowForEvent(
           {
             kind: "tasks_generated",
             source_event_id: input.event.event_id,
-            task_descriptors: onPregnancyEnrolled({
-              event_id: input.event.event_id,
-              household_id: projection.household_id,
-              woman_id: projection.woman_id,
-              pregnancy_id: projection.pregnancy_id,
-              enrollment_date: projection.enrollment_date,
-              usg_available: projection.usg_available,
+            task_descriptors: pregnancyEnrolled.planWorkflow({
+              event: {
+                ...input.event,
+                event_type: "pregnancy_enrolled",
+                payload: {
+                  pregnancy_id: projection.pregnancy_id,
+                  woman_id: projection.woman_id,
+                  household_member_id: projection.household_member_id,
+                  household_id: projection.household_id,
+                  enrollment_date: projection.enrollment_date,
+                  pregnancy_status: projection.pregnancy_status,
+                  usg_available: projection.usg_available,
+                },
+              },
               config,
             }),
           },

@@ -2,7 +2,6 @@ import { compareEventOrder } from "./helpers";
 import {
   DomainEventEnvelope,
   HouseholdBaselineConfirmedPayload,
-  HouseholdEnrollmentStatus,
   HouseholdProjection,
 } from "./types";
 
@@ -14,6 +13,7 @@ function buildBaseProjection(
   event: DomainEventEnvelope,
 ): HouseholdProjection {
   const payload = event.payload as Partial<HouseholdBaselineConfirmedPayload>;
+  const enrollmentStatus = payload.enrollment_status ?? "not_enrolled";
   return {
     household_id: payload.household_id ?? event.household_id,
     site_id: event.site_id,
@@ -22,9 +22,9 @@ function buildBaseProjection(
     structure_map_id: payload.structure_map_id,
     baseline_date: payload.baseline_date ?? event.event_date,
     occupancy_status: payload.occupancy_status,
-    enrollment_status: payload.enrollment_status ?? "not_enrolled",
-    is_enrolled: false,
-    follow_up_enabled: false,
+    enrollment_status: enrollmentStatus,
+    is_enrolled: enrollmentStatus === "enrolled",
+    follow_up_enabled: enrollmentStatus === "enrolled",
     source_event_id: event.event_id,
     source_response_id: event.source_response_id ?? event.form_response_id ?? null,
     rules_version: event.rules_version,
@@ -37,6 +37,7 @@ function mergeBaselineProjection(
   event: DomainEventEnvelope,
 ): HouseholdProjection {
   const payload = event.payload as Partial<HouseholdBaselineConfirmedPayload>;
+  const enrollmentStatus = payload.enrollment_status ?? current?.enrollment_status ?? "not_enrolled";
   const base = current
     ? {
         ...current,
@@ -47,7 +48,9 @@ function mergeBaselineProjection(
         structure_map_id: payload.structure_map_id ?? current.structure_map_id,
         baseline_date: payload.baseline_date ?? event.event_date ?? current.baseline_date,
         occupancy_status: payload.occupancy_status ?? current.occupancy_status,
-        enrollment_status: payload.enrollment_status ?? current.enrollment_status,
+        enrollment_status: enrollmentStatus,
+        is_enrolled: enrollmentStatus === "enrolled",
+        follow_up_enabled: enrollmentStatus === "enrolled",
         rules_version: event.rules_version,
         source_event_id: event.event_id,
         source_response_id: event.source_response_id ?? event.form_response_id ?? current.source_response_id,
@@ -55,27 +58,6 @@ function mergeBaselineProjection(
     : buildBaseProjection(event);
 
   return base;
-}
-
-function mergeEnrollmentProjection(
-  current: HouseholdProjection,
-  event: DomainEventEnvelope,
-  enrollment_status: HouseholdEnrollmentStatus,
-): HouseholdProjection {
-  if (current.source_event_id === event.event_id) {
-    return current;
-  }
-
-  return {
-    ...current,
-    enrollment_status,
-    is_enrolled: enrollment_status === "enrolled",
-    follow_up_enabled: enrollment_status === "enrolled",
-    source_event_id: event.event_id,
-    source_response_id: event.source_response_id ?? event.form_response_id ?? current.source_response_id,
-    rules_version: event.rules_version,
-    projection_version: current.projection_version + 1,
-  };
 }
 
 export function reduceHouseholdProjection(
@@ -89,11 +71,6 @@ export function reduceHouseholdProjection(
   switch (event.event_type) {
     case "household_baseline_confirmed":
       return mergeBaselineProjection(current, event);
-    case "household_enrolled":
-      if (!current) {
-        return current;
-      }
-      return mergeEnrollmentProjection(current, event, "enrolled");
     case "household_not_enrolled_at_baseline":
       return current
         ? {

@@ -557,7 +557,7 @@ router.post("/push", requireAuth, async (req: Request, res: Response) => {
           accepted++;
           acceptedRecords.push(id);
         } else if (type === "domain_event") {
-          const { id, event_type, site_id, locality_code, event_datetime } = data;
+          const { id, event_type } = data;
 
           if (!id) {
             errors.push({ id: "unknown", error: "Missing domain_event id" });
@@ -576,57 +576,34 @@ router.post("/push", requireAuth, async (req: Request, res: Response) => {
             continue;
           }
 
-          if (data.form_response_id && event_type) {
-            const alreadyPromoted = await db
-              .select()
-              .from(schema.domainEvents)
-              .where(
-                and(
-                  eq(schema.domainEvents.form_response_id, data.form_response_id),
-                  eq(schema.domainEvents.event_type, event_type),
-                ),
-              )
-              .limit(1);
-
-            if (alreadyPromoted.length > 0) {
-              duplicates.push(id);
-              continue;
-            }
-          }
-
-          const scope = resolveRecordScope(data);
-          if (!(await canAccessLocation(req.user!, scope.site_id, scope.locality_code))) {
-            errors.push({ id, error: "Domain event is outside the user's assigned area scope" });
+          if (!data.form_response_id || !event_type) {
+            errors.push({
+              id,
+              error: "Domain events must reference finalized evidence and canonical event type",
+            });
             continue;
           }
 
-          await db.transaction(async (tx) =>
-            runWithDb(tx as typeof db, async () => {
-              await tx.insert(schema.domainEvents).values({
-                event_id: id,
-                event_type,
-                site_id: site_id ?? scope.site_id,
-                locality_code: locality_code ?? scope.locality_code,
-                household_id: data.household_id,
-                subject_type: data.subject_type,
-                subject_id: data.subject_id,
-                visit_id: data.visit_id,
-                task_id: data.task_id,
-                form_response_id: data.form_response_id,
-                event_datetime: event_datetime ? new Date(event_datetime) : new Date(),
-                created_offline_at: data.created_offline_at
-                  ? new Date(data.created_offline_at)
-                  : undefined,
-                device_id: deviceId,
-                sync_status: "synced",
-                apply_status: data.apply_status || "applied",
-                created_at: new Date(),
-              });
-            }),
-          );
+          const alreadyPromoted = await db
+            .select()
+            .from(schema.domainEvents)
+            .where(
+              and(
+                eq(schema.domainEvents.form_response_id, data.form_response_id),
+                eq(schema.domainEvents.event_type, event_type),
+              ),
+            )
+            .limit(1);
 
-          accepted++;
-          acceptedRecords.push(id);
+          if (alreadyPromoted.length > 0) {
+            duplicates.push(id);
+            continue;
+          }
+
+          errors.push({
+            id,
+            error: "Domain event does not match a server-promoted canonical event",
+          });
         } else if (type === "task") {
           const { task_key, status, updated_at } = data;
 

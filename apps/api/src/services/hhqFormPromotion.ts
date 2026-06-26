@@ -1,4 +1,4 @@
-import { onEligibleWomanIdentified, onHouseholdEnrolled } from "@dynamic/shared-workflow";
+import { eligibleWomanIdentified, promoteFormSubmission } from "@dynamic/event-core";
 import { and, eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { schema } from "../db";
@@ -169,23 +169,43 @@ export async function promoteHhq(response: FormResponseRow, answers: FormAnswers
           },
         });
 
-      wqTasks.push(
-        ...onEligibleWomanIdentified({
-          event_id: `hhq:${household.household_id}:${promotedMember.household_member_id}`,
-          household_id: household.household_id,
-          woman_id: promotedMember.household_member_id,
-          eligibility_start_date: interviewDate,
-        }),
-      );
+      const eligibleWomanEvent = eligibleWomanIdentified.buildEvent({
+        event_id: `hhq:${household.household_id}:${promotedMember.household_member_id}`,
+        site_id: household.site_id,
+        locality_code: household.locality_code,
+        household_id: household.household_id,
+        woman_id: promotedMember.household_member_id,
+        eligibility_start_date: interviewDate,
+        recorded_at: (response.created_offline_at ?? now).toISOString(),
+        task_id: response.task_id,
+        form_response_id: response.form_response_id,
+        device_id: response.device_id,
+      });
+      wqTasks.push(...eligibleWomanIdentified.planWorkflow({ event: eligibleWomanEvent }));
     }
   }
 
   const householdBaselineEventId = randomUUID();
-  const tasks = onHouseholdEnrolled({
+  const householdBaselinePromotion = promoteFormSubmission({
+    form_code: response.form_code,
     event_id: householdBaselineEventId,
+    site_id: household.site_id,
+    locality_code: household.locality_code,
     household_id: household.household_id,
-    baseline_completed_date: interviewDate,
+    answers_json: answers,
+    recorded_at: (response.created_offline_at ?? now).toISOString(),
+    task_id: response.task_id,
+    form_response_id: response.form_response_id,
+    device_id: response.device_id,
+    context: {
+      household_number: household.household_number,
+      structure_map_id: household.structure_map_id,
+    },
   });
+  if (!householdBaselinePromotion) {
+    throw new Error(`No form submission trigger registered for ${response.form_code}`);
+  }
+  const tasks = householdBaselinePromotion.task_descriptors;
   await writeTasksFromDescriptors([...tasks, ...wqTasks]);
 
   await getDb().insert(schema.domainEvents).values({

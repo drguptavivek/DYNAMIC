@@ -14,6 +14,11 @@ globalThis.window = {
     },
   },
 };
+let fetchCalls = 0;
+globalThis.fetch = async () => {
+  fetchCalls += 1;
+  throw new Error("questionnaire submit must be offline-first");
+};
 
 const { saveQuestionnaireSubmission } = await import(
   "../modules/questionnaires/questionnaireSubmissionRepository.js"
@@ -60,6 +65,7 @@ const submission = await saveQuestionnaireSubmission({
   deviceId: "device-1",
   userId: "fieldworker-1",
 });
+assert.equal(fetchCalls, 0);
 
 assert.equal(submission.form_code, "HHQ");
 assert.equal(submission.form_version, "9 MAY 2026");
@@ -155,6 +161,7 @@ const pefSubmission = await saveQuestionnaireSubmission({
   deviceId: "device-1",
   userId: "fieldworker-1",
 });
+assert.equal(fetchCalls, 0);
 
 assert.equal(pefSubmission.form_code, "PEF");
 assert.equal(pefSubmission.household_id, "1-02-0042-03");

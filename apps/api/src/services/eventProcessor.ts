@@ -2,11 +2,10 @@ import { schema } from "../db";
 import { getDb } from "../lib/dbContext";
 import { eq, and } from "drizzle-orm";
 import {
-  onWqCompleted,
-  onPregnancyOutcomeRecorded,
-  onBirthAssessmentCompleted,
-  onChildDeath,
-} from "@dynamic/shared-workflow";
+  childDeathRecorded,
+  promoteFormSubmission,
+  wqCompleted,
+} from "@dynamic/event-core";
 import { writeTasksFromDescriptors } from "./taskWriter";
 import { randomUUID } from "crypto";
 import {
@@ -70,7 +69,7 @@ const FORM_PROMOTION_HANDLERS: Record<string, PromotionHandler> = {
     promotePof(response, response.household_id || "", response.subject_id || "", answers),
   BAF: async (response, answers) => {
     if (response.subject_id) {
-      await promoteBaf(response.subject_id, answers);
+      await promoteBaf(response, response.subject_id, answers);
     }
   },
   NFF: async (response, answers) => {
@@ -80,7 +79,7 @@ const FORM_PROMOTION_HANDLERS: Record<string, PromotionHandler> = {
   },
   CDF: async (response, answers) => {
     if (response.subject_id) {
-      await promoteCdf(response.subject_id, answers);
+      await promoteCdf(response, response.subject_id, answers);
     }
   },
   SBF: async (response) => holdUnsupportedFormForReview(response, "SBF"),
@@ -172,12 +171,17 @@ async function promoteWq(
       }
 
       // Generate PEF task
-      const tasks = onWqCompleted({
+      const wqEvent = wqCompleted.buildEvent({
         event_id: randomUUID(),
+        site_id: hh.site_id,
+        locality_code: hh.locality_code,
         household_id: householdId,
         woman_id: womanId,
         wq_pregnant: true,
+        completed_date: new Date().toISOString().split("T")[0],
+        recorded_at: new Date().toISOString(),
       });
+      const tasks = wqCompleted.planWorkflow({ event: wqEvent });
       await writeTasksFromDescriptors(tasks);
     }
   } catch (err) {
@@ -336,17 +340,41 @@ async function promotePof(
       throw new Error(`No pregnancy found for woman ${subjectId}`);
     }
 
-    const deliveryDate = answers.pof_delivery_date || new Date().toISOString().split("T")[0];
-    const livebirths =
-      parseInt(answers.pof_number_live_born_infants_fill_one_birth_assessment) || 0;
-    const stillbirths =
-      parseInt(answers.pof_number_miscarriages_stillbirths_fill_one_birth_assessment_form) || 0;
     const eventId = randomUUID();
     const now = new Date();
+    const promotion = promoteFormSubmission({
+      form_code: response.form_code,
+      event_id: eventId,
+      site_id: pregnancy.site_id,
+      locality_code: pregnancy.locality_code,
+      household_id: pregnancy.household_id || householdId,
+      subject_id: pregnancy.pregnancy_id,
+      answers_json: answers,
+      recorded_at: (response.created_offline_at ?? now).toISOString(),
+      task_id: response.task_id,
+      form_response_id: response.form_response_id,
+      device_id: response.device_id,
+      context: {
+        pregnancy_id: pregnancy.pregnancy_id,
+        woman_id: pregnancy.woman_id,
+      },
+    });
+    if (!promotion) {
+      throw new Error(`No form submission trigger registered for ${response.form_code}`);
+    }
+    const payload = promotion.event.payload as {
+      outcome_date: string;
+      outcome_type: string;
+      live_birth_count: number;
+      stillbirth_count: number;
+    };
+    const deliveryDate = payload.outcome_date;
+    const livebirths = payload.live_birth_count;
+    const stillbirths = payload.stillbirth_count;
 
     await getDb().insert(schema.domainEvents).values({
       event_id: eventId,
-      event_type: "pregnancy_outcome_recorded",
+      event_type: promotion.event.event_type,
       site_id: pregnancy.site_id,
       locality_code: pregnancy.locality_code,
       household_id: pregnancy.household_id || householdId,
@@ -426,28 +454,20 @@ async function promotePof(
       });
     }
 
-    // Generate tasks for outcome
-    const tasks = onPregnancyOutcomeRecorded({
-      event_id: eventId,
-      household_id: householdId,
-      woman_id: pregnancy.woman_id,
-      pregnancy_id: pregnancy.pregnancy_id,
-      outcome_type: livebirths > 0 ? "live_birth" : "stillbirth",
-      outcome_date: deliveryDate,
-      live_birth_count: livebirths,
-      stillbirth_count: stillbirths,
-    });
-    await writeTasksFromDescriptors(tasks);
+    await writeTasksFromDescriptors(promotion.task_descriptors);
   } catch (err) {
     console.error(`Error in promotePof for ${householdId}/${subjectId}:`, err);
     throw err;
   }
 }
 
-async function promoteBaf(childId: string, answers: FormAnswers): Promise<void> {
+async function promoteBaf(
+  response: FormResponseRow,
+  childId: string,
+  answers: FormAnswers,
+): Promise<void> {
   try {
     const birthWeight = parseInt(answers.baf_weight_birth_grams);
-    const vitalStatus = answers.baf_vital_status_infant_birth;
 
     // Get child record to fetch related info
     const children = await getDb()
@@ -461,29 +481,62 @@ async function promoteBaf(childId: string, answers: FormAnswers): Promise<void> 
     }
 
     const child = children[0];
+    const localityCode = child.household_id.split("-")[1] || "";
+    const promotion = promoteFormSubmission({
+      form_code: response.form_code,
+      event_id: randomUUID(),
+      site_id: child.site_id,
+      locality_code: localityCode,
+      household_id: child.household_id,
+      subject_id: childId,
+      answers_json: answers,
+      recorded_at: new Date().toISOString(),
+      task_id: response.task_id,
+      form_response_id: response.form_response_id,
+      device_id: response.device_id,
+      context: {
+        pregnancy_id: child.pregnancy_id,
+        woman_id: child.woman_id,
+        child_id: childId,
+        birth_date: child.birth_date || new Date().toISOString().split("T")[0],
+        birth_status:
+          (child.birth_status as "live_birth" | "stillbirth" | "fetal_loss_20plus") ||
+          "live_birth",
+      },
+    });
+    if (!promotion) {
+      throw new Error(`No form submission trigger registered for ${response.form_code}`);
+    }
+    const payload = promotion.event.payload as { current_vital_status?: string };
 
     await getDb()
       .update(schema.children)
       .set({
         birth_weight_grams: isNaN(birthWeight) ? null : birthWeight,
-        current_vital_status: vitalStatus || "alive",
+        current_vital_status: payload.current_vital_status || "alive",
         updated_at: new Date(),
       })
       .where(eq(schema.children.child_id, childId));
 
-    // Generate task completion event
-    const tasks = onBirthAssessmentCompleted({
-      event_id: randomUUID(),
+    await getDb().insert(schema.domainEvents).values({
+      event_id: promotion.event.event_id,
+      event_type: promotion.event.event_type,
+      site_id: child.site_id,
+      locality_code: localityCode,
       household_id: child.household_id,
-      pregnancy_id: child.pregnancy_id,
-      woman_id: child.woman_id,
-      child_id: childId,
-      birth_date: child.birth_date || new Date().toISOString().split("T")[0],
-      birth_status:
-        (child.birth_status as "live_birth" | "stillbirth" | "fetal_loss_20plus") || "live_birth",
-      current_vital_status: (vitalStatus === "dead" ? "deceased" : "alive") as "alive" | "deceased",
+      subject_type: "child",
+      subject_id: childId,
+      task_id: response.task_id,
+      form_response_id: response.form_response_id,
+      event_datetime: response.created_offline_at ?? new Date(),
+      created_offline_at: response.created_offline_at,
+      device_id: response.device_id,
+      sync_status: "synced",
+      apply_status: "applied",
+      created_at: new Date(),
     });
-    await writeTasksFromDescriptors(tasks);
+
+    await writeTasksFromDescriptors(promotion.task_descriptors);
   } catch (err) {
     console.error(`Error in promoteBaf for ${childId}:`, err);
     throw err;
@@ -510,6 +563,7 @@ async function promoteNff(
     }
 
     const child = children[0];
+    const localityCode = child.household_id.split("-")[1] || "";
 
     if (vitalStatus) {
       await getDb()
@@ -524,13 +578,18 @@ async function promoteNff(
     // Check if child death
     if (vitalStatus === "dead") {
       // Generate VA task
-      const tasks = onChildDeath({
+      const deathEvent = childDeathRecorded.buildEvent({
         event_id: randomUUID(),
+        site_id: child.site_id,
+        locality_code: localityCode,
         household_id: child.household_id,
         woman_id: child.woman_id,
         child_id: childId,
+        pregnancy_id: child.pregnancy_id,
         death_date: new Date().toISOString().split("T")[0],
+        recorded_at: new Date().toISOString(),
       });
+      const tasks = childDeathRecorded.planWorkflow({ event: deathEvent });
       await writeTasksFromDescriptors(tasks);
     }
   } catch (err) {
@@ -539,10 +598,12 @@ async function promoteNff(
   }
 }
 
-async function promoteCdf(childId: string, answers: FormAnswers): Promise<void> {
+async function promoteCdf(
+  response: FormResponseRow,
+  childId: string,
+  answers: FormAnswers,
+): Promise<void> {
   try {
-    const deathDate = answers.cdf_death_date || new Date().toISOString().split("T")[0];
-
     // Get child record
     const children = await getDb()
       .select()
@@ -555,6 +616,30 @@ async function promoteCdf(childId: string, answers: FormAnswers): Promise<void> 
     }
 
     const child = children[0];
+    const localityCode = child.household_id.split("-")[1] || "";
+    const promotion = promoteFormSubmission({
+      form_code: response.form_code,
+      event_id: randomUUID(),
+      site_id: child.site_id,
+      locality_code: localityCode,
+      household_id: child.household_id,
+      subject_id: childId,
+      answers_json: answers,
+      recorded_at: (response.created_offline_at ?? new Date()).toISOString(),
+      task_id: response.task_id,
+      form_response_id: response.form_response_id,
+      device_id: response.device_id,
+      context: {
+        pregnancy_id: child.pregnancy_id,
+        woman_id: child.woman_id,
+        child_id: childId,
+      },
+    });
+    if (!promotion) {
+      throw new Error(`No form submission trigger registered for ${response.form_code}`);
+    }
+    const payload = promotion.event.payload as { death_date?: string };
+    const deathDate = payload.death_date || new Date().toISOString().split("T")[0];
 
     await getDb()
       .update(schema.children)
@@ -565,15 +650,25 @@ async function promoteCdf(childId: string, answers: FormAnswers): Promise<void> 
       })
       .where(eq(schema.children.child_id, childId));
 
-    // Generate VA task
-    const tasks = onChildDeath({
-      event_id: randomUUID(),
+    await getDb().insert(schema.domainEvents).values({
+      event_id: promotion.event.event_id,
+      event_type: promotion.event.event_type,
+      site_id: child.site_id,
+      locality_code: localityCode,
       household_id: child.household_id,
-      woman_id: child.woman_id,
-      child_id: childId,
-      death_date: deathDate,
+      subject_type: "child",
+      subject_id: childId,
+      task_id: response.task_id,
+      form_response_id: response.form_response_id,
+      event_datetime: response.created_offline_at ?? new Date(),
+      created_offline_at: response.created_offline_at,
+      device_id: response.device_id,
+      sync_status: "synced",
+      apply_status: "applied",
+      created_at: new Date(),
     });
-    await writeTasksFromDescriptors(tasks);
+
+    await writeTasksFromDescriptors(promotion.task_descriptors);
   } catch (err) {
     console.error(`Error in promoteCdf for ${childId}:`, err);
     throw err;

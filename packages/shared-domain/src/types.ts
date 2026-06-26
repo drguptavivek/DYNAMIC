@@ -31,7 +31,7 @@ export type FormCode =
 export type SubjectType = "household" | "person" | "woman" | "pregnancy" | "child";
 export type ActualMode = "face_to_face" | "telephonic";
 export type EventType =
-  | "household_enrolled"
+  | "household_baseline_confirmed"
   | "household_round_completed"
   | "woman_eligible"
   | "wq_completed"

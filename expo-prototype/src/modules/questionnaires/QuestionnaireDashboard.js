@@ -353,17 +353,6 @@ export function QuestionnaireDashboard({
     });
 
     model.onComplete.add(async (sender) => {
-      // Generate domain events if taskContext provided
-      if (taskContext) {
-        try {
-          const { generateEventForSubmission } =
-            await import("../../modules/events/eventGenerators.js");
-          generateEventForSubmission(taskContext, sender.data);
-        } catch (error) {
-          console.error("Error generating events:", error);
-        }
-      }
-
       const submission = await saveQuestionnaireSubmission({
         formCode: form.form_code,
         formVersion: form.version,

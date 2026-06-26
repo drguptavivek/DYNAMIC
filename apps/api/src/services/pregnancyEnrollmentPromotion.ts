@@ -1,22 +1,45 @@
-import {
-  orchestrateWorkflowForEvent,
-  reducePregnancyProjectionEvents,
-  type PregnancyProjection,
-} from "@dynamic/event-core";
+import { promoteFormSubmission, type PregnancyProjection } from "@dynamic/event-core";
 import { and, eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { schema } from "../db";
 import { getDb } from "../lib/dbContext";
 import { writeTasksFromDescriptors } from "./taskWriter";
-import {
-  buildPregnancyEnrolledPayload,
-  FormAnswers,
-  getPefEnrollmentDate,
-  toIsoDate,
-  toPregnancyProjectionEvent,
-} from "./promotionEventBridge";
+import { FormAnswers } from "./promotionEventBridge";
 
 type FormResponseRow = typeof schema.formResponses.$inferSelect;
+
+function buildPefPromotion(params: {
+  event_id: string;
+  response: FormResponseRow;
+  pregnancy: typeof schema.pregnancies.$inferSelect;
+  answers: FormAnswers;
+  now: Date;
+  apply_status?: "applied" | "held_duplicate";
+}) {
+  const promotion = promoteFormSubmission({
+    form_code: params.response.form_code,
+    event_id: params.event_id,
+    site_id: params.pregnancy.site_id,
+    locality_code: params.pregnancy.locality_code,
+    household_id: params.pregnancy.household_id,
+    subject_id: params.response.subject_id,
+    answers_json: params.answers,
+    recorded_at: (params.response.created_offline_at ?? params.now).toISOString(),
+    task_id: params.response.task_id,
+    form_response_id: params.response.form_response_id,
+    device_id: params.response.device_id,
+    apply_status: params.apply_status,
+    context: {
+      pregnancy_id: params.pregnancy.pregnancy_id,
+      woman_id: params.pregnancy.woman_id,
+      household_member_id: params.pregnancy.household_member_id,
+    },
+  });
+  if (!promotion) {
+    throw new Error(`No form submission trigger registered for ${params.response.form_code}`);
+  }
+  return promotion;
+}
 
 export async function promotePef(
   response: FormResponseRow,
@@ -39,10 +62,6 @@ export async function promotePef(
     const pregnancy = activePregnancy ?? pregnancies[0];
 
     const now = new Date();
-    const enrollmentDate = getPefEnrollmentDate(
-      answers,
-      toIsoDate(response.created_offline_at ?? response.created_at ?? now),
-    );
     const priorResponses = await getDb()
       .select()
       .from(schema.formResponses)
@@ -61,18 +80,12 @@ export async function promotePef(
 
     if (primaryResponse) {
       const duplicateEventId = randomUUID();
-      const duplicatePayload = buildPregnancyEnrolledPayload(
-        pregnancy,
-        pregnancy.enrollment_date ?? enrollmentDate,
-        answers,
-      );
-      const duplicateEnvelope = toPregnancyProjectionEvent({
+      const duplicatePromotion = buildPefPromotion({
         event_id: duplicateEventId,
         response,
         pregnancy,
-        enrollment_date: pregnancy.enrollment_date ?? enrollmentDate,
-        payload: duplicatePayload,
         now,
+        answers,
         apply_status: "held_duplicate",
       });
 
@@ -82,8 +95,8 @@ export async function promotePef(
         .where(eq(schema.formResponses.form_response_id, response.form_response_id));
 
       await getDb().insert(schema.domainEvents).values({
-        event_id: duplicateEnvelope.event_id,
-        event_type: duplicateEnvelope.event_type,
+        event_id: duplicatePromotion.event.event_id,
+        event_type: duplicatePromotion.event.event_type,
         site_id: pregnancy.site_id,
         locality_code: pregnancy.locality_code,
         household_id: pregnancy.household_id,
@@ -120,16 +133,14 @@ export async function promotePef(
     }
 
     const eventId = randomUUID();
-    const payload = buildPregnancyEnrolledPayload(pregnancy, enrollmentDate, answers);
-    const envelope = toPregnancyProjectionEvent({
+    const promotion = buildPefPromotion({
       event_id: eventId,
       response,
       pregnancy,
-      enrollment_date: enrollmentDate,
-      payload,
       now,
+      answers,
     });
-    const projection = reducePregnancyProjectionEvents([envelope]);
+    const projection = promotion.projection as PregnancyProjection | null;
 
     if (!projection) {
       throw new Error(`Pregnancy projection not generated for ${pregnancy.pregnancy_id}`);
@@ -137,7 +148,7 @@ export async function promotePef(
 
     await getDb().insert(schema.domainEvents).values({
       event_id: eventId,
-      event_type: "pregnancy_enrolled",
+      event_type: promotion.event.event_type,
       site_id: pregnancy.site_id,
       locality_code: pregnancy.locality_code,
       household_id: pregnancy.household_id,
@@ -163,14 +174,7 @@ export async function promotePef(
       })
       .where(eq(schema.pregnancies.pregnancy_id, projection.pregnancy_id));
 
-    const orchestration = orchestrateWorkflowForEvent({
-      event: envelope,
-      pregnancy_projection: projection as PregnancyProjection,
-      rules_version: "v1",
-    });
-    await writeTasksFromDescriptors(
-      orchestration.decisions.flatMap((decision) => decision.task_descriptors),
-    );
+    await writeTasksFromDescriptors(promotion.task_descriptors);
   } catch (err) {
     console.error(`Error in promotePef for ${householdId}/${subjectId}:`, err);
     throw err;

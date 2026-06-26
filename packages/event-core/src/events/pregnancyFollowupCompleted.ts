@@ -1,0 +1,68 @@
+import type { DomainEventEnvelope, PregnancyFollowupCompletedPayload } from "../types";
+import type { BaseEventInput, EventPromotionResult } from "./types";
+import type { ProtocolConfig, TaskDescriptor } from "./workflowHelpers";
+
+export const EVENT_TYPE = "pregnancy_followup_completed";
+
+export interface PregnancyFollowupCompletedEventInput extends BaseEventInput {
+  pregnancy_id: string;
+  woman_id: string;
+  visit_date: string;
+  pregnancy_status?: string | null;
+}
+
+export function buildEvent(
+  input: PregnancyFollowupCompletedEventInput,
+): DomainEventEnvelope<PregnancyFollowupCompletedPayload> {
+  return {
+    event_id: input.event_id,
+    event_type: EVENT_TYPE,
+    event_version: 1,
+    aggregate_type: "pregnancy",
+    aggregate_id: input.pregnancy_id,
+    site_id: input.site_id,
+    locality_code: input.locality_code,
+    household_id: input.household_id,
+    subject_type: "pregnancy",
+    subject_id: input.pregnancy_id,
+    task_id: input.task_id,
+    task_key: input.task_key,
+    form_response_id: input.form_response_id,
+    source_response_id: input.form_response_id,
+    source_task_id: input.task_id,
+    event_date: input.event_date ?? input.visit_date,
+    recorded_at: input.recorded_at,
+    created_offline_at: input.recorded_at,
+    device_id: input.device_id,
+    user_id: input.user_id,
+    rules_version: input.rules_version ?? "v1",
+    payload: {
+      pregnancy_id: input.pregnancy_id,
+      woman_id: input.woman_id,
+      household_id: input.household_id,
+      visit_date: input.visit_date,
+      pregnancy_status: input.pregnancy_status,
+    },
+    apply_status: input.apply_status ?? "applied",
+  };
+}
+
+export function reduceEvent(): null {
+  return null;
+}
+
+export function planWorkflow(): TaskDescriptor[] {
+  return [];
+}
+
+export function promoteEvidence(
+  input: PregnancyFollowupCompletedEventInput & { config?: ProtocolConfig },
+): EventPromotionResult<PregnancyFollowupCompletedPayload> {
+  const event = buildEvent(input);
+  return {
+    event,
+    projection: reduceEvent(),
+    task_descriptors: planWorkflow(),
+    data_quality_flags: [],
+  };
+}

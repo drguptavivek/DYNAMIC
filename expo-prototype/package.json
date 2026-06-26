@@ -6,9 +6,10 @@
   "scripts": {
     "start": "expo start --port 8088",
     "web": "expo start --web --port 8088",
-    "test": "node src/tests/validateForms.mjs && node src/tests/validateStudyMasters.mjs && node src/tests/validateHouseholdRepository.mjs && node src/tests/validateHouseholdMasterChoices.mjs && node src/tests/validateHouseholdSurveyBehaviors.mjs && node src/tests/validateQuestionnaireSurveyBehaviors.mjs && node src/tests/validateQuestionnaireSurveyJsonTransforms.mjs && node src/tests/validateQuestionnaireReadOnlyFields.mjs && node src/tests/validateTaskOpenPolicy.mjs && node src/tests/validateHouseholdMemberSummary.mjs && node src/tests/validateFieldWorkerProfile.mjs && node src/tests/validateSyncWorkflow.mjs && node src/tests/validateQuestionnaireDraftWorkflow.mjs && node src/tests/validateQuestionnaireSubmissionWorkflow.mjs && node src/tests/validateSurveyNavigation.mjs && node src/tests/validateNavigationPolicy.mjs"
+    "test": "tsx src/tests/validateForms.mjs && tsx src/tests/validateStudyMasters.mjs && tsx src/tests/validateHouseholdRepository.mjs && tsx src/tests/validateHouseholdMasterChoices.mjs && tsx src/tests/validateHouseholdSurveyBehaviors.mjs && tsx src/tests/validateQuestionnaireSurveyBehaviors.mjs && tsx src/tests/validateQuestionnaireSurveyJsonTransforms.mjs && tsx src/tests/validateQuestionnaireReadOnlyFields.mjs && tsx src/tests/validateTaskOpenPolicy.mjs && tsx src/tests/validateHouseholdMemberSummary.mjs && tsx src/tests/validateFieldWorkerProfile.mjs && tsx src/tests/validateSyncWorkflow.mjs && tsx src/tests/validateQuestionnaireDraftWorkflow.mjs && tsx src/tests/validateQuestionnaireSubmissionWorkflow.mjs && tsx src/tests/validateSurveyNavigation.mjs && tsx src/tests/validateNavigationPolicy.mjs"
   },
   "dependencies": {
+    "@dynamic/event-core": "*",
     "@expo/metro-runtime": "6.1.2",
     "expo": "54.0.35",
     "expo-constants": "~18.0.13",
@@ -22,6 +23,7 @@
     "react-native-screens": "~4.16.0",
     "react-native-web": "0.21.0",
     "survey-core": "^2.3.16",
-    "survey-react-ui": "^2.3.16"
+    "survey-react-ui": "^2.3.16",
+    "tsx": "^4.22.4"
   }
 }

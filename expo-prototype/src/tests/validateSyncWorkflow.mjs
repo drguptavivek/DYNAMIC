@@ -30,7 +30,7 @@ const records = buildPushRecords({
   domainEvents: [
     {
       id: "event-1",
-      event_type: "household_enrolled",
+      event_type: "household_baseline_confirmed",
       created_at: "2026-06-04T00:00:00.000Z",
       payload: {
         household_id: "1-02-0042-03",
@@ -47,7 +47,7 @@ assert.deepEqual(records, [
     type: "domain_event",
     data: {
       id: "event-1",
-      event_type: "household_enrolled",
+      event_type: "household_baseline_confirmed",
       household_id: "1-02-0042-03",
       task_id: "task-1",
       timestamp: "2026-06-04T01:00:00.000Z",

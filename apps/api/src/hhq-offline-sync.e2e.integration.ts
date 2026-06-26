@@ -631,6 +631,72 @@ test("HHQ offline submission creates local WQ workflow, syncs backend, and pulls
     assert.equal(bafTasks.length, 1);
     assert.equal(bafTasks[0].source_event_id, outcomeEvents[0].event_id);
 
+    const bafResponseId = randomUUID();
+    const bafPush = await fetchData(`${baseUrl}/sync/push`, {
+      method: "POST",
+      headers: { Authorization: authorization },
+      body: JSON.stringify({
+        device_id: "e2e-device",
+        records: [
+          {
+            type: "form_response",
+            data: {
+              id: bafResponseId,
+              task_id: bafTasks[0].task_id,
+              form_code: "BAF",
+              form_version: "2026.05.17",
+              household_id: householdId,
+              site_id: 1,
+              locality_code: "DEV001",
+              subject_type: "child",
+              subject_id: childRows[0].child_id,
+              answers_json: {
+                household_id: householdId,
+                baf_weight_birth_grams: "2800",
+                baf_vital_status_infant_birth: "dead",
+                baf_death_date: "2026-11-22",
+              },
+              submitted_at: "2026-11-21T09:00:00.000Z",
+            },
+          },
+        ],
+      }),
+    });
+    assert.equal(bafPush.accepted, 1);
+    assert.deepEqual(bafPush.errors, []);
+
+    const birthAssessmentEvents = (await db
+      .select()
+      .from(schema.domainEvents)
+      .where(eq(schema.domainEvents.household_id, householdId))).filter(
+      (event) => event.event_type === "birth_assessment_completed",
+    );
+    assert.equal(birthAssessmentEvents.length, 1);
+    assert.equal(birthAssessmentEvents[0].form_response_id, bafResponseId);
+    assert.equal(birthAssessmentEvents[0].apply_status, "applied");
+
+    const childAfterBaf = await db
+      .select()
+      .from(schema.children)
+      .where(eq(schema.children.child_id, childRows[0].child_id));
+    assert.equal(childAfterBaf.length, 1);
+    assert.equal(childAfterBaf[0].birth_weight_grams, 2800);
+    assert.equal(childAfterBaf[0].current_vital_status, "deceased");
+
+    const mortalityTasks = (await db
+      .select()
+      .from(schema.followUpTasks)
+      .where(eq(schema.followUpTasks.household_id, householdId))).filter((task) =>
+      ["CDF", "VA"].includes(task.task_type),
+    );
+    assert.ok(mortalityTasks.some((task) => task.task_type === "CDF"));
+    assert.ok(mortalityTasks.some((task) => task.task_type === "VA"));
+    assert.ok(
+      mortalityTasks.every(
+        (task) => task.source_event_id === birthAssessmentEvents[0].event_id,
+      ),
+    );
+
     const pulled = await fetchData(
       `${baseUrl}/sync/pull?locality_codes=DEV001&include_members=false&page_size=100&since=${encodeURIComponent(sinceBeforePush)}`,
       { headers: { Authorization: authorization } },

@@ -81,6 +81,30 @@ Backend and Expo use the same event semantics for field-originated study events.
 
 Shared code must stay pure where it encodes study rules. Runtime-specific code supplies storage, auth/scope, transactions, clocks, IDs, HTTP, and UI state around the shared kernel.
 
+Finalized field submissions trigger cohort events through `@dynamic/event-core`, not through backend-only or Expo-only form handlers. The shared trigger contract is:
+
+```text
+finalized form response + cohort/task context
+  -> shared form-submission trigger
+  -> canonical domain event
+  -> event-owned projection/workflow outputs
+```
+
+Current field-originated trigger ownership:
+
+| Form | Canonical event |
+| --- | --- |
+| HHQ | `household_baseline_confirmed` |
+| WQ | `wq_completed` |
+| PEF | `pregnancy_enrolled` |
+| PFF | `pregnancy_followup_completed` |
+| POF | `pregnancy_outcome_recorded` |
+| BAF | `birth_assessment_completed` |
+| CDF | `child_death_recorded` |
+| VA | `verbal_autopsy_completed` |
+
+Form schemas may keep evolving while source PDFs are finalized. That does not change the cohort event boundary. Field-name extraction for event payloads belongs in the shared trigger layer; backend and Expo callers provide finalized evidence plus known cohort context and then store the returned event, projection, task descriptors, and flags through their own adapters.
+
 ## Form Lifecycle
 
 Drafts are local recovery state. Finalized responses are evidence.

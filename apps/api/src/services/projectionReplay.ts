@@ -1,4 +1,5 @@
 import {
+  promoteFormSubmission,
   reduceHouseholdProjectionEvents,
   reducePregnancyProjectionEvents,
   type DomainEventEnvelope,
@@ -7,11 +8,7 @@ import { and, eq } from "drizzle-orm";
 import { schema } from "../db";
 import { getDb } from "../lib/dbContext";
 import {
-  buildPregnancyEnrolledPayload,
-  getPefEnrollmentDate,
   toHhqProjectionEvent,
-  toIsoDate,
-  toPregnancyProjectionEvent,
   type FormAnswers,
 } from "./promotionEventBridge";
 
@@ -21,7 +18,6 @@ export interface ProjectionReplayResult {
 }
 
 type DomainEventRow = typeof schema.domainEvents.$inferSelect;
-type FormResponseRow = typeof schema.formResponses.$inferSelect;
 
 export async function rebuildHhqHouseholdProjection(householdId: string): Promise<ProjectionReplayResult> {
   const events = await getDb()
@@ -202,18 +198,24 @@ async function toStoredPregnancyProjectionEvent(
     return null;
   }
 
-  const answers = (response.answers_json || {}) as FormAnswers;
-  const fallbackDate = toIsoDate(response.created_offline_at ?? response.created_at ?? new Date());
-  const enrollmentDate = getPefEnrollmentDate(answers, fallbackDate);
-  const payload = buildPregnancyEnrolledPayload(pregnancy, enrollmentDate, answers);
-
-  return toPregnancyProjectionEvent({
+  const promotion = promoteFormSubmission({
+    form_code: response.form_code,
     event_id: event.event_id,
-    response: response as FormResponseRow,
-    pregnancy,
-    enrollment_date: enrollmentDate,
-    payload,
-    now: event.event_datetime ?? event.created_at ?? new Date(),
+    site_id: pregnancy.site_id,
+    locality_code: pregnancy.locality_code,
+    household_id: pregnancy.household_id,
+    subject_id: response.subject_id,
+    answers_json: (response.answers_json || {}) as FormAnswers,
+    recorded_at: (event.event_datetime ?? event.created_at ?? new Date()).toISOString(),
+    task_id: response.task_id,
+    form_response_id: response.form_response_id,
+    device_id: response.device_id,
     apply_status: (event.apply_status || "applied") as DomainEventEnvelope["apply_status"],
+    context: {
+      pregnancy_id: pregnancy.pregnancy_id,
+      woman_id: pregnancy.woman_id,
+      household_member_id: pregnancy.household_member_id,
+    },
   });
+  return (promotion?.event as DomainEventEnvelope | undefined) ?? null;
 }
