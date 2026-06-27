@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Architecture review — DYNAMIC</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+      mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+    </script>
+    <style>
+      body { letter-spacing: 0; }
+      .seam-line { border-top: 2px dashed #64748b; }
+      .mass { display: grid; grid-template-columns: 76px 1fr; gap: 8px; align-items: stretch; }
+      .mass .iface { background: #fee2e2; border: 1px solid #fca5a5; }
+      .mass .impl { background: #e0f2fe; border: 1px solid #7dd3fc; }
+      .deepbox { background: linear-gradient(135deg, #0f172a, #1e293b); color: white; }
+      .leak { color: #dc2626; }
+      .module-label { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: #475569; }
+      .thin-module { border: 1px solid #cbd5e1; background: #fff; border-radius: 10px; padding: 10px; }
+      .fat-module { border: 2px solid #0f172a; background: #f8fafc; border-radius: 12px; padding: 14px; }
+    </style>
+  </head>
+  <body class="bg-stone-50 text-slate-900 font-sans">
+    <main class="max-w-6xl mx-auto px-6 py-10 space-y-10">
+      <header class="space-y-5">
+        <div class="flex items-start justify-between gap-6">
+          <div>
+            <p class="text-xs uppercase tracking-wider text-slate-500">DYNAMIC · architecture review</p>
+            <h1 class="text-4xl font-semibold tracking-normal mt-1">Deepening opportunities</h1>
+            <p class="text-slate-600 mt-2 max-w-3xl">Read through <span class="font-mono">CONTEXT.md</span>, ADRs, event-core, backend ingest/projection, Expo offline workflow, and admin review paths.</p>
+          </div>
+          <div class="text-right text-sm text-slate-500">Generated locally<br/>June 2026</div>
+        </div>
+        <div class="grid md:grid-cols-4 gap-3 text-sm">
+          <div class="rounded-lg bg-white border border-slate-200 p-3"><span class="font-semibold">solid box</span><br/><span class="text-slate-600">module</span></div>
+          <div class="rounded-lg bg-white border border-slate-200 p-3"><span class="font-semibold">dashed line</span><br/><span class="text-slate-600">seam</span></div>
+          <div class="rounded-lg bg-white border border-slate-200 p-3"><span class="font-semibold text-red-600">red text</span><br/><span class="text-slate-600">leakage</span></div>
+          <div class="rounded-lg bg-slate-900 text-white p-3"><span class="font-semibold">dark box</span><br/><span class="text-slate-300">deep module</span></div>
+        </div>
+      </header>
+
+      <section id="candidates" class="space-y-8">
+        <article id="accepted-event-applicator" class="rounded-2xl bg-white border border-slate-200 shadow-sm p-6 space-y-5">
+          <div class="flex flex-wrap items-center gap-3">
+            <h2 class="text-2xl font-semibold">1. Deepen accepted event application</h2>
+            <span class="rounded-full bg-emerald-100 text-emerald-800 px-3 py-1 text-xs font-semibold">Strong</span>
+            <span class="rounded-full bg-slate-100 text-slate-700 px-3 py-1 text-xs font-semibold">ports & adapters</span>
+          </div>
+          <div class="text-sm font-mono text-slate-600 grid md:grid-cols-2 gap-1">
+            <span>apps/api/src/services/hhqFormPromotion.ts</span><span>apps/api/src/services/pregnancyEnrollmentPromotion.ts</span><span>apps/api/src/services/eventProcessor.ts</span><span>apps/api/src/services/projectionReplay.ts</span><span>apps/api/src/services/taskWriter.ts</span><span>packages/event-core/src/formSubmissionTriggers.ts</span>
+          </div>
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-xl border border-slate-200 p-4 bg-stone-50">
+              <p class="module-label mb-3">Before · shallow modules</p>
+              <div class="space-y-2 text-sm">
+                <div class="thin-module">Form Submission trigger</div>
+                <div class="text-center leak">↓ promotion writes projection</div>
+                <div class="thin-module">HHQ / PEF promotion modules</div>
+                <div class="text-center leak">↓ task writes split out</div>
+                <div class="thin-module">Task writer</div>
+                <div class="text-center leak">↓ replay reconstructs differently</div>
+                <div class="thin-module">Projection replay</div>
+              </div>
+            </div>
+            <div class="rounded-xl border border-slate-200 p-4 bg-stone-50">
+              <p class="module-label mb-3">After · deeper module</p>
+              <div class="fat-module deepbox min-h-[260px] flex flex-col justify-between">
+                <div>
+                  <div class="text-xs uppercase tracking-wider text-slate-300">Accepted Event Applicator</div>
+                  <div class="text-2xl font-semibold mt-3">one seam for append, project, tasks, flags, replay</div>
+                </div>
+                <div class="grid grid-cols-2 gap-2 text-xs text-slate-200">
+                  <div class="rounded bg-white/10 p-2">event row</div><div class="rounded bg-white/10 p-2">projection</div><div class="rounded bg-white/10 p-2">Task</div><div class="rounded bg-white/10 p-2">Workflow Issue</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <p><span class="font-semibold">Problem:</span> Understanding one accepted Form Submission requires bouncing between promotion, event persistence, projection writes, Task writes, data-quality flags, and replay.</p>
+          <p><span class="font-semibold">Solution:</span> Concentrate accepted-event application behind one backend module while keeping event-core pure and Postgres as an adapter.</p>
+          <ul class="grid sm:grid-cols-3 gap-2 text-sm">
+            <li class="rounded bg-emerald-50 p-2">locality: replay matches apply</li><li class="rounded bg-emerald-50 p-2">leverage: one test surface</li><li class="rounded bg-emerald-50 p-2">interface shrinks</li>
+          </ul>
+        </article>
+
+        <article id="expo-task-store" class="rounded-2xl bg-white border border-slate-200 shadow-sm p-6 space-y-5">
+          <div class="flex flex-wrap items-center gap-3">
+            <h2 class="text-2xl font-semibold">2. Make the Expo Task store a real adapter seam</h2>
+            <span class="rounded-full bg-emerald-100 text-emerald-800 px-3 py-1 text-xs font-semibold">Strong</span>
+            <span class="rounded-full bg-amber-100 text-amber-800 px-3 py-1 text-xs font-semibold">local-substitutable</span>
+          </div>
+          <div class="text-sm font-mono text-slate-600 grid md:grid-cols-2 gap-1">
+            <span>expo-prototype/src/modules/tasks/taskSchema.js</span><span>expo-prototype/src/modules/tasks/taskRepository.js</span><span>expo-prototype/src/modules/questionnaires/questionnaireSubmissionRepository.js</span><span>expo-prototype/src/shims/expo-sqlite.web.js</span><span>expo-prototype/src/tests/validateQuestionnaireSubmissionWorkflow.mjs</span>
+          </div>
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-xl border border-slate-200 p-4 bg-stone-50">
+              <p class="module-label mb-3">Before · adapters disagree</p>
+              <div class="grid grid-cols-2 gap-3 text-sm">
+                <div class="thin-module h-52 flex flex-col justify-between"><b>web fallback</b><span>raw Task object</span><span class="text-emerald-700">keeps source_event_id</span><span class="text-emerald-700">keeps generation_source</span></div>
+                <div class="thin-module h-52 flex flex-col justify-between"><b>native SQLite</b><span>fixed columns</span><span class="leak">drops source_event_id</span><span class="leak">drops generation_source</span></div>
+              </div>
+            </div>
+            <div class="rounded-xl border border-slate-200 p-4 bg-stone-50">
+              <p class="module-label mb-3">After · one store interface</p>
+              <div class="space-y-4">
+                <div class="deepbox rounded-xl p-4 text-center">Task Store module<br/><span class="text-slate-300 text-sm">Task provenance is part of the interface</span></div>
+                <div class="seam-line"></div>
+                <div class="grid grid-cols-2 gap-3 text-sm"><div class="thin-module text-center">SQLite adapter</div><div class="thin-module text-center">web/test adapter</div></div>
+              </div>
+            </div>
+          </div>
+          <p><span class="font-semibold">Problem:</span> Tests pass through a web adapter that preserves Task provenance, while the native adapter can lose it.</p>
+          <p><span class="font-semibold">Solution:</span> Deepen the Task Store module so all adapters preserve the same Task interface and tests cross that seam.</p>
+          <ul class="grid sm:grid-cols-3 gap-2 text-sm"><li class="rounded bg-emerald-50 p-2">locality: adapter drift exposed</li><li class="rounded bg-emerald-50 p-2">leverage: same tests hit both</li><li class="rounded bg-emerald-50 p-2">real seam: two adapters</li></ul>
+        </article>
+
+        <article id="finalized-evidence-ingestor" class="rounded-2xl bg-white border border-slate-200 shadow-sm p-6 space-y-5">
+          <div class="flex flex-wrap items-center gap-3">
+            <h2 class="text-2xl font-semibold">3. Deepen backend Finalized Response ingest</h2>
+            <span class="rounded-full bg-emerald-100 text-emerald-800 px-3 py-1 text-xs font-semibold">Strong</span>
+            <span class="rounded-full bg-slate-100 text-slate-700 px-3 py-1 text-xs font-semibold">in-process</span>
+          </div>
+          <div class="text-sm font-mono text-slate-600 grid md:grid-cols-2 gap-1"><span>apps/api/src/routes/sync.ts</span><span>apps/api/src/services/eventProcessor.ts</span><span>apps/api/src/lib/areaScope.ts</span><span>apps/api/src/services/taskWriter.ts</span></div>
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-xl border border-slate-200 bg-white p-4">
+              <pre class="mermaid">flowchart TB
+  Route[Sync route adapter] --> Scope[area scope]
+  Route --> Dedupe[idempotency]
+  Route --> Evidence[insert Form Submission]
+  Route --> Promote[processFormResponse]
+  Route --> Complete[mark Task completed]
+  Route --> Summary[sync accounting]
+  classDef leak fill:#fee2e2,stroke:#dc2626,color:#7f1d1d;
+  class Route,Complete leak;
+              </pre>
+            </div>
+            <div class="rounded-xl border border-slate-200 bg-white p-4">
+              <pre class="mermaid">flowchart TB
+  Route[Sync route adapter] -. seam .-> Ingest[Deep Finalized Response ingest module]
+  Ingest --> Evidence[immutable Form Submission]
+  Ingest --> Event[accepted event or Workflow Issue]
+  Ingest --> Task[Task effect]
+  Ingest --> Result[settlement result]
+  classDef deep fill:#0f172a,stroke:#0f172a,color:#fff;
+  class Ingest deep;
+              </pre>
+            </div>
+          </div>
+          <p><span class="font-semibold">Problem:</span> The sync route adapter knows too much about evidence, dedupe, scope, event processing, Task completion, and settlement.</p>
+          <p><span class="font-semibold">Solution:</span> Move Finalized Response ingest into a deep module so the route adapter handles transport and auth only.</p>
+          <ul class="grid sm:grid-cols-3 gap-2 text-sm"><li class="rounded bg-emerald-50 p-2">locality: ingest bugs concentrate</li><li class="rounded bg-emerald-50 p-2">leverage: route tests shrink</li><li class="rounded bg-emerald-50 p-2">interface is test surface</li></ul>
+        </article>
+
+        <article id="review-resolution-engine" class="rounded-2xl bg-white border border-slate-200 shadow-sm p-6 space-y-5">
+          <div class="flex flex-wrap items-center gap-3">
+            <h2 class="text-2xl font-semibold">4. Add an Issue resolution module</h2>
+            <span class="rounded-full bg-amber-100 text-amber-800 px-3 py-1 text-xs font-semibold">Worth exploring</span>
+            <span class="rounded-full bg-slate-100 text-slate-700 px-3 py-1 text-xs font-semibold">ports & adapters</span>
+          </div>
+          <div class="text-sm font-mono text-slate-600 grid md:grid-cols-2 gap-1"><span>apps/api/src/routes/corrections.ts</span><span>apps/api/src/routes/data-quality.ts</span><span>apps/admin/src/pages/DataQualityPage.tsx</span><span>docs/adr/0003-issues-resolutions-and-correction-events.md</span></div>
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-xl border border-slate-200 p-4 bg-stone-50"><p class="module-label mb-3">Before · route-local correction</p><div class="mass h-56"><div class="iface rounded flex items-center justify-center text-xs text-red-900">route<br/>interface</div><div class="impl rounded p-3 text-sm flex flex-col justify-around"><span>auth</span><span>field old/new</span><span>write correction row</span><span>write Correction Event row</span><span>direct projection edit</span></div></div></div>
+            <div class="rounded-xl border border-slate-200 p-4 bg-stone-50"><p class="module-label mb-3">After · decision module</p><div class="deepbox rounded-xl p-5 h-56 flex flex-col justify-between"><div><b>Issue Resolution module</b><br/><span class="text-slate-300 text-sm">Approved Resolution → Correction Event → recalculation</span></div><div class="grid grid-cols-2 gap-2 text-xs"><span class="rounded bg-white/10 p-2">Form Submission status</span><span class="rounded bg-white/10 p-2">Issue Status</span><span class="rounded bg-white/10 p-2">Correction Event</span><span class="rounded bg-white/10 p-2">Correction/Revisit Task</span></div></div></div>
+          </div>
+          <p><span class="font-semibold">Problem:</span> The code still has direct correction routes and data-quality flags, while the domain model now has Issues, Resolution Proposals, Approved Resolutions, and Correction Events.</p>
+          <p><span class="font-semibold">Solution:</span> Create one deep module for Issue decisions and keep admin routes as adapters.</p>
+          <ul class="grid sm:grid-cols-3 gap-2 text-sm"><li class="rounded bg-emerald-50 p-2">locality: ADR rules concentrate</li><li class="rounded bg-emerald-50 p-2">leverage: central review scenarios</li><li class="rounded bg-emerald-50 p-2">prevents direct edits</li></ul>
+          <div class="rounded-lg bg-amber-50 border border-amber-200 p-3 text-sm text-amber-900">ADR-aligned: supports ADR-0001 through ADR-0004 instead of contradicting them.</div>
+        </article>
+
+        <article id="task-generation" class="rounded-2xl bg-white border border-slate-200 shadow-sm p-6 space-y-5">
+          <div class="flex flex-wrap items-center gap-3"><h2 class="text-2xl font-semibold">5. Deepen Task generation rules</h2><span class="rounded-full bg-amber-100 text-amber-800 px-3 py-1 text-xs font-semibold">Worth exploring</span><span class="rounded-full bg-slate-100 text-slate-700 px-3 py-1 text-xs font-semibold">in-process</span></div>
+          <div class="text-sm font-mono text-slate-600 grid md:grid-cols-2 gap-1"><span>packages/shared-workflow/src/schedule-rules.ts</span><span>packages/event-core/src/events/householdBaselineConfirmed.ts</span><span>packages/event-core/src/events/pregnancyEnrolled.ts</span><span>packages/event-core/src/events/birthAssessmentCompleted.ts</span><span>packages/event-core/src/events/workflowHelpers.ts</span></div>
+          <div class="grid md:grid-cols-2 gap-4"><div class="rounded-xl border border-slate-200 p-4 bg-white"><pre class="mermaid">flowchart LR
+  Dates[schedule rules] --> E1[HHQ event module]
+  Dates --> E2[PEF event module]
+  Dates --> E3[BAF event module]
+  H[workflow helpers] --> E1
+  H --> E2
+  H --> E3
+  E1 --> T[TaskDescriptor]
+  E2 --> T
+  E3 --> T
+              </pre></div><div class="rounded-xl border border-slate-200 p-4 bg-stone-50"><div class="deepbox rounded-xl p-5 min-h-[250px]"><div class="text-xs uppercase tracking-wider text-slate-300">Protocol Task module</div><div class="text-2xl font-semibold mt-3">date math + key + mode + attempts + availability</div><div class="mt-8 grid grid-cols-2 gap-2 text-xs text-slate-200"><span class="rounded bg-white/10 p-2">HRF</span><span class="rounded bg-white/10 p-2">PFF</span><span class="rounded bg-white/10 p-2">NFF</span><span class="rounded bg-white/10 p-2">VA</span></div></div></div></div>
+          <p><span class="font-semibold">Problem:</span> Shared workflow is deep for date math but shallow for the domain term Task; Task construction leaks across event modules.</p>
+          <p><span class="font-semibold">Solution:</span> Put Task key, windows, mode rules, attempts, availability, and action state behind one Task generation module.</p>
+          <ul class="grid sm:grid-cols-3 gap-2 text-sm"><li class="rounded bg-emerald-50 p-2">locality: Task policy lives once</li><li class="rounded bg-emerald-50 p-2">leverage: event modules simplify</li><li class="rounded bg-emerald-50 p-2">tests hit Task interface</li></ul>
+        </article>
+
+        <article id="workflow-orchestration" class="rounded-2xl bg-white border border-slate-200 shadow-sm p-6 space-y-5">
+          <div class="flex flex-wrap items-center gap-3"><h2 class="text-2xl font-semibold">6. Collapse the duplicate workflow orchestration seam</h2><span class="rounded-full bg-slate-100 text-slate-700 px-3 py-1 text-xs font-semibold">Speculative</span><span class="rounded-full bg-slate-100 text-slate-700 px-3 py-1 text-xs font-semibold">in-process</span></div>
+          <div class="text-sm font-mono text-slate-600 grid md:grid-cols-2 gap-1"><span>packages/event-core/src/workflow-orchestration.ts</span><span>packages/event-core/src/events/index.ts</span><span>packages/event-core/src/__tests__/index.test.ts</span></div>
+          <div class="grid md:grid-cols-2 gap-4"><div class="rounded-xl border border-slate-200 p-4 bg-stone-50"><p class="module-label mb-3">Before · two interfaces</p><div class="space-y-3"><div class="thin-module">event modules expose planWorkflow</div><div class="thin-module">workflow orchestration dispatches two event types</div><div class="thin-module leak">parity test compares both</div></div></div><div class="rounded-xl border border-slate-200 p-4 bg-stone-50"><p class="module-label mb-3">After · one external seam</p><div class="deepbox rounded-xl p-5 h-48 flex items-center justify-center text-center">one workflow decision module<br/><span class="text-slate-300 text-sm">or registry only, not both</span></div></div></div>
+          <p><span class="font-semibold">Problem:</span> Two workflow interfaces represent the same rule surface, and one covers fewer event types.</p>
+          <p><span class="font-semibold">Solution:</span> Either deepen orchestration into the only external seam or delete it and route callers through the event registry.</p>
+          <ul class="grid sm:grid-cols-3 gap-2 text-sm"><li class="rounded bg-emerald-50 p-2">deletion test likely passes</li><li class="rounded bg-emerald-50 p-2">locality: fewer parity tests</li><li class="rounded bg-emerald-50 p-2">interface stops duplicating</li></ul>
+        </article>
+      </section>
+
+      <section id="top-recommendation" class="rounded-2xl bg-slate-900 text-white p-7 space-y-3">
+        <p class="text-xs uppercase tracking-wider text-slate-300">Top recommendation</p>
+        <h2 class="text-2xl font-semibold"><a href="#accepted-event-applicator" class="underline decoration-slate-500">Deepen accepted event application</a></h2>
+        <p class="text-slate-200 max-w-3xl">Tackle this first because it concentrates the highest-friction seam: Form Submission promotion, event persistence, projection replay, Task generation, and Workflow Issue pressure. It also gives the Issue Resolution module a clean place to attach Correction Events later.</p>
+      </section>
+    </main>
+  </body>
+</html>

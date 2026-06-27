@@ -13,7 +13,9 @@ Replay detail lives in `session-log-archive.md`.
 
 Before backend schema, sync, event/replay, Expo offline workflow, task scheduling, questionnaire routing, or admin correction changes, read:
 
-- [Architecture](docs/architecture.md) - single agreed system architecture.
+- [Domain glossary](CONTEXT.md) - canonical DYNAMIC vocabulary. Keep it as glossary only; implementation rules belong in architecture/policy docs.
+- [Architecture decisions](docs/adr/) - short decision records explaining why key domain and architecture choices were made.
+- [Architecture](docs/architecture.md) - single agreed system architecture; start with [Core Model](docs/architecture.md#core-model), [Event And Workflow Direction](docs/architecture.md#event-and-workflow-direction), and [Tasks And Scheduling](docs/architecture.md#tasks-and-scheduling) for domain architecture.
 - [Cohort and identity policy](docs/policies/cohort-and-identity.md).
 - [Form lifecycle and sync policy](docs/policies/form-lifecycle-and-sync.md).
 - [Form drafts and autosave policy](docs/policies/form-drafts-and-autosave.md).

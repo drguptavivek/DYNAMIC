@@ -59,6 +59,8 @@ Expo may derive provisional local state from finalized evidence:
 
 Local projections are provisional until backend confirmation.
 
+Correction/revisit form submissions are different from ordinary protocol submissions. They are still Form Submissions, but they stay linked to their Issue until backend/admin review. They do not create Correction Events offline and do not rewrite local authoritative workflow before central approval.
+
 ## Push
 
 Push sends evidence and event records:
@@ -92,6 +94,8 @@ Backend ingest must:
 | `invalid_rejected` | Fails scope, structure, protocol, or form-version validation. Does not promote. |
 | `held_for_review` | Conflicts with current state or needs admin review. Does not silently disappear. |
 
+Held, rejected, duplicate, or conflicting submissions that need human handling create or update Issues. Issue resolution rules live in [Admin corrections and data quality](admin-corrections-and-data-quality.md).
+
 ## Pull Reconciliation
 
 Backend is authoritative after sync.
@@ -103,6 +107,7 @@ Rules:
 - If backend has newer accepted evidence or approved correction, backend projection can replace local projection.
 - If local has newer unsynced finalized evidence, keep it active for offline routing until sync resolves.
 - Reconcile by stable response IDs, task keys, event IDs, server commit sequence, and provenance.
+- After sync, local Task Worklists collapse to the authoritative current Tasks. Superseded or withdrawn provisional work remains visible through Form Submission, Issue, and event history rather than as actionable current work.
 
 ## Time
 

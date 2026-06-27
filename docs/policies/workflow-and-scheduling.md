@@ -144,6 +144,8 @@ Rules:
 - After the configured failed-attempt limit, ask for final close reason. Do not auto-close.
 - Disabled tasks cannot be opened, completed, or closed by field users.
 
+Correction/revisit Tasks are Tasks created from Issues or Approved Resolutions. They share the same Task Worklist as protocol Tasks, but completion returns a new Form Submission to the Issue review flow. Completion does not automatically supersede prior Form Submissions or create Correction Events without central approval.
+
 ## Track End Events
 
 Certain events end active tracks and cancel future uncompleted tasks:
