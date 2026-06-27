@@ -5,13 +5,8 @@ import type {
   HouseholdProjection,
 } from "../types";
 import type { BaseEventInput, EventPromotionResult } from "./types";
+import { generateHouseholdBaselineTaskDescriptors } from "../task-generation/household";
 import {
-  buildTaskKey,
-  generateHrfSchedule,
-  getAttemptDisposition,
-  getConfig,
-  getFormAvailability,
-  getModeRule,
   noWorkflowForHeldEvent,
   type ProtocolConfig,
   type TaskDescriptor,
@@ -79,48 +74,13 @@ export function planWorkflow(input: {
   config?: ProtocolConfig;
 }): TaskDescriptor[] {
   if (noWorkflowForHeldEvent(input.event)) return [];
-  const config = getConfig(input.config);
   const payload = input.event.payload;
-  const modeRule = getModeRule(config, "HRF");
-  const disposition = getAttemptDisposition(config, "HRF");
-  const availability = getFormAvailability(config, "HRF");
-
-  return generateHrfSchedule({
-    baseline_completed_date: payload.baseline_date,
-    study_end_date: config.study_end_date,
-    rules_version: config.rules_version,
-  }).map((schedule) => ({
-    task_key: buildTaskKey(
-      payload.household_id,
-      "household",
-      payload.household_id,
-      "HRF",
-      schedule.label,
-      schedule.target_date,
-      config.rules_version,
-    ),
+  return generateHouseholdBaselineTaskDescriptors({
     household_id: payload.household_id,
-    subject_type: "household",
-    subject_id: payload.household_id,
-    task_type: "HRF",
-    form_code: "HRF",
-    protocol_visit_label: schedule.label,
-    generation_source: "scheduled",
     source_event_id: input.event.event_id,
-    anchor_date: payload.baseline_date,
-    window_start: schedule.window_start,
-    target_date: schedule.target_date,
-    deadline_date: schedule.deadline,
-    default_expected_mode: modeRule.default_mode,
-    allowed_modes: modeRule.allowed_modes,
-    mode_rule_strength: modeRule.strength,
-    max_failed_attempts: disposition.max_failed_attempts,
-    requires_final_close_reason: disposition.requires_final_close_reason,
-    rules_version: config.rules_version,
-    form_availability: availability.availability,
-    action_state: "pending",
-    disabled_reason: availability.disabled_reason,
-  }));
+    baseline_date: payload.baseline_date,
+    config: input.config,
+  });
 }
 
 export function promoteEvidence(

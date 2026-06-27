@@ -3,6 +3,8 @@ export * from "./helpers";
 export * from "./household-projection";
 export * from "./pregnancy-projection";
 export * from "./task-lifecycle";
+export * from "./task-generation";
+export * from "./workflow-decision";
 export * from "./workflow-orchestration";
 export * from "./events";
 export * from "./formSubmissionTriggers";

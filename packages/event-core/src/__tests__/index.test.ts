@@ -8,6 +8,7 @@ import {
   reduceHouseholdProjectionEvents,
   reducePregnancyProjection,
   reducePregnancyProjectionEvents,
+  decideWorkflowForEvent,
   orchestrateWorkflowForEvent,
 } from "../index";
 import {
@@ -111,6 +112,29 @@ const workflowProjection: HouseholdProjection = {
   rules_version: "v1",
   projection_version: 2,
 };
+
+const eligibleWomanEvent = {
+  event_id: "evt-eligible-woman-1",
+  event_type: "eligible_woman_identified",
+  event_version: 1,
+  aggregate_type: "woman",
+  aggregate_id: "woman-900",
+  site_id: 1,
+  locality_code: "LC-01",
+  household_id: "hh-900",
+  subject_type: "woman",
+  subject_id: "woman-900",
+  event_date: "2026-09-01",
+  recorded_at: "2026-09-01T08:05:00.000Z",
+  rules_version: "v1",
+  payload: {
+    household_id: "hh-900",
+    woman_id: "woman-900",
+    eligibility_start_date: "2026-09-01",
+  },
+  apply_status: "applied",
+  source_response_id: "resp-baseline-900",
+} as const;
 
 const pregnancyEnrolledEvent = {
   event_id: "evt-pregnancy-enrolled-1",
@@ -581,6 +605,43 @@ describe("event-core pregnancy projection reducer", () => {
 });
 
 describe("event-core workflow orchestration", () => {
+  test("household Workflow Decision generates deterministic task descriptors for backend and Expo callers", () => {
+    const backendDecision = decideWorkflowForEvent({
+      event: workflowEvent,
+      household_projection: workflowProjection,
+      config: DEFAULT_PROTOCOL_CONFIG,
+      rules_version: "v1",
+    });
+    const expoDecision = decideWorkflowForEvent({
+      event: workflowEvent,
+      household_projection: workflowProjection,
+      config: DEFAULT_PROTOCOL_CONFIG,
+      rules_version: "v1",
+    });
+
+    expect(backendDecision).toEqual(expoDecision);
+    expect(backendDecision.decisions).toHaveLength(1);
+    expect(backendDecision.decisions[0].kind).toBe("tasks_generated");
+    expect(
+      backendDecision.decisions[0].task_descriptors.every((task: TaskDescriptor) =>
+        task.task_key.endsWith(`|${task.target_date}|v1`),
+      ),
+    ).toBe(true);
+    expect(
+      backendDecision.decisions[0].task_descriptors.every((task: TaskDescriptor) => (
+        task.household_id === workflowProjection.household_id &&
+        task.subject_type === "household" &&
+        task.subject_id === workflowProjection.household_id &&
+        task.task_type === "HRF" &&
+        task.form_code === "HRF" &&
+        task.generation_source === "scheduled" &&
+        task.source_event_id === workflowEvent.event_id &&
+        task.anchor_date === workflowProjection.baseline_date &&
+        task.rules_version === "v1"
+      )),
+    ).toBe(true);
+  });
+
   test("household_baseline_confirmed orchestration task keys match owning event module output", () => {
     const directEvent = householdBaselineConfirmed.buildEvent({
       event_id: workflowEvent.event_id,
@@ -613,6 +674,56 @@ describe("event-core workflow orchestration", () => {
     ).toEqual(
       directTasks.map((task) => task.task_key),
     );
+  });
+
+  test("eligible woman Workflow Decision generates deterministic WQ task descriptors", () => {
+    const decision = decideWorkflowForEvent({
+      event: eligibleWomanEvent,
+      config: DEFAULT_PROTOCOL_CONFIG,
+      rules_version: "v1",
+    });
+
+    expect(decision.decisions).toHaveLength(1);
+    expect(decision.decisions[0].kind).toBe("tasks_generated");
+    expect(decision.decisions[0].task_descriptors).toEqual([
+      expect.objectContaining({
+        task_key: "hh-900|person|woman-900|WQ|baseline|2026-09-01|v1",
+        household_id: "hh-900",
+        subject_type: "person",
+        subject_id: "woman-900",
+        woman_id: "woman-900",
+        task_type: "WQ",
+        form_code: "WQ",
+        protocol_visit_label: "baseline",
+        generation_source: "event_triggered",
+        source_event_id: "evt-eligible-woman-1",
+        anchor_date: "2026-09-01",
+        target_date: "2026-09-01",
+        rules_version: "v1",
+      }),
+    ]);
+  });
+
+  test("held household Workflow Decision suppresses task descriptors", () => {
+    const decision = decideWorkflowForEvent({
+      event: {
+        ...workflowEvent,
+        event_id: "evt-workflow-held",
+        apply_status: "held_duplicate",
+      },
+      household_projection: workflowProjection,
+      config: DEFAULT_PROTOCOL_CONFIG,
+      rules_version: "v1",
+    });
+
+    expect(decision.decisions).toEqual([
+      {
+        kind: "tasks_suppressed",
+        source_event_id: "evt-workflow-held",
+        task_descriptors: [],
+        reason: "held_duplicate",
+      },
+    ]);
   });
 
   test("local and backend callers produce the same orchestration result", () => {

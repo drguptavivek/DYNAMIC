@@ -1,7 +1,7 @@
 import type { DomainEventEnvelope } from "../types";
 import type { BaseEventInput, EventPromotionResult } from "./types";
-import { buildTaskKey, getAttemptDisposition, getConfig, getFormAvailability, getModeRule, type ProtocolConfig, type TaskDescriptor } from "./workflowHelpers";
-import { addDays, parseISODate, toISODate } from "@dynamic/shared-workflow";
+import { generateEligibleWomanWqTaskDescriptors } from "../task-generation/household";
+import { noWorkflowForHeldEvent, type ProtocolConfig, type TaskDescriptor } from "./workflowHelpers";
 
 export const EVENT_TYPE = "eligible_woman_identified";
 
@@ -53,40 +53,15 @@ export function reduceEvent(): null {
 }
 
 export function planWorkflow(input: { event: DomainEventEnvelope<EligibleWomanIdentifiedPayload>; config?: ProtocolConfig }): TaskDescriptor[] {
-  if (input.event.apply_status !== "applied") return [];
-  const config = getConfig(input.config);
+  if (noWorkflowForHeldEvent(input.event)) return [];
   const payload = input.event.payload;
-  const scheduleRule = config.task_schedule_rules.find((rule) => rule.task_type === "WQ");
-  const modeRule = getModeRule(config, "WQ");
-  const disposition = getAttemptDisposition(config, "WQ");
-  const availability = getFormAvailability(config, "WQ");
-  const target = parseISODate(payload.eligibility_start_date);
-
-  return [{
-    task_key: buildTaskKey(payload.household_id, "person", payload.woman_id, "WQ", "baseline", payload.eligibility_start_date, config.rules_version),
+  return generateEligibleWomanWqTaskDescriptors({
     household_id: payload.household_id,
-    subject_type: "person",
-    subject_id: payload.woman_id,
     woman_id: payload.woman_id,
-    task_type: "WQ",
-    form_code: "WQ",
-    protocol_visit_label: "baseline",
-    generation_source: "event_triggered",
+    eligibility_start_date: payload.eligibility_start_date,
     source_event_id: input.event.event_id,
-    anchor_date: payload.eligibility_start_date,
-    window_start: toISODate(addDays(target, -(scheduleRule?.window_days_before || 0))),
-    target_date: payload.eligibility_start_date,
-    deadline_date: toISODate(addDays(target, scheduleRule?.window_days_after || 30)),
-    default_expected_mode: modeRule.default_mode,
-    allowed_modes: modeRule.allowed_modes,
-    mode_rule_strength: modeRule.strength,
-    max_failed_attempts: disposition.max_failed_attempts,
-    requires_final_close_reason: disposition.requires_final_close_reason,
-    rules_version: config.rules_version,
-    form_availability: availability.availability,
-    action_state: availability.availability === "available" ? "enabled" : "disabled",
-    disabled_reason: availability.disabled_reason,
-  }];
+    config: input.config,
+  });
 }
 
 export function promoteEvidence(input: EligibleWomanIdentifiedEventInput & { config?: ProtocolConfig }): EventPromotionResult<EligibleWomanIdentifiedPayload> {
