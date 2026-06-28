@@ -5,13 +5,8 @@ import type {
   PregnancyProjection,
 } from "../types";
 import type { BaseEventInput, EventPromotionResult } from "./types";
+import { generatePregnancyEnrollmentTaskDescriptors } from "../task-generation/pregnancy";
 import {
-  buildTaskKey,
-  generatePffSchedule,
-  getAttemptDisposition,
-  getConfig,
-  getFormAvailability,
-  getModeRule,
   noWorkflowForHeldEvent,
   type ProtocolConfig,
   type TaskDescriptor,
@@ -80,101 +75,16 @@ export function planWorkflow(input: {
   config?: ProtocolConfig;
 }): TaskDescriptor[] {
   if (noWorkflowForHeldEvent(input.event)) return [];
-  const config = getConfig(input.config);
   const payload = input.event.payload;
-  const tasks: TaskDescriptor[] = [];
-  const pffModeRule = getModeRule(config, "PFF");
-  const pffDisposition = getAttemptDisposition(config, "PFF");
-  const pffAvailability = getFormAvailability(config, "PFF");
-
-  generatePffSchedule({
+  return generatePregnancyEnrollmentTaskDescriptors({
+    household_id: payload.household_id,
+    pregnancy_id: payload.pregnancy_id,
+    woman_id: payload.woman_id,
     enrollment_date: payload.enrollment_date,
-    study_end_date: config.study_end_date,
-    rules_version: config.rules_version,
-  }).forEach((schedule) => {
-    tasks.push({
-      task_key: buildTaskKey(
-        payload.household_id,
-        "pregnancy",
-        payload.pregnancy_id,
-        "PFF",
-        schedule.label,
-        schedule.target_date,
-        config.rules_version,
-      ),
-      household_id: payload.household_id,
-      subject_type: "pregnancy",
-      subject_id: payload.pregnancy_id,
-      woman_id: payload.woman_id,
-      pregnancy_id: payload.pregnancy_id,
-      task_type: "PFF",
-      form_code: "PFF",
-      protocol_visit_label: schedule.label,
-      generation_source: "scheduled",
-      source_event_id: input.event.event_id,
-      anchor_date: payload.enrollment_date,
-      window_start: schedule.window_start,
-      target_date: schedule.target_date,
-      deadline_date: schedule.deadline,
-      default_expected_mode: pffModeRule.default_mode,
-      allowed_modes: pffModeRule.allowed_modes,
-      mode_rule_strength: pffModeRule.strength,
-      max_failed_attempts: pffDisposition.max_failed_attempts,
-      requires_final_close_reason: pffDisposition.requires_final_close_reason,
-      rules_version: config.rules_version,
-      form_availability: pffAvailability.availability,
-      action_state: "pending",
-      disabled_reason: pffAvailability.disabled_reason,
-    });
+    usg_available: payload.usg_available,
+    source_event_id: input.event.event_id,
+    config: input.config,
   });
-
-  if (payload.usg_available) {
-    const ufModeRule = getModeRule(config, "UF");
-    const ufDisposition = getAttemptDisposition(config, "UF");
-    const ufAvailability = getFormAvailability(config, "UF");
-    const deadlineDate = new Date(
-      new Date(payload.enrollment_date + "T00:00:00Z").getTime() + 14 * 24 * 60 * 60 * 1000,
-    )
-      .toISOString()
-      .split("T")[0];
-
-    tasks.push({
-      task_key: buildTaskKey(
-        payload.household_id,
-        "pregnancy",
-        payload.pregnancy_id,
-        "UF",
-        "UF-pregnancy-enrolled",
-        payload.enrollment_date,
-        config.rules_version,
-      ),
-      household_id: payload.household_id,
-      subject_type: "pregnancy",
-      subject_id: payload.pregnancy_id,
-      woman_id: payload.woman_id,
-      pregnancy_id: payload.pregnancy_id,
-      task_type: "UF",
-      form_code: "UF",
-      protocol_visit_label: "UF-pregnancy-enrolled",
-      generation_source: "event_triggered",
-      source_event_id: input.event.event_id,
-      anchor_date: payload.enrollment_date,
-      window_start: payload.enrollment_date,
-      target_date: payload.enrollment_date,
-      deadline_date: deadlineDate,
-      default_expected_mode: ufModeRule.default_mode,
-      allowed_modes: ufModeRule.allowed_modes,
-      mode_rule_strength: ufModeRule.strength,
-      max_failed_attempts: ufDisposition.max_failed_attempts,
-      requires_final_close_reason: ufDisposition.requires_final_close_reason,
-      rules_version: config.rules_version,
-      form_availability: ufAvailability.availability,
-      action_state: "pending",
-      disabled_reason: ufAvailability.disabled_reason,
-    });
-  }
-
-  return tasks;
 }
 
 export function promoteEvidence(

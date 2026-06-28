@@ -164,6 +164,34 @@ const pregnancyEnrolledEvent = {
   source_task_id: "task-pef-1",
 } as const;
 
+const pregnancyOutcomeEvent = {
+  event_id: "evt-pregnancy-outcome-1",
+  event_type: "pregnancy_outcome_recorded",
+  event_version: 1,
+  aggregate_type: "pregnancy",
+  aggregate_id: "preg-001",
+  site_id: 1,
+  locality_code: "LC-01",
+  household_id: "hh-001",
+  subject_type: "pregnancy",
+  subject_id: "preg-001",
+  event_date: "2027-01-10",
+  recorded_at: "2027-01-10T08:00:00.000Z",
+  rules_version: "v1",
+  payload: {
+    pregnancy_id: "preg-001",
+    woman_id: "woman-001",
+    household_id: "hh-001",
+    outcome_date: "2027-01-10",
+    outcome_type: "live_birth",
+    live_birth_count: 2,
+    stillbirth_count: 0,
+  },
+  apply_status: "applied",
+  source_response_id: "resp-pof-1",
+  source_task_id: "task-pof-1",
+} as const;
+
 const pregnancyHeldDuplicateEvent = {
   ...pregnancyEnrolledEvent,
   event_id: "evt-pregnancy-enrolled-duplicate",
@@ -783,6 +811,82 @@ describe("event-core workflow orchestration", () => {
         (task) => task.anchor_date === "2026-10-10",
       ),
     ).toBe(true);
+  });
+
+  test("pregnancy Workflow Decision generates deterministic PFF and UF task descriptors", () => {
+    const decision = decideWorkflowForEvent({
+      event: pregnancyEnrolledEvent,
+      pregnancy_projection: pregnancyWorkflowProjection,
+      config: DEFAULT_PROTOCOL_CONFIG,
+      rules_version: "v1",
+    });
+
+    const tasks = decision.decisions[0].task_descriptors;
+    const pffTask = tasks.find((task) => task.task_type === "PFF");
+    const ufTask = tasks.find((task) => task.task_type === "UF");
+
+    expect(pffTask).toEqual(expect.objectContaining({
+      task_key: "hh-001|pregnancy|preg-001|PFF|PFF-M1|2026-11-10|v1",
+      household_id: "hh-001",
+      subject_type: "pregnancy",
+      subject_id: "preg-001",
+      woman_id: "woman-001",
+      pregnancy_id: "preg-001",
+      task_type: "PFF",
+      form_code: "PFF",
+      protocol_visit_label: "PFF-M1",
+      generation_source: "scheduled",
+      source_event_id: "evt-pregnancy-enrolled-1",
+      anchor_date: "2026-10-10",
+      target_date: "2026-11-10",
+      rules_version: "v1",
+    }));
+    expect(ufTask).toEqual(expect.objectContaining({
+      task_key: "hh-001|pregnancy|preg-001|UF|UF-pregnancy-enrolled|2026-10-10|v1",
+      household_id: "hh-001",
+      subject_type: "pregnancy",
+      subject_id: "preg-001",
+      woman_id: "woman-001",
+      pregnancy_id: "preg-001",
+      task_type: "UF",
+      form_code: "UF",
+      protocol_visit_label: "UF-pregnancy-enrolled",
+      generation_source: "event_triggered",
+      source_event_id: "evt-pregnancy-enrolled-1",
+      anchor_date: "2026-10-10",
+      target_date: "2026-10-10",
+      deadline_date: "2026-10-24",
+      rules_version: "v1",
+    }));
+  });
+
+  test("pregnancy outcome Workflow Decision generates deterministic BAF task descriptors", () => {
+    const decision = decideWorkflowForEvent({
+      event: pregnancyOutcomeEvent,
+      config: DEFAULT_PROTOCOL_CONFIG,
+      rules_version: "v1",
+    });
+
+    expect(decision.decisions).toHaveLength(1);
+    expect(decision.decisions[0].kind).toBe("tasks_generated");
+    expect(decision.decisions[0].task_descriptors).toHaveLength(2);
+    expect(decision.decisions[0].task_descriptors).toEqual([
+      expect.objectContaining({
+        task_key: "hh-001|pregnancy|preg-001|BAF|BAF-birth-1|2027-01-10|v1",
+        task_type: "BAF",
+        form_code: "BAF",
+        protocol_visit_label: "BAF-birth-1",
+        generation_source: "event_triggered",
+        source_event_id: "evt-pregnancy-outcome-1",
+        anchor_date: "2027-01-10",
+        target_date: "2027-01-10",
+        deadline_date: "2027-01-17",
+      }),
+      expect.objectContaining({
+        task_key: "hh-001|pregnancy|preg-001|BAF|BAF-birth-2|2027-01-10|v1",
+        protocol_visit_label: "BAF-birth-2",
+      }),
+    ]);
   });
 
   test("pregnancy_enrolled missing projection returns no tasks and a workflow_projection_missing flag", () => {

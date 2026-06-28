@@ -4,14 +4,17 @@ import {
 import type {
   DomainEventEnvelope,
   PregnancyEnrolledPayload,
+  PregnancyOutcomeRecordedPayload,
 } from "../types";
-import {
-  pregnancyEnrolled,
-} from "../events";
 import { decideEligibleWomanWorkflow, decideHouseholdWorkflow } from "./household";
+import {
+  decidePregnancyEnrollmentWorkflow,
+  decidePregnancyOutcomeWorkflow,
+} from "./pregnancy";
 import type { WorkflowDecisionInput, WorkflowDecisionResult } from "./types";
 
 export * from "./household";
+export * from "./pregnancy";
 export * from "./types";
 
 function buildResult(
@@ -54,43 +57,17 @@ export function decideWorkflowForEvent(
         config,
       });
     case "pregnancy_enrolled": {
-      const projection = input.pregnancy_projection ?? null;
-      if (!projection?.pregnancy_id || !projection.enrollment_date) {
-        return buildResult([], [
-          {
-            flag_type: "workflow_projection_missing",
-            source_event_id: input.event.event_id,
-            message: "pregnancy projection required for pregnancy_enrolled workflow generation",
-          },
-        ]);
-      }
-
-      return buildResult(
-        [
-          {
-            kind: "tasks_generated",
-            source_event_id: input.event.event_id,
-            task_descriptors: pregnancyEnrolled.planWorkflow({
-              event: {
-                ...input.event,
-                event_type: "pregnancy_enrolled",
-                payload: {
-                  pregnancy_id: projection.pregnancy_id,
-                  woman_id: projection.woman_id,
-                  household_member_id: projection.household_member_id,
-                  household_id: projection.household_id,
-                  enrollment_date: projection.enrollment_date,
-                  pregnancy_status: projection.pregnancy_status,
-                  usg_available: projection.usg_available,
-                },
-              } as DomainEventEnvelope<PregnancyEnrolledPayload>,
-              config,
-            }),
-          },
-        ],
-        [],
-      );
+      return decidePregnancyEnrollmentWorkflow({
+        event: input.event as unknown as DomainEventEnvelope<PregnancyEnrolledPayload>,
+        pregnancy_projection: input.pregnancy_projection,
+        config,
+      });
     }
+    case "pregnancy_outcome_recorded":
+      return decidePregnancyOutcomeWorkflow({
+        event: input.event as unknown as DomainEventEnvelope<PregnancyOutcomeRecordedPayload>,
+        config,
+      });
     default:
       return buildResult([], []);
   }
