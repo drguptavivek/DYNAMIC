@@ -8,6 +8,57 @@ import {
   getModeRule,
 } from "./shared";
 
+export interface PregnancyDetectedTaskGenerationInput {
+  household_id: string;
+  woman_id: string;
+  detected_date: string;
+  source_event_id: string;
+  config?: ProtocolConfig;
+}
+
+export function generatePregnancyDetectedTaskDescriptors(
+  input: PregnancyDetectedTaskGenerationInput,
+): TaskDescriptor[] {
+  const config = getConfig(input.config);
+  const modeRule = getModeRule(config, "PEF");
+  const disposition = getAttemptDisposition(config, "PEF");
+  const availability = getFormAvailability(config, "PEF");
+
+  return [{
+    task_key: buildTaskKey(
+      input.household_id,
+      "woman",
+      input.woman_id,
+      "PEF",
+      "PEF-pregnancy-detected",
+      input.detected_date,
+      config.rules_version,
+    ),
+    household_id: input.household_id,
+    subject_type: "woman",
+    subject_id: input.woman_id,
+    woman_id: input.woman_id,
+    task_type: "PEF",
+    form_code: "PEF",
+    protocol_visit_label: "PEF-pregnancy-detected",
+    generation_source: "event_triggered",
+    source_event_id: input.source_event_id,
+    anchor_date: input.detected_date,
+    window_start: input.detected_date,
+    target_date: input.detected_date,
+    deadline_date: addDaysIso(input.detected_date, 14),
+    default_expected_mode: modeRule.default_mode,
+    allowed_modes: modeRule.allowed_modes,
+    mode_rule_strength: modeRule.strength,
+    max_failed_attempts: disposition.max_failed_attempts,
+    requires_final_close_reason: disposition.requires_final_close_reason,
+    rules_version: config.rules_version,
+    form_availability: availability.availability,
+    action_state: "pending",
+    disabled_reason: availability.disabled_reason,
+  }];
+}
+
 export interface PregnancyEnrollmentTaskGenerationInput {
   household_id: string;
   pregnancy_id: string;
