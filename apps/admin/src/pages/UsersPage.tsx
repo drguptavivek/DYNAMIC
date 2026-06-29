@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { api } from "../lib/api";
+import type { UserRole } from "../lib/auth-context";
 import styles from "./UsersPage.module.css";
 
 interface User {
@@ -7,7 +8,7 @@ interface User {
   username: string;
   display_name?: string;
   email?: string;
-  role: "field_worker" | "field_supervisor" | "site_research_scientist" | "central_admin";
+  role: UserRole;
   site_id?: number;
   active: boolean;
   created_at?: string;
@@ -40,7 +41,21 @@ const ROLES = [
   "field_supervisor",
   "site_research_scientist",
   "central_admin",
+  "site_data_manager",
+  "central_data_manager",
+  "us_collaborator",
 ] as const;
+
+interface CreateUserFormData extends Partial<User> {
+  password: string;
+  confirm_password: string;
+  staff_full_name: string;
+  staff_designation: string;
+  staff_country: string;
+  institution_name: string;
+  institution_country: string;
+  institution_type: string;
+}
 
 export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
@@ -128,12 +143,19 @@ export default function UsersPage() {
     }
   }
 
-  async function handleCreateUser(
-    formData: Partial<User> & { password: string; confirm_password: string },
-  ) {
+  async function handleCreateUser(formData: CreateUserFormData) {
     try {
       if (formData.password !== formData.confirm_password) {
         throw new Error("Passwords do not match");
+      }
+      if (!formData.staff_full_name.trim()) {
+        throw new Error("Staff full name is required");
+      }
+      if (!formData.staff_designation.trim()) {
+        throw new Error("Staff designation is required");
+      }
+      if (!formData.institution_name.trim()) {
+        throw new Error("Institution name is required");
       }
       await api.post("/users", {
         username: formData.username,
@@ -142,6 +164,17 @@ export default function UsersPage() {
         role: formData.role,
         site_id: formData.site_id,
         password: formData.password,
+        staff: {
+          full_name: formData.staff_full_name,
+          email: formData.email,
+          designation: formData.staff_designation,
+          country: formData.staff_country || "India",
+          institution: {
+            institution_name: formData.institution_name,
+            country: formData.institution_country || formData.staff_country || "India",
+            institution_type: formData.institution_type || "study_site",
+          },
+        },
       });
       setShowCreateModal(false);
       loadUsers();
@@ -159,7 +192,7 @@ export default function UsersPage() {
         role: formData.role,
         site_id: formData.site_id,
         active: formData.active,
-        ...(formData.new_password && { new_password: formData.new_password }),
+        ...(formData.new_password && { password: formData.new_password }),
       });
       setEditingUser(null);
       loadUsers();
@@ -352,6 +385,12 @@ function CreateUserModal({
     email: "",
     role: "field_worker",
     site_id: "",
+    staff_full_name: "",
+    staff_designation: "Field Worker",
+    staff_country: "India",
+    institution_name: "",
+    institution_country: "India",
+    institution_type: "study_site",
     password: "",
     confirm_password: "",
   });
@@ -416,7 +455,14 @@ function CreateUserModal({
             <label>Role *</label>
             <select
               value={formData.role}
-              onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  role: e.target.value,
+                  staff_designation:
+                    formData.staff_designation || e.target.value.replace(/_/g, " "),
+                })
+              }
               required
             >
               {ROLES.map((role) => (
@@ -434,6 +480,66 @@ function CreateUserModal({
               value={formData.site_id}
               onChange={(e) => setFormData({ ...formData, site_id: e.target.value })}
             />
+          </div>
+
+          <div className={styles.formGroup}>
+            <label>Staff Full Name *</label>
+            <input
+              type="text"
+              value={formData.staff_full_name}
+              onChange={(e) => setFormData({ ...formData, staff_full_name: e.target.value })}
+              required
+            />
+          </div>
+
+          <div className={styles.formGroup}>
+            <label>Designation *</label>
+            <input
+              type="text"
+              value={formData.staff_designation}
+              onChange={(e) => setFormData({ ...formData, staff_designation: e.target.value })}
+              required
+            />
+          </div>
+
+          <div className={styles.formGroup}>
+            <label>Staff Country</label>
+            <input
+              type="text"
+              value={formData.staff_country}
+              onChange={(e) => setFormData({ ...formData, staff_country: e.target.value })}
+            />
+          </div>
+
+          <div className={styles.formGroup}>
+            <label>Institution Name *</label>
+            <input
+              type="text"
+              value={formData.institution_name}
+              onChange={(e) => setFormData({ ...formData, institution_name: e.target.value })}
+              required
+            />
+          </div>
+
+          <div className={styles.formGroup}>
+            <label>Institution Country</label>
+            <input
+              type="text"
+              value={formData.institution_country}
+              onChange={(e) => setFormData({ ...formData, institution_country: e.target.value })}
+            />
+          </div>
+
+          <div className={styles.formGroup}>
+            <label>Institution Type</label>
+            <select
+              value={formData.institution_type}
+              onChange={(e) => setFormData({ ...formData, institution_type: e.target.value })}
+            >
+              <option value="study_site">Study Site</option>
+              <option value="coordinating_center">Coordinating Center</option>
+              <option value="collaborator">Collaborator</option>
+            </select>
           </div>
 
           <div className={styles.formGroup}>

@@ -7,6 +7,9 @@ const ROLE_COLORS: Record<string, string> = {
   site_research_scientist: "blue",
   field_supervisor: "green",
   field_worker: "gray",
+  site_data_manager: "teal",
+  central_data_manager: "indigo",
+  us_collaborator: "orange",
 };
 
 export default function Layout() {

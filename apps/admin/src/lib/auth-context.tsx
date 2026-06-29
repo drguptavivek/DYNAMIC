@@ -5,9 +5,18 @@ export interface AuthUser {
   user_id: string;
   username: string;
   display_name?: string;
-  role: "field_worker" | "field_supervisor" | "site_research_scientist" | "central_admin";
+  role: UserRole;
   site_id?: number;
 }
+
+export type UserRole =
+  | "field_worker"
+  | "field_supervisor"
+  | "site_research_scientist"
+  | "central_admin"
+  | "site_data_manager"
+  | "central_data_manager"
+  | "us_collaborator";
 
 interface AuthContextValue {
   user: AuthUser | null;
