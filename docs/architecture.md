@@ -20,7 +20,7 @@ If code and this document disagree, do not silently follow either. Treat it as a
 
 | Surface | Role |
 | --- | --- |
-| `expo-prototype` | Offline-first field app. Stores local tasks, drafts, Finalized CRFs, Provisional Study Events/projections, and sync state. |
+| `expo` | Offline-first field app. Stores local tasks, drafts, Finalized CRFs, Provisional Study Events/projections, and sync state. |
 | `apps/api` | Authoritative backend. Authenticates users, enforces area scope, ingests finalized evidence, classifies events, updates projections, writes tasks, and serves sync/admin APIs. |
 | `apps/admin` | Central review/admin UI for tasks, data quality, corrections, users, masters, and operational monitoring. |
 | `packages/event-core` | Shared event/reducer kernel. Backend and Expo should converge here for field-originated domain behavior. |

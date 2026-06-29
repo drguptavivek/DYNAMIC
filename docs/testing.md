@@ -36,10 +36,10 @@ npm --workspace @dynamic/event-core test
 npm --workspace @dynamic/event-core run typecheck
 ```
 
-Expo prototype tests:
+Expo tests:
 
 ```bash
-npm --workspace expo-prototype test
+npm --workspace expo test
 ```
 
 HHQ backend integration on full-push test DB:
@@ -53,8 +53,8 @@ TEST_DATABASE_URL=postgresql://dynamic:dynamic_dev_password@localhost:55432/dyna
 
 - API-only service/lib changes: API unit tests and API typecheck.
 - `packages/event-core` changes: event-core tests/typecheck plus affected API/Expo tests.
-- Form-submission trigger changes: event-core tests/typecheck, API tests/typecheck, and Expo prototype tests. These changes must preserve backend/Expo parity and offline submit with zero network calls.
-- Expo local workflow or questionnaire behavior changes: `npm --workspace expo-prototype test`.
+- Form-submission trigger changes: event-core tests/typecheck, API tests/typecheck, and Expo tests. These changes must preserve backend/Expo parity and offline submit with zero network calls.
+- Expo local workflow or questionnaire behavior changes: `npm --workspace expo test`.
 - Sync, HHQ ingest/replay, or DB shape changes: dev DB order plus HHQ backend integration.
 - UI-affecting changes: run the relevant tests and verify in the browser/app path.
 

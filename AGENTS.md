@@ -59,7 +59,7 @@ Do not create new active policy docs under `docs/superpowers/`. If a Superpower 
 
 - Run the smallest relevant test/typecheck set for the files changed.
 - Use `make db-reset-full && make db-smoke` after DB/schema/runtime changes.
-- Common checks: `npm --workspace @dynamic/api test`, `npm --workspace @dynamic/api run typecheck`, `npm --workspace @dynamic/event-core test`, `npm --workspace expo-prototype test`.
+- Common checks: `npm --workspace @dynamic/api test`, `npm --workspace @dynamic/api run typecheck`, `npm --workspace @dynamic/event-core test`, `npm --workspace expo test`.
 - Detailed command sets and DB push caveats live in [Testing](docs/testing.md).
 
 ## Document Tooling

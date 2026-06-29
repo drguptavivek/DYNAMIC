@@ -27,8 +27,8 @@ export type FormWithJson = FormMetadata & {
 export type FormVersionManifestEntry = Pick<FormMetadata, "form_code" | "version" | "checksum">;
 
 const FORM_DIR_CANDIDATES = [
-  path.resolve(process.cwd(), "expo-prototype/src/data/forms"),
-  path.resolve(process.cwd(), "../../expo-prototype/src/data/forms"),
+  path.resolve(process.cwd(), "expo/src/data/forms"),
+  path.resolve(process.cwd(), "../../expo/src/data/forms"),
 ];
 
 function getFormDirectory(): string {

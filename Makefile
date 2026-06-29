@@ -244,7 +244,7 @@ bacedn-up: backend-up
 bacedn-restart: backend-restart
 
 expo-up:
-	npm --workspace expo-prototype run web
+	npm --workspace expo run web
 
 expo-stop:
 	@pids="$$(lsof -ti tcp:$(EXPO_PORT) -sTCP:LISTEN || true)"; \

@@ -24,10 +24,10 @@ test("HHQ offline submission creates local WQ workflow, syncs backend, and pulls
   const { db, schema } = await import("./db");
   const { smokeUser, upsertDevSeed } = await import("./dev/dev-seed");
   const { rebuildHhqHouseholdProjection, rebuildPregnancyProjection } = await import("./services/eventProcessor");
-  // @ts-ignore Expo prototype modules are JavaScript and intentionally imported by this e2e.
-  const { saveQuestionnaireSubmission } = await import("../../../expo-prototype/src/modules/questionnaires/questionnaireSubmissionRepository.js");
-  // @ts-ignore Expo prototype modules are JavaScript and intentionally imported by this e2e.
-  const { buildPushRecords } = await import("../../../expo-prototype/src/modules/sync/syncWorkflow.js");
+  // @ts-ignore Expo modules are JavaScript and intentionally imported by this e2e.
+  const { saveQuestionnaireSubmission } = await import("../../../expo/src/modules/questionnaires/questionnaireSubmissionRepository.js");
+  // @ts-ignore Expo modules are JavaScript and intentionally imported by this e2e.
+  const { buildPushRecords } = await import("../../../expo/src/modules/sync/syncWorkflow.js");
 
   await upsertDevSeed();
   await db

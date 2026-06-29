@@ -181,8 +181,8 @@ export function QuestionnaireDashboard({
       taskId: taskContext?.id,
       subjectType: taskContext?.subject_type,
       subjectId: taskContext?.subject_id,
-      deviceId: user?.device_id || "prototype-device",
-      userId: user?.user_id || user?.id || user?.username || "prototype-user",
+      deviceId: user?.device_id || "dev-device",
+      userId: user?.user_id || user?.id || user?.username || "dev-user",
     };
   }, [form, taskContext, user]);
 
@@ -359,7 +359,7 @@ export function QuestionnaireDashboard({
         payload: sender.data,
         taskId: taskContext?.id,
         taskContext,
-        deviceId: user?.device_id || "prototype-device",
+        deviceId: user?.device_id || "dev-device",
       });
       if (draftIdRef.current) {
         await markQuestionnaireDraftSubmitted({

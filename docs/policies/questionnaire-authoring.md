@@ -43,7 +43,7 @@ Do question-by-question PDF comparison before questionnaire JSON changes.
 
 After questionnaire JSON changes:
 
-1. Update `expo-prototype/src/data/forms/`.
+1. Update `expo/src/data/forms/`.
 2. Rebuild `outputs/pretsing-form-json/all_forms.json` if the extraction output changed.
-3. Run `npm --workspace expo-prototype test`.
+3. Run `npm --workspace expo test`.
 4. Browser-check UI-affecting changes.

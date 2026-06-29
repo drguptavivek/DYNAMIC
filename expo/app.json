@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "DYNAMIC Survey Prototype",
-    "slug": "dynamic-survey-prototype",
+    "name": "DYNAMIC Field App",
+    "slug": "dynamic-field-app",
     "version": "0.1.0",
     "orientation": "portrait",
     "platforms": [
