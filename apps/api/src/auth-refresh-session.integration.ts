@@ -65,6 +65,11 @@ test("refresh tokens rotate and logout revokes the active refresh session", asyn
       body: JSON.stringify({ refresh_token: rotated.refresh_token }),
     });
     assert.equal(afterLogout.status, 401);
+
+    const oldAccessAfterLogout = await fetch(`${baseUrl}/users/me`, {
+      headers: { Authorization: `Bearer ${rotated.access_token}` },
+    });
+    assert.equal(oldAccessAfterLogout.status, 401);
   } finally {
     await new Promise<void>((resolve, reject) => {
       server.close((error) => (error ? reject(error) : resolve()));

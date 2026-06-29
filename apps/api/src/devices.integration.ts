@@ -15,7 +15,7 @@ test("device self-registration allows the active user to reuse a device", async 
 
   const { createApp } = await import("./app");
   const { db, schema } = await import("./db");
-  const { signAccessToken } = await import("./lib/jwt");
+  const { createSessionBackedAccessToken } = await import("./test-helpers/session-token");
 
   const deviceId = `device-${randomUUID()}`;
   const firstUserId = `user-${randomUUID()}`;
@@ -61,7 +61,7 @@ test("device self-registration allows the active user to reuse a device", async 
     const address = server.address();
     assert.ok(address && typeof address === "object");
 
-    const secondUserToken = signAccessToken({
+    const secondUserToken = await createSessionBackedAccessToken({
       sub: secondUserId,
       username: secondUserId,
       role: "field_worker",
@@ -104,7 +104,7 @@ test("site admin can assign devices only within their site", async () => {
 
   const { createApp } = await import("./app");
   const { db, schema } = await import("./db");
-  const { signAccessToken } = await import("./lib/jwt");
+  const { createSessionBackedAccessToken } = await import("./test-helpers/session-token");
 
   const siteAdminId = `site-admin-${randomUUID()}`;
   const ownSiteUserId = `site-user-${randomUUID()}`;
@@ -153,7 +153,7 @@ test("site admin can assign devices only within their site", async () => {
   try {
     const address = server.address();
     assert.ok(address && typeof address === "object");
-    const token = signAccessToken({
+    const token = await createSessionBackedAccessToken({
       sub: siteAdminId,
       username: siteAdminId,
       role: "site_research_scientist",

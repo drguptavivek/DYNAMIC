@@ -14,7 +14,7 @@ test("field worker household list is intersected with active area assignments", 
 
   const { createApp } = await import("./app");
   const { db, schema } = await import("./db");
-  const { signAccessToken } = await import("./lib/jwt");
+  const { createSessionBackedAccessToken } = await import("./test-helpers/session-token");
 
   const userId = `scope-user-${randomUUID()}`;
   const outOfScopeHouseholdId = `1-DEV002-${randomUUID().slice(0, 4)}-01`;
@@ -87,7 +87,7 @@ test("field worker household list is intersected with active area assignments", 
   try {
     const address = server.address();
     assert.ok(address && typeof address === "object");
-    const token = signAccessToken({
+    const token = await createSessionBackedAccessToken({
       sub: userId,
       username: userId,
       role: "field_worker",

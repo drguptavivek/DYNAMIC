@@ -14,7 +14,7 @@ test("children list filters locality through household locality", async () => {
 
   const { createApp } = await import("./app");
   const { db, schema } = await import("./db");
-  const { signAccessToken } = await import("./lib/jwt");
+  const { createSessionBackedAccessToken } = await import("./test-helpers/session-token");
   const { upsertDevSeed } = await import("./dev/dev-seed");
 
   await upsertDevSeed();
@@ -89,7 +89,7 @@ test("children list filters locality through household locality", async () => {
     const address = server.address();
     assert.ok(address && typeof address === "object");
 
-    const token = signAccessToken({
+    const token = await createSessionBackedAccessToken({
       sub: "dev-field-worker",
       username: "dev-field-worker",
       role: "field_worker",

@@ -154,7 +154,7 @@ async function resolveSyncPushUser(
  * GET /api/v1/sync/time
  * Return backend time and measured device/server delta for sync drift checks.
  */
-router.get("/time", requireAuth, async (req: Request, res: Response) => {
+router.get("/time", async (req: Request, res: Response) => {
   const deviceTimeUtc = req.query.device_time_utc;
   sendSuccess(res, {
     clock: buildSyncClockMetadata(typeof deviceTimeUtc === "string" ? deviceTimeUtc : undefined),

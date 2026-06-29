@@ -216,7 +216,7 @@ test("site admin creates users only within their own site", async () => {
 
   const { createApp } = await import("./app");
   const { db, schema } = await import("./db");
-  const { signAccessToken } = await import("./lib/jwt");
+  const { createSessionBackedAccessToken } = await import("./test-helpers/session-token");
   const { upsertDevSeed } = await import("./dev/dev-seed");
 
   await upsertDevSeed();
@@ -245,7 +245,7 @@ test("site admin creates users only within their own site", async () => {
       updated_at: new Date(),
     });
 
-    const authorization = `Bearer ${signAccessToken({
+    const authorization = `Bearer ${await createSessionBackedAccessToken({
       sub: siteAdminId,
       username: siteAdminId,
       role: "site_research_scientist",
@@ -317,6 +317,9 @@ test("site admin creates users only within their own site", async () => {
     if (createdInstitutionId) {
       await db.delete(schema.institutions).where(eq(schema.institutions.institution_id, createdInstitutionId));
     }
+    await db
+      .delete(schema.refreshTokenSessions)
+      .where(eq(schema.refreshTokenSessions.user_id, siteAdminId));
     await db.delete(schema.users).where(eq(schema.users.user_id, siteAdminId));
     await new Promise<void>((resolve, reject) => {
       server.close((error) => (error ? reject(error) : resolve()));

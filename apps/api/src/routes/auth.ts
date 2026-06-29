@@ -8,6 +8,7 @@ import { requireAuth } from "../middleware/auth";
 import { authRateLimit } from "../middleware/rateLimit";
 import { sendError, sendSuccess } from "../lib/errors";
 import { JwtPayload, signAccessToken, signRefreshToken, verifyToken } from "../lib/jwt";
+import { markAccessSessionActive, markAccessSessionRevoked } from "../lib/tokenSessionCache";
 
 const router = Router();
 
@@ -56,6 +57,7 @@ async function createRefreshSession(userId: string, tokenPayload: TokenSubjectPa
     expires_at: new Date(now.getTime() + REFRESH_TOKEN_TTL_MS),
     created_at: now,
   });
+  await markAccessSessionActive(sessionId, new Date(now.getTime() + REFRESH_TOKEN_TTL_MS));
 
   return { sessionId, refreshToken };
 }
@@ -86,6 +88,8 @@ async function rotateRefreshSession(
       })
       .where(eq(schema.refreshTokenSessions.session_id, previousSessionId));
   });
+  await markAccessSessionRevoked(previousSessionId);
+  await markAccessSessionActive(sessionId, new Date(now.getTime() + REFRESH_TOKEN_TTL_MS));
 
   return { sessionId, refreshToken };
 }
@@ -118,8 +122,8 @@ router.post("/login", authRateLimit, async (req: Request, res: Response) => {
 
     const tokenPayload = buildTokenPayload(user);
 
-    const accessToken = signAccessToken(tokenPayload);
-    const { refreshToken } = await createRefreshSession(user.user_id, tokenPayload);
+    const { sessionId, refreshToken } = await createRefreshSession(user.user_id, tokenPayload);
+    const accessToken = signAccessToken(tokenPayload, sessionId);
 
     sendSuccess(res, {
       access_token: accessToken,
@@ -205,12 +209,12 @@ router.post("/refresh", authRateLimit, async (req: Request, res: Response) => {
 
     const tokenPayload = buildTokenPayload(user);
 
-    const newAccessToken = signAccessToken(tokenPayload);
-    const { refreshToken } = await rotateRefreshSession(
+    const { sessionId, refreshToken } = await rotateRefreshSession(
       refreshSession.session_id,
       user.user_id,
       tokenPayload,
     );
+    const newAccessToken = signAccessToken(tokenPayload, sessionId);
 
     sendSuccess(res, {
       access_token: newAccessToken,
@@ -243,6 +247,11 @@ router.post("/logout", requireAuth, async (req: Request, res: Response) => {
       try {
         const payload = verifyToken(parsed.refresh_token, "refresh");
         if (payload.refresh_session_id && payload.sub === req.user?.sub) {
+          const [session] = await db
+            .select({ expires_at: schema.refreshTokenSessions.expires_at })
+            .from(schema.refreshTokenSessions)
+            .where(eq(schema.refreshTokenSessions.session_id, payload.refresh_session_id))
+            .limit(1);
           await db
             .update(schema.refreshTokenSessions)
             .set({ revoked_at: now })
@@ -254,11 +263,24 @@ router.post("/logout", requireAuth, async (req: Request, res: Response) => {
                 isNull(schema.refreshTokenSessions.revoked_at),
               ),
             );
+          await markAccessSessionRevoked(payload.refresh_session_id, session?.expires_at);
         }
       } catch {
         // Logout is idempotent; invalid refresh tokens do not keep the access session alive.
       }
     } else if (req.user?.sub) {
+      const sessions = await db
+        .select({
+          session_id: schema.refreshTokenSessions.session_id,
+          expires_at: schema.refreshTokenSessions.expires_at,
+        })
+        .from(schema.refreshTokenSessions)
+        .where(
+          and(
+            eq(schema.refreshTokenSessions.user_id, req.user.sub),
+            isNull(schema.refreshTokenSessions.revoked_at),
+          ),
+        );
       await db
         .update(schema.refreshTokenSessions)
         .set({ revoked_at: now })
@@ -268,6 +290,9 @@ router.post("/logout", requireAuth, async (req: Request, res: Response) => {
             isNull(schema.refreshTokenSessions.revoked_at),
           ),
         );
+      await Promise.all(
+        sessions.map((session) => markAccessSessionRevoked(session.session_id, session.expires_at)),
+      );
     }
 
     sendSuccess(res, { message: "Logged out successfully" });

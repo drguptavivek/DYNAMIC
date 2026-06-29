@@ -29,6 +29,9 @@ Rules:
 - Authentication secrets must be required in non-dev environments.
 - JWT verification must lock the expected algorithm and token type.
 - Login and refresh endpoints need rate limiting before field deployment.
+- The Expo field app must require local app unlock after login using device biometrics when available, with PIN fallback.
+- App lock protects local cached PII, drafts, finalized local outbox records, and worklists.
+- App lock must not delete or block sync of already finalized local Form Submissions.
 
 ## Tokens
 
@@ -36,16 +39,18 @@ Token policy:
 
 - Access tokens are short-lived.
 - Refresh tokens are longer-lived and must be distinguishable from access tokens.
-- Refresh token use should rotate or otherwise support revocation before production deployment.
-- Logout must invalidate refresh capability before production deployment.
+- Access tokens must carry the server refresh-session id they were issued under.
+- Protected API routes must check access-token session validity against Redis or an in-memory cache, with database fallback on cache miss.
+- Refresh token use rotates the refresh session and revokes the previous session.
+- Logout revokes the active refresh session when a refresh token is supplied, or all active sessions for the user when no refresh token is supplied.
+- Revoked sessions must invalidate both refresh capability and cache-backed access-token authorization.
 - Token payload includes only stable identity/scope fields needed by the API:
   - user id
   - username
   - role
   - site id
   - token type
-
-Current code may have limited logout/rotation behavior; treat that as implementation debt against this policy.
+  - refresh-session id
 
 ## Devices
 

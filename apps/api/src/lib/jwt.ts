@@ -40,8 +40,8 @@ function getJwtSecret(type: JwtTokenType): string {
 
 type TokenSubjectPayload = Omit<JwtPayload, "type" | "refresh_session_id">;
 
-export function signAccessToken(payload: TokenSubjectPayload): string {
-  return jwt.sign({ ...payload, type: "access" }, getJwtSecret("access"), {
+export function signAccessToken(payload: TokenSubjectPayload, refreshSessionId?: string): string {
+  return jwt.sign({ ...payload, type: "access", refresh_session_id: refreshSessionId }, getJwtSecret("access"), {
     algorithm: "HS256",
     expiresIn: "2d",
   });
