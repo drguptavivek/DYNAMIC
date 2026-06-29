@@ -22,7 +22,11 @@ export async function buildAreaScopeCondition(
   user: JwtPayload,
   table: ScopedTable,
 ): Promise<SQL | undefined> {
-  if (user.role === "central_admin") {
+  if (
+    user.role === "central_admin" ||
+    user.role === "central_data_manager" ||
+    user.role === "us_collaborator"
+  ) {
     return undefined;
   }
 
@@ -56,7 +60,11 @@ export async function canAccessLocation(
   siteId: number,
   localityCode: string,
 ): Promise<boolean> {
-  if (user.role === "central_admin") {
+  if (
+    user.role === "central_admin" ||
+    user.role === "central_data_manager" ||
+    user.role === "us_collaborator"
+  ) {
     return true;
   }
 

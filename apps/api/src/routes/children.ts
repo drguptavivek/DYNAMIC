@@ -5,6 +5,7 @@ import { requireAuth } from "../middleware/auth";
 import { sendError, sendSuccess } from "../lib/errors";
 import { getPagination } from "../lib/pagination";
 import { appendAreaScopeCondition } from "../lib/areaScope";
+import { canAccessPii, redactFields } from "../lib/dataAccess";
 
 const router = Router();
 
@@ -150,7 +151,13 @@ router.get("/", requireAuth, async (req: Request, res: Response) => {
         .limit(perPage)
         .offset(offset);
 
-      sendSuccess(res, rows, 200, { total: searchTotal, page, per_page: perPage });
+      const includePii = await canAccessPii(req);
+      sendSuccess(
+        res,
+        includePii ? rows : rows.map((row) => redactFields(row, ["mother_name"])),
+        200,
+        { total: searchTotal, page, per_page: perPage },
+      );
       return;
     }
 
@@ -159,7 +166,13 @@ router.get("/", requireAuth, async (req: Request, res: Response) => {
       .limit(perPage)
       .offset(offset);
 
-    sendSuccess(res, rows, 200, { total, page, per_page: perPage });
+    const includePii = await canAccessPii(req);
+    sendSuccess(
+      res,
+      includePii ? rows : rows.map((row) => redactFields(row, ["mother_name"])),
+      200,
+      { total, page, per_page: perPage },
+    );
   } catch (error) {
     console.error("List children error:", error);
     sendError(res, 500, "INTERNAL_ERROR", "An error occurred");
@@ -221,10 +234,11 @@ router.get("/:id", requireAuth, async (req: Request, res: Response) => {
       .where(eq(schema.followUpTasks.child_id, childId))
       .orderBy(schema.followUpTasks.target_date);
 
+    const includePii = await canAccessPii(req);
     const response = {
       ...child.children,
       pregnancy: pregnancy || null,
-      mother: mother || null,
+      mother: includePii || !mother ? mother || null : redactFields(mother, ["member_name"]),
       tasks,
     };
 

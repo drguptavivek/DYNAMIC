@@ -5,6 +5,7 @@ import { requireAuth } from "../middleware/auth";
 import { sendError, sendSuccess } from "../lib/errors";
 import { getPagination } from "../lib/pagination";
 import { appendAreaScopeCondition } from "../lib/areaScope";
+import { canAccessPii, redactFields } from "../lib/dataAccess";
 
 const router = Router();
 
@@ -87,12 +88,18 @@ async function listHouseholdMembers(req: Request, res: Response, householdIdPara
             .where(inArray(schema.households.household_id, householdIds))
         : [];
     const householdById = new Map(households.map((household) => [household.household_id, household]));
+    const includePii = await canAccessPii(req);
 
     sendSuccess(
       res,
       rows.map((row) => ({
-        ...row,
-        household: householdById.get(row.household_id) || null,
+        ...(includePii ? row : redactFields(row, ["name"])),
+        household: (() => {
+          const household = householdById.get(row.household_id) || null;
+          return includePii || !household
+            ? household
+            : redactFields(household, ["address", "household_head_name"]);
+        })(),
       })),
       200,
       { total, page, per_page: perPage },

@@ -3,6 +3,7 @@ import { eq, and, desc } from "drizzle-orm";
 import { db, schema } from "../db";
 import { requireRole } from "../middleware/auth";
 import { sendError, sendSuccess } from "../lib/errors";
+import { requireDataAccess } from "../lib/dataAccess";
 
 const router = Router();
 
@@ -231,52 +232,60 @@ router.post(
  * GET /api/v1/households/:id/corrections
  * List all corrections for a household
  */
-router.get("/households/:id/corrections", async (req: Request, res: Response) => {
-  try {
-    const householdId = req.params.id;
+router.get(
+  "/households/:id/corrections",
+  requireDataAccess("can_access_admin_audit"),
+  async (req: Request, res: Response) => {
+    try {
+      const householdId = req.params.id;
 
-    const corrections = await db
-      .select()
-      .from(schema.adminCorrections)
-      .where(
-        and(
-          eq(schema.adminCorrections.entity_type, "household"),
-          eq(schema.adminCorrections.entity_id, householdId),
-        ),
-      )
-      .orderBy(desc(schema.adminCorrections.corrected_at));
+      const corrections = await db
+        .select()
+        .from(schema.adminCorrections)
+        .where(
+          and(
+            eq(schema.adminCorrections.entity_type, "household"),
+            eq(schema.adminCorrections.entity_id, householdId),
+          ),
+        )
+        .orderBy(desc(schema.adminCorrections.corrected_at));
 
-    sendSuccess(res, corrections);
-  } catch (error) {
-    console.error("List household corrections error:", error);
-    sendError(res, 500, "INTERNAL_ERROR", "An error occurred");
-  }
-});
+      sendSuccess(res, corrections);
+    } catch (error) {
+      console.error("List household corrections error:", error);
+      sendError(res, 500, "INTERNAL_ERROR", "An error occurred");
+    }
+  },
+);
 
 /**
  * GET /api/v1/members/:id/corrections
  * List all corrections for a member
  */
-router.get("/members/:id/corrections", async (req: Request, res: Response) => {
-  try {
-    const memberId = req.params.id;
+router.get(
+  "/members/:id/corrections",
+  requireDataAccess("can_access_admin_audit"),
+  async (req: Request, res: Response) => {
+    try {
+      const memberId = req.params.id;
 
-    const corrections = await db
-      .select()
-      .from(schema.adminCorrections)
-      .where(
-        and(
-          eq(schema.adminCorrections.entity_type, "member"),
-          eq(schema.adminCorrections.entity_id, memberId),
-        ),
-      )
-      .orderBy(desc(schema.adminCorrections.corrected_at));
+      const corrections = await db
+        .select()
+        .from(schema.adminCorrections)
+        .where(
+          and(
+            eq(schema.adminCorrections.entity_type, "member"),
+            eq(schema.adminCorrections.entity_id, memberId),
+          ),
+        )
+        .orderBy(desc(schema.adminCorrections.corrected_at));
 
-    sendSuccess(res, corrections);
-  } catch (error) {
-    console.error("List member corrections error:", error);
-    sendError(res, 500, "INTERNAL_ERROR", "An error occurred");
-  }
-});
+      sendSuccess(res, corrections);
+    } catch (error) {
+      console.error("List member corrections error:", error);
+      sendError(res, 500, "INTERNAL_ERROR", "An error occurred");
+    }
+  },
+);
 
 export default router;

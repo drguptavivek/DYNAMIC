@@ -16,7 +16,7 @@ test("API smoke flow passes against dynamic_test without a fixed port", async ()
 
   const { createApp } = await import("./app");
   const { db, schema } = await import("./db");
-  const { smokeUser, upsertDevSeed } = await import("./dev/dev-seed");
+  const { smokeUser, upsertDevSeed, usCollaboratorUser } = await import("./dev/dev-seed");
 
   const seedSince = new Date(Date.now() - 1000).toISOString();
   await upsertDevSeed();
@@ -175,6 +175,44 @@ test("API smoke flow passes against dynamic_test without a fixed port", async ()
       .from(schema.followUpTasks)
       .where(eq(schema.followUpTasks.subject_id, promotedWomanMemberId));
     assert.equal(promotedWqTasks.filter((task) => task.task_type === "WQ").length, 1);
+
+    const collaboratorLogin = await fetchData(`${baseUrl}/auth/login`, {
+      method: "POST",
+      body: JSON.stringify({
+        username: usCollaboratorUser.username,
+        password: usCollaboratorUser.password,
+      }),
+    });
+    const collaboratorAuthorization = `Bearer ${collaboratorLogin.access_token}`;
+
+    const collaboratorHouseholds = await fetchData(
+      `${baseUrl}/households?search=${encodeURIComponent(hhqHouseholdId)}`,
+      { headers: { Authorization: collaboratorAuthorization } },
+    );
+    assert.equal(collaboratorHouseholds.length, 1);
+    assert.equal(collaboratorHouseholds[0].household_head_name, null);
+    assert.equal(collaboratorHouseholds[0].address, null);
+    assert.deepEqual(collaboratorHouseholds[0].eligible_women_names, []);
+
+    const collaboratorMembers = await fetchData(`${baseUrl}/households/${hhqHouseholdId}/members`, {
+      headers: { Authorization: collaboratorAuthorization },
+    });
+    assert.equal(collaboratorMembers.length, 2);
+    assert.equal(collaboratorMembers[0].name, null);
+    assert.equal(collaboratorMembers[1].name, null);
+
+    const collaboratorRawResponse = await fetch(`${baseUrl}/form-responses/${hhqResponseId}`, {
+      headers: { Authorization: collaboratorAuthorization },
+    });
+    assert.equal(collaboratorRawResponse.status, 403);
+    assert.equal((await collaboratorRawResponse.json()).error.code, "INSUFFICIENT_DATA_ACCESS");
+
+    const collaboratorSyncPull = await fetch(
+      `${baseUrl}/sync/pull?locality_codes=DEV001&since=${encodeURIComponent(seedSince)}`,
+      { headers: { Authorization: collaboratorAuthorization } },
+    );
+    assert.equal(collaboratorSyncPull.status, 403);
+    assert.equal((await collaboratorSyncPull.json()).error.code, "INSUFFICIENT_DATA_ACCESS");
 
     const failedPromotionResponseId = `failed-pef-${randomUUID()}`;
     const expectedPromotionErrors: unknown[][] = [];

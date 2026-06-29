@@ -99,6 +99,14 @@ Rules:
 - Admin, sync, device, and audit views that expose field worker activity tied to identifiable participants are not US Collaborator surfaces.
 - When in doubt, deny US Collaborator access until a Site Research Scientist or Central Admin confirms the view is non-PII.
 
+Current API enforcement:
+
+- `us_collaborator` and `central_data_manager` have central read scope; `site_data_manager` remains site-scoped.
+- Users without `can_access_pii` receive `null` or empty values for participant names, household head name, household address, mother/member names, date of birth, and derived eligible-woman name arrays.
+- Users without `can_access_raw_crfs` cannot call raw sync or raw CRF detail endpoints.
+- Users without `can_access_admin_audit` cannot read correction history because old/new correction values may contain PII.
+- Raw CRF access is not inferred from dashboard access; it must be explicitly enabled in the user's Data Access Profile.
+
 ## Area Scope
 
 Area scope is enforced server-side.

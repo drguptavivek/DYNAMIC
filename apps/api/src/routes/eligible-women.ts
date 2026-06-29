@@ -5,6 +5,7 @@ import { requireAuth } from "../middleware/auth";
 import { sendError, sendSuccess } from "../lib/errors";
 import { getPagination } from "../lib/pagination";
 import { appendAreaScopeCondition } from "../lib/areaScope";
+import { canAccessPii, redactFields } from "../lib/dataAccess";
 
 const router = Router();
 
@@ -144,11 +145,27 @@ router.get("/", requireAuth, async (req: Request, res: Response) => {
         .limit(perPage)
         .offset(offset);
 
-      sendSuccess(res, searchRows, 200, { total: searchTotal, page, per_page: perPage });
+      const includePii = await canAccessPii(req);
+      sendSuccess(
+        res,
+        includePii
+          ? searchRows
+          : searchRows.map((row) => redactFields(row, ["member_name", "date_of_birth"])),
+        200,
+        { total: searchTotal, page, per_page: perPage },
+      );
       return;
     }
 
-    sendSuccess(res, rows, 200, { total, page, per_page: perPage });
+    const includePii = await canAccessPii(req);
+    sendSuccess(
+      res,
+      includePii
+        ? rows
+        : rows.map((row) => redactFields(row, ["member_name", "date_of_birth"])),
+      200,
+      { total, page, per_page: perPage },
+    );
   } catch (error) {
     console.error("List eligible women error:", error);
     sendError(res, 500, "INTERNAL_ERROR", "An error occurred");
@@ -203,6 +220,16 @@ router.get("/:id", requireAuth, async (req: Request, res: Response) => {
       return;
     }
 
+    const includePii = await canAccessPii(req);
+    const member = {
+      household_member_id: result.member_household_member_id,
+      name: result.member_name,
+      sex: result.member_sex,
+      date_of_birth: result.member_date_of_birth,
+      date_of_birth_precision: result.member_date_of_birth_precision,
+      marital_status: result.member_marital_status,
+      member_status: result.member_status,
+    };
     const response = {
       woman_id: result.woman_id,
       household_member_id: result.household_member_id,
@@ -220,15 +247,7 @@ router.get("/:id", requireAuth, async (req: Request, res: Response) => {
       sync_status: result.sync_status,
       created_at: result.created_at,
       updated_at: result.updated_at,
-      member: {
-        household_member_id: result.member_household_member_id,
-        name: result.member_name,
-        sex: result.member_sex,
-        date_of_birth: result.member_date_of_birth,
-        date_of_birth_precision: result.member_date_of_birth_precision,
-        marital_status: result.member_marital_status,
-        member_status: result.member_status,
-      },
+      member: includePii ? member : redactFields(member, ["name", "date_of_birth"]),
     };
 
     sendSuccess(res, response);

@@ -4,6 +4,7 @@ import { db, schema } from "../db";
 import { sendError, sendSuccess } from "../lib/errors";
 import { getPagination } from "../lib/pagination";
 import { appendAreaScopeCondition } from "../lib/areaScope";
+import { requireDataAccess } from "../lib/dataAccess";
 
 const router = Router();
 
@@ -83,7 +84,7 @@ router.get("/", async (req: Request, res: Response) => {
  * GET /api/v1/form-responses/:id
  * Get full form response with task summary
  */
-router.get("/:id", async (req: Request, res: Response) => {
+router.get("/:id", requireDataAccess("can_access_raw_crfs"), async (req: Request, res: Response) => {
   try {
     const responseId = req.params.id;
     const conditions = [eq(schema.formResponses.form_response_id, responseId)];

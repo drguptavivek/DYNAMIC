@@ -8,6 +8,7 @@ import { getFormVersionManifest } from "../lib/formCatalog";
 import { buildSyncClockMetadata } from "../lib/syncClock";
 import { appendAreaScopeCondition, canAccessLocation } from "../lib/areaScope";
 import { runWithDb } from "../lib/dbContext";
+import { requireDataAccess } from "../lib/dataAccess";
 
 const router = Router();
 
@@ -125,7 +126,11 @@ router.get("/time", requireAuth, async (req: Request, res: Response) => {
  * GET /api/v1/sync/pull
  * Pull data for offline sync
  */
-router.get("/pull", requireAuth, async (req: Request, res: Response) => {
+router.get(
+  "/pull",
+  requireAuth,
+  requireDataAccess("can_access_raw_crfs"),
+  async (req: Request, res: Response) => {
   try {
     const {
       site_id: siteIdStr,
@@ -363,13 +368,18 @@ router.get("/pull", requireAuth, async (req: Request, res: Response) => {
     console.error("Sync pull error:", error);
     sendError(res, 500, "SYNC_PULL_ERROR", "Error pulling sync data");
   }
-});
+  },
+);
 
 /**
  * POST /api/v1/sync/pull/members
  * Pull household members for a bounded household page.
  */
-router.post("/pull/members", requireAuth, async (req: Request, res: Response) => {
+router.post(
+  "/pull/members",
+  requireAuth,
+  requireDataAccess("can_access_raw_crfs"),
+  async (req: Request, res: Response) => {
   try {
     const householdIds = Array.isArray(req.body?.household_ids)
       ? req.body.household_ids.map((id: unknown) => String(id)).filter(Boolean)
@@ -397,13 +407,18 @@ router.post("/pull/members", requireAuth, async (req: Request, res: Response) =>
     console.error("Sync pull members error:", error);
     sendError(res, 500, "SYNC_PULL_MEMBERS_ERROR", "Error pulling household members");
   }
-});
+  },
+);
 
 /**
  * POST /api/v1/sync/push
  * Push data from device to backend
  */
-router.post("/push", requireAuth, async (req: Request, res: Response) => {
+router.post(
+  "/push",
+  requireAuth,
+  requireDataAccess("can_access_raw_crfs"),
+  async (req: Request, res: Response) => {
   try {
     const { device_id: deviceId, records, client_time_utc: clientTimeUtc } = req.body;
 
@@ -688,6 +703,7 @@ router.post("/push", requireAuth, async (req: Request, res: Response) => {
     console.error("Sync push error:", error);
     sendError(res, 500, "SYNC_PUSH_ERROR", "Error processing sync data");
   }
-});
+  },
+);
 
 export default router;

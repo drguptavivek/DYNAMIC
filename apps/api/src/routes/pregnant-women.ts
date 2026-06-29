@@ -5,6 +5,7 @@ import { requireAuth } from "../middleware/auth";
 import { sendError, sendSuccess } from "../lib/errors";
 import { getPagination } from "../lib/pagination";
 import { appendAreaScopeCondition } from "../lib/areaScope";
+import { canAccessPii, redactFields } from "../lib/dataAccess";
 
 const router = Router();
 
@@ -122,7 +123,15 @@ router.get("/", requireAuth, async (req: Request, res: Response) => {
         .limit(perPage)
         .offset(offset);
 
-      sendSuccess(res, rows, 200, { total: searchTotal, page, per_page: perPage });
+      const includePii = await canAccessPii(req);
+      sendSuccess(
+        res,
+        includePii
+          ? rows
+          : rows.map((row) => redactFields(row, ["member_name", "date_of_birth"])),
+        200,
+        { total: searchTotal, page, per_page: perPage },
+      );
       return;
     }
 
@@ -131,7 +140,15 @@ router.get("/", requireAuth, async (req: Request, res: Response) => {
       .limit(perPage)
       .offset(offset);
 
-    sendSuccess(res, rows, 200, { total, page, per_page: perPage });
+    const includePii = await canAccessPii(req);
+    sendSuccess(
+      res,
+      includePii
+        ? rows
+        : rows.map((row) => redactFields(row, ["member_name", "date_of_birth"])),
+      200,
+      { total, page, per_page: perPage },
+    );
   } catch (error) {
     console.error("List pregnant women error:", error);
     sendError(res, 500, "INTERNAL_ERROR", "An error occurred");
@@ -200,10 +217,11 @@ router.get("/:pregnancy_id", requireAuth, async (req: Request, res: Response) =>
       )
       .orderBy(schema.followUpTasks.target_date);
 
+    const includePii = await canAccessPii(req);
     const response = {
       ...pregnancy,
       woman: woman || null,
-      member: member || null,
+      member: includePii || !member ? member || null : redactFields(member, ["name", "date_of_birth"]),
       ultrasound_records: ultrasoundRecords,
       active_tasks: activeTasks,
     };

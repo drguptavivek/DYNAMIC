@@ -5,6 +5,7 @@ import { requireAuth } from "../middleware/auth";
 import { sendError, sendSuccess } from "../lib/errors";
 import { getPagination } from "../lib/pagination";
 import { appendAreaScopeCondition } from "../lib/areaScope";
+import { canAccessPii, redactFields } from "../lib/dataAccess";
 
 const router = Router();
 
@@ -120,15 +121,24 @@ router.get("/", requireAuth, async (req: Request, res: Response) => {
       if (woman.name) names.push(woman.name);
       pregnancyTrackingEligibleByHousehold.set(woman.household_id, names);
     }
+    const includePii = await canAccessPii(req);
 
     sendSuccess(
       res,
-      households.map((household) => ({
-        ...household,
-        eligible_women_names: eligibleWomenByHousehold.get(household.household_id) || [],
-        pregnancy_tracking_eligible_names:
-          pregnancyTrackingEligibleByHousehold.get(household.household_id) || [],
-      })),
+      households.map((household) => {
+        const row = includePii
+          ? household
+          : redactFields(household, ["household_head_name", "address"]);
+        return {
+          ...row,
+          eligible_women_names: includePii
+            ? eligibleWomenByHousehold.get(household.household_id) || []
+            : [],
+          pregnancy_tracking_eligible_names: includePii
+            ? pregnancyTrackingEligibleByHousehold.get(household.household_id) || []
+            : [],
+        };
+      }),
       200,
       { total, page, per_page: perPage },
     );
@@ -159,7 +169,11 @@ router.get("/:id", requireAuth, async (req: Request, res: Response) => {
       return;
     }
 
-    sendSuccess(res, household);
+    const includePii = await canAccessPii(req);
+    sendSuccess(
+      res,
+      includePii ? household : redactFields(household, ["household_head_name", "address"]),
+    );
   } catch (error) {
     console.error("Get household error:", error);
     sendError(res, 500, "INTERNAL_ERROR", "An error occurred");
@@ -193,7 +207,13 @@ router.get("/:id/members", requireAuth, async (req: Request, res: Response) => {
       .where(eq(schema.householdMembers.household_id, householdId))
       .orderBy(schema.householdMembers.member_number);
 
-    sendSuccess(res, members);
+    const includePii = await canAccessPii(req);
+    sendSuccess(
+      res,
+      includePii
+        ? members
+        : members.map((member) => redactFields(member, ["name", "date_of_birth"])),
+    );
   } catch (error) {
     console.error("Get household members error:", error);
     sendError(res, 500, "INTERNAL_ERROR", "An error occurred");

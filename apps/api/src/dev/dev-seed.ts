@@ -1,4 +1,3 @@
-import { and, eq } from "drizzle-orm";
 import { fileURLToPath } from "node:url";
 import { db, schema } from "../db";
 import { hashPassword } from "../lib/password";
@@ -542,20 +541,9 @@ export async function upsertDevSeed() {
       },
     });
 
-  const existingAssignment = await db
-    .select()
-    .from(schema.userAreaAssignments)
-    .where(
-      and(
-        eq(schema.userAreaAssignments.user_id, smokeUser.user_id),
-        eq(schema.userAreaAssignments.site_id, 1),
-        eq(schema.userAreaAssignments.locality_code, "DEV001"),
-      ),
-    )
-    .limit(1);
-
-  if (existingAssignment.length === 0) {
-    await db.insert(schema.userAreaAssignments).values({
+  await db
+    .insert(schema.userAreaAssignments)
+    .values({
       assignment_id: "dev-field-worker-DEV001",
       user_id: smokeUser.user_id,
       site_id: 1,
@@ -564,8 +552,18 @@ export async function upsertDevSeed() {
       active_from: "2026-06-04",
       active_to: null,
       created_at: now,
+    })
+    .onConflictDoUpdate({
+      target: schema.userAreaAssignments.assignment_id,
+      set: {
+        user_id: smokeUser.user_id,
+        site_id: 1,
+        locality_code: "DEV001",
+        role: "field_worker",
+        active_from: "2026-06-04",
+        active_to: null,
+      },
     });
-  }
 
   await db
     .insert(schema.followUpTasks)
