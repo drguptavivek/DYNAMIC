@@ -15,10 +15,31 @@ export const adminUser = {
   password: "dev-admin-password",
 };
 
+export const siteDataManagerUser = {
+  user_id: "dev-site-data-manager",
+  username: "dev-site-data-manager",
+  password: "dev-site-data-manager-password",
+};
+
+export const centralDataManagerUser = {
+  user_id: "dev-central-data-manager",
+  username: "dev-central-data-manager",
+  password: "dev-central-data-manager-password",
+};
+
+export const usCollaboratorUser = {
+  user_id: "dev-us-collaborator",
+  username: "dev-us-collaborator",
+  password: "dev-us-collaborator-password",
+};
+
 export async function upsertDevSeed() {
   const now = new Date();
   const passwordHash = await hashPassword(smokeUser.password);
   const adminPasswordHash = await hashPassword(adminUser.password);
+  const siteDataManagerPasswordHash = await hashPassword(siteDataManagerUser.password);
+  const centralDataManagerPasswordHash = await hashPassword(centralDataManagerUser.password);
+  const usCollaboratorPasswordHash = await hashPassword(usCollaboratorUser.password);
 
   await db
     .insert(schema.studySites)
@@ -164,6 +185,78 @@ export async function upsertDevSeed() {
     });
 
   await db
+    .insert(schema.studyStaffMembers)
+    .values({
+      staff_id: "dev-staff-site-data-manager",
+      institution_id: "dev-institution-india",
+      full_name: "Dev Site Data Manager",
+      designation: "Site Data Manager",
+      country: "India",
+      active: true,
+      created_at: now,
+      updated_at: now,
+    })
+    .onConflictDoUpdate({
+      target: schema.studyStaffMembers.staff_id,
+      set: {
+        institution_id: "dev-institution-india",
+        full_name: "Dev Site Data Manager",
+        designation: "Site Data Manager",
+        country: "India",
+        active: true,
+        updated_at: now,
+      },
+    });
+
+  await db
+    .insert(schema.studyStaffMembers)
+    .values({
+      staff_id: "dev-staff-central-data-manager",
+      institution_id: "dev-institution-india",
+      full_name: "Dev Central Data Manager",
+      designation: "Central Data Manager",
+      country: "India",
+      active: true,
+      created_at: now,
+      updated_at: now,
+    })
+    .onConflictDoUpdate({
+      target: schema.studyStaffMembers.staff_id,
+      set: {
+        institution_id: "dev-institution-india",
+        full_name: "Dev Central Data Manager",
+        designation: "Central Data Manager",
+        country: "India",
+        active: true,
+        updated_at: now,
+      },
+    });
+
+  await db
+    .insert(schema.studyStaffMembers)
+    .values({
+      staff_id: "dev-staff-us-collaborator",
+      institution_id: "dev-institution-us",
+      full_name: "Dev US Collaborator",
+      designation: "US Collaborator",
+      country: "USA",
+      active: true,
+      created_at: now,
+      updated_at: now,
+    })
+    .onConflictDoUpdate({
+      target: schema.studyStaffMembers.staff_id,
+      set: {
+        institution_id: "dev-institution-us",
+        full_name: "Dev US Collaborator",
+        designation: "US Collaborator",
+        country: "USA",
+        active: true,
+        updated_at: now,
+      },
+    });
+
+  await db
     .insert(schema.households)
     .values({
       household_id: "1-DEV001-0001-01",
@@ -240,6 +333,81 @@ export async function upsertDevSeed() {
     });
 
   await db
+    .insert(schema.dataAccessProfiles)
+    .values({
+      profile_id: "dev-profile-site-data-manager",
+      staff_id: "dev-staff-site-data-manager",
+      can_access_pii: true,
+      can_access_raw_crfs: true,
+      can_access_deidentified_exports: true,
+      can_access_aggregate_dashboards: true,
+      can_access_admin_audit: false,
+      created_at: now,
+      updated_at: now,
+    })
+    .onConflictDoUpdate({
+      target: schema.dataAccessProfiles.profile_id,
+      set: {
+        can_access_pii: true,
+        can_access_raw_crfs: true,
+        can_access_deidentified_exports: true,
+        can_access_aggregate_dashboards: true,
+        can_access_admin_audit: false,
+        updated_at: now,
+      },
+    });
+
+  await db
+    .insert(schema.dataAccessProfiles)
+    .values({
+      profile_id: "dev-profile-central-data-manager",
+      staff_id: "dev-staff-central-data-manager",
+      can_access_pii: true,
+      can_access_raw_crfs: true,
+      can_access_deidentified_exports: true,
+      can_access_aggregate_dashboards: true,
+      can_access_admin_audit: false,
+      created_at: now,
+      updated_at: now,
+    })
+    .onConflictDoUpdate({
+      target: schema.dataAccessProfiles.profile_id,
+      set: {
+        can_access_pii: true,
+        can_access_raw_crfs: true,
+        can_access_deidentified_exports: true,
+        can_access_aggregate_dashboards: true,
+        can_access_admin_audit: false,
+        updated_at: now,
+      },
+    });
+
+  await db
+    .insert(schema.dataAccessProfiles)
+    .values({
+      profile_id: "dev-profile-us-collaborator",
+      staff_id: "dev-staff-us-collaborator",
+      can_access_pii: false,
+      can_access_raw_crfs: false,
+      can_access_deidentified_exports: true,
+      can_access_aggregate_dashboards: true,
+      can_access_admin_audit: false,
+      created_at: now,
+      updated_at: now,
+    })
+    .onConflictDoUpdate({
+      target: schema.dataAccessProfiles.profile_id,
+      set: {
+        can_access_pii: false,
+        can_access_raw_crfs: false,
+        can_access_deidentified_exports: true,
+        can_access_aggregate_dashboards: true,
+        can_access_admin_audit: false,
+        updated_at: now,
+      },
+    });
+
+  await db
     .insert(schema.users)
     .values({
       user_id: smokeUser.user_id,
@@ -288,6 +456,87 @@ export async function upsertDevSeed() {
         role: "central_admin",
         site_id: null,
         password_hash: adminPasswordHash,
+        active: true,
+        updated_at: now,
+      },
+    });
+
+  await db
+    .insert(schema.users)
+    .values({
+      user_id: siteDataManagerUser.user_id,
+      staff_id: "dev-staff-site-data-manager",
+      username: siteDataManagerUser.username,
+      display_name: "Dev Site Data Manager",
+      role: "site_data_manager",
+      site_id: 1,
+      password_hash: siteDataManagerPasswordHash,
+      active: true,
+      created_at: now,
+      updated_at: now,
+    })
+    .onConflictDoUpdate({
+      target: schema.users.user_id,
+      set: {
+        staff_id: "dev-staff-site-data-manager",
+        display_name: "Dev Site Data Manager",
+        role: "site_data_manager",
+        site_id: 1,
+        password_hash: siteDataManagerPasswordHash,
+        active: true,
+        updated_at: now,
+      },
+    });
+
+  await db
+    .insert(schema.users)
+    .values({
+      user_id: centralDataManagerUser.user_id,
+      staff_id: "dev-staff-central-data-manager",
+      username: centralDataManagerUser.username,
+      display_name: "Dev Central Data Manager",
+      role: "central_data_manager",
+      site_id: null,
+      password_hash: centralDataManagerPasswordHash,
+      active: true,
+      created_at: now,
+      updated_at: now,
+    })
+    .onConflictDoUpdate({
+      target: schema.users.user_id,
+      set: {
+        staff_id: "dev-staff-central-data-manager",
+        display_name: "Dev Central Data Manager",
+        role: "central_data_manager",
+        site_id: null,
+        password_hash: centralDataManagerPasswordHash,
+        active: true,
+        updated_at: now,
+      },
+    });
+
+  await db
+    .insert(schema.users)
+    .values({
+      user_id: usCollaboratorUser.user_id,
+      staff_id: "dev-staff-us-collaborator",
+      username: usCollaboratorUser.username,
+      display_name: "Dev US Collaborator",
+      role: "us_collaborator",
+      site_id: null,
+      password_hash: usCollaboratorPasswordHash,
+      active: true,
+      created_at: now,
+      updated_at: now,
+    })
+    .onConflictDoUpdate({
+      target: schema.users.user_id,
+      set: {
+        staff_id: "dev-staff-us-collaborator",
+        display_name: "Dev US Collaborator",
+        role: "us_collaborator",
+        site_id: null,
+        password_hash: usCollaboratorPasswordHash,
         active: true,
         updated_at: now,
       },

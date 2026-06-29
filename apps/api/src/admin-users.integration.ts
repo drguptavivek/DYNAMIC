@@ -14,7 +14,8 @@ test("central admin can create, update, assign, and deactivate a user", async ()
 
   const { createApp } = await import("./app");
   const { db, schema } = await import("./db");
-  const { adminUser, upsertDevSeed } = await import("./dev/dev-seed");
+  const { adminUser, centralDataManagerUser, siteDataManagerUser, upsertDevSeed, usCollaboratorUser } =
+    await import("./dev/dev-seed");
 
   await upsertDevSeed();
 
@@ -37,6 +38,34 @@ test("central admin can create, update, assign, and deactivate a user", async ()
       body: JSON.stringify({ username: adminUser.username, password: adminUser.password }),
     });
     const authorization = `Bearer ${login.access_token}`;
+
+    const seededSiteDataManager = await fetchData(`${baseUrl}/users/${siteDataManagerUser.user_id}`, {
+      headers: { Authorization: authorization },
+    });
+    assert.equal(seededSiteDataManager.role, "site_data_manager");
+    assert.equal(seededSiteDataManager.staff.designation, "Site Data Manager");
+    assert.equal(seededSiteDataManager.staff.data_access_profile.can_access_pii, true);
+    assert.equal(seededSiteDataManager.staff.data_access_profile.can_access_raw_crfs, true);
+
+    const seededCentralDataManager = await fetchData(`${baseUrl}/users/${centralDataManagerUser.user_id}`, {
+      headers: { Authorization: authorization },
+    });
+    assert.equal(seededCentralDataManager.role, "central_data_manager");
+    assert.equal(seededCentralDataManager.staff.designation, "Central Data Manager");
+    assert.equal(seededCentralDataManager.staff.data_access_profile.can_access_pii, true);
+    assert.equal(seededCentralDataManager.staff.data_access_profile.can_access_raw_crfs, true);
+
+    const seededUsCollaborator = await fetchData(`${baseUrl}/users/${usCollaboratorUser.user_id}`, {
+      headers: { Authorization: authorization },
+    });
+    assert.equal(seededUsCollaborator.role, "us_collaborator");
+    assert.equal(seededUsCollaborator.staff.designation, "US Collaborator");
+    assert.equal(seededUsCollaborator.staff.institution.country, "USA");
+    assert.equal(seededUsCollaborator.staff.data_access_profile.can_access_pii, false);
+    assert.equal(seededUsCollaborator.staff.data_access_profile.can_access_raw_crfs, false);
+    assert.equal(seededUsCollaborator.staff.data_access_profile.can_access_deidentified_exports, true);
+    assert.equal(seededUsCollaborator.staff.data_access_profile.can_access_aggregate_dashboards, true);
+
     const username = `field-worker-${Date.now()}`;
 
     const createdUser = await fetchData(`${baseUrl}/users`, {
