@@ -24,7 +24,7 @@ const bulkRegisterSchema = z.object({
 
 /**
  * POST /api/v1/devices/register
- * Field worker registers own device
+ * Authenticated user associates the current device with their active session.
  */
 router.post("/register", requireAuth, async (req: Request, res: Response) => {
   try {
@@ -43,21 +43,12 @@ router.post("/register", requireAuth, async (req: Request, res: Response) => {
       .where(eq(schema.devices.device_id, device_id))
       .limit(1);
 
-    if (existingDevice && existingDevice.user_id !== req.user.sub) {
-      sendError(
-        res,
-        409,
-        "DEVICE_ALREADY_REGISTERED",
-        "Device is already registered to another user",
-      );
-      return;
-    }
-
     if (existingDevice) {
       await db
         .update(schema.devices)
         .set({
           device_name: device_name || null,
+          user_id: req.user.sub,
           registered_at: now,
         })
         .where(eq(schema.devices.device_id, device_id));

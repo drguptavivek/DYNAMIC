@@ -8,7 +8,7 @@ const testDatabaseUrl =
   process.env.TEST_DATABASE_URL ??
   "postgresql://dynamic:dynamic_dev_password@localhost:55432/dynamic_test";
 
-test("device self-registration rejects reassignment to a different user", async () => {
+test("device self-registration allows the active user to reuse a device", async () => {
   process.env.DATABASE_URL = testDatabaseUrl;
   process.env.JWT_SECRET = "test_jwt_secret";
   process.env.JWT_REFRESH_SECRET = "test_refresh_secret";
@@ -81,15 +81,15 @@ test("device self-registration rejects reassignment to a different user", async 
     });
     const body = await response.json();
 
-    assert.equal(response.status, 409);
-    assert.equal(body.error.code, "DEVICE_ALREADY_REGISTERED");
+    assert.equal(response.status, 200);
+    assert.equal(body.data.device_id, deviceId);
 
     const [storedDevice] = await db
       .select()
       .from(schema.devices)
       .where(eq(schema.devices.device_id, deviceId));
-    assert.equal(storedDevice.user_id, firstUserId);
-    assert.equal(storedDevice.device_name, "Original device");
+    assert.equal(storedDevice.user_id, secondUserId);
+    assert.equal(storedDevice.device_name, "Stolen device");
   } finally {
     await new Promise<void>((resolve, reject) => {
       server.close((error) => (error ? reject(error) : resolve()));

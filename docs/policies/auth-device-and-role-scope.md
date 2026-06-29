@@ -55,10 +55,11 @@ Rules:
 
 - Field workers can register their own device.
 - Central admins can bulk-register devices.
-- Device records bind `device_id` to user, name, and registration time.
-- Sync push requires a registered or otherwise accepted `device_id`.
+- Device records associate `device_id` with the currently authenticated user, name, and registration time.
+- Device association is not permanent ownership: a user may log out of one device and another user may log in and register the same device.
+- Sync push requires a registered or otherwise accepted `device_id` associated with the current authenticated user/session.
 - Device ID is part of audit, sync, and local draft context.
-- Reassigning a device to another user is an administrative action and must be auditable before deployment.
+- Administrative bulk device assignment is allowed within role scope, but normal field use should not require hard user-device binding.
 
 ## Roles
 
