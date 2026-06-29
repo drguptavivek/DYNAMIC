@@ -34,6 +34,15 @@ async function runSmoke() {
     throw new Error("/users/me did not return area assignments");
   }
 
+  await fetchJson("/devices/register", {
+    method: "POST",
+    headers: { Authorization: authorization },
+    body: JSON.stringify({
+      device_id: "dev-smoke-device",
+      device_name: "Dev smoke device",
+    }),
+  });
+
   const forms = await fetchJson("/protocol/forms", { headers: { Authorization: authorization } });
   if (!Array.isArray(forms.forms) || forms.forms.length !== 11) {
     throw new Error("/protocol/forms did not return 11 bundled forms");
