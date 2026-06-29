@@ -32,6 +32,20 @@ export function FieldAppShell({ route, title, children }) {
     return <LoginScreen />;
   }
 
+  if (!app.appLockReady) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <View style={styles.loginContainer}>
+          <ActivityIndicator color="#17202a" />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (app.appLocked) {
+    return <AppLockScreen />;
+  }
+
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.appShell}>
@@ -130,6 +144,136 @@ export function FieldAppShell({ route, title, children }) {
         onClose={app.closeTaskModal}
         onOpenForm={app.openFormFromTask}
       />
+    </SafeAreaView>
+  );
+}
+
+function AppLockScreen() {
+  const app = useFieldApp();
+  const [pin, setPin] = useState("");
+  const [confirmPin, setConfirmPin] = useState("");
+  const [useBiometrics, setUseBiometrics] = useState(app.appLockBiometricAvailable);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const setupMode = !app.appLockConfigured;
+
+  async function handleSubmit() {
+    if (setupMode && pin !== confirmPin) {
+      setError("PIN entries do not match");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+    try {
+      const result = setupMode
+        ? await app.configureAppLock(pin, { biometricEnabled: useBiometrics })
+        : await app.unlockAppWithPin(pin);
+      if (!result.ok) {
+        setError(result.error || "Unlock failed");
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleBiometricUnlock() {
+    setLoading(true);
+    setError("");
+    try {
+      const result = await app.unlockAppWithBiometrics();
+      if (!result.ok) {
+        setError(result.error || "Biometric unlock failed");
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <SafeAreaView style={styles.safe}>
+      <View style={styles.loginContainer}>
+        <View style={styles.loginBox}>
+          <Text style={styles.loginTitle}>DYNAMIC</Text>
+          <Text style={styles.loginSubtitle}>{setupMode ? "Create App PIN" : "App Locked"}</Text>
+
+          <TextInput
+            style={styles.loginInput}
+            placeholder="4-8 digit PIN"
+            value={pin}
+            onChangeText={setPin}
+            editable={!loading}
+            keyboardType="number-pad"
+            secureTextEntry={true}
+            maxLength={8}
+            placeholderTextColor="#999"
+          />
+
+          {setupMode && (
+            <TextInput
+              style={styles.loginInput}
+              placeholder="Confirm PIN"
+              value={confirmPin}
+              onChangeText={setConfirmPin}
+              editable={!loading}
+              keyboardType="number-pad"
+              secureTextEntry={true}
+              maxLength={8}
+              placeholderTextColor="#999"
+            />
+          )}
+
+          {setupMode && app.appLockBiometricAvailable && (
+            <Pressable
+              onPress={() => setUseBiometrics((value) => !value)}
+              style={[styles.biometricToggle, useBiometrics && styles.biometricToggleActive]}
+            >
+              <Text
+                style={[
+                  styles.biometricToggleText,
+                  useBiometrics && styles.biometricToggleTextActive,
+                ]}
+              >
+                {useBiometrics ? "Biometric unlock on" : "Biometric unlock off"}
+              </Text>
+            </Pressable>
+          )}
+
+          {error ? <Text style={styles.loginError}>{error}</Text> : null}
+
+          <Pressable
+            onPress={handleSubmit}
+            disabled={loading}
+            style={({ pressed }) => [
+              styles.loginButton,
+              (pressed || loading) && styles.loginButtonPressed,
+            ]}
+          >
+            {loading ? (
+              <ActivityIndicator color="#ffffff" />
+            ) : (
+              <Text style={styles.loginButtonText}>{setupMode ? "Set PIN" : "Unlock"}</Text>
+            )}
+          </Pressable>
+
+          {!setupMode && app.appLockBiometricAvailable && (
+            <Pressable
+              onPress={handleBiometricUnlock}
+              disabled={loading}
+              style={({ pressed }) => [
+                styles.secondaryLockButton,
+                (pressed || loading) && styles.loginButtonPressed,
+              ]}
+            >
+              <Text style={styles.secondaryLockButtonText}>Use biometric unlock</Text>
+            </Pressable>
+          )}
+        </View>
+      </View>
     </SafeAreaView>
   );
 }
@@ -527,6 +671,41 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     fontSize: 15,
     fontWeight: "800",
+  },
+  secondaryLockButton: {
+    minHeight: 44,
+    borderRadius: 6,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#17202a",
+    backgroundColor: "#ffffff",
+  },
+  secondaryLockButtonText: {
+    color: "#17202a",
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  biometricToggle: {
+    minHeight: 42,
+    borderRadius: 6,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#d8dee4",
+    backgroundColor: "#ffffff",
+  },
+  biometricToggleActive: {
+    borderColor: "#0369a1",
+    backgroundColor: "#e0f2fe",
+  },
+  biometricToggleText: {
+    color: "#344054",
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  biometricToggleTextActive: {
+    color: "#0369a1",
   },
   demoText: {
     marginTop: 14,

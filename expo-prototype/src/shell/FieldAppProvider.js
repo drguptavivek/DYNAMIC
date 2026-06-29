@@ -1,8 +1,10 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { useRouter } from "expo-router";
+import { AppState } from "react-native";
 
 import { getHouseholdContextSync } from "../lib/householdSync.js";
 import { buildPrefillForTask } from "../lib/prefillMapper.js";
+import * as appLockStore from "../modules/auth/appLockStore.js";
 import * as authStore from "../modules/auth/authStore.js";
 import { initializeHouseholdRepository, listLocalities } from "../modules/households/householdRepository.js";
 import * as syncService from "../modules/sync/syncService.js";
@@ -25,6 +27,10 @@ export function FieldAppProvider({ children }) {
   const [selectedLocalityCode, setSelectedLocalityCode] = useState("");
   const [localities, setLocalities] = useState([]);
   const [clockStatus, setClockStatus] = useState(null);
+  const [appLockReady, setAppLockReady] = useState(false);
+  const [appLocked, setAppLocked] = useState(false);
+  const [appLockConfigured, setAppLockConfigured] = useState(false);
+  const [appLockBiometricAvailable, setAppLockBiometricAvailable] = useState(false);
 
   useEffect(() => {
     setNavigationHandler((route) => router.push(route));
@@ -40,6 +46,9 @@ export function FieldAppProvider({ children }) {
         const restoreUser = await authStore.restoreSession();
         if (restoreUser) {
           setUser(restoreUser);
+          await initializeAppLock(restoreUser, { afterLogin: false });
+        } else {
+          setAppLockReady(true);
         }
 
         await refreshLocalities();
@@ -52,6 +61,15 @@ export function FieldAppProvider({ children }) {
     initApp();
   }, []);
 
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      if (nextState !== "active" && user && appLockConfigured) {
+        setAppLocked(true);
+      }
+    });
+    return () => subscription.remove();
+  }, [user, appLockConfigured]);
+
   async function refreshLocalities() {
     await initializeHouseholdRepository();
     setLocalities(await listLocalities());
@@ -61,6 +79,7 @@ export function FieldAppProvider({ children }) {
     const result = await authStore.login(username, password);
     if (result.ok) {
       setUser(result.user);
+      await initializeAppLock(result.user, { afterLogin: true });
     }
     return result;
   }
@@ -68,7 +87,55 @@ export function FieldAppProvider({ children }) {
   function logout() {
     authStore.logout();
     setUser(null);
+    setAppLocked(false);
+    setAppLockConfigured(false);
+    setAppLockReady(true);
     clearFormContext();
+  }
+
+  async function initializeAppLock(nextUser, options = {}) {
+    const configured = await appLockStore.isLockConfiguredForUser(nextUser);
+    const biometricStatus = await appLockStore.getBiometricStatus();
+    setAppLockConfigured(configured);
+    setAppLockBiometricAvailable(Boolean(biometricStatus.available && biometricStatus.enrolled));
+    setAppLocked(configured ? !options.afterLogin : true);
+    setAppLockReady(true);
+  }
+
+  async function configureAppLock(pin, options = {}) {
+    if (!user) {
+      return { ok: false, error: "Login is required before setting an app lock" };
+    }
+    try {
+      await appLockStore.configureLockForUser(user, pin, {
+        biometricEnabled: options.biometricEnabled && appLockBiometricAvailable,
+      });
+      setAppLockConfigured(true);
+      setAppLocked(false);
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, error: error.message };
+    }
+  }
+
+  async function unlockAppWithPin(pin) {
+    if (!user) return { ok: false, error: "Login is required" };
+    const ok = await appLockStore.verifyPinForUser(user, pin);
+    if (ok) {
+      setAppLocked(false);
+      return { ok: true };
+    }
+    return { ok: false, error: "PIN did not match" };
+  }
+
+  async function unlockAppWithBiometrics() {
+    if (!user) return { ok: false, error: "Login is required" };
+    const result = await appLockStore.unlockWithBiometrics(user);
+    if (result.ok) {
+      setAppLocked(false);
+      return { ok: true };
+    }
+    return { ok: false, error: "Biometric unlock was not completed" };
   }
 
   function clearFormContext() {
@@ -139,6 +206,13 @@ export function FieldAppProvider({ children }) {
       refreshLocalities,
       clockStatus,
       setClockStatus,
+      appLockReady,
+      appLocked,
+      appLockConfigured,
+      appLockBiometricAvailable,
+      configureAppLock,
+      unlockAppWithPin,
+      unlockAppWithBiometrics,
     }),
     [
       locale,
@@ -152,6 +226,10 @@ export function FieldAppProvider({ children }) {
       selectedLocalityCode,
       localities,
       clockStatus,
+      appLockReady,
+      appLocked,
+      appLockConfigured,
+      appLockBiometricAvailable,
     ],
   );
 
