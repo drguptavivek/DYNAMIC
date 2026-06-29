@@ -257,6 +257,8 @@ router.post(
       const data = createUserSchema.parse(req.body);
 
       // Validate role restrictions
+      const targetSiteId =
+        req.user!.role === "site_research_scientist" ? req.user!.site_id : data.site_id;
       if (req.user!.role === "site_research_scientist") {
         if (
           data.role === "central_admin" ||
@@ -277,6 +279,15 @@ router.post(
             403,
             "INSUFFICIENT_PERMISSIONS",
             "Site research scientists can only create users for their own site",
+          );
+          return;
+        }
+        if (targetSiteId === null || targetSiteId === undefined) {
+          sendError(
+            res,
+            403,
+            "INSUFFICIENT_PERMISSIONS",
+            "Site research scientists can only create site-scoped users",
           );
           return;
         }
@@ -361,7 +372,7 @@ router.post(
           display_name: data.display_name,
           email: data.email,
           role: data.role,
-          site_id: data.site_id,
+          site_id: targetSiteId,
           password_hash,
           active: true,
           created_at: now,
@@ -461,6 +472,15 @@ router.patch(
             403,
             "INSUFFICIENT_PERMISSIONS",
             "Site research scientists can only modify users from their own site",
+          );
+          return;
+        }
+        if (data.site_id !== undefined && data.site_id !== req.user!.site_id) {
+          sendError(
+            res,
+            403,
+            "INSUFFICIENT_PERMISSIONS",
+            "Site research scientists can only keep users in their own site",
           );
           return;
         }

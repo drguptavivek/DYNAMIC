@@ -79,7 +79,7 @@ Role rules:
 - Field workers operate only within assigned site/locality scope.
 - Supervisors operate only within their assigned operational scope.
 - Site data managers operate within assigned site/locality scope for Issue review and Resolution Proposal work.
-- Site research scientists operate within their site and cannot create central admins.
+- Site research scientists are the current site-admin role: they can manage users and device assignments only within their own site, and cannot create central or collaborator users.
 - Central data managers review and approve Site Data Manager resolution work within permitted central scope.
 - Central admins can manage cross-site users, masters, and device assignments.
 - US collaborators can log in to approved dashboards and data views, but can access only non-PII aggregate, de-identified, or analysis-ready study data.

@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
 import { z } from "zod";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { db, schema } from "../db";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { sendError, sendSuccess } from "../lib/errors";
@@ -89,45 +89,79 @@ router.post("/register", requireAuth, async (req: Request, res: Response) => {
 
 /**
  * POST /api/v1/devices
- * Bulk register devices (central_admin only)
+ * Bulk register devices for central admins or site admins within their site.
  */
-router.post("/", requireAuth, requireRole("central_admin"), async (req: Request, res: Response) => {
-  try {
-    const { devices } = bulkRegisterSchema.parse(req.body);
+router.post(
+  "/",
+  requireAuth,
+  requireRole("central_admin", "site_research_scientist"),
+  async (req: Request, res: Response) => {
+    try {
+      const { devices } = bulkRegisterSchema.parse(req.body);
 
-    const now = new Date();
-    const values = devices.map((d) => ({
-      device_id: d.device_id,
-      device_name: d.device_name || null,
-      user_id: d.user_id,
-      registered_at: now,
-    }));
-
-    for (const device of values) {
-      await db
-        .insert(schema.devices)
-        .values(device)
-        .onConflictDoUpdate({
-          target: schema.devices.device_id,
-          set: {
-            device_name: device.device_name,
-            user_id: device.user_id,
-            registered_at: device.registered_at,
-          },
+      if (req.user!.role === "site_research_scientist") {
+        const targetUserIds = [...new Set(devices.map((device) => device.user_id))];
+        const targetUsers =
+          targetUserIds.length > 0
+            ? await db
+                .select({
+                  user_id: schema.users.user_id,
+                  site_id: schema.users.site_id,
+                })
+                .from(schema.users)
+                .where(inArray(schema.users.user_id, targetUserIds))
+            : [];
+        const targetUsersById = new Map(targetUsers.map((user) => [user.user_id, user]));
+        const invalidUserId = targetUserIds.find((userId) => {
+          const targetUser = targetUsersById.get(userId);
+          return !targetUser || targetUser.site_id !== req.user!.site_id;
         });
-    }
 
-    sendSuccess(res, { created: devices.length }, 201);
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      sendError(res, 400, "VALIDATION_ERROR", "Invalid request body", {
-        errors: error.errors,
-      });
-    } else {
-      console.error("Bulk device register error:", error);
-      sendError(res, 500, "INTERNAL_ERROR", "An error occurred");
+        if (invalidUserId) {
+          sendError(
+            res,
+            403,
+            "INSUFFICIENT_PERMISSIONS",
+            `Site research scientists can only assign devices to users in their own site: ${invalidUserId}`,
+          );
+          return;
+        }
+      }
+
+      const now = new Date();
+      const values = devices.map((d) => ({
+        device_id: d.device_id,
+        device_name: d.device_name || null,
+        user_id: d.user_id,
+        registered_at: now,
+      }));
+
+      for (const device of values) {
+        await db
+          .insert(schema.devices)
+          .values(device)
+          .onConflictDoUpdate({
+            target: schema.devices.device_id,
+            set: {
+              device_name: device.device_name,
+              user_id: device.user_id,
+              registered_at: device.registered_at,
+            },
+          });
+      }
+
+      sendSuccess(res, { created: devices.length }, 201);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        sendError(res, 400, "VALIDATION_ERROR", "Invalid request body", {
+          errors: error.errors,
+        });
+      } else {
+        console.error("Bulk device register error:", error);
+        sendError(res, 500, "INTERNAL_ERROR", "An error occurred");
+      }
     }
-  }
-});
+  },
+);
 
 export default router;
