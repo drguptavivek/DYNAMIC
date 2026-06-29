@@ -155,6 +155,79 @@ test("API smoke flow passes against dynamic_test without a fixed port", async ()
     });
     assert.equal(hhqPush.accepted, 1);
 
+    const missingUserPush = await fetchData(`${baseUrl}/sync/push`, {
+      method: "POST",
+      body: JSON.stringify({
+        device_id: "test-smoke-device",
+        records: [
+          {
+            type: "form_response",
+            data: {
+              id: `missing-user-${randomUUID()}`,
+              household_id: `1-DEV001-${randomUUID().slice(0, 4)}-03`,
+              site_id: 1,
+              locality_code: "DEV001",
+              subject_type: "household",
+              form_code: "HHQ",
+              form_version: "2026.05.17",
+              answers_json: {},
+              submitted_at: "2026-09-01T10:30:00.000Z",
+            },
+          },
+        ],
+      }),
+    });
+    assert.equal(missingUserPush.accepted, 0);
+    assert.match(missingUserPush.errors[0].error, /user_id/);
+
+    const loggedOutResponseId = `hhq-logged-out-${randomUUID()}`;
+    const loggedOutHouseholdId = `1-DEV001-${randomUUID().slice(0, 4)}-02`;
+    const loggedOutPush = await fetchData(`${baseUrl}/sync/push`, {
+      method: "POST",
+      body: JSON.stringify({
+        device_id: "test-smoke-device",
+        records: [
+          {
+            type: "form_response",
+            data: {
+              id: loggedOutResponseId,
+              user_id: smokeUser.user_id,
+              household_id: loggedOutHouseholdId,
+              site_id: 1,
+              locality_code: "DEV001",
+              subject_id: loggedOutHouseholdId,
+              subject_type: "household",
+              form_code: "HHQ",
+              form_version: "2026.05.17",
+              answers_json: {
+                hhq_site_id: 1,
+                hhq_locality_code: "DEV001",
+                hhq_structure_map_id: loggedOutHouseholdId.split("-")[2],
+                hhq_household_number: "02",
+                hhq_household_head_name: "Logged Out Head",
+                hhq_consent_study_provide_pis_explain_study_adult_member: 1,
+                hhq_interview_date: "2026-09-01",
+                hhq_result_interview: 1,
+                hhq_language_questionnaire: 1,
+                hhq_household_members: [
+                  {
+                    member_line_number: 1,
+                    member_name: "Logged Out Head",
+                    member_relationship_to_head: 1,
+                    member_sex: 1,
+                    member_age_years: 45,
+                    member_marital_status: 1,
+                  },
+                ],
+              },
+              submitted_at: "2026-09-01T11:00:00.000Z",
+            },
+          },
+        ],
+      }),
+    });
+    assert.equal(loggedOutPush.accepted, 1);
+
     const promotedMembers = await db
       .select()
       .from(schema.householdMembers)

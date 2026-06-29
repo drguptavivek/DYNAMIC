@@ -57,7 +57,9 @@ Rules:
 - Central admins can bulk-register devices.
 - Device records associate `device_id` with the currently authenticated user, name, and registration time.
 - Device association is not permanent ownership: a user may log out of one device and another user may log in and register the same device.
-- Sync push requires a registered or otherwise accepted `device_id` associated with the current authenticated user/session.
+- Authenticated sync push requires a registered or otherwise accepted `device_id` associated with the current authenticated user/session.
+- Finalized Form Submissions already saved to the local outbox must still sync after logout.
+- Tokenless sync push requires a valid registered `device_id` and a valid `user_id` on each submitted record; the server uses that submitted user for raw-CRF access and area-scope checks.
 - Device ID is part of audit, sync, and local draft context.
 - Administrative bulk device assignment is allowed within role scope, but normal field use should not require hard user-device binding.
 

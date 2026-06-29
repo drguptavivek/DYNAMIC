@@ -1,14 +1,14 @@
 import { Router, Request, Response } from "express";
 import { eq, and, gt, inArray, count, lte } from "drizzle-orm";
 import { db, schema } from "../db";
-import { requireAuth } from "../middleware/auth";
+import { JwtPayload, optionalAuth, requireAuth } from "../middleware/auth";
 import { sendError, sendSuccess } from "../lib/errors";
 import { processFormResponse } from "../services/eventProcessor";
 import { getFormVersionManifest } from "../lib/formCatalog";
 import { buildSyncClockMetadata } from "../lib/syncClock";
 import { appendAreaScopeCondition, canAccessLocation } from "../lib/areaScope";
 import { runWithDb } from "../lib/dbContext";
-import { requireDataAccess } from "../lib/dataAccess";
+import { getDataAccessProfile, requireDataAccess } from "../lib/dataAccess";
 
 const router = Router();
 
@@ -110,6 +110,45 @@ const mapTaskForExpo = (task: typeof schema.followUpTasks.$inferSelect) => ({
   lifecycle_status: task.status,
   status: toExpoTaskStatus(task.status),
 });
+
+async function resolveSyncPushUser(
+  req: Request,
+  submittedUserId: unknown,
+): Promise<JwtPayload | null> {
+  if (req.user) {
+    if (submittedUserId !== undefined && submittedUserId !== req.user.sub) {
+      return null;
+    }
+    return req.user;
+  }
+  if (typeof submittedUserId !== "string" || !submittedUserId.trim()) {
+    return null;
+  }
+
+  const [user] = await db
+    .select({
+      user_id: schema.users.user_id,
+      username: schema.users.username,
+      role: schema.users.role,
+      site_id: schema.users.site_id,
+      active: schema.users.active,
+    })
+    .from(schema.users)
+    .where(eq(schema.users.user_id, submittedUserId))
+    .limit(1);
+
+  if (!user || !user.active) {
+    return null;
+  }
+
+  return {
+    sub: user.user_id,
+    username: user.username,
+    role: user.role as JwtPayload["role"],
+    site_id: user.site_id,
+    type: "access",
+  };
+}
 
 /**
  * GET /api/v1/sync/time
@@ -416,8 +455,7 @@ router.post(
  */
 router.post(
   "/push",
-  requireAuth,
-  requireDataAccess("can_access_raw_crfs"),
+  optionalAuth,
   async (req: Request, res: Response) => {
   try {
     const { device_id: deviceId, records, client_time_utc: clientTimeUtc } = req.body;
@@ -436,7 +474,7 @@ router.post(
       return sendError(res, 403, "UNREGISTERED_DEVICE", "Device must be registered before sync");
     }
 
-    if (device.user_id !== req.user!.sub) {
+    if (req.user && device.user_id !== req.user.sub) {
       return sendError(res, 403, "DEVICE_USER_MISMATCH", "Device is not registered to this user");
     }
 
@@ -444,10 +482,29 @@ router.post(
     const acceptedRecords: string[] = [];
     const duplicates: string[] = [];
     const errors: { id: string; error: string }[] = [];
+    let syncLogUserId = req.user?.sub ?? null;
 
     for (const record of records) {
       try {
         const { type, data } = record;
+        const recordId = data?.id ?? data?.task_key ?? "unknown";
+        const recordUser = await resolveSyncPushUser(req, data?.user_id);
+        if (!recordUser) {
+          errors.push({
+            id: recordId,
+            error: req.user
+              ? "Submitted user_id does not match authenticated user"
+              : "Missing or invalid submitted user_id",
+          });
+          continue;
+        }
+
+        const dataAccessProfile = await getDataAccessProfile(recordUser);
+        if (!dataAccessProfile.can_access_raw_crfs) {
+          errors.push({ id: recordId, error: "Submitted user does not have raw CRF access" });
+          continue;
+        }
+        syncLogUserId ??= recordUser.sub;
 
         if (type === "form_response") {
           const {
@@ -478,7 +535,7 @@ router.post(
           }
 
           const scope = resolveRecordScope(data);
-          if (!(await canAccessLocation(req.user!, scope.site_id, scope.locality_code))) {
+          if (!(await canAccessLocation(recordUser, scope.site_id, scope.locality_code))) {
             errors.push({ id, error: "Record is outside the user's assigned area scope" });
             continue;
           }
@@ -549,7 +606,7 @@ router.post(
             continue;
           }
 
-          if (!(await canAccessLocation(req.user!, task.site_id, task.locality_code))) {
+          if (!(await canAccessLocation(recordUser, task.site_id, task.locality_code))) {
             errors.push({ id, error: "Task attempt is outside the user's assigned area scope" });
             continue;
           }
@@ -562,6 +619,7 @@ router.post(
                 attempt_number,
                 attempted_at: attempted_at ? new Date(attempted_at) : new Date(),
                 device_id: deviceId,
+                attempted_by_user_id: recordUser.sub,
                 outcome,
                 notes,
                 created_at: new Date(),
@@ -638,7 +696,7 @@ router.post(
             continue;
           }
 
-          if (!(await canAccessLocation(req.user!, task.site_id, task.locality_code))) {
+          if (!(await canAccessLocation(recordUser, task.site_id, task.locality_code))) {
             errors.push({ id: task_key, error: "Task is outside the user's assigned area scope" });
             continue;
           }
@@ -676,7 +734,7 @@ router.post(
       await db.insert(schema.syncLogs).values({
         sync_log_id: `sync_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         device_id: deviceId,
-        user_id: req.user!.sub,
+        user_id: syncLogUserId ?? device.user_id ?? "unknown",
         direction: "push",
         records_sent: accepted + errors.length,
         records_received: accepted,

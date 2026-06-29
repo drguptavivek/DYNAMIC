@@ -40,6 +40,29 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
   }
 }
 
+export function optionalAuth(req: Request, res: Response, next: NextFunction): void {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    next();
+    return;
+  }
+
+  const token = authHeader.slice(7);
+
+  try {
+    req.user = verifyToken(token);
+    next();
+  } catch (error: unknown) {
+    const err = error as Error & { name?: string };
+    if (err.name === "TokenExpiredError") {
+      sendError(res, 403, "TOKEN_EXPIRED", "Token has expired");
+    } else {
+      sendError(res, 401, "INVALID_TOKEN", "Invalid token");
+    }
+  }
+}
+
 /**
  * Middleware factory: require specific roles
  * Usage: requireRole('central_admin', 'site_research_scientist')

@@ -56,6 +56,7 @@ export function createApp() {
   app.use("/api/v1/auth", authRouter);
   app.use("/api/v1/devices", requireAuth, devicesRouter);
   app.use("/api/v1/users", requireAuth, usersRouter);
+  app.use("/api/v1/sync", syncRouter);
   app.use("/api/v1", requireAuth, areaAssignmentsRouter);
   app.use("/api/v1/masters", requireAuth, mastersRouter);
   app.use("/api/v1/households", requireAuth, householdsRouter);
@@ -66,7 +67,6 @@ export function createApp() {
   app.use("/api/v1/eligible-women", requireAuth, eligibleWomenRouter);
   app.use("/api/v1/pregnant-women", requireAuth, pregnantWomenRouter);
   app.use("/api/v1/children", requireAuth, childrenRouter);
-  app.use("/api/v1/sync", requireAuth, syncRouter);
   app.use("/api/v1/protocol", requireAuth, protocolRouter);
   app.use("/api/v1", requireAuth, correctionsRouter);
   app.use("/api/v1/form-responses", requireAuth, formResponsesRouter);
