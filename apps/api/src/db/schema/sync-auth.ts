@@ -1,7 +1,8 @@
-import { pgTable, text, integer, boolean, date, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, boolean, date, timestamp, unique } from "drizzle-orm/pg-core";
 
 export const users = pgTable("users", {
   user_id: text("user_id").primaryKey(),
+  staff_id: text("staff_id").references(() => studyStaffMembers.staff_id),
   username: text("username").notNull().unique(),
   display_name: text("display_name"),
   email: text("email"),
@@ -12,6 +13,50 @@ export const users = pgTable("users", {
   created_at: timestamp("created_at", { withTimezone: true }),
   updated_at: timestamp("updated_at", { withTimezone: true }),
 });
+
+export const institutions = pgTable("institutions", {
+  institution_id: text("institution_id").primaryKey(),
+  institution_name: text("institution_name").notNull(),
+  country: text("country").notNull(),
+  institution_type: text("institution_type").notNull(),
+  active: boolean("active").default(true),
+  created_at: timestamp("created_at", { withTimezone: true }),
+  updated_at: timestamp("updated_at", { withTimezone: true }),
+});
+
+export const studyStaffMembers = pgTable("study_staff_members", {
+  staff_id: text("staff_id").primaryKey(),
+  institution_id: text("institution_id")
+    .notNull()
+    .references(() => institutions.institution_id),
+  full_name: text("full_name").notNull(),
+  email: text("email"),
+  designation: text("designation").notNull(),
+  country: text("country").notNull(),
+  active: boolean("active").default(true),
+  created_at: timestamp("created_at", { withTimezone: true }),
+  updated_at: timestamp("updated_at", { withTimezone: true }),
+});
+
+export const dataAccessProfiles = pgTable(
+  "data_access_profiles",
+  {
+    profile_id: text("profile_id").primaryKey(),
+    staff_id: text("staff_id")
+      .notNull()
+      .references(() => studyStaffMembers.staff_id),
+    can_access_pii: boolean("can_access_pii").default(false),
+    can_access_raw_crfs: boolean("can_access_raw_crfs").default(false),
+    can_access_deidentified_exports: boolean("can_access_deidentified_exports").default(false),
+    can_access_aggregate_dashboards: boolean("can_access_aggregate_dashboards").default(false),
+    can_access_admin_audit: boolean("can_access_admin_audit").default(false),
+    created_at: timestamp("created_at", { withTimezone: true }),
+    updated_at: timestamp("updated_at", { withTimezone: true }),
+  },
+  (t) => ({
+    staffUnique: unique().on(t.staff_id),
+  }),
+);
 
 export const devices = pgTable("devices", {
   device_id: text("device_id").primaryKey(),

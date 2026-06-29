@@ -67,7 +67,9 @@ Canonical roles:
 ```text
 field_worker
 field_supervisor
+site_data_manager
 site_research_scientist
+central_data_manager
 central_admin
 us_collaborator
 ```
@@ -76,7 +78,9 @@ Role rules:
 
 - Field workers operate only within assigned site/locality scope.
 - Supervisors operate only within their assigned operational scope.
+- Site data managers operate within assigned site/locality scope for Issue review and Resolution Proposal work.
 - Site research scientists operate within their site and cannot create central admins.
+- Central data managers review and approve Site Data Manager resolution work within permitted central scope.
 - Central admins can manage cross-site users, masters, and device assignments.
 - US collaborators can log in to approved dashboards and data views, but can access only non-PII aggregate, de-identified, or analysis-ready study data.
 - US collaborators must not access participant names, direct identifiers, contact details, free-text notes that may contain identifiers, device/user audit trails that identify participants, or raw CRF answers unless explicitly de-identified for their view.

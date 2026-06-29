@@ -72,6 +72,98 @@ export async function upsertDevSeed() {
     });
 
   await db
+    .insert(schema.institutions)
+    .values({
+      institution_id: "dev-institution-india",
+      institution_name: "Development Study Institution",
+      country: "India",
+      institution_type: "study_site",
+      active: true,
+      created_at: now,
+      updated_at: now,
+    })
+    .onConflictDoUpdate({
+      target: schema.institutions.institution_id,
+      set: {
+        institution_name: "Development Study Institution",
+        country: "India",
+        institution_type: "study_site",
+        active: true,
+        updated_at: now,
+      },
+    });
+
+  await db
+    .insert(schema.institutions)
+    .values({
+      institution_id: "dev-institution-us",
+      institution_name: "Development US Collaborator Institution",
+      country: "USA",
+      institution_type: "collaborator",
+      active: true,
+      created_at: now,
+      updated_at: now,
+    })
+    .onConflictDoUpdate({
+      target: schema.institutions.institution_id,
+      set: {
+        institution_name: "Development US Collaborator Institution",
+        country: "USA",
+        institution_type: "collaborator",
+        active: true,
+        updated_at: now,
+      },
+    });
+
+  await db
+    .insert(schema.studyStaffMembers)
+    .values({
+      staff_id: "dev-staff-field-worker",
+      institution_id: "dev-institution-india",
+      full_name: "Dev Field Worker",
+      designation: "Field Worker",
+      country: "India",
+      active: true,
+      created_at: now,
+      updated_at: now,
+    })
+    .onConflictDoUpdate({
+      target: schema.studyStaffMembers.staff_id,
+      set: {
+        institution_id: "dev-institution-india",
+        full_name: "Dev Field Worker",
+        designation: "Field Worker",
+        country: "India",
+        active: true,
+        updated_at: now,
+      },
+    });
+
+  await db
+    .insert(schema.studyStaffMembers)
+    .values({
+      staff_id: "dev-staff-central-admin",
+      institution_id: "dev-institution-india",
+      full_name: "Dev Central Admin",
+      designation: "Central Admin",
+      country: "India",
+      active: true,
+      created_at: now,
+      updated_at: now,
+    })
+    .onConflictDoUpdate({
+      target: schema.studyStaffMembers.staff_id,
+      set: {
+        institution_id: "dev-institution-india",
+        full_name: "Dev Central Admin",
+        designation: "Central Admin",
+        country: "India",
+        active: true,
+        updated_at: now,
+      },
+    });
+
+  await db
     .insert(schema.households)
     .values({
       household_id: "1-DEV001-0001-01",
@@ -98,9 +190,60 @@ export async function upsertDevSeed() {
     });
 
   await db
+    .insert(schema.dataAccessProfiles)
+    .values({
+      profile_id: "dev-profile-field-worker",
+      staff_id: "dev-staff-field-worker",
+      can_access_pii: true,
+      can_access_raw_crfs: true,
+      can_access_deidentified_exports: false,
+      can_access_aggregate_dashboards: false,
+      can_access_admin_audit: false,
+      created_at: now,
+      updated_at: now,
+    })
+    .onConflictDoUpdate({
+      target: schema.dataAccessProfiles.profile_id,
+      set: {
+        can_access_pii: true,
+        can_access_raw_crfs: true,
+        can_access_deidentified_exports: false,
+        can_access_aggregate_dashboards: false,
+        can_access_admin_audit: false,
+        updated_at: now,
+      },
+    });
+
+  await db
+    .insert(schema.dataAccessProfiles)
+    .values({
+      profile_id: "dev-profile-central-admin",
+      staff_id: "dev-staff-central-admin",
+      can_access_pii: true,
+      can_access_raw_crfs: true,
+      can_access_deidentified_exports: true,
+      can_access_aggregate_dashboards: true,
+      can_access_admin_audit: true,
+      created_at: now,
+      updated_at: now,
+    })
+    .onConflictDoUpdate({
+      target: schema.dataAccessProfiles.profile_id,
+      set: {
+        can_access_pii: true,
+        can_access_raw_crfs: true,
+        can_access_deidentified_exports: true,
+        can_access_aggregate_dashboards: true,
+        can_access_admin_audit: true,
+        updated_at: now,
+      },
+    });
+
+  await db
     .insert(schema.users)
     .values({
       user_id: smokeUser.user_id,
+      staff_id: "dev-staff-field-worker",
       username: smokeUser.username,
       display_name: "Dev Field Worker",
       role: "field_worker",
@@ -113,6 +256,7 @@ export async function upsertDevSeed() {
     .onConflictDoUpdate({
       target: schema.users.user_id,
       set: {
+        staff_id: "dev-staff-field-worker",
         display_name: "Dev Field Worker",
         role: "field_worker",
         site_id: 1,
@@ -126,6 +270,7 @@ export async function upsertDevSeed() {
     .insert(schema.users)
     .values({
       user_id: adminUser.user_id,
+      staff_id: "dev-staff-central-admin",
       username: adminUser.username,
       display_name: "Dev Central Admin",
       role: "central_admin",
@@ -138,6 +283,7 @@ export async function upsertDevSeed() {
     .onConflictDoUpdate({
       target: schema.users.user_id,
       set: {
+        staff_id: "dev-staff-central-admin",
         display_name: "Dev Central Admin",
         role: "central_admin",
         site_id: null,

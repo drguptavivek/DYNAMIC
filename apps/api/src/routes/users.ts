@@ -8,6 +8,15 @@ import { sendError, sendSuccess } from "../lib/errors";
 import { hashPassword } from "../lib/password";
 
 const router = Router();
+const userRoleValues = [
+  "field_worker",
+  "field_supervisor",
+  "site_research_scientist",
+  "central_admin",
+  "site_data_manager",
+  "central_data_manager",
+  "us_collaborator",
+] as const;
 
 function parseBoolean(value: string | undefined): boolean | undefined {
   if (value === undefined) return undefined;
@@ -16,26 +25,114 @@ function parseBoolean(value: string | undefined): boolean | undefined {
   return undefined;
 }
 
+async function selectUserWithStaff(userId: string) {
+  const [row] = await db
+    .select({
+      user_id: schema.users.user_id,
+      staff_id: schema.users.staff_id,
+      username: schema.users.username,
+      display_name: schema.users.display_name,
+      email: schema.users.email,
+      role: schema.users.role,
+      site_id: schema.users.site_id,
+      active: schema.users.active,
+      created_at: schema.users.created_at,
+      updated_at: schema.users.updated_at,
+      staff_full_name: schema.studyStaffMembers.full_name,
+      staff_email: schema.studyStaffMembers.email,
+      staff_designation: schema.studyStaffMembers.designation,
+      staff_country: schema.studyStaffMembers.country,
+      staff_active: schema.studyStaffMembers.active,
+      institution_id: schema.institutions.institution_id,
+      institution_name: schema.institutions.institution_name,
+      institution_country: schema.institutions.country,
+      institution_type: schema.institutions.institution_type,
+      institution_active: schema.institutions.active,
+      data_access_profile_id: schema.dataAccessProfiles.profile_id,
+      can_access_pii: schema.dataAccessProfiles.can_access_pii,
+      can_access_raw_crfs: schema.dataAccessProfiles.can_access_raw_crfs,
+      can_access_deidentified_exports: schema.dataAccessProfiles.can_access_deidentified_exports,
+      can_access_aggregate_dashboards: schema.dataAccessProfiles.can_access_aggregate_dashboards,
+      can_access_admin_audit: schema.dataAccessProfiles.can_access_admin_audit,
+    })
+    .from(schema.users)
+    .leftJoin(schema.studyStaffMembers, eq(schema.users.staff_id, schema.studyStaffMembers.staff_id))
+    .leftJoin(schema.institutions, eq(schema.studyStaffMembers.institution_id, schema.institutions.institution_id))
+    .leftJoin(schema.dataAccessProfiles, eq(schema.studyStaffMembers.staff_id, schema.dataAccessProfiles.staff_id))
+    .where(eq(schema.users.user_id, userId));
+
+  if (!row) return undefined;
+
+  return {
+    user_id: row.user_id,
+    staff_id: row.staff_id,
+    username: row.username,
+    display_name: row.display_name,
+    email: row.email,
+    role: row.role,
+    site_id: row.site_id,
+    active: row.active,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    staff: row.staff_id
+      ? {
+          staff_id: row.staff_id,
+          full_name: row.staff_full_name,
+          email: row.staff_email,
+          designation: row.staff_designation,
+          country: row.staff_country,
+          active: row.staff_active,
+          institution: row.institution_id
+            ? {
+                institution_id: row.institution_id,
+                institution_name: row.institution_name,
+                country: row.institution_country,
+                institution_type: row.institution_type,
+                active: row.institution_active,
+              }
+            : null,
+          data_access_profile: row.data_access_profile_id
+            ? {
+                profile_id: row.data_access_profile_id,
+                can_access_pii: row.can_access_pii,
+                can_access_raw_crfs: row.can_access_raw_crfs,
+                can_access_deidentified_exports: row.can_access_deidentified_exports,
+                can_access_aggregate_dashboards: row.can_access_aggregate_dashboards,
+                can_access_admin_audit: row.can_access_admin_audit,
+              }
+            : null,
+        }
+      : null,
+  };
+}
+
+function buildDefaultDataAccessProfile(role: (typeof userRoleValues)[number]) {
+  if (role === "us_collaborator") {
+    return {
+      can_access_pii: false,
+      can_access_raw_crfs: false,
+      can_access_deidentified_exports: true,
+      can_access_aggregate_dashboards: true,
+      can_access_admin_audit: false,
+    };
+  }
+
+  return {
+    can_access_pii: true,
+    can_access_raw_crfs: true,
+    can_access_deidentified_exports: true,
+    can_access_aggregate_dashboards: true,
+    can_access_admin_audit: role === "central_admin" || role === "site_research_scientist",
+  };
+}
+
 /**
  * GET /api/v1/users/me
  * Get current user profile
  */
 router.get("/me", requireAuth, async (req: Request, res: Response) => {
   try {
-    const [user] = await db
-      .select({
-        user_id: schema.users.user_id,
-        username: schema.users.username,
-        display_name: schema.users.display_name,
-        email: schema.users.email,
-        role: schema.users.role,
-        site_id: schema.users.site_id,
-        active: schema.users.active,
-        created_at: schema.users.created_at,
-        updated_at: schema.users.updated_at,
-      })
-      .from(schema.users)
-      .where(eq(schema.users.user_id, req.user!.sub));
+    const user = await selectUserWithStaff(req.user!.sub);
 
     if (!user) {
       sendError(res, 404, "USER_NOT_FOUND", "User not found");
@@ -130,8 +227,20 @@ const createUserSchema = z.object({
   username: z.string().min(3).max(50),
   display_name: z.string().optional(),
   email: z.string().email().optional(),
-  role: z.enum(["field_worker", "field_supervisor", "site_research_scientist", "central_admin"]),
+  role: z.enum(userRoleValues),
   site_id: z.number().int().optional(),
+  staff: z.object({
+    full_name: z.string().min(1),
+    email: z.string().email().optional(),
+    designation: z.string().min(1),
+    country: z.string().min(1).default("India"),
+    institution_id: z.string().optional(),
+    institution: z.object({
+      institution_name: z.string().min(1),
+      country: z.string().min(1),
+      institution_type: z.string().min(1),
+    }).optional(),
+  }),
   password: z.string().min(8),
 });
 
@@ -149,12 +258,16 @@ router.post(
 
       // Validate role restrictions
       if (req.user!.role === "site_research_scientist") {
-        if (data.role === "central_admin") {
+        if (
+          data.role === "central_admin" ||
+          data.role === "central_data_manager" ||
+          data.role === "us_collaborator"
+        ) {
           sendError(
             res,
             403,
             "INSUFFICIENT_PERMISSIONS",
-            "Site research scientists cannot create central admins",
+            "Site research scientists cannot create central or collaborator users",
           );
           return;
         }
@@ -181,36 +294,82 @@ router.post(
       }
 
       const user_id = randomUUID();
+      const institution_id = data.staff.institution_id ?? randomUUID();
+      const staff_id = randomUUID();
       const password_hash = await hashPassword(data.password);
       const now = new Date();
 
-      await db.insert(schema.users).values({
-        user_id,
-        username: data.username,
-        display_name: data.display_name,
-        email: data.email,
-        role: data.role,
-        site_id: data.site_id,
-        password_hash,
-        active: true,
-        created_at: now,
-        updated_at: now,
+      if (!data.staff.institution_id && !data.staff.institution) {
+        sendError(
+          res,
+          400,
+          "VALIDATION_ERROR",
+          "Either staff.institution_id or staff.institution is required",
+        );
+        return;
+      }
+
+      if (data.staff.institution_id) {
+        const [institution] = await db
+          .select()
+          .from(schema.institutions)
+          .where(eq(schema.institutions.institution_id, data.staff.institution_id));
+
+        if (!institution) {
+          sendError(res, 404, "INSTITUTION_NOT_FOUND", "Institution not found");
+          return;
+        }
+      }
+
+      await db.transaction(async (tx) => {
+        if (!data.staff.institution_id && data.staff.institution) {
+          await tx.insert(schema.institutions).values({
+            institution_id,
+            institution_name: data.staff.institution.institution_name,
+            country: data.staff.institution.country,
+            institution_type: data.staff.institution.institution_type,
+            active: true,
+            created_at: now,
+            updated_at: now,
+          });
+        }
+
+        await tx.insert(schema.studyStaffMembers).values({
+          staff_id,
+          institution_id,
+          full_name: data.staff.full_name,
+          email: data.staff.email ?? data.email,
+          designation: data.staff.designation,
+          country: data.staff.country,
+          active: true,
+          created_at: now,
+          updated_at: now,
+        });
+
+        await tx.insert(schema.dataAccessProfiles).values({
+          profile_id: randomUUID(),
+          staff_id,
+          ...buildDefaultDataAccessProfile(data.role),
+          created_at: now,
+          updated_at: now,
+        });
+
+        await tx.insert(schema.users).values({
+          user_id,
+          staff_id,
+          username: data.username,
+          display_name: data.display_name,
+          email: data.email,
+          role: data.role,
+          site_id: data.site_id,
+          password_hash,
+          active: true,
+          created_at: now,
+          updated_at: now,
+        });
       });
 
-      const [createdUser] = await db
-        .select({
-          user_id: schema.users.user_id,
-          username: schema.users.username,
-          display_name: schema.users.display_name,
-          email: schema.users.email,
-          role: schema.users.role,
-          site_id: schema.users.site_id,
-          active: schema.users.active,
-          created_at: schema.users.created_at,
-          updated_at: schema.users.updated_at,
-        })
-        .from(schema.users)
-        .where(eq(schema.users.user_id, user_id));
+      const createdUser = await selectUserWithStaff(user_id);
 
       sendSuccess(res, createdUser, 201);
     } catch (error) {
@@ -234,20 +393,7 @@ router.get("/:id", requireAuth, async (req: Request, res: Response) => {
   try {
     const userId = req.params.id;
 
-    const [user] = await db
-      .select({
-        user_id: schema.users.user_id,
-        username: schema.users.username,
-        display_name: schema.users.display_name,
-        email: schema.users.email,
-        role: schema.users.role,
-        site_id: schema.users.site_id,
-        active: schema.users.active,
-        created_at: schema.users.created_at,
-        updated_at: schema.users.updated_at,
-      })
-      .from(schema.users)
-      .where(eq(schema.users.user_id, userId));
+    const user = await selectUserWithStaff(userId);
 
     if (!user) {
       sendError(res, 404, "USER_NOT_FOUND", "User not found");
@@ -280,9 +426,7 @@ router.get("/:id", requireAuth, async (req: Request, res: Response) => {
 const patchUserSchema = z.object({
   display_name: z.string().optional(),
   email: z.string().email().optional(),
-  role: z
-    .enum(["field_worker", "field_supervisor", "site_research_scientist", "central_admin"])
-    .optional(),
+  role: z.enum(userRoleValues).optional(),
   site_id: z.number().int().optional(),
   password: z.string().min(8).optional(),
   active: z.boolean().optional(),
@@ -320,12 +464,16 @@ router.patch(
           );
           return;
         }
-        if (data.role === "central_admin") {
+        if (
+          data.role === "central_admin" ||
+          data.role === "central_data_manager" ||
+          data.role === "us_collaborator"
+        ) {
           sendError(
             res,
             403,
             "INSUFFICIENT_PERMISSIONS",
-            "Site research scientists cannot elevate users to central admin",
+            "Site research scientists cannot elevate users to central or collaborator roles",
           );
           return;
         }
@@ -347,20 +495,7 @@ router.patch(
 
       await db.update(schema.users).set(updateData).where(eq(schema.users.user_id, userId));
 
-      const [updatedUser] = await db
-        .select({
-          user_id: schema.users.user_id,
-          username: schema.users.username,
-          display_name: schema.users.display_name,
-          email: schema.users.email,
-          role: schema.users.role,
-          site_id: schema.users.site_id,
-          active: schema.users.active,
-          created_at: schema.users.created_at,
-          updated_at: schema.users.updated_at,
-        })
-        .from(schema.users)
-        .where(eq(schema.users.user_id, userId));
+      const updatedUser = await selectUserWithStaff(userId);
 
       sendSuccess(res, updatedUser);
     } catch (error) {

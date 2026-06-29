@@ -57,7 +57,10 @@ export type UserRole =
   | "field_worker"
   | "field_supervisor"
   | "site_research_scientist"
-  | "central_admin";
+  | "central_admin"
+  | "site_data_manager"
+  | "central_data_manager"
+  | "us_collaborator";
 export type DobPrecision = "exact_date" | "inferred_from_age" | "estimated_year" | "unknown";
 export type LmpPrecision = "exact_date" | "days_ago" | "weeks_ago" | "months_ago" | "unknown";
 export type OutcomeType = "live_birth" | "stillbirth" | "miscarriage" | "abortion" | "ectopic";

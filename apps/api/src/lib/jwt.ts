@@ -3,7 +3,14 @@ import jwt from "jsonwebtoken";
 export interface JwtPayload {
   sub: string;
   username: string;
-  role: "field_worker" | "field_supervisor" | "site_research_scientist" | "central_admin";
+  role:
+    | "field_worker"
+    | "field_supervisor"
+    | "site_research_scientist"
+    | "central_admin"
+    | "site_data_manager"
+    | "central_data_manager"
+    | "us_collaborator";
   site_id: number | null;
   type: "access" | "refresh";
   refresh_session_id?: string;

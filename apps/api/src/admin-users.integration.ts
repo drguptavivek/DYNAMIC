@@ -21,6 +21,11 @@ test("central admin can create, update, assign, and deactivate a user", async ()
   const server = createServer(createApp());
   await new Promise<void>((resolve) => server.listen(0, resolve));
   let createdUserId: string | null = null;
+  let createdStaffId: string | null = null;
+  let createdInstitutionId: string | null = null;
+  let createdCollaboratorUserId: string | null = null;
+  let createdCollaboratorStaffId: string | null = null;
+  let createdCollaboratorInstitutionId: string | null = null;
 
   try {
     const address = server.address();
@@ -43,13 +48,62 @@ test("central admin can create, update, assign, and deactivate a user", async ()
         email: `${username}@example.test`,
         role: "field_worker",
         site_id: 1,
+        staff: {
+          full_name: "Field Worker API Test",
+          designation: "Field Worker",
+          institution: {
+            institution_name: "API Test Institution",
+            country: "India",
+            institution_type: "study_site",
+          },
+        },
         password: "field-password",
       }),
     });
     assert.equal(createdUser.username, username);
     assert.equal(createdUser.active, true);
     assert.equal(createdUser.password_hash, undefined);
+    assert.equal(createdUser.staff.full_name, "Field Worker API Test");
+    assert.equal(createdUser.staff.designation, "Field Worker");
+    assert.equal(createdUser.staff.institution.institution_name, "API Test Institution");
+    assert.equal(createdUser.staff.data_access_profile.can_access_pii, true);
+    assert.equal(createdUser.staff.data_access_profile.can_access_raw_crfs, true);
     createdUserId = createdUser.user_id;
+    createdStaffId = createdUser.staff.staff_id;
+    createdInstitutionId = createdUser.staff.institution.institution_id;
+
+    const collaboratorUsername = `us-collaborator-${Date.now()}`;
+    const createdCollaborator = await fetchData(`${baseUrl}/users`, {
+      method: "POST",
+      headers: { Authorization: authorization },
+      body: JSON.stringify({
+        username: collaboratorUsername,
+        display_name: "US Collaborator API Test",
+        email: `${collaboratorUsername}@example.test`,
+        role: "us_collaborator",
+        password: "collaborator-password",
+        staff: {
+          full_name: "US Collaborator API Test",
+          designation: "Co-investigator",
+          country: "USA",
+          institution: {
+            institution_name: "US Collaborator Institution",
+            country: "USA",
+            institution_type: "collaborator",
+          },
+        },
+      }),
+    });
+    assert.equal(createdCollaborator.role, "us_collaborator");
+    assert.equal(createdCollaborator.staff.designation, "Co-investigator");
+    assert.equal(createdCollaborator.staff.data_access_profile.can_access_pii, false);
+    assert.equal(createdCollaborator.staff.data_access_profile.can_access_raw_crfs, false);
+    assert.equal(createdCollaborator.staff.data_access_profile.can_access_deidentified_exports, true);
+    assert.equal(createdCollaborator.staff.data_access_profile.can_access_aggregate_dashboards, true);
+    assert.equal(createdCollaborator.staff.data_access_profile.can_access_admin_audit, false);
+    createdCollaboratorUserId = createdCollaborator.user_id;
+    createdCollaboratorStaffId = createdCollaborator.staff.staff_id;
+    createdCollaboratorInstitutionId = createdCollaborator.staff.institution.institution_id;
 
     const patchedUser = await fetchData(`${baseUrl}/users/${createdUser.user_id}`, {
       method: "PATCH",
@@ -57,6 +111,7 @@ test("central admin can create, update, assign, and deactivate a user", async ()
       body: JSON.stringify({ display_name: "Updated Field Worker", active: true }),
     });
     assert.equal(patchedUser.display_name, "Updated Field Worker");
+    assert.equal(patchedUser.staff.full_name, "Field Worker API Test");
 
     const assignment = await fetchData(`${baseUrl}/users/${createdUser.user_id}/area-assignments`, {
       method: "POST",
@@ -93,6 +148,31 @@ test("central admin can create, update, assign, and deactivate a user", async ()
         .delete(schema.userAreaAssignments)
         .where(eq(schema.userAreaAssignments.user_id, createdUserId));
       await db.delete(schema.users).where(eq(schema.users.user_id, createdUserId));
+    }
+    if (createdCollaboratorUserId) {
+      await db.delete(schema.users).where(eq(schema.users.user_id, createdCollaboratorUserId));
+    }
+    if (createdCollaboratorStaffId) {
+      await db
+        .delete(schema.dataAccessProfiles)
+        .where(eq(schema.dataAccessProfiles.staff_id, createdCollaboratorStaffId));
+      await db
+        .delete(schema.studyStaffMembers)
+        .where(eq(schema.studyStaffMembers.staff_id, createdCollaboratorStaffId));
+    }
+    if (createdCollaboratorInstitutionId) {
+      await db
+        .delete(schema.institutions)
+        .where(eq(schema.institutions.institution_id, createdCollaboratorInstitutionId));
+    }
+    if (createdStaffId) {
+      await db
+        .delete(schema.dataAccessProfiles)
+        .where(eq(schema.dataAccessProfiles.staff_id, createdStaffId));
+      await db.delete(schema.studyStaffMembers).where(eq(schema.studyStaffMembers.staff_id, createdStaffId));
+    }
+    if (createdInstitutionId) {
+      await db.delete(schema.institutions).where(eq(schema.institutions.institution_id, createdInstitutionId));
     }
     await new Promise<void>((resolve, reject) => {
       server.close((error) => (error ? reject(error) : resolve()));
