@@ -16,7 +16,7 @@ Drafts are local recovery state.
 
 Opening preview may save a draft, but preview is not evidence.
 
-## Finalized Responses
+## Finalized CRFs
 
 Final confirmation creates one immutable local form response.
 
@@ -42,8 +42,8 @@ sync_status
 
 Rules:
 
-- Finalized responses are immutable evidence.
-- Finalized responses can be locally promoted for offline continuity.
+- Finalized CRFs are immutable study evidence.
+- Finalized CRFs can be locally promoted for offline continuity.
 - Local promotion records provenance back to the response.
 - The generic form route and task-opened route for a form must use the same finalization path.
 
@@ -54,7 +54,7 @@ Expo may derive provisional local state from finalized evidence:
 - households and members from accepted HHQ finalization
 - eligible women and WQ tasks from HHQ roster rules
 - pregnancy and follow-up tasks from PEF/PFF/POF paths
-- provisional domain events in the outbox
+- Provisional Study Events in the outbox
 - task state needed for offline worklists
 
 Local projections are provisional until backend confirmation.
@@ -65,10 +65,10 @@ Correction/revisit form submissions are different from ordinary protocol submiss
 
 Push sends evidence and event records:
 
-- finalized form responses
+- Finalized CRFs
 - task attempts
-- provisional domain events
-- provisional task lifecycle events
+- Provisional Study Events
+- provisional Task Lifecycle Events
 - contextual opportunity events when present
 
 Push does not use arbitrary local projection table edits as the source of truth.

@@ -2,6 +2,23 @@
 
 This policy defines authentication, device registration, token behavior, and role/scope boundaries. It is canonical even where code still lags.
 
+## Staff Identity Model
+
+Study staff identity is separate from app login identity.
+
+Rules:
+
+- Institutions represent real-world organizations participating in or supporting the study.
+- Study Staff Members represent real-world people and their institutional affiliations.
+- Each Study Staff Member has one Institution affiliation in DYNAMIC.
+- Designations are free-text real-world titles or appointments; they do not grant app permissions by themselves.
+- Study Roles describe study responsibilities such as Field Worker, Site Data Manager, Central Data Manager, or US Collaborator.
+- Study Roles are also app roles where the person needs login access.
+- Every User Account must map to exactly one Study Staff Member.
+- Data Access Profiles define whether a Staff Member or User Account can access PII, raw CRFs, de-identified exports, aggregate dashboards, or admin/audit surfaces.
+- Do not use the `users` table alone as the authoritative roster of research staff, institutions, designations, and collaborator access.
+- Do not model ethics committee, funder, or coordinating-center people unless they need DYNAMIC access as Study Staff Members.
+
 ## Authentication
 
 Rules:
@@ -52,6 +69,7 @@ field_worker
 field_supervisor
 site_research_scientist
 central_admin
+us_collaborator
 ```
 
 Role rules:
@@ -60,7 +78,22 @@ Role rules:
 - Supervisors operate only within their assigned operational scope.
 - Site research scientists operate within their site and cannot create central admins.
 - Central admins can manage cross-site users, masters, and device assignments.
+- US collaborators can log in to approved dashboards and data views, but can access only non-PII aggregate, de-identified, or analysis-ready study data.
+- US collaborators must not access participant names, direct identifiers, contact details, free-text notes that may contain identifiers, device/user audit trails that identify participants, or raw CRF answers unless explicitly de-identified for their view.
 - Admin correction and data-quality permissions must follow role and site/locality scope.
+
+## PII Boundary
+
+Participant-identifying data must stay inside India-hosted operational access unless an approved de-identified export explicitly removes direct and reasonably identifying fields.
+
+Rules:
+
+- PII-restricted fields include names, contact details, exact addresses, household location details that identify a participant, free-text notes that may contain identifiers, raw CRF answers with identifying content, and linkage fields that expose identity outside the approved analysis context.
+- US Collaborator access is read-only and non-PII by default.
+- US Collaborators must use de-identified exports, aggregate dashboards, or analysis views designed for non-PII access.
+- Existing API routes may serve US Collaborators only when role-based filtering removes PII and restricts output to approved non-PII fields.
+- Admin, sync, device, and audit views that expose field worker activity tied to identifiable participants are not US Collaborator surfaces.
+- When in doubt, deny US Collaborator access until a Site Research Scientist or Central Admin confirms the view is non-PII.
 
 ## Area Scope
 

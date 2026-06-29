@@ -30,15 +30,15 @@ Rules:
 - Field-created Issues may be visible immediately offline on the creating device and sync later.
 - Field-created Issues annotate local workflow by default. They block or disable workflow only when a system rule or backend/admin review applies a blocking decision.
 - Issue types are centrally configured with only a name and short description. Field users may choose `Other, describe`, but they must not create arbitrary new Issue types.
-- Local and Central Data Managers may change Issue Type with history. Field workers may edit Issue Type only for their own local unsynced Issues.
-- Local and Central Data Managers may edit Issue title or description with history. Field workers may edit title or description only for their own local unsynced Issues.
+- Site and Central Data Managers may change Issue Type with history. Field workers may edit Issue Type only for their own local unsynced Issues.
+- Site and Central Data Managers may edit Issue title or description with history. Field workers may edit title or description only for their own local unsynced Issues.
 - Field staff may link any Issue to a saved, drafted, synced, or submitted Form Submission when relevant.
-- Local and Central Data Managers may add or remove linked Form Submissions with history. Field workers may add links, but must not remove synced links.
+- Site and Central Data Managers may add or remove linked Form Submissions with history. Field workers may add links, but must not remove synced links.
 - Draft-linked Issues remain local field context until the draft becomes a Form Submission. Reviewers see the form link only after final submission or an explicit field-revisit workflow shares it.
 - Field workers may see Issue status and effects in plain language.
 - Field workers may add Issue comments when the Issue is visible to them or when completing a linked correction/revisit task.
-- Local Data Managers propose resolutions for Issues in their assigned area and add supporting notes.
-- Central Data Managers approve, reject, or return proposed resolutions to Local Data Managers.
+- Site Data Managers propose resolutions for Issues in their assigned area and add supporting notes.
+- Central Data Managers approve, reject, or return proposed resolutions to Site Data Managers.
 - Resolution proposals are originated only in online admin/data-manager surfaces.
 - Offline field app workflows must not originate Resolution Proposals, approval events, or Correction Events.
 
@@ -67,27 +67,27 @@ The system may derive linked outcomes such as accepted, superseded, duplicate, r
 
 Resolution Proposals may include structured notes or rationale fields, but they do not have a separate comment thread. Discussion stays on the Issue comments.
 
-Only one Resolution Proposal may be active for an Issue at a time. Local Data Managers may revise the active proposal with history before central review. Central Data Managers do not edit proposals; they approve, reject, or return proposals to the Local Data Manager. Rejection requires a reason and returns the Issue to local review unless Central explicitly closes it as no action. Returned Issues may receive a revised or new proposal.
+Only one Resolution Proposal may be active for an Issue at a time. Site Data Managers may revise the active proposal with history before central review. Central Data Managers do not edit proposals; they approve, reject, or return proposals to the Site Data Manager. Rejection requires a reason and returns the Issue to site review unless Central explicitly closes it as no action. Returned Issues may receive a revised or new proposal.
 
-Local Data Managers may propose closing an Issue with no action. Central Data Managers approve close-no-action proposals. Central Data Managers may close central-created or central-owned Issues with no action directly.
+Site Data Managers may propose closing an Issue with no action. Central Data Managers approve close-no-action proposals. Central Data Managers may close central-created or central-owned Issues with no action directly.
 
-Issue assignment defaults from area and role. Local or Central Data Managers may explicitly assign an Issue to a person for accountability.
+Issue assignment defaults from area and role. Site or Central Data Managers may explicitly assign an Issue to a person for accountability.
 
 Issue priority is separate from status and assignment. Use only `normal` and `urgent` priorities unless the active policy is revised.
 
-Field workers may mark their own manually created Issues as urgent. Local and Central Data Managers may change Issue priority. System-created urgent Issues require configured system rules.
+Field workers may mark their own manually created Issues as urgent. Site and Central Data Managers may change Issue priority. System-created urgent Issues require configured system rules.
 
-Urgent Issues created offline notify the Local Data Manager only after sync. Offline UI may show that the urgent Issue is waiting to send.
+Urgent Issues created offline notify the Site Data Manager only after sync. Offline UI may show that the urgent Issue is waiting to send.
 
 Issue history is a first-class audit trail visible in admin. It should include status changes, Issue Type changes, title/description edits, assignment changes, priority changes, linked Form Submission changes, proposal revisions, central decisions, and recalculation outcomes.
 
 Field workers see current Issue status, their own comments, system/status messages, relevant field-action history, and Local/Central decision outcomes that affect field work. Manager comments are hidden from field staff. Full Issue audit history is for admin/data-manager surfaces.
 
-Local and Central Data Managers share manager comments and full Issue audit history within their permitted scope.
+Site and Central Data Managers share manager comments and full Issue audit history within their permitted scope.
 
 ## Issue Views
 
-Field, Local Data Manager, and Central Data Manager surfaces may offer both household-first and issue-type-first views over the same Issues. Permissions control actions, not whether the user can use a view.
+Field, Site Data Manager, and Central Data Manager surfaces may offer both household-first and issue-type-first views over the same Issues. Permissions control actions, not whether the user can use a view.
 
 Issue View filters should use consistent labels:
 
@@ -122,11 +122,11 @@ Urgent is available as a filter and sort option. Do not force a priority-first d
 
 ## Raw Evidence
 
-Corrections do not edit raw submitted evidence.
+Corrections do not edit raw Finalized CRFs.
 
 Rules:
 
-- Original finalized form responses remain immutable.
+- Original Finalized CRFs remain immutable.
 - All Form Submissions remain preserved, including original, updated, duplicate, superseded, rejected, and field-revisit-requested submissions.
 - Corrections append correction events with actor, reason, review state, source reference, and either value-level changes or accepted Form Submission references.
 - Approved corrections update typed projections.
@@ -199,10 +199,10 @@ Rules:
 - Correction/revisit Tasks must be clearly labeled as correction or revisit work.
 - Completion creates a new Form Submission linked to the Issue.
 - Completing a correction/revisit Task does not automatically supersede an older Form Submission.
-- If the Issue has a Local Data Manager assigned, the returned Form Submission goes back to local review before central approval.
+- If the Issue has a Site Data Manager assigned, the returned Form Submission goes back to site review before central approval.
 - Centrally managed Issues may return directly to central review.
 - Correction/revisit Form Submissions do not create Correction Events offline.
-- Ordinary protocol Form Submissions may still create Provisional Events for offline continuity.
+- Ordinary protocol Form Submissions may still create Provisional Study Events for offline continuity.
 
 ## Recalculation Triggers
 

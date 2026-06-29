@@ -20,7 +20,7 @@ If code and this document disagree, do not silently follow either. Treat it as a
 
 | Surface | Role |
 | --- | --- |
-| `expo-prototype` | Offline-first field app. Stores local tasks, drafts, finalized form responses, provisional events/projections, and sync state. |
+| `expo-prototype` | Offline-first field app. Stores local tasks, drafts, Finalized CRFs, Provisional Study Events/projections, and sync state. |
 | `apps/api` | Authoritative backend. Authenticates users, enforces area scope, ingests finalized evidence, classifies events, updates projections, writes tasks, and serves sync/admin APIs. |
 | `apps/admin` | Central review/admin UI for tasks, data quality, corrections, users, masters, and operational monitoring. |
 | `packages/event-core` | Shared event/reducer kernel. Backend and Expo should converge here for field-originated domain behavior. |
@@ -36,10 +36,10 @@ DYNAMIC uses immutable evidence plus derived operational projections.
 
 Authoritative evidence and events:
 
-- finalized form responses
-- domain events derived from accepted evidence
-- task lifecycle and attempt events
-- workflow decision events
+- Finalized CRFs
+- Accepted Study Events derived from accepted evidence
+- Task Lifecycle Events and attempt events
+- Workflow Decision events
 - admin correction events
 - data-quality flags
 - sync ingest records
@@ -81,12 +81,12 @@ Backend and Expo use the same event semantics for field-originated study events.
 
 Shared code must stay pure where it encodes study rules. Runtime-specific code supplies storage, auth/scope, transactions, clocks, IDs, HTTP, and UI state around the shared kernel.
 
-Finalized field submissions trigger cohort events through `@dynamic/event-core`, not through backend-only or Expo-only form handlers. The shared trigger contract is:
+Finalized CRFs trigger cohort events through `@dynamic/event-core`, not through backend-only or Expo-only form handlers. The shared trigger contract is:
 
 ```text
-finalized form response + cohort/task context
+Finalized CRF + cohort/task context
   -> shared form-submission trigger
-  -> canonical domain event
+  -> canonical Study Event
   -> event-owned projection/workflow outputs
 ```
 
@@ -107,12 +107,12 @@ Form schemas may keep evolving while source PDFs are finalized. That does not ch
 
 ## Form Lifecycle
 
-Drafts are local recovery state. Finalized responses are evidence.
+Drafts are local recovery state. Finalized CRFs are study evidence.
 
 - Drafts stay local, are overwriteable, and never promote domain state.
 - Final confirmation creates one immutable local response with sync metadata.
 - Expo can locally promote finalized evidence into provisional household/task/workflow state so field work continues offline.
-- Sync pushes finalized evidence and provisional events, not arbitrary projection-table edits as the source of truth.
+- Sync pushes Finalized CRFs and Provisional Study Events, not arbitrary projection-table edits as the source of truth.
 - Backend stores immutable evidence first, classifies it, then applies authoritative event/projection/workflow logic.
 - Pull reconciliation uses stable response IDs, task keys, server commit sequence, and provenance. Pull must not overwrite newer unsynced local evidence.
 
@@ -195,7 +195,7 @@ Admin corrections are backend/admin events. Expo does not originate correction, 
 
 Rules:
 
-- Corrections never edit raw submitted evidence.
+- Corrections never edit raw Finalized CRFs.
 - Approved corrections update typed projected state and may recalculate future uncompleted tasks.
 - Identity, eligibility, outcome, death, stillbirth, and scheduling-impacting corrections require downstream recalculation or central review.
 - Duplicate offline task completions are valid evidence. The first valid completion closes operational state; later completions are duplicate evidence and data-quality flags.

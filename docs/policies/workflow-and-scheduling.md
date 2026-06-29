@@ -24,7 +24,7 @@ The trigger receives:
 
 The trigger returns:
 
-- canonical domain event envelope
+- canonical Study Event envelope
 - event-owned projection result when applicable
 - deterministic task descriptors
 - data-quality flags when applicable
