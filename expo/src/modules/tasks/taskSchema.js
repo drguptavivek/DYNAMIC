@@ -26,6 +26,11 @@ export function initTaskDb() {
       disabled_reason TEXT,
       assigned_locality_code TEXT,
       rules_version TEXT,
+      generation_source TEXT,
+      source_event_id TEXT,
+      source_form_response_id TEXT,
+      sync_status TEXT DEFAULT 'local',
+      server_commit_sequence INTEGER,
       created_at TEXT,
       updated_at TEXT
     )
@@ -127,6 +132,11 @@ export function initTaskDb() {
     "ALTER TABLE pregnancies ADD COLUMN source_form_response_id TEXT",
     "ALTER TABLE pregnancies ADD COLUMN source_event_id TEXT",
     "ALTER TABLE follow_up_tasks ADD COLUMN lifecycle_status TEXT DEFAULT 'open'",
+    "ALTER TABLE follow_up_tasks ADD COLUMN generation_source TEXT",
+    "ALTER TABLE follow_up_tasks ADD COLUMN source_event_id TEXT",
+    "ALTER TABLE follow_up_tasks ADD COLUMN source_form_response_id TEXT",
+    "ALTER TABLE follow_up_tasks ADD COLUMN sync_status TEXT DEFAULT 'local'",
+    "ALTER TABLE follow_up_tasks ADD COLUMN server_commit_sequence INTEGER",
   ]) {
     try {
       db.runSync(statement);

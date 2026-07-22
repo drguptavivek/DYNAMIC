@@ -1,6 +1,7 @@
 import { getDb } from "../tasks/taskSchema.js";
 import * as taskRepository from "../tasks/taskRepository.js";
 import * as authStore from "../auth/authStore.js";
+import { reconcilePulledTasks } from "../worklist/taskWorklistRepository.js";
 import {
   clearHouseholdCacheForSync,
   getHouseholdCacheInfo,
@@ -390,7 +391,7 @@ export async function pullSync(options = {}) {
       }
 
       if (tasks.length > 0) {
-        await taskRepository.saveTaskBatch(tasks);
+        reconcilePulledTasks(tasks);
         pulledTasks += tasks.length;
       }
 

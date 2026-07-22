@@ -76,6 +76,11 @@ class WebDatabase {
         "disabled_reason",
         "assigned_locality_code",
         "rules_version",
+        "generation_source",
+        "source_event_id",
+        "source_form_response_id",
+        "sync_status",
+        "server_commit_sequence",
         "created_at",
         "updated_at",
       ];

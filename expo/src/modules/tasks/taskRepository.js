@@ -72,6 +72,11 @@ export function saveTask(task) {
     disabled_reason,
     assigned_locality_code,
     rules_version,
+    generation_source,
+    source_event_id,
+    source_form_response_id,
+    sync_status = task.sync_status || "local",
+    server_commit_sequence,
     created_at = now,
   } = task;
 
@@ -81,8 +86,9 @@ export function saveTask(task) {
        (id, task_key, household_id, subject_type, subject_id, subject_name, task_type,
         protocol_visit_label, target_date, window_start, window_end, status,
         lifecycle_status, form_availability, disabled_reason, assigned_locality_code, rules_version,
+        generation_source, source_event_id, source_form_response_id, sync_status, server_commit_sequence,
         created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         task_key,
@@ -101,6 +107,11 @@ export function saveTask(task) {
         disabled_reason,
         assigned_locality_code,
         rules_version,
+        generation_source,
+        source_event_id,
+        source_form_response_id,
+        sync_status,
+        server_commit_sequence,
         created_at,
         now,
       ],
@@ -137,6 +148,11 @@ export function saveTaskBatch(tasks) {
         disabled_reason,
         assigned_locality_code,
         rules_version,
+        generation_source,
+        source_event_id,
+        source_form_response_id,
+        sync_status = task.sync_status || "local",
+        server_commit_sequence,
         created_at = now,
       } = task;
 
@@ -145,8 +161,9 @@ export function saveTaskBatch(tasks) {
          (id, task_key, household_id, subject_type, subject_id, subject_name, task_type,
           protocol_visit_label, target_date, window_start, window_end, status,
           lifecycle_status, form_availability, disabled_reason, assigned_locality_code, rules_version,
+          generation_source, source_event_id, source_form_response_id, sync_status, server_commit_sequence,
           created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           id,
           task_key,
@@ -165,6 +182,11 @@ export function saveTaskBatch(tasks) {
           disabled_reason,
           assigned_locality_code,
           rules_version,
+          generation_source,
+          source_event_id,
+          source_form_response_id,
+          sync_status,
+          server_commit_sequence,
           created_at,
           now,
         ],

@@ -9,8 +9,8 @@ import {
   RefreshControl,
   Alert,
 } from "react-native";
-import * as taskRepository from "../tasks/taskRepository.js";
 import * as syncService from "../sync/syncService.js";
+import { listTaskWorklist } from "./taskWorklistRepository.js";
 import { getTaskOpenBlockReason } from "./taskOpenPolicy.js";
 
 const BADGE_COLORS = {
@@ -100,8 +100,7 @@ export function WorklistScreen({ onOpenTask, syncService: syncServiceProp, selec
   function loadTasks() {
     setLoading(true);
     try {
-      const allTasks = taskRepository.listTasks({
-        status: "open",
+      const allTasks = listTaskWorklist({
         locality_code: selectedLocalityCode || undefined,
       });
       setTasks(allTasks);
