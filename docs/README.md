@@ -14,7 +14,8 @@ Current docs:
 - [Auth, device, and role scope](policies/auth-device-and-role-scope.md).
 - [Admin corrections and data quality](policies/admin-corrections-and-data-quality.md).
 - [Testing](testing.md).
-- [Deployment](deployment/same-vm-nginx.md).
+- [Backend API and admin UI build and deployment](deployment/backend-api-and-admin-ui.md).
+- [Local same-VM Nginx edge routing](deployment/same-vm-nginx.md).
 
 Archived docs live under `archive/`. They are historical background only.
 

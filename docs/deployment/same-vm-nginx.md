@@ -1,4 +1,6 @@
-# Same-VM Nginx Edge Routing
+# Same-VM Nginx Edge Routing for Local Development
+
+For production API and admin UI build and deployment instructions, see [Backend API and Admin UI Build and Deployment](backend-api-and-admin-ui.md).
 
 Use an Nginx container as the single HTTP edge when the admin SPA and API run on the same VM.
 For current dev work, Nginx proxies the Vite admin dev server so HMR stays active.
@@ -37,7 +39,6 @@ Then open:
 
 ## Production note
 
-For one VM, keep Nginx at the edge and run the API behind it. Override `DYNAMIC_NGINX_PORT=80` or terminate TLS at Nginx on `443` when certificates are configured.
-For production, switch the Nginx app route from Vite proxying to serving `apps/admin/dist`.
+The checked-in Nginx configuration is for local HMR and is not a production configuration. For one production VM, keep Nginx at the edge, run the API behind it, and serve `apps/admin/dist` as static files. The production guide includes the required build commands, service configuration, TLS proxy example, smoke checks, and rollback sequence.
 
 HAProxy is not needed for this first deployment shape. It becomes useful later if the API/admin path is split across multiple backend nodes or we need load-balancing-specific features.

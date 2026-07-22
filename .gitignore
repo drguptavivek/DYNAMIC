@@ -8,6 +8,7 @@ node_modules/
 # Expo / React Native
 .expo/
 .expo-shared/
+expo/android/
 web-build/
 dist/
 CVs/
@@ -25,6 +26,8 @@ yarn-error.log*
 # Environment files
 .env
 .env.*
+!.env.example
+!**/.env.example
 
 # Local verification artifacts
 screenshots/
