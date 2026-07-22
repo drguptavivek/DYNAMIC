@@ -458,6 +458,23 @@ describe("event-core task lifecycle rules", () => {
       should_increment_failed_attempts: true,
       should_prompt_final_close_reason: true,
     });
+
+    expect(
+      evaluateTaskLifecycleTransition(
+        {
+          ...baseState,
+          status: "due",
+          failed_attempt_count: 1,
+          max_failed_attempts: 2,
+          requires_final_close_reason: false,
+        },
+        { event_type: "task_attempt_recorded", actor_type: "field" },
+      ),
+    ).toMatchObject({
+      allowed: true,
+      should_increment_failed_attempts: true,
+      should_prompt_final_close_reason: false,
+    });
   });
 
   test("field close final reason requires due, urgent, or overdue status and a close reason", () => {

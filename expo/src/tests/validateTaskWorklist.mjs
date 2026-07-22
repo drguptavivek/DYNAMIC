@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 
 const {
   listTaskWorklist,
+  listTaskAttempts,
   mergeTaskWorklist,
+  recordFailedTaskAttempt,
   reconcilePulledTasks,
   saveEligibleWomanWorkflow,
   saveProvisionalPregnancyWorkflow,
@@ -53,6 +55,7 @@ const savedBatches = [];
 const savedTasks = [];
 const savedEligibleWomen = [];
 const savedPregnancies = [];
+const savedAttempts = [];
 const repository = {
   listTasks(filters = {}) {
     if (filters.status === "open") {
@@ -72,13 +75,36 @@ const repository = {
   savePregnancy(pregnancy) {
     savedPregnancies.push(pregnancy);
   },
+  getTaskAttempts(taskId) {
+    return savedAttempts.filter((attempt) => attempt.task_id === taskId);
+  },
+  saveTaskAttempt(attempt, taskState) {
+    savedAttempts.push({ ...attempt, task_state: taskState });
+  },
 };
 
 const reconcileResult = reconcilePulledTasks([confirmedTask], repository);
 assert.equal(reconcileResult.saved, 1);
+assert.deepEqual(reconcileResult.reconciled, [
+  {
+    task_key: provisionalTask.task_key,
+    provisional_task_id: "local-task-1",
+    confirmed_task_id: "server-task-1",
+    disposition: "confirmed",
+  },
+]);
 assert.equal(savedBatches.length, 1);
 assert.equal(savedBatches[0].length, 1);
 assert.equal(savedBatches[0][0].id, "server-task-1");
+
+const withdrawnTask = {
+  ...confirmedTask,
+  id: "server-task-withdrawn",
+  status: "superseded",
+  lifecycle_status: "superseded",
+};
+const withdrawnResult = reconcilePulledTasks([withdrawnTask], repository);
+assert.equal(withdrawnResult.reconciled[0].disposition, "withdrawn");
 
 const worklist = listTaskWorklist({ locality_code: "02" }, repository);
 assert.deepEqual(worklist.map((task) => task.id), ["local-task-1"]);
@@ -105,5 +131,54 @@ assert.deepEqual(
 );
 assert.equal(savedPregnancies[0].pregnancy_id, "pregnancy-1");
 assert.equal(savedTasks[2].sync_status, "local");
+
+const attemptTask = {
+  ...provisionalTask,
+  lifecycle_status: "due",
+  failed_attempt_count: 1,
+  max_failed_attempts: 2,
+};
+const attempt = {
+  id: "attempt-2",
+  task_id: attemptTask.id,
+  attempt_number: 2,
+  outcome: "not_found",
+};
+const attemptResult = recordFailedTaskAttempt({ task: attemptTask, attempt }, repository);
+assert.equal(attemptResult.decision.allowed, true);
+assert.equal(attemptResult.decision.should_prompt_final_close_reason, true);
+assert.equal(attemptResult.failed_attempt_count, 2);
+assert.equal(savedAttempts[0].task_state.failed_attempt_count, 2);
+assert.deepEqual(listTaskAttempts(attemptTask.id, repository), savedAttempts);
+
+const noCloseReasonResult = recordFailedTaskAttempt(
+  {
+    task: {
+      ...attemptTask,
+      id: "no-close-reason-task",
+      requires_final_close_reason: false,
+    },
+    attempt: {
+      ...attempt,
+      id: "no-close-reason-attempt",
+      task_id: "no-close-reason-task",
+    },
+  },
+  repository,
+);
+assert.equal(noCloseReasonResult.decision.should_prompt_final_close_reason, false);
+
+assert.throws(
+  () =>
+    recordFailedTaskAttempt(
+      {
+        task: { ...attemptTask, lifecycle_status: "completed" },
+        attempt: { ...attempt, id: "attempt-terminal" },
+      },
+      repository,
+    ),
+  /terminal_task/,
+);
+assert.equal(savedAttempts.length, 2);
 
 console.log("Task worklist validation passed");

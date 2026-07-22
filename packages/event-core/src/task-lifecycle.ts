@@ -41,6 +41,7 @@ export interface TaskLifecycleState {
   status: TaskStatus;
   failed_attempt_count?: number;
   max_failed_attempts?: number;
+  requires_final_close_reason?: boolean;
   primary_response_id?: string | null;
 }
 
@@ -187,6 +188,7 @@ export function isFieldMutableTaskStatus(status: TaskStatus): boolean {
 export function getFailedAttemptDisposition(
   failed_attempt_count?: number | null,
   max_failed_attempts?: number | null,
+  requires_final_close_reason = true,
 ): {
   next_failed_attempt_count: number;
   should_prompt_final_close_reason: boolean;
@@ -195,7 +197,8 @@ export function getFailedAttemptDisposition(
   const should_prompt_final_close_reason =
     typeof max_failed_attempts === "number" &&
     Number.isFinite(max_failed_attempts) &&
-    next_failed_attempt_count >= max_failed_attempts;
+    next_failed_attempt_count >= max_failed_attempts &&
+    requires_final_close_reason;
 
   return {
     next_failed_attempt_count,
@@ -288,6 +291,7 @@ export function evaluateTaskLifecycleTransition(
       const disposition = getFailedAttemptDisposition(
         currentFailedAttemptCount,
         state.max_failed_attempts,
+        state.requires_final_close_reason,
       );
       return buildDecision(
         true,

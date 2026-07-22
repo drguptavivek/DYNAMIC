@@ -11,8 +11,8 @@ import {
   TextInput,
   Picker,
 } from "react-native";
-import * as taskRepository from "../tasks/taskRepository.js";
 import { getTaskOpenBlockReason } from "./taskOpenPolicy.js";
+import { listTaskAttempts, recordFailedTaskAttempt } from "./taskWorklistRepository.js";
 
 const STATUS_COLORS = {
   open: "#3498db",
@@ -39,7 +39,7 @@ export function TaskDetailModal({ visible, task, onClose, onOpenForm }) {
   function loadAttempts() {
     setLoading(true);
     try {
-      const taskAttempts = taskRepository.getTaskAttempts(task.id);
+      const taskAttempts = listTaskAttempts(task.id);
       setAttempts(taskAttempts);
     } catch (error) {
       console.error("Error loading attempts:", error);
@@ -57,22 +57,26 @@ export function TaskDetailModal({ visible, task, onClose, onOpenForm }) {
     try {
       setLoading(true);
       const attemptId = `${task.id}-attempt-${Date.now()}`;
-      const attemptNumber = attempts.length + 1;
-
       const attempt = {
         id: attemptId,
         task_id: task.id,
-        attempt_number: attemptNumber,
         outcome: selectedOutcome,
         notes: attemptNotes,
       };
 
-      await taskRepository.saveAttempt(attempt);
+      const result = recordFailedTaskAttempt({ task, attempt });
       setAttemptNotes("");
       setShowAttemptForm(false);
       setSelectedOutcome("not_found");
       loadAttempts();
-      Alert.alert("Success", "Attempt recorded");
+      if (result.decision.should_prompt_final_close_reason) {
+        Alert.alert(
+          "Final close reason required",
+          "The failed-attempt limit has been reached. Record a final close reason before closing this task.",
+        );
+      } else {
+        Alert.alert("Success", "Attempt recorded");
+      }
     } catch (error) {
       console.error("Error recording attempt:", error);
       Alert.alert("Error", `Failed to record attempt: ${error.message}`);

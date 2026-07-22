@@ -68,6 +68,9 @@ export function saveTask(task) {
     window_end,
     status = "open",
     lifecycle_status = task.lifecycle_status || status,
+    failed_attempt_count = 0,
+    max_failed_attempts,
+    requires_final_close_reason = false,
     form_availability = "available",
     disabled_reason,
     assigned_locality_code,
@@ -85,10 +88,11 @@ export function saveTask(task) {
       `INSERT OR REPLACE INTO follow_up_tasks
        (id, task_key, household_id, subject_type, subject_id, subject_name, task_type,
         protocol_visit_label, target_date, window_start, window_end, status,
-        lifecycle_status, form_availability, disabled_reason, assigned_locality_code, rules_version,
+        lifecycle_status, failed_attempt_count, max_failed_attempts, requires_final_close_reason,
+        form_availability, disabled_reason, assigned_locality_code, rules_version,
         generation_source, source_event_id, source_form_response_id, sync_status, server_commit_sequence,
         created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         task_key,
@@ -103,6 +107,9 @@ export function saveTask(task) {
         window_end,
         status,
         lifecycle_status,
+        failed_attempt_count,
+        max_failed_attempts,
+        requires_final_close_reason ? 1 : 0,
         form_availability,
         disabled_reason,
         assigned_locality_code,
@@ -144,6 +151,9 @@ export function saveTaskBatch(tasks) {
         window_end,
         status = "open",
         lifecycle_status = task.lifecycle_status || status,
+        failed_attempt_count = 0,
+        max_failed_attempts,
+        requires_final_close_reason = false,
         form_availability = "available",
         disabled_reason,
         assigned_locality_code,
@@ -160,10 +170,11 @@ export function saveTaskBatch(tasks) {
         `INSERT OR REPLACE INTO follow_up_tasks
          (id, task_key, household_id, subject_type, subject_id, subject_name, task_type,
           protocol_visit_label, target_date, window_start, window_end, status,
-          lifecycle_status, form_availability, disabled_reason, assigned_locality_code, rules_version,
+          lifecycle_status, failed_attempt_count, max_failed_attempts, requires_final_close_reason,
+          form_availability, disabled_reason, assigned_locality_code, rules_version,
           generation_source, source_event_id, source_form_response_id, sync_status, server_commit_sequence,
           created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           id,
           task_key,
@@ -178,6 +189,9 @@ export function saveTaskBatch(tasks) {
           window_end,
           status,
           lifecycle_status,
+          failed_attempt_count,
+          max_failed_attempts,
+          requires_final_close_reason ? 1 : 0,
           form_availability,
           disabled_reason,
           assigned_locality_code,
@@ -425,6 +439,47 @@ export function saveAttempt(attempt) {
     );
   } catch (error) {
     console.error("Error saving attempt:", error);
+    throw error;
+  }
+}
+
+export function saveTaskAttempt(attempt, taskState) {
+  const db = getDb();
+  const attemptedAt = attempt.attempted_at || new Date().toISOString();
+
+  try {
+    db.runSync("BEGIN TRANSACTION");
+    db.runSync(
+      `INSERT INTO task_attempts
+       (id, task_id, attempt_number, outcome, notes, attempted_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [
+        attempt.id,
+        attempt.task_id,
+        attempt.attempt_number,
+        attempt.outcome,
+        attempt.notes,
+        attemptedAt,
+      ],
+    );
+    const taskUpdate = db.runSync(
+      `UPDATE follow_up_tasks
+       SET failed_attempt_count = ?, lifecycle_status = ?, updated_at = ?
+       WHERE id = ?`,
+      [
+        taskState.failed_attempt_count,
+        taskState.lifecycle_status,
+        attemptedAt,
+        attempt.task_id,
+      ],
+    );
+    if (taskUpdate.changes !== 1) {
+      throw new Error(`Task ${attempt.task_id} was not found while saving attempt`);
+    }
+    db.runSync("COMMIT");
+  } catch (error) {
+    db.runSync("ROLLBACK");
+    console.error("Error saving task attempt:", error);
     throw error;
   }
 }
