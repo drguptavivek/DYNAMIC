@@ -71,6 +71,8 @@ export function saveTask(task) {
     failed_attempt_count = 0,
     max_failed_attempts,
     requires_final_close_reason = false,
+    closed_reason,
+    closed_at,
     form_availability = "available",
     disabled_reason,
     assigned_locality_code,
@@ -89,10 +91,11 @@ export function saveTask(task) {
        (id, task_key, household_id, subject_type, subject_id, subject_name, task_type,
         protocol_visit_label, target_date, window_start, window_end, status,
         lifecycle_status, failed_attempt_count, max_failed_attempts, requires_final_close_reason,
+        closed_reason, closed_at,
         form_availability, disabled_reason, assigned_locality_code, rules_version,
         generation_source, source_event_id, source_form_response_id, sync_status, server_commit_sequence,
         created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         task_key,
@@ -110,6 +113,8 @@ export function saveTask(task) {
         failed_attempt_count,
         max_failed_attempts,
         requires_final_close_reason ? 1 : 0,
+        closed_reason,
+        closed_at,
         form_availability,
         disabled_reason,
         assigned_locality_code,
@@ -154,6 +159,8 @@ export function saveTaskBatch(tasks) {
         failed_attempt_count = 0,
         max_failed_attempts,
         requires_final_close_reason = false,
+        closed_reason,
+        closed_at,
         form_availability = "available",
         disabled_reason,
         assigned_locality_code,
@@ -171,10 +178,11 @@ export function saveTaskBatch(tasks) {
          (id, task_key, household_id, subject_type, subject_id, subject_name, task_type,
           protocol_visit_label, target_date, window_start, window_end, status,
           lifecycle_status, failed_attempt_count, max_failed_attempts, requires_final_close_reason,
+          closed_reason, closed_at,
           form_availability, disabled_reason, assigned_locality_code, rules_version,
           generation_source, source_event_id, source_form_response_id, sync_status, server_commit_sequence,
           created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           id,
           task_key,
@@ -192,6 +200,8 @@ export function saveTaskBatch(tasks) {
           failed_attempt_count,
           max_failed_attempts,
           requires_final_close_reason ? 1 : 0,
+          closed_reason,
+          closed_at,
           form_availability,
           disabled_reason,
           assigned_locality_code,
@@ -480,6 +490,35 @@ export function saveTaskAttempt(attempt, taskState) {
   } catch (error) {
     db.runSync("ROLLBACK");
     console.error("Error saving task attempt:", error);
+    throw error;
+  }
+}
+
+export function saveTaskClosure(taskId, taskState) {
+  const db = getDb();
+  const updatedAt = taskState.closed_at || new Date().toISOString();
+
+  try {
+    const result = db.runSync(
+      `UPDATE follow_up_tasks
+       SET status = ?, lifecycle_status = ?, closed_reason = ?, closed_at = ?,
+           sync_status = ?, updated_at = ?
+       WHERE id = ?`,
+      [
+        taskState.status,
+        taskState.lifecycle_status,
+        taskState.closed_reason,
+        taskState.closed_at,
+        taskState.sync_status,
+        updatedAt,
+        taskId,
+      ],
+    );
+    if (result.changes !== 1) {
+      throw new Error(`Task ${taskId} was not found while saving final close reason`);
+    }
+  } catch (error) {
+    console.error("Error saving task closure:", error);
     throw error;
   }
 }

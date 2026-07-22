@@ -1,4 +1,5 @@
 import { evaluateTaskLifecycleTransition } from "@dynamic/event-core";
+import { DEFAULT_PROTOCOL_CONFIG } from "@dynamic/shared-workflow";
 
 const TERMINAL_STATUSES = new Set([
   "completed",
@@ -90,6 +91,67 @@ export function listTaskAttempts(taskId, repository) {
   return repository.getTaskAttempts(taskId);
 }
 
+export function listTaskFinalCloseReasons(task, config = DEFAULT_PROTOCOL_CONFIG) {
+  if (!task?.task_type) return [];
+  const rule = config.attempt_disposition_rules.find(
+    (candidate) => candidate.task_type === task.task_type,
+  );
+  if (!rule?.requires_final_close_reason) return [];
+  return [...rule.close_reason_options];
+}
+
+export function closeTaskWithFinalReason({ taskId, closeReason } = {}, repository) {
+  if (!taskId || !closeReason) {
+    throw new Error("Task and final close reason are required");
+  }
+  if (
+    !repository ||
+    typeof repository.getTask !== "function" ||
+    typeof repository.saveTaskClosure !== "function"
+  ) {
+    throw new Error("Task Worklist repository adapter must provide getTask and saveTaskClosure");
+  }
+
+  const task = repository.getTask(taskId);
+  if (!task) throw new Error(`Task ${taskId} was not found`);
+  const closeReasons = listTaskFinalCloseReasons(task);
+  if (!closeReasons.includes(closeReason)) {
+    throw new Error(`Final close reason is not allowed for task type ${task.task_type}`);
+  }
+
+  const lifecycleStatus = task.lifecycle_status || task.status;
+  const decision = evaluateTaskLifecycleTransition(
+    {
+      task_id: task.id,
+      status: lifecycleStatus === "open" ? "due" : lifecycleStatus,
+      failed_attempt_count: task.failed_attempt_count,
+      max_failed_attempts: task.max_failed_attempts,
+      requires_final_close_reason: Boolean(task.requires_final_close_reason),
+      primary_response_id: task.primary_response_id,
+    },
+    {
+      event_type: "task_closed_final_reason",
+      actor_type: "field",
+      close_reason: closeReason,
+    },
+  );
+
+  if (!decision.allowed) {
+    throw new Error(`Task lifecycle transition rejected: ${decision.reason}`);
+  }
+
+  const closedAt = new Date().toISOString();
+  repository.saveTaskClosure(task.id, {
+    status: "closed",
+    lifecycle_status: decision.next_status,
+    closed_reason: closeReason,
+    closed_at: closedAt,
+    sync_status: "pending",
+  });
+
+  return { decision, closed_at: closedAt };
+}
+
 export function recordFailedTaskAttempt({ task, attempt } = {}, repository) {
   if (!task?.id || !attempt?.id || attempt.task_id !== task.id) {
     throw new Error("Task and matching attempt identifiers are required");
@@ -104,24 +166,26 @@ export function recordFailedTaskAttempt({ task, attempt } = {}, repository) {
     );
   }
 
+  const storedTask =
+    typeof repository.getTask === "function" ? repository.getTask(task.id) || task : task;
   const existingAttempts = repository.getTaskAttempts(task.id);
-  const storedFailedAttemptCount = Number(task.failed_attempt_count);
+  const storedFailedAttemptCount = Number(storedTask.failed_attempt_count);
   const failedAttemptCount =
-    task.failed_attempt_count != null && Number.isFinite(storedFailedAttemptCount)
+    storedTask.failed_attempt_count != null && Number.isFinite(storedFailedAttemptCount)
       ? storedFailedAttemptCount
       : existingAttempts.length;
-  const lifecycleStatus = task.lifecycle_status || task.status;
+  const lifecycleStatus = storedTask.lifecycle_status || storedTask.status;
   const decision = evaluateTaskLifecycleTransition(
     {
       task_id: task.id,
       status: lifecycleStatus === "open" ? "due" : lifecycleStatus,
       failed_attempt_count: failedAttemptCount,
-      max_failed_attempts: task.max_failed_attempts,
+      max_failed_attempts: storedTask.max_failed_attempts,
       requires_final_close_reason:
-        task.requires_final_close_reason == null
+        storedTask.requires_final_close_reason == null
           ? undefined
-          : Boolean(task.requires_final_close_reason),
-      primary_response_id: task.primary_response_id,
+          : Boolean(storedTask.requires_final_close_reason),
+      primary_response_id: storedTask.primary_response_id,
     },
     {
       event_type: "task_attempt_recorded",

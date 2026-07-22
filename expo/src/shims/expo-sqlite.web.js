@@ -75,6 +75,8 @@ class WebDatabase {
         "failed_attempt_count",
         "max_failed_attempts",
         "requires_final_close_reason",
+        "closed_reason",
+        "closed_at",
         "form_availability",
         "disabled_reason",
         "assigned_locality_code",
@@ -194,6 +196,31 @@ class WebDatabase {
         if (task.id !== id) return task;
         changes += 1;
         return { ...task, failed_attempt_count, lifecycle_status, updated_at };
+      });
+      this.persist();
+      return { changes };
+    }
+
+    if (
+      /UPDATE follow_up_tasks SET status = \?, lifecycle_status = \?, closed_reason = \?, closed_at = \?, sync_status = \?, updated_at = \? WHERE id = \?/i.test(
+        normalized,
+      )
+    ) {
+      const [status, lifecycle_status, closed_reason, closed_at, sync_status, updated_at, id] =
+        params;
+      let changes = 0;
+      this.state.follow_up_tasks = this.state.follow_up_tasks.map((task) => {
+        if (task.id !== id) return task;
+        changes += 1;
+        return {
+          ...task,
+          status,
+          lifecycle_status,
+          closed_reason,
+          closed_at,
+          sync_status,
+          updated_at,
+        };
       });
       this.persist();
       return { changes };

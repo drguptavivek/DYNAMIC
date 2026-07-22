@@ -143,6 +143,7 @@ export function FieldAppShell({ route, title, children }) {
         task={app.selectedTask}
         onClose={app.closeTaskModal}
         onOpenForm={app.openFormFromTask}
+        onTaskChanged={app.notifyTaskWorklistChanged}
       />
     </SafeAreaView>
   );

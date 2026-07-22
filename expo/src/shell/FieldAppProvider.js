@@ -21,6 +21,7 @@ export function FieldAppProvider({ children }) {
   const [taskDbReady, setTaskDbReady] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
   const [showTaskModal, setShowTaskModal] = useState(false);
+  const [taskWorklistRevision, setTaskWorklistRevision] = useState(0);
   const [currentTaskContext, setCurrentTaskContext] = useState(null);
   const [prefillData, setPrefillData] = useState(null);
   const [readOnlyFields, setReadOnlyFields] = useState(null);
@@ -154,6 +155,10 @@ export function FieldAppProvider({ children }) {
     setShowTaskModal(false);
   }
 
+  function notifyTaskWorklistChanged() {
+    setTaskWorklistRevision((revision) => revision + 1);
+  }
+
   function openFormFromTask(task) {
     if (!task) return;
     if (task.household_id) {
@@ -193,7 +198,9 @@ export function FieldAppProvider({ children }) {
       taskDbReady,
       selectedTask,
       showTaskModal,
+      taskWorklistRevision,
       closeTaskModal,
+      notifyTaskWorklistChanged,
       openTask,
       openFormFromTask,
       currentTaskContext,
@@ -220,6 +227,7 @@ export function FieldAppProvider({ children }) {
       taskDbReady,
       selectedTask,
       showTaskModal,
+      taskWorklistRevision,
       currentTaskContext,
       prefillData,
       readOnlyFields,

@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 const {
   listTaskWorklist,
   listTaskAttempts,
+  listTaskFinalCloseReasons,
   mergeTaskWorklist,
+  closeTaskWithFinalReason,
   recordFailedTaskAttempt,
   reconcilePulledTasks,
   saveEligibleWomanWorkflow,
@@ -56,6 +58,8 @@ const savedTasks = [];
 const savedEligibleWomen = [];
 const savedPregnancies = [];
 const savedAttempts = [];
+const savedClosures = [];
+const repositoryTasks = new Map([[provisionalTask.id, provisionalTask]]);
 const repository = {
   listTasks(filters = {}) {
     if (filters.status === "open") {
@@ -80,6 +84,17 @@ const repository = {
   },
   saveTaskAttempt(attempt, taskState) {
     savedAttempts.push({ ...attempt, task_state: taskState });
+    repositoryTasks.set(attempt.task_id, {
+      ...repositoryTasks.get(attempt.task_id),
+      ...taskState,
+    });
+  },
+  getTask(taskId) {
+    return repositoryTasks.get(taskId) || null;
+  },
+  saveTaskClosure(taskId, taskState) {
+    savedClosures.push({ taskId, taskState });
+    repositoryTasks.set(taskId, { ...repositoryTasks.get(taskId), ...taskState });
   },
 };
 
@@ -137,7 +152,17 @@ const attemptTask = {
   lifecycle_status: "due",
   failed_attempt_count: 1,
   max_failed_attempts: 2,
+  requires_final_close_reason: true,
 };
+repositoryTasks.set(attemptTask.id, attemptTask);
+assert.throws(
+  () =>
+    closeTaskWithFinalReason(
+      { taskId: attemptTask.id, closeReason: "not_reachable" },
+      repository,
+    ),
+  /failed_attempt_limit_not_reached/,
+);
 const attempt = {
   id: "attempt-2",
   task_id: attemptTask.id,
@@ -150,6 +175,22 @@ assert.equal(attemptResult.decision.should_prompt_final_close_reason, true);
 assert.equal(attemptResult.failed_attempt_count, 2);
 assert.equal(savedAttempts[0].task_state.failed_attempt_count, 2);
 assert.deepEqual(listTaskAttempts(attemptTask.id, repository), savedAttempts);
+assert.deepEqual(listTaskFinalCloseReasons(attemptTask), [
+  "not_reachable",
+  "refused",
+  "moved_out",
+  "deceased",
+  "not_applicable",
+]);
+
+const closeResult = closeTaskWithFinalReason(
+  { taskId: attemptTask.id, closeReason: "not_reachable" },
+  repository,
+);
+assert.equal(closeResult.decision.allowed, true);
+assert.equal(savedClosures[0].taskState.status, "closed");
+assert.equal(savedClosures[0].taskState.lifecycle_status, "closed_final_reason");
+assert.equal(savedClosures[0].taskState.closed_reason, "not_reachable");
 
 const noCloseReasonResult = recordFailedTaskAttempt(
   {

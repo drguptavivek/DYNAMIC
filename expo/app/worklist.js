@@ -11,6 +11,7 @@ export default function WorklistRoute() {
       <WorklistScreen
         onOpenTask={app.openTask}
         selectedLocalityCode={app.selectedLocalityCode}
+        worklistRevision={app.taskWorklistRevision}
       />
     </FieldAppShell>
   );

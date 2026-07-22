@@ -1,5 +1,6 @@
 import * as taskRepository from "../tasks/taskRepository.js";
 import {
+  closeTaskWithFinalReason as closeTaskWithFinalReasonWithRepository,
   saveEligibleWomanWorkflow as saveEligibleWomanWorkflowWithRepository,
   saveProvisionalPregnancyWorkflow as saveProvisionalPregnancyWorkflowWithRepository,
   saveProvisionalTasks as saveProvisionalTasksWithRepository,
@@ -15,6 +16,10 @@ export function listTaskWorklist(filters = {}) {
 
 export function listTaskAttempts(taskId) {
   return listTaskAttemptsWithRepository(taskId, taskRepository);
+}
+
+export function closeTaskWithFinalReason({ taskId, closeReason } = {}) {
+  return closeTaskWithFinalReasonWithRepository({ taskId, closeReason }, taskRepository);
 }
 
 export function recordFailedTaskAttempt({ task, attempt } = {}) {

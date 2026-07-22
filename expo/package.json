@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@dynamic/event-core": "*",
+    "@dynamic/shared-workflow": "*",
     "@expo/metro-runtime": "6.1.2",
     "expo": "54.0.35",
     "expo-constants": "~18.0.13",

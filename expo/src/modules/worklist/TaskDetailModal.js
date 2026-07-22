@@ -9,10 +9,14 @@ import {
   Alert,
   ActivityIndicator,
   TextInput,
-  Picker,
 } from "react-native";
 import { getTaskOpenBlockReason } from "./taskOpenPolicy.js";
-import { listTaskAttempts, recordFailedTaskAttempt } from "./taskWorklistRepository.js";
+import { listTaskFinalCloseReasons } from "./taskWorklist.js";
+import {
+  closeTaskWithFinalReason,
+  listTaskAttempts,
+  recordFailedTaskAttempt,
+} from "./taskWorklistRepository.js";
 
 const STATUS_COLORS = {
   open: "#3498db",
@@ -23,15 +27,26 @@ const STATUS_COLORS = {
 
 const ATTEMPT_OUTCOMES = ["not_found", "refused", "unavailable", "other"];
 
-export function TaskDetailModal({ visible, task, onClose, onOpenForm }) {
+export function TaskDetailModal({ visible, task, onClose, onOpenForm, onTaskChanged }) {
   const [attempts, setAttempts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showAttemptForm, setShowAttemptForm] = useState(false);
   const [selectedOutcome, setSelectedOutcome] = useState("not_found");
   const [attemptNotes, setAttemptNotes] = useState("");
+  const [showCloseForm, setShowCloseForm] = useState(false);
+  const [selectedCloseReason, setSelectedCloseReason] = useState("");
+
+  const finalCloseReasons = task ? listTaskFinalCloseReasons(task) : [];
+  const canRecordFinalClose = Boolean(
+    task?.requires_final_close_reason &&
+      Number(task.failed_attempt_count || 0) >= Number(task.max_failed_attempts) &&
+      finalCloseReasons.length > 0,
+  );
 
   useEffect(() => {
     if (visible && task) {
+      setShowCloseForm(false);
+      setSelectedCloseReason(finalCloseReasons[0] || "");
       loadAttempts();
     }
   }, [visible, task]);
@@ -70,6 +85,7 @@ export function TaskDetailModal({ visible, task, onClose, onOpenForm }) {
       setSelectedOutcome("not_found");
       loadAttempts();
       if (result.decision.should_prompt_final_close_reason) {
+        setShowCloseForm(true);
         Alert.alert(
           "Final close reason required",
           "The failed-attempt limit has been reached. Record a final close reason before closing this task.",
@@ -80,6 +96,28 @@ export function TaskDetailModal({ visible, task, onClose, onOpenForm }) {
     } catch (error) {
       console.error("Error recording attempt:", error);
       Alert.alert("Error", `Failed to record attempt: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handleFinalClose() {
+    if (!selectedCloseReason) {
+      Alert.alert("Error", "Please select a final close reason");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      closeTaskWithFinalReason({ taskId: task.id, closeReason: selectedCloseReason });
+      setShowCloseForm(false);
+      onTaskChanged?.();
+      Alert.alert("Task closed", "The final close reason was recorded.", [
+        { text: "OK", onPress: onClose },
+      ]);
+    } catch (error) {
+      console.error("Error closing task:", error);
+      Alert.alert("Error", `Failed to close task: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -176,6 +214,19 @@ export function TaskDetailModal({ visible, task, onClose, onOpenForm }) {
               </Pressable>
             )}
 
+            {task.status === "open" && canRecordFinalClose && !showCloseForm && (
+              <Pressable
+                onPress={() => setShowCloseForm(true)}
+                style={({ pressed }) => [
+                  styles.button,
+                  styles.secondaryButton,
+                  pressed && styles.buttonPressed,
+                ]}
+              >
+                <Text style={styles.secondaryButtonText}>Enter Final Close Reason</Text>
+              </Pressable>
+            )}
+
             {showAttemptForm && task.status === "open" && (
               <View style={styles.attemptForm}>
                 <Text style={styles.formLabel}>Outcome</Text>
@@ -235,6 +286,60 @@ export function TaskDetailModal({ visible, task, onClose, onOpenForm }) {
                       setShowAttemptForm(false);
                       setAttemptNotes("");
                     }}
+                    style={({ pressed }) => [
+                      styles.button,
+                      styles.secondaryButton,
+                      pressed && styles.buttonPressed,
+                    ]}
+                  >
+                    <Text style={styles.secondaryButtonText}>Cancel</Text>
+                  </Pressable>
+                </View>
+              </View>
+            )}
+
+            {showCloseForm && finalCloseReasons.length > 0 && (
+              <View style={styles.attemptForm}>
+                <Text style={styles.sectionTitle}>Final Close Reason</Text>
+                <View style={styles.outcomePicker}>
+                  {finalCloseReasons.map((reason) => (
+                    <Pressable
+                      key={reason}
+                      onPress={() => setSelectedCloseReason(reason)}
+                      style={[
+                        styles.outcomeOption,
+                        selectedCloseReason === reason && styles.outcomeOptionSelected,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.outcomeOptionText,
+                          selectedCloseReason === reason && styles.outcomeOptionTextSelected,
+                        ]}
+                      >
+                        {reason.replaceAll("_", " ")}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <View style={styles.formButtons}>
+                  <Pressable
+                    onPress={handleFinalClose}
+                    disabled={loading}
+                    style={({ pressed }) => [
+                      styles.button,
+                      styles.primaryButton,
+                      (pressed || loading) && styles.buttonPressed,
+                    ]}
+                  >
+                    {loading ? (
+                      <ActivityIndicator color="#ffffff" />
+                    ) : (
+                      <Text style={styles.buttonText}>Close Task</Text>
+                    )}
+                  </Pressable>
+                  <Pressable
+                    onPress={() => setShowCloseForm(false)}
                     style={({ pressed }) => [
                       styles.button,
                       styles.secondaryButton,

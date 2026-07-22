@@ -73,6 +73,8 @@ export type TaskLifecycleReason =
   | "response_not_primary"
   | "missing_response_id"
   | "missing_close_reason"
+  | "failed_attempt_limit_not_reached"
+  | "final_close_reason_not_required"
   | "duplicate_primary_response";
 
 export interface TaskLifecycleDecision {
@@ -278,6 +280,15 @@ export function evaluateTaskLifecycleTransition(
       }
       if (!command.close_reason) {
         return buildDecision(false, "missing_close_reason");
+      }
+      if (state.requires_final_close_reason === false) {
+        return buildDecision(false, "final_close_reason_not_required");
+      }
+      if (
+        typeof state.max_failed_attempts === "number" &&
+        currentFailedAttemptCount < state.max_failed_attempts
+      ) {
+        return buildDecision(false, "failed_attempt_limit_not_reached");
       }
       return buildDecision(true, "closed_final_reason", "closed_final_reason");
 

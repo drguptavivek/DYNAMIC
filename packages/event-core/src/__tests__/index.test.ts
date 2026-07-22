@@ -508,6 +508,44 @@ describe("event-core task lifecycle rules", () => {
       should_increment_failed_attempts: false,
       should_prompt_final_close_reason: false,
     });
+
+    expect(
+      evaluateTaskLifecycleTransition(
+        {
+          ...baseState,
+          status: "due",
+          failed_attempt_count: 1,
+          max_failed_attempts: 2,
+          requires_final_close_reason: true,
+        },
+        {
+          event_type: "task_closed_final_reason",
+          actor_type: "field",
+          close_reason: "not_reachable",
+        },
+      ),
+    ).toMatchObject({ allowed: false, reason: "failed_attempt_limit_not_reached" });
+
+    expect(
+      evaluateTaskLifecycleTransition(
+        {
+          ...baseState,
+          status: "due",
+          failed_attempt_count: 2,
+          max_failed_attempts: 2,
+          requires_final_close_reason: true,
+        },
+        {
+          event_type: "task_closed_final_reason",
+          actor_type: "field",
+          close_reason: "not_reachable",
+        },
+      ),
+    ).toMatchObject({
+      allowed: true,
+      next_status: "closed_final_reason",
+      reason: "closed_final_reason",
+    });
   });
 
   test("backend or admin can miss, cancel, or supersede from allowed statuses and field cannot", () => {
