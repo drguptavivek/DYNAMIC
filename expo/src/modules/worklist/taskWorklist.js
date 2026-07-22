@@ -95,3 +95,71 @@ export function reconcilePulledTasks(tasks = [], repository) {
     merged,
   };
 }
+
+export function saveProvisionalTasks(tasks = [], repository) {
+  if (!Array.isArray(tasks) || tasks.length === 0) {
+    return { saved: 0 };
+  }
+  if (!repository || typeof repository.saveTask !== "function") {
+    throw new Error("Task Worklist repository adapter must provide saveTask");
+  }
+
+  for (const task of tasks) {
+    repository.saveTask({
+      ...task,
+      sync_status: task.sync_status || "pending",
+    });
+  }
+
+  return { saved: tasks.length };
+}
+
+export function saveEligibleWomanWorkflow(derivedRows = [], repository) {
+  if (!Array.isArray(derivedRows) || derivedRows.length === 0) {
+    return { eligibleWomen: 0, tasks: 0 };
+  }
+  if (
+    !repository ||
+    typeof repository.saveEligibleWoman !== "function" ||
+    typeof repository.saveTask !== "function"
+  ) {
+    throw new Error("Task Worklist repository adapter must provide saveEligibleWoman and saveTask");
+  }
+
+  let taskCount = 0;
+  for (const row of derivedRows) {
+    repository.saveEligibleWoman(row.eligibleWoman);
+    if (row.wqTask) {
+      repository.saveTask({
+        ...row.wqTask,
+        sync_status: row.wqTask.sync_status || "pending",
+      });
+      taskCount += 1;
+    }
+  }
+
+  return { eligibleWomen: derivedRows.length, tasks: taskCount };
+}
+
+export function saveProvisionalPregnancyWorkflow({ pregnancy, tasks = [] } = {}, repository) {
+  if (!pregnancy && (!Array.isArray(tasks) || tasks.length === 0)) {
+    return { pregnancies: 0, tasks: 0 };
+  }
+  if (
+    !repository ||
+    typeof repository.savePregnancy !== "function" ||
+    typeof repository.saveTask !== "function"
+  ) {
+    throw new Error("Task Worklist repository adapter must provide savePregnancy and saveTask");
+  }
+
+  if (pregnancy) {
+    repository.savePregnancy(pregnancy);
+  }
+  const taskResult = saveProvisionalTasks(tasks, repository);
+
+  return {
+    pregnancies: pregnancy ? 1 : 0,
+    tasks: taskResult.saved,
+  };
+}

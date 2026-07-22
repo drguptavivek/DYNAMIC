@@ -122,6 +122,8 @@ assert.equal(wqTasks[0].target_date, "2026-09-01");
 assert.equal(wqTasks[0].window_end, "2026-10-01");
 assert.equal(wqTasks[0].status, "open");
 assert.equal(wqTasks[0].lifecycle_status, "open");
+assert.equal(wqTasks[0].source_form_response_id, submission.submission_id);
+assert.equal(wqTasks[0].sync_status, "pending");
 
 const promotedHouseholds = JSON.parse(window.localStorage.getItem("dynamic_households_v4") || "[]");
 assert.equal(promotedHouseholds.length, 1);
@@ -197,7 +199,11 @@ assert.equal(pffTasks[0].household_id, "1-02-0042-03");
 assert.equal(pffTasks[0].subject_type, "pregnancy");
 assert.equal(pffTasks[0].subject_id, "local-pregnancy:1-02-0042-03-02:1");
 assert.equal(pffTasks[0].source_event_id, pregnancyEvent.event_id);
+assert.equal(pffTasks[0].source_form_response_id, pefSubmission.submission_id);
+assert.equal(pffTasks[0].sync_status, "pending");
 assert.equal(ufTasks[0].source_event_id, pregnancyEvent.event_id);
+assert.equal(ufTasks[0].source_form_response_id, pefSubmission.submission_id);
+assert.equal(ufTasks[0].sync_status, "pending");
 
 const syncRecords = buildPushRecords({
   formResponses: webSqliteAfterPef.form_responses,

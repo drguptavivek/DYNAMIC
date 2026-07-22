@@ -218,7 +218,7 @@ function isWqEligible(member) {
   );
 }
 
-function toLocalTask(descriptor, { submittedAt, subjectName, localityCode }) {
+function toLocalTask(descriptor, { submittedAt, subjectName, localityCode, sourceFormResponseId }) {
   return {
     id: createLocalUuid("local-task"),
     task_key: descriptor.task_key,
@@ -242,6 +242,8 @@ function toLocalTask(descriptor, { submittedAt, subjectName, localityCode }) {
     rules_version: descriptor.rules_version,
     generation_source: descriptor.generation_source,
     source_event_id: descriptor.source_event_id,
+    source_form_response_id: sourceFormResponseId || null,
+    sync_status: "pending",
     created_at: submittedAt,
     updated_at: submittedAt,
   };
@@ -307,29 +309,6 @@ async function saveDomainEvent(event, createdAt) {
   saveWebDomainEvent(event, createdAt);
 }
 
-function saveWebPregnancy(pregnancy) {
-  const storage = getStorage();
-  if (!storage) return;
-  const state = readWebSqliteState(storage);
-  state.pregnancies = mergeById([pregnancy], state.pregnancies || [], "pregnancy_id");
-  storage.setItem(WEB_SQLITE_STORAGE_KEY, JSON.stringify(state));
-}
-
-async function savePregnancy(pregnancy) {
-  let taskRepository = null;
-  try {
-    taskRepository = await import("../tasks/taskRepository.js");
-  } catch {
-    // Node tests do not load the Metro-resolved expo-sqlite module.
-  }
-  if (typeof taskRepository?.savePregnancy === "function") {
-    taskRepository.savePregnancy(pregnancy);
-    return;
-  }
-
-  saveWebPregnancy(pregnancy);
-}
-
 function buildHhqDerivedWorkflow(record, response) {
   const householdId = record.household_id;
   const interviewDate = record.interview_date || response.submitted_at.split("T")[0];
@@ -360,6 +339,7 @@ function buildHhqDerivedWorkflow(record, response) {
         submittedAt: response.submitted_at,
         subjectName: member.member_name,
         localityCode: record.locality_code,
+        sourceFormResponseId: response.id,
       }),
     };
   });
@@ -381,20 +361,14 @@ async function saveHhqDerivedWorkflow(record, response) {
   const derivedRows = buildHhqDerivedWorkflow(record, response);
   if (derivedRows.length === 0) return;
 
-  let taskRepository = null;
+  let taskWorklist = null;
   try {
-    taskRepository = await import("../tasks/taskRepository.js");
+    taskWorklist = await import("../worklist/taskWorklistRepository.js");
   } catch {
     // Node tests do not load the Metro-resolved expo-sqlite module.
   }
-  if (
-    typeof taskRepository?.saveEligibleWoman === "function" &&
-    typeof taskRepository?.saveTask === "function"
-  ) {
-    for (const row of derivedRows) {
-      taskRepository.saveEligibleWoman(row.eligibleWoman);
-      taskRepository.saveTask(row.wqTask);
-    }
+  if (typeof taskWorklist?.saveEligibleWomanWorkflow === "function") {
+    taskWorklist.saveEligibleWomanWorkflow(derivedRows);
     return;
   }
 
@@ -420,16 +394,14 @@ function saveWebTasks(tasks) {
 
 async function saveTasks(tasks) {
   if (tasks.length === 0) return;
-  let taskRepository = null;
+  let taskWorklist = null;
   try {
-    taskRepository = await import("../tasks/taskRepository.js");
+    taskWorklist = await import("../worklist/taskWorklistRepository.js");
   } catch {
     // Node tests do not load the Metro-resolved expo-sqlite module.
   }
-  if (typeof taskRepository?.saveTask === "function") {
-    for (const task of tasks) {
-      taskRepository.saveTask(task);
-    }
+  if (typeof taskWorklist?.saveProvisionalTasks === "function") {
+    taskWorklist.saveProvisionalTasks(tasks);
     return;
   }
 
@@ -437,20 +409,14 @@ async function saveTasks(tasks) {
 }
 
 async function savePefDerivedWorkflow(pregnancy, tasks) {
-  let taskRepository = null;
+  let taskWorklist = null;
   try {
-    taskRepository = await import("../tasks/taskRepository.js");
+    taskWorklist = await import("../worklist/taskWorklistRepository.js");
   } catch {
     // Node tests do not load the Metro-resolved expo-sqlite module.
   }
-  if (
-    typeof taskRepository?.savePregnancy === "function" &&
-    typeof taskRepository?.saveTask === "function"
-  ) {
-    taskRepository.savePregnancy(pregnancy);
-    for (const task of tasks) {
-      taskRepository.saveTask(task);
-    }
+  if (typeof taskWorklist?.saveProvisionalPregnancyWorkflow === "function") {
+    taskWorklist.saveProvisionalPregnancyWorkflow({ pregnancy, tasks });
     return;
   }
 
@@ -497,6 +463,7 @@ async function promoteHhqLocally(response) {
     toLocalTask(descriptor, {
       submittedAt: response.submitted_at,
       localityCode: promotedRecord.locality_code,
+      sourceFormResponseId: response.id,
     }),
   );
 
@@ -556,11 +523,11 @@ async function promotePefLocally(response, taskContext) {
     toLocalTask(descriptor, {
       submittedAt: response.submitted_at,
       localityCode: response.locality_code,
+      sourceFormResponseId: response.id,
     }),
   );
 
   await saveDomainEvent(promotion.event, response.submitted_at);
-  await savePregnancy(pregnancy);
   await savePefDerivedWorkflow(pregnancy, tasks);
 }
 
