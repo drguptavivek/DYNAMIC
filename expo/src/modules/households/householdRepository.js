@@ -1,6 +1,9 @@
+/**
+ * Persists household registry and member cache records in shared offline storage.
+ */
 import { Platform } from "react-native";
-import * as SQLite from "expo-sqlite";
 
+import { getOfflineDatabase } from "../storage/offlineDatabase.js";
 import {
   assertUniqueMembers,
   buildHouseholdIdFromHhqData,
@@ -24,7 +27,6 @@ export async function findExistingHouseholdForHhqData(hhqData) {
 
 const HOUSEHOLD_STORAGE_KEY = "dynamic_households_v4";
 const MEMBER_STORAGE_KEY = "dynamic_household_members_v4";
-const DATABASE_NAME = "dynamic_offline.db";
 const WEB_HOUSEHOLD_CACHE_LIMIT = 500;
 const WEB_MEMBER_CACHE_LIMIT = 2000;
 const OBSOLETE_STORAGE_KEYS = [
@@ -343,7 +345,7 @@ function setStorageArray(storage, key, rows, retryRows = rows) {
 
 async function getDatabase() {
   if (Platform.OS === "web") return null;
-  return SQLite.openDatabaseAsync(DATABASE_NAME);
+  return getOfflineDatabase();
 }
 
 async function initializeSqlite(db) {

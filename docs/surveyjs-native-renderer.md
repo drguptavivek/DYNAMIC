@@ -152,6 +152,12 @@ Device access is isolated in the relevant standalone renderer.
 
 Permission denial is a visible control status, not a renderer fallback. Attachment persistence and sync policy must be completed before camera/file fields are enabled in production forms.
 
+## Native Runtime Compatibility
+
+React Native exposes a global `window` without browser DOM listener methods. The Expo entry point installs `src/polyfills/surveyCoreNative.js` before loading application routes so Survey Core's module-level DOM probe can safely register no-op listeners. This shim supplies only the missing environment surface; it does not render HTML or emulate a DOM.
+
+All native offline repositories share the single connection owned by `src/modules/storage/offlineDatabase.js`. Do not open repeated synchronous and asynchronous wrappers for `dynamic_offline.db`; Expo SQLite may release the shared native reference during route changes or fast refresh and leave another wrapper unusable.
+
 ## File Map
 
 ```text
@@ -173,6 +179,12 @@ expo/src/modules/households/
 expo/src/lib/
   householdSurveyBehaviors.js
   prepareSurveyJson.js
+
+expo/src/modules/storage/
+  offlineDatabase.js
+
+expo/src/polyfills/
+  surveyCoreNative.js
 ```
 
 ## Extension Procedure

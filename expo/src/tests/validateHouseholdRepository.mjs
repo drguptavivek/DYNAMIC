@@ -1,4 +1,26 @@
+/** Verifies household identity extraction and the single-owner native database boundary. */
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const testRoot = path.dirname(fileURLToPath(import.meta.url));
+const householdRepositorySource = fs.readFileSync(
+  path.resolve(testRoot, "../modules/households/householdRepository.js"),
+  "utf8"
+);
+const taskSchemaSource = fs.readFileSync(
+  path.resolve(testRoot, "../modules/tasks/taskSchema.js"),
+  "utf8"
+);
+const offlineDatabaseSource = fs.readFileSync(
+  path.resolve(testRoot, "../modules/storage/offlineDatabase.js"),
+  "utf8"
+);
+
+assert.doesNotMatch(householdRepositorySource, /openDatabase(?:Async|Sync)/);
+assert.doesNotMatch(taskSchemaSource, /openDatabase(?:Async|Sync)/);
+assert.match(offlineDatabaseSource, /SQLite\.openDatabaseSync\(DATABASE_NAME\)/);
 
 const {
   extractHouseholdRegistryFields,

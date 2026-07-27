@@ -1,3 +1,8 @@
+/**
+ * Registers the Expo Router root after installing native runtime compatibility shims.
+ */
+require("./src/polyfills/surveyCoreNative.js");
+
 const React = require("react");
 const { registerRootComponent } = require("expo");
 const { ExpoRoot } = require("expo-router");

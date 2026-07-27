@@ -1,11 +1,13 @@
-import * as SQLite from "expo-sqlite";
+/**
+ * Initializes task, workflow, response, and outbox tables on the shared offline database.
+ */
+import { getOfflineDatabase } from "../storage/offlineDatabase.js";
 
-let dbInstance = null;
+let schemaInitialized = false;
 
 export function initTaskDb() {
-  if (dbInstance) return dbInstance;
-
-  const db = SQLite.openDatabaseSync("dynamic_offline.db");
+  const db = getOfflineDatabase();
+  if (schemaInitialized) return db;
 
   db.runSync(`
     CREATE TABLE IF NOT EXISTS follow_up_tasks (
@@ -155,13 +157,10 @@ export function initTaskDb() {
     }
   }
 
-  dbInstance = db;
+  schemaInitialized = true;
   return db;
 }
 
 export function getDb() {
-  if (!dbInstance) {
-    return initTaskDb();
-  }
-  return dbInstance;
+  return initTaskDb();
 }

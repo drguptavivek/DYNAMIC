@@ -112,3 +112,10 @@ Replace the baseline household route's DOM-only SurveyJS renderer with an Expo-n
 ## Changed Architecture
 
 SurveyJS-compatible JSON remains the definition format. `survey-core` is headless state/validation/visibility/localization. Expo-native capability modules render the runtime. DYNAMIC-specific workflow displays and checks compose around generic fields rather than being embedded inside them.
+
+## Android Emulator Follow-up
+
+- React Native's global `window` lacked `addEventListener`; Survey Core failed at module load. Added an entry-point compatibility shim before Expo Router loads routes.
+- Expo Go required Expo `~54.0.36`; aligning the patch removed the initial native bridge mismatch.
+- Task and household repositories opened repeated wrappers for `dynamic_offline.db`, causing `NativeDatabase.prepareSync` null-pointer failures after route changes. Both now use one shared offline database owner.
+- Verified on `Pixel_7_API_36`: login and PIN unlock, native HHQ identification, Hindi locale switch, select-one update, interim preview, section progress, and repeat-entry rendering. Logcat contained no Survey Core, SQLite, React Native JS, or Android fatal errors after the cold restart.

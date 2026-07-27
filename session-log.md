@@ -110,6 +110,8 @@ Decisions:
 - `survey-core` owns form state/rules; standalone Expo capabilities own rendering.
 - HHQ has no DOM/WebView fallback and includes native preview, section state, roster confirmation, generated IDs, and duplicate checks.
 - Device capabilities use Expo camera, document-picker, and location modules.
+- Android bootstraps Survey Core's missing window-listener surface before route imports.
+- Native repositories share one Expo SQLite connection for `dynamic_offline.db`.
 Rejected:
 - Embedding `survey-react-ui` in Android or treating the HHQ renderer as a one-off screen.
 Open:
