@@ -1,8 +1,12 @@
+/**
+ * Routes questionnaire launches to either the native HHQ flow or the generic form dashboard.
+ */
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { formsByCode } from "../data/formCatalog.js";
 import { QuestionnaireDashboard } from "../modules/questionnaires/QuestionnaireDashboard.js";
+import { HouseholdModule } from "../modules/households/HouseholdModule.js";
 import { useFieldApp } from "./FieldAppProvider.js";
 import { FieldAppShell } from "./FieldAppShell.js";
 
@@ -30,6 +34,22 @@ export function QuestionnaireRouteScreen({ formCode, mode }) {
         <BlockedPanel
           title="Open from worklist"
           message="This form requires a scheduled task or valid contextual trigger before entry."
+        />
+      </FieldAppShell>
+    );
+  }
+
+  if (isEntryRoute && isHhqHouseholdEntry) {
+    return (
+      <FieldAppShell route={route} title={title}>
+        <HouseholdModule
+          locale={app.locale}
+          mode="new"
+          onLocaleChange={app.setLocale}
+          user={app.user}
+          localities={app.localities}
+          selectedLocalityCode={app.selectedLocalityCode}
+          onDataSynced={app.refreshLocalities}
         />
       </FieldAppShell>
     );

@@ -185,7 +185,17 @@ Rules:
 - `RECORD ALL` / `ANSWER UP TO` fields are checkboxes unless the PDF defines one coded response.
 - Auto-filled lineage/core fields are read-only with explicit source metadata.
 
+### Form Runtime And Native Renderer
+
+SurveyJS-compatible JSON remains the questionnaire definition format. `survey-core` is the headless form runtime for values, conditional visibility, calculated values, validation, pages, and localization. Expo renders that runtime through a native capability registry; Android does not use `survey-react-ui`, a WebView, or a renderer fallback for a form that is declared native.
+
+Generic renderer capabilities are modular and independently testable: text, note, number, date, select-one, select-many, repeated panels, calculated values, read-only display, preview, file picker, camera, GPS, and validation-message display. An unsupported declared capability must fail visibly during development instead of silently choosing another renderer.
+
+DYNAMIC-specific capabilities compose around generic controls: database-backed duplicate checks, section applicability/status, household-roster confirmation, deterministic entity-ID display, and final evidence preview. These capabilities may read form/runtime state, but longitudinal workflow and cohort rules remain in shared domain/workflow code rather than input components.
+
 See [Questionnaire authoring policy](policies/questionnaire-authoring.md).
+
+See [SurveyJS native renderer](surveyjs-native-renderer.md) for the renderer capability contract and extension procedure.
 
 See [App surfaces and routes policy](policies/app-surfaces-and-routes.md) for field/admin/API route contracts.
 

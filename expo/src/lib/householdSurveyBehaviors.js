@@ -1,3 +1,6 @@
+/**
+ * Installs DYNAMIC household-specific validation and display behavior on a Survey Core model.
+ */
 const HHQ_CODE = "HHQ";
 const HH_MEMBER_PANEL = "hhq_household_members";
 const HOUSEHOLD_ID_FIELDS = new Set([
@@ -32,6 +35,7 @@ const AGE_LESS_THAN_RESIDENCE_MESSAGE =
 const AGE_RESIDENCE_ERROR_ATTR = "data-dynamic-age-residence-error";
 const renderedQuestionElements = new WeakMap();
 const renderedAgeQuestions = new Set();
+const duplicateHouseholdMessages = new WeakMap();
 
 function isWomanQuestionnaireEligible(member) {
   return (
@@ -85,8 +89,20 @@ function refreshQuestionTitles(model) {
   });
 }
 
+function getPanelData(question) {
+  const data = question?.parent?.data;
+  if (typeof data?.getValue === "function") {
+    return Object.fromEntries(
+      (data.questions || question?.parent?.questions || [])
+        .filter((panelQuestion) => panelQuestion?.name)
+        .map((panelQuestion) => [panelQuestion.name, data.getValue(panelQuestion.name)])
+    );
+  }
+  return data || null;
+}
+
 function getPanelMemberName(question) {
-  return question?.parent?.data?.member_name || "";
+  return getPanelData(question)?.member_name || "";
 }
 
 function italicizeMemberNameInTitle(options) {
@@ -160,13 +176,16 @@ function setDuplicateHouseholdError(model, duplicateHousehold) {
   const question = model.getQuestionByName(HOUSEHOLD_NUMBER_FIELD);
   if (!question) return;
 
-  question.clearErrors?.();
+  const previousMessage = duplicateHouseholdMessages.get(question);
+  if (previousMessage) clearQuestionMessage(question, previousMessage);
   if (!duplicateHousehold) {
+    duplicateHouseholdMessages.delete(question);
     return;
   }
 
   const message = `Household ID ${duplicateHousehold.household_id} already exists. Use another structure or household number.`;
-  question.addError?.(message);
+  addQuestionMessage(question, message);
+  duplicateHouseholdMessages.set(question, message);
 }
 
 function getErrorText(error) {
@@ -201,7 +220,7 @@ function getHeadMemberIndexes(members) {
 }
 
 function getRelationshipQuestionIndex(question, members, fallbackIndex) {
-  const panelData = question?.parent?.data;
+  const panelData = getPanelData(question);
   const objectIndex = members.indexOf(panelData);
   if (objectIndex >= 0) return objectIndex;
 
@@ -285,7 +304,7 @@ function validateAgeAgainstResidenceDuration(model) {
 
 function validateAgeQuestion(sender, options) {
   if (options.name !== MEMBER_AGE_YEARS_FIELD) return;
-  const member = options.question?.parent?.data;
+  const member = getPanelData(options.question);
   if (hasAgeResidenceMismatch(member)) {
     options.error = AGE_LESS_THAN_RESIDENCE_MESSAGE;
   }
@@ -314,7 +333,7 @@ function renderAgeResidenceError(question) {
   if (!element?.isConnected) return;
   let error = element.querySelector(`[${AGE_RESIDENCE_ERROR_ATTR}]`);
   const showError =
-    hasAgeResidenceMismatch(question?.parent?.data) ||
+    hasAgeResidenceMismatch(getPanelData(question)) ||
     hasAgeResidenceMismatchInElement(element);
 
   if (!showError) {
@@ -366,6 +385,27 @@ export function refreshHouseholdSurveyBehaviors(model, selectedForm) {
   setTimeout(refreshVisibleAgeResidenceErrors, 0);
 }
 
+export async function validateHouseholdSurveyForFinalization(model, options = {}) {
+  if (validateSingleHouseholdHead(model)) {
+    return { valid: false, message: DUPLICATE_HEAD_MESSAGE };
+  }
+  if (validateAgeAgainstResidenceDuration(model)) {
+    return { valid: false, message: AGE_LESS_THAN_RESIDENCE_MESSAGE };
+  }
+  const existingHousehold = options.findExistingHousehold
+    ? await options.findExistingHousehold(model.data)
+    : null;
+  setDuplicateHouseholdError(model, existingHousehold);
+  if (existingHousehold) {
+    return {
+      valid: false,
+      message: `Household ID ${existingHousehold.household_id} already exists.`,
+      existingHousehold,
+    };
+  }
+  return { valid: true, message: "" };
+}
+
 export function attachHouseholdSurveyBehaviors(
   model,
   selectedForm,
@@ -391,6 +431,11 @@ export function attachHouseholdSurveyBehaviors(
     duplicateHousehold = existing || null;
     setDuplicateHouseholdError(sender, duplicateHousehold);
     return duplicateHousehold;
+  }
+
+  const householdNumberQuestion = model.getQuestionByName?.(HOUSEHOLD_NUMBER_FIELD);
+  if (householdNumberQuestion) {
+    householdNumberQuestion.runNativeDbCheck = () => checkDuplicateHousehold(model);
   }
 
   model.onAfterRenderSurvey.add((sender) =>

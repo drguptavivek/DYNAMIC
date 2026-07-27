@@ -103,3 +103,16 @@ Rejected:
 - Splitting this checkpoint despite explicit all-files commit request.
 Open:
 - Implement policy/code drift gaps in later commits.
+
+## 2026-07-27 18:40 [saved]
+Goal: Render baseline HHQ natively in Expo from the existing form definition.
+Decisions:
+- `survey-core` owns form state/rules; standalone Expo capabilities own rendering.
+- HHQ has no DOM/WebView fallback and includes native preview, section state, roster confirmation, generated IDs, and duplicate checks.
+- Device capabilities use Expo camera, document-picker, and location modules.
+Rejected:
+- Embedding `survey-react-ui` in Android or treating the HHQ renderer as a one-off screen.
+Open:
+- Extend the native capability registry across the remaining form definitions after HHQ field verification.
+Archive:
+- `session-log-archive.md#2026-07-27-native-hhq-renderer`

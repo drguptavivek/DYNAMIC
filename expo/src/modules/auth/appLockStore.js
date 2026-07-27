@@ -1,3 +1,6 @@
+/**
+ * Persists and verifies the local app-lock PIN using platform-appropriate SHA-256 support.
+ */
 const LOCK_RECORD_KEY = "dynamic_app_lock_v1";
 const PIN_PATTERN = /^\d{4,8}$/;
 
@@ -76,6 +79,11 @@ async function randomSalt() {
 }
 
 async function sha256(input) {
+  if (globalThis.crypto?.subtle && typeof TextEncoder !== "undefined") {
+    const bytes = new TextEncoder().encode(input);
+    const digest = await globalThis.crypto.subtle.digest("SHA-256", bytes);
+    return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  }
   const ExpoCrypto = await loadCrypto();
   if (ExpoCrypto?.digestStringAsync && ExpoCrypto?.CryptoDigestAlgorithm?.SHA256) {
     return ExpoCrypto.digestStringAsync(ExpoCrypto.CryptoDigestAlgorithm.SHA256, input);

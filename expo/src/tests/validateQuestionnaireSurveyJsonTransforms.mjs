@@ -1,3 +1,4 @@
+/** Verifies HHQ definition transforms used by the native Survey Core renderer. */
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
@@ -28,6 +29,9 @@ function findElementByName(surveyJson, name) {
 const surveyJson = prepareQuestionnaireSurveyJson(hhq);
 const mobilePanel = findElementByName(surveyJson, "hhq_contact_mobile_numbers");
 const singleMobile = findElementByName(surveyJson, "hhq_contact_mobile");
+const memberMaritalStatus = findElementByName(surveyJson, "member_marital_status");
+const householdTotal = findElementByName(surveyJson, "hhq_total_household_members");
+const householdNumber = findElementByName(surveyJson, "hhq_household_number");
 
 assert.equal(singleMobile, null);
 assert.equal(mobilePanel.type, "paneldynamic");
@@ -53,5 +57,8 @@ assert.deepEqual(mobilePanel.templateElements[0].validators, [
     }
   }
 ]);
+assert.equal(memberMaritalStatus.visibleIf, "{panel.member_age_years} >= 13");
+assert.equal(householdTotal.renderAs, "readonly_calculated_numeric");
+assert.equal(householdNumber.renderAs, "db_check");
 
 console.log("Validated questionnaire SurveyJS JSON transforms.");

@@ -1,3 +1,4 @@
+/** Verifies household roster summaries and generated member identifiers. */
 import assert from "node:assert/strict";
 
 const { buildHouseholdMemberSummaryRows } = await import(
@@ -41,6 +42,10 @@ const form = {
 
 const rows = buildHouseholdMemberSummaryRows(
   {
+    hhq_site_id: 1,
+    hhq_locality_code: "02",
+    hhq_structure_map_id: "0042",
+    hhq_household_number: "03",
     hhq_household_members: [
       {
         member_line_number: 1,
@@ -66,6 +71,7 @@ const rows = buildHouseholdMemberSummaryRows(
 assert.deepEqual(rows, [
   {
     sr: 1,
+    memberId: "1-02-0042-03-01",
     memberName: "Asha",
     age: "25",
     sex: "female",
@@ -74,6 +80,7 @@ assert.deepEqual(rows, [
   },
   {
     sr: 2,
+    memberId: "1-02-0042-03-02",
     memberName: "Bala",
     age: "30",
     sex: "male",

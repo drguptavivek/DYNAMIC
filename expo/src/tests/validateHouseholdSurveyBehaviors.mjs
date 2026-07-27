@@ -1,3 +1,4 @@
+/** Verifies household calculations, cross-field rules, and asynchronous duplicate checks. */
 import assert from "node:assert/strict";
 
 const { attachHouseholdSurveyBehaviors } = await import("../lib/householdSurveyBehaviors.js");
@@ -94,6 +95,11 @@ await duplicateModel.onValueChanged.handlers[0](duplicateModel, {
 assert.deepEqual(duplicateModel.householdNumberQuestion.errors, [
   "Household ID 1-02-0042-03 already exists. Use another structure or household number."
 ]);
+assert.equal(typeof duplicateModel.householdNumberQuestion.runNativeDbCheck, "function");
+assert.equal(
+  await duplicateModel.householdNumberQuestion.runNativeDbCheck(),
+  duplicateHousehold
+);
 
 const completingOptions = { allow: true, allowComplete: true };
 await duplicateModel.onCompleting.handlers[0](duplicateModel, completingOptions);

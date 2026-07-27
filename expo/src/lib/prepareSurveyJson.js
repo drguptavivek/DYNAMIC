@@ -1,3 +1,6 @@
+/**
+ * Sanitizes stored questionnaire definitions into the SurveyJS schema accepted by Survey Core.
+ */
 const SUPPORTED_SURVEY_KEYS = new Set([
   "type",
   "name",
@@ -12,6 +15,7 @@ const SUPPORTED_SURVEY_KEYS = new Set([
   "validators",
   "inputType",
   "readOnly",
+  "renderAs",
   "minPanelCount",
   "panelCount",
   "addPanelText",
@@ -52,6 +56,9 @@ function cleanElement(element) {
   }
   if (element.sourceCode && element.sourceType !== "text_other_specify") {
     next.title = prefixedTitle(next.title, element.sourceCode);
+  }
+  if (element.renderingHint?.render_as) {
+    next.renderAs = element.renderingHint.render_as;
   }
   if (Array.isArray(next.elements)) {
     next.elements = next.elements.map(cleanElement);

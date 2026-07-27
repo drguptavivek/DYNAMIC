@@ -29,6 +29,13 @@ Do question-by-question PDF comparison before questionnaire JSON changes.
 - `RECORD ALL` / `ANSWER UP TO` fields are checkboxes unless the PDF defines one coded response.
 - Auto-filled lineage/core fields are read-only with explicit source metadata.
 - Read-only enforcement must use the SurveyJS model API and include nested panel questions.
+- SurveyJS-compatible JSON is interpreted by headless `survey-core`; Expo-native controls render the model on Android and web.
+- Keep each renderer capability in a standalone module. Do not hide WebView or `survey-react-ui` fallback behavior behind a native form route.
+- Renderer selection comes from question type/input metadata and explicit rendering hints. Unsupported capabilities fail visibly in development.
+- Regex validators display the definition-owned localized error message at the affected control.
+- Repeated sections show the entry count and allow a specific entry to be selected, edited, or deleted subject to the definition's minimum-row rule.
+- The renderer language switch changes the Survey Core locale in place so labels, choices, descriptions, and validation messages refresh together.
+- Keep database checks, section state, roster confirmation, generated-ID display, and preview as named app capabilities around generic field renderers.
 
 ## Form Flow
 

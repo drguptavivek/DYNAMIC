@@ -1,3 +1,4 @@
+/** Verifies app-lock PIN policy, hashing, persistence, and retry behavior. */
 import assert from "node:assert/strict";
 
 import {
@@ -5,6 +6,7 @@ import {
   configureLockForUser,
   isLockConfiguredForUser,
   isValidPin,
+  readLockRecord,
   verifyPinForUser,
 } from "../modules/auth/appLockStore.js";
 
@@ -21,6 +23,8 @@ assert.equal(isValidPin("12ab"), false, "non-numeric PIN is rejected");
 assert.equal(await isLockConfiguredForUser(user), false, "lock starts unconfigured");
 
 await configureLockForUser(user, "123456", { biometricEnabled: true });
+const configuredRecord = await readLockRecord();
+assert.equal(configuredRecord.pin_hash.length, 64, "PIN uses a SHA-256 digest");
 
 assert.equal(await isLockConfiguredForUser(user), true, "lock is scoped to configured user");
 assert.equal(

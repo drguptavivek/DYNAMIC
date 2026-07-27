@@ -1,18 +1,14 @@
-import React, { useEffect, useMemo, useState } from "react";
+/**
+ * Provides household list, detail, and baseline-household-form routes for the field app.
+ */
+import React, { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { Model } from "survey-core";
-import { Survey } from "survey-react-ui";
 
-import { LanguageToggle } from "../../components/LanguageToggle";
 import { formsByCode } from "../../data/formCatalog";
-import { prepareSurveyJson } from "../../lib/prepareSurveyJson";
-import { applyHouseholdMasterChoices } from "../../lib/householdMasterChoices";
-import { attachHouseholdSurveyBehaviors } from "../../lib/householdSurveyBehaviors";
 import { ROUTES, navigateTo } from "../../navigation/routes";
 import * as syncService from "../sync/syncService.js";
+import { BaselineHouseholdForm } from "./BaselineHouseholdForm.js";
 import {
-  extractHouseholdRegistryFields,
-  findExistingHouseholdForHhqData,
   formatSite,
   getHouseholdCacheInfo,
   getHousehold,
@@ -20,7 +16,6 @@ import {
   listHouseholdMembers,
   listHouseholds,
   searchHouseholdMembers,
-  saveHousehold
 } from "./householdRepository";
 
 const HHQ_CODE = "HHQ";
@@ -110,53 +105,6 @@ export function HouseholdModule({
     };
   }, [selectedLocalityCode, memberName, memberHouseholdNumber, memberSex, memberPage]);
 
-  const survey = useMemo(() => {
-    if (!showForm || !hhqForm) return null;
-    const surveyJson = applyHouseholdMasterChoices(prepareSurveyJson(hhqForm), {
-      user,
-      localities
-    });
-    const model = new Model(surveyJson);
-    model.locale = locale;
-    model.showCompletedPage = false;
-    const availableSites = surveyJson.pages
-      .flatMap((page) => page.elements)
-      .find((element) => element.name === "hhq_site_id")?.choices || [];
-    const availableLocalities = surveyJson.pages
-      .flatMap((page) => page.elements)
-      .find((element) => element.name === "hhq_locality_code")?.choices || [];
-    if (availableSites.length === 1) {
-      model.setValue("hhq_site_id", availableSites[0].value);
-    }
-    const selectedLocality = availableLocalities.find(
-      (choice) => String(choice.value) === String(selectedLocalityCode)
-    );
-    if (selectedLocality) {
-      model.setValue("hhq_locality_code", selectedLocality.value);
-    } else if (availableLocalities.length === 1) {
-      model.setValue("hhq_locality_code", availableLocalities[0].value);
-    }
-    attachHouseholdSurveyBehaviors(
-      model,
-      hhqForm,
-      async (hhqData) => {
-        const existingHousehold = await findExistingHouseholdForHhqData(hhqData);
-        if (existingHousehold) {
-          setSaveMessage(`Household ${existingHousehold.household_id} already exists.`);
-          return;
-        }
-
-        const registryRecord = extractHouseholdRegistryFields(hhqData);
-        await saveHousehold(registryRecord);
-        await refreshHouseholds();
-        setSaveMessage(`Saved household ${registryRecord.household_id}`);
-        navigateTo(ROUTES.households);
-      },
-      { findExistingHousehold: findExistingHouseholdForHhqData }
-    );
-    return model;
-  }, [showForm, hhqForm, locale, user, localities, selectedLocalityCode]);
-
   async function openHouseholdPanel(memberOrHousehold) {
     const householdId = memberOrHousehold.household_id;
     const [household, members] = await Promise.all([
@@ -210,23 +158,19 @@ export function HouseholdModule({
 
   if (showForm) {
     return (
-      <View style={styles.formWindow}>
-        <View style={styles.formWindowHeader}>
-          <View>
-            <Text style={styles.formWindowTitle}>Baseline Household Questionnaire</Text>
-            <Text style={styles.subtle}>New household</Text>
-          </View>
-          <View style={styles.formActions}>
-            <LanguageToggle locale={locale} onChange={onLocaleChange} />
-            <Pressable onPress={() => navigateTo(ROUTES.households)} style={styles.secondaryButton}>
-              <Text style={styles.secondaryButtonText}>Close</Text>
-            </Pressable>
-          </View>
-        </View>
-        <View style={styles.formWindowBody}>
-          {survey ? <Survey model={survey} /> : null}
-        </View>
-      </View>
+      <BaselineHouseholdForm
+        form={hhqForm}
+        locale={locale}
+        onLocaleChange={onLocaleChange}
+        user={user}
+        localities={localities}
+        selectedLocalityCode={selectedLocalityCode}
+        onClose={() => navigateTo(ROUTES.households)}
+        onSaved={async () => {
+          await refreshHouseholds();
+          navigateTo(ROUTES.households);
+        }}
+      />
     );
   }
 

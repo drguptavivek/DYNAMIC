@@ -1,3 +1,6 @@
+/**
+ * Derives section navigation, applicability, progress, and preview state from Survey Core.
+ */
 export const HOUSEHOLD_MEMBER_SUMMARY_SECTION_NAME = "hhq_household_member_summary";
 export const HOUSEHOLD_MEMBER_SUMMARY_SECTION_TITLE = "02B-HOUSEHOLD MEMBER SUMMARY";
 export const COMPACT_PREVIEW_SECTION_NAME = "compact_preview";
@@ -5,6 +8,7 @@ export const COMPACT_PREVIEW_SECTION_TITLE = "PREVIEW";
 
 function getQuestionValue(model, question) {
   if (!question?.name) return undefined;
+  if (question.value !== undefined) return question.value;
   return model.getValue(question.name);
 }
 
@@ -19,6 +23,36 @@ function getPageQuestions(page) {
     return page.getAllQuestions();
   }
   return Array.isArray(page.questions) ? page.questions : [];
+}
+
+function isAnswerableQuestion(question) {
+  const type = question?.getType?.() || question?.type;
+  return (
+    question?.isVisible !== false &&
+    !question?.isReadOnly &&
+    !question?.readOnly &&
+    type !== "html" &&
+    type !== "paneldynamic"
+  );
+}
+
+function getSectionQuestions(page) {
+  return getPageQuestions(page).flatMap((question) => {
+    const type = question?.getType?.() || question?.type;
+    if (type !== "paneldynamic") return isAnswerableQuestion(question) ? [question] : [];
+    if (question?.isVisible === false) return [];
+    return (question.panels || []).flatMap((panel) =>
+      (panel.questions || []).filter(isAnswerableQuestion)
+    );
+  });
+}
+
+function getSectionStatus({ applicable, answered, total, hasErrors }) {
+  if (!applicable) return "not_applicable";
+  if (hasErrors) return "needs_attention";
+  if (!answered) return "pending";
+  if (answered >= total) return "complete";
+  return "in_progress";
 }
 
 function getLocalizedTitle(page) {
@@ -44,9 +78,10 @@ export function buildSurveySections(model, options = {}) {
   if (!model?.pages) return [];
   const currentPageName = getCurrentPageName(model);
   const sections = model.pages.map((page, index) => {
-    const questions = getPageQuestions(page);
+    const questions = getSectionQuestions(page);
     const answered = questions.filter((question) => hasAnswer(getQuestionValue(model, question))).length;
     const hasErrors = questions.some((question) => Array.isArray(question.errors) && question.errors.length > 0);
+    const applicable = page.isVisible !== false && questions.length > 0;
 
     return {
       index,
@@ -55,6 +90,8 @@ export function buildSurveySections(model, options = {}) {
       answered,
       total: questions.length,
       hasErrors,
+      applicable,
+      status: getSectionStatus({ applicable, answered, total: questions.length, hasErrors }),
       isCurrent: page.name === currentPageName,
     };
   });
@@ -72,6 +109,8 @@ export function buildSurveySections(model, options = {}) {
       answered: options.householdMemberSummaryConfirmed ? 1 : 0,
       total: 1,
       hasErrors: false,
+      applicable: true,
+      status: options.householdMemberSummaryConfirmed ? "complete" : "pending",
       isCurrent: options.currentSectionName === HOUSEHOLD_MEMBER_SUMMARY_SECTION_NAME,
     };
     if (summarySection.isCurrent) {
@@ -90,6 +129,8 @@ export function buildSurveySections(model, options = {}) {
       answered: options.compactPreviewConfirmed ? 1 : 0,
       total: 1,
       hasErrors: false,
+      applicable: true,
+      status: options.compactPreviewConfirmed ? "complete" : "pending",
       isCurrent: options.currentSectionName === COMPACT_PREVIEW_SECTION_NAME,
     };
     if (previewSection.isCurrent) {

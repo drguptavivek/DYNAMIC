@@ -23,6 +23,7 @@ Before backend schema, sync, event/replay, Expo offline workflow, task schedulin
 - [Survey navigation and progress policy](docs/policies/survey-navigation-and-progress.md).
 - [Workflow and scheduling policy](docs/policies/workflow-and-scheduling.md).
 - [Questionnaire authoring policy](docs/policies/questionnaire-authoring.md).
+- [SurveyJS native renderer](docs/surveyjs-native-renderer.md).
 - [App surfaces and routes policy](docs/policies/app-surfaces-and-routes.md).
 - [Auth, device, and role-scope policy](docs/policies/auth-device-and-role-scope.md).
 - [Admin corrections and data-quality policy](docs/policies/admin-corrections-and-data-quality.md).

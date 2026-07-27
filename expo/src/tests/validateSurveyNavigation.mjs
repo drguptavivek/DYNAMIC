@@ -1,3 +1,4 @@
+/** Verifies section applicability, progress states, navigation gates, and preview insertion. */
 import assert from "node:assert/strict";
 import { Model } from "survey-core";
 
@@ -48,6 +49,8 @@ assert.deepEqual(buildSurveySections(model), [
     answered: 1,
     total: 2,
     hasErrors: false,
+    applicable: true,
+    status: "in_progress",
     isCurrent: true,
   },
   {
@@ -57,6 +60,8 @@ assert.deepEqual(buildSurveySections(model), [
     answered: 0,
     total: 1,
     hasErrors: false,
+    applicable: true,
+    status: "pending",
     isCurrent: false,
   },
   {
@@ -66,6 +71,8 @@ assert.deepEqual(buildSurveySections(model), [
     answered: 0,
     total: 1,
     hasErrors: false,
+    applicable: true,
+    status: "pending",
     isCurrent: false,
   },
 ]);
@@ -101,6 +108,7 @@ assert.deepEqual(
 assert.equal(sectionsWithSummary[2].title, "02B-HOUSEHOLD MEMBER SUMMARY");
 assert.equal(sectionsWithSummary[2].answered, 1);
 assert.equal(sectionsWithSummary[2].isCurrent, true);
+assert.equal(sectionsWithSummary[2].status, "complete");
 assert.equal(sectionsWithSummary[1].isCurrent, false);
 assert.equal(sectionsWithSummary[4].title, "PREVIEW");
 assert.equal(sectionsWithSummary[4].answered, 0);
@@ -114,5 +122,47 @@ const sectionsWithPreviewActive = buildSurveySections(model, {
 assert.equal(sectionsWithPreviewActive.at(-1).name, COMPACT_PREVIEW_SECTION_NAME);
 assert.equal(sectionsWithPreviewActive.at(-1).answered, 1);
 assert.equal(sectionsWithPreviewActive.at(-1).isCurrent, true);
+assert.equal(sectionsWithPreviewActive.at(-1).status, "complete");
+
+const conditionalModel = new Model({
+  pages: [
+    {
+      name: "always",
+      elements: [{ type: "text", name: "answer", title: "Answer" }],
+    },
+    {
+      name: "conditional",
+      visibleIf: "{answer} = 'yes'",
+      elements: [{ type: "text", name: "detail", title: "Detail" }],
+    },
+  ],
+});
+assert.equal(buildSurveySections(conditionalModel)[1].status, "not_applicable");
+conditionalModel.setValue("answer", "yes");
+assert.equal(buildSurveySections(conditionalModel)[0].status, "complete");
+assert.equal(buildSurveySections(conditionalModel)[1].status, "pending");
+
+const repeatModel = new Model({
+  pages: [
+    {
+      name: "repeat",
+      elements: [
+        {
+          type: "paneldynamic",
+          name: "members",
+          panelCount: 1,
+          templateElements: [
+            { type: "text", name: "member_name", title: "Name" },
+            { type: "text", name: "member_sequence", title: "Sequence", readOnly: true },
+          ],
+        },
+      ],
+    },
+  ],
+});
+assert.equal(buildSurveySections(repeatModel)[0].status, "pending");
+assert.equal(buildSurveySections(repeatModel)[0].total, 1);
+repeatModel.getQuestionByName("members").panels[0].getQuestionByName("member_name").value = "Asha";
+assert.equal(buildSurveySections(repeatModel)[0].status, "complete");
 
 console.log("Validated SurveyJS navigation helpers.");

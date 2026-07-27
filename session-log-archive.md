@@ -81,3 +81,34 @@ Important root cause:
 - `drizzle-kit push` using the config barrel reported success but created no tables.
 - The working dev command is explicit: `drizzle-kit push --dialect postgresql --schema './src/db/schema/*.ts' --url "<DATABASE_URL>"`.
 - Do not use `VAR=value command --url "$VAR"` because `$VAR` expands before the one-command assignment is in scope. Use a literal Makefile URL or `sh -c` after setting `DATABASE_URL`.
+
+# 2026-07-27 Native HHQ Renderer
+
+## Goal
+
+Replace the baseline household route's DOM-only SurveyJS renderer with an Expo-native capability registry while retaining the existing questionnaire JSON and Survey Core behavior model.
+
+## Implementation
+
+- Added standalone renderers for text, number, date, note, select-one, select-many, multiple text, dynamic panels, calculated values, display, preview, instruction, GPS, camera, file picker, and database-check controls.
+- Added definition-driven regex validation messages and a renderer language switcher.
+- Added section states: not applicable, pending, in progress, needs attention, and complete.
+- Added repeat-entry count plus explicit entry selection, editing, and deletion.
+- Added HHQ roster confirmation before Section 03 with generated household-member IDs.
+- Added partial-data preview and required final preview before save.
+- Kept async household duplicate checking in the repository/behavior boundary.
+- Routed every HHQ entry URL to the same native baseline form.
+- Fixed dynamic-panel custom validation against real Survey Core panel data.
+- Fixed web PIN hashing through Web Crypto SHA-256 while retaining Expo Crypto on native.
+
+## Verification
+
+- `npm --workspace expo test`
+- `npx expo export --platform android --output-dir /tmp/dynamic-hhq-android-final --clear`
+- `npx expo export --platform web --output-dir /tmp/dynamic-hhq-web-export-2 --clear`
+- Android final export bundled 1,115 modules into a Hermes bundle.
+- Browser reached the app-lock surface; backend fetch was unavailable in that browser run, so no household was submitted during UI inspection.
+
+## Changed Architecture
+
+SurveyJS-compatible JSON remains the definition format. `survey-core` is headless state/validation/visibility/localization. Expo-native capability modules render the runtime. DYNAMIC-specific workflow displays and checks compose around generic fields rather than being embedded inside them.
