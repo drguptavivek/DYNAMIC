@@ -541,7 +541,7 @@ router.post(
           }
 
           await db.transaction(async (tx) =>
-            runWithDb(tx as typeof db, async () => {
+            runWithDb(tx as unknown as typeof db, async () => {
               await tx.insert(schema.formResponses).values({
                 form_response_id: id,
                 response_id: id,
@@ -612,7 +612,7 @@ router.post(
           }
 
           await db.transaction(async (tx) =>
-            runWithDb(tx as typeof db, async () => {
+            runWithDb(tx as unknown as typeof db, async () => {
               await tx.insert(schema.taskAttempts).values({
                 attempt_id: id,
                 task_id,
@@ -702,7 +702,7 @@ router.post(
           }
 
           await db.transaction(async (tx) =>
-            runWithDb(tx as typeof db, async () => {
+            runWithDb(tx as unknown as typeof db, async () => {
               await tx
                 .update(schema.followUpTasks)
                 .set({

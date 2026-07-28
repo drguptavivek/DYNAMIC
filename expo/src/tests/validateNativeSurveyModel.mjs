@@ -28,6 +28,7 @@ const {
 const { attachHouseholdSurveyBehaviors, refreshHouseholdSurveyBehaviors } = await import(
   "../lib/householdSurveyBehaviors.js"
 );
+const { formCatalog, formsByCode } = await import("../data/formCatalog.js");
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const hhqPath = path.resolve(
@@ -109,5 +110,22 @@ roster.addPanel();
 assert.equal(roster.panelCount, 2);
 roster.removePanel(1);
 assert.equal(roster.panelCount, 1);
+
+for (const formMeta of formCatalog) {
+  const catalogForm = formsByCode[formMeta.form_code];
+  const catalogModel = new Model(prepareQuestionnaireSurveyJson(catalogForm));
+  const unsupported = assertNativeSurveySupport(catalogModel);
+  assert.deepEqual(
+    unsupported,
+    [],
+    `${formMeta.form_code} has unsupported native fields: ${unsupported
+      .map((item) => `${item.name}:${item.type}`)
+      .join(", ")}`
+  );
+  assert.doesNotThrow(
+    () => catalogModel.getAllQuestions().map(getNativeRendererKind),
+    `${formMeta.form_code} should map every question to a native renderer`
+  );
+}
 
 console.log("Validated native Survey Core model adapter for HHQ.");

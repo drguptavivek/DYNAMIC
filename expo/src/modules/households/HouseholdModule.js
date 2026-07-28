@@ -2,7 +2,7 @@
  * Provides household list, detail, and baseline-household-form routes for the field app.
  */
 import React, { useEffect, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 
 import { formsByCode } from "../../data/formCatalog";
 import { ROUTES, navigateTo } from "../../navigation/routes";
@@ -32,6 +32,8 @@ export function HouseholdModule({
   onDataSynced,
   onFormScrollOffsetChange,
 }) {
+  const { width } = useWindowDimensions();
+  const compact = width < 760;
   const [households, setHouseholds] = useState([]);
   const [search, setSearch] = useState("");
   const [householdPage, setHouseholdPage] = useState(0);
@@ -177,20 +179,23 @@ export function HouseholdModule({
   }
 
   return (
-    <View style={styles.wrap}>
-      <View style={styles.toolbar}>
+    <View style={[styles.wrap, compact && styles.wrapCompact]}>
+      <View style={[styles.toolbar, compact && styles.toolbarCompact]}>
         <View>
           <Text style={styles.title}>Households</Text>
         </View>
-        <View style={styles.toolbarActions}>
+        <View style={[styles.toolbarActions, compact && styles.toolbarActionsCompact]}>
           <Pressable
             onPress={handleSyncHouseholds}
             disabled={syncing}
-            style={[styles.secondaryButton, syncing && styles.buttonDisabled]}
+            style={[styles.secondaryButton, compact && styles.toolbarButtonCompact, syncing && styles.buttonDisabled]}
           >
             <Text style={styles.secondaryButtonText}>{syncing ? "Syncing..." : "Sync"}</Text>
           </Pressable>
-          <Pressable onPress={() => navigateTo(ROUTES.householdNew)} style={styles.primaryButton}>
+          <Pressable
+            onPress={() => navigateTo(ROUTES.householdNew)}
+            style={[styles.primaryButton, compact && styles.toolbarButtonCompact]}
+          >
             <Text style={styles.primaryButtonText}>Add Household</Text>
           </Pressable>
         </View>
@@ -393,6 +398,8 @@ function PaginationBar({ label, page, hasNextPage, onPrevious, onNext }) {
 }
 
 function HouseholdSlideout({ household, selectedMember, members, onClose }) {
+  const { width } = useWindowDimensions();
+  const compact = width < 760;
   const [copiedMemberId, setCopiedMemberId] = useState(null);
   if (!household) return null;
 
@@ -405,8 +412,8 @@ function HouseholdSlideout({ household, selectedMember, members, onClose }) {
   return (
     <View style={styles.slideoutLayer}>
       <Pressable accessibilityLabel="Close household panel" style={styles.slideoutScrim} onPress={onClose} />
-      <View style={styles.slideoutPanel}>
-        <View style={styles.slideoutHeader}>
+      <View style={[styles.slideoutPanel, { width: compact ? width : Math.min(460, width * 0.92) }, compact && styles.slideoutPanelCompact]}>
+        <View style={[styles.slideoutHeader, compact && styles.slideoutHeaderCompact]}>
           <View style={styles.slideoutTitleWrap}>
             <Text style={styles.slideoutTitle}>Household members</Text>
           </View>
@@ -518,16 +525,30 @@ const styles = StyleSheet.create({
     padding: 22,
     minHeight: "calc(100vh - 76px)"
   },
+  wrapCompact: {
+    padding: 12,
+    minHeight: "100%"
+  },
   toolbar: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 16
   },
+  toolbarCompact: {
+    alignItems: "stretch",
+    flexWrap: "wrap",
+    gap: 10
+  },
   toolbarActions: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12
+  },
+  toolbarActionsCompact: {
+    alignItems: "stretch",
+    flexWrap: "wrap",
+    gap: 8
   },
   title: {
     fontSize: 24,
@@ -772,6 +793,10 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     fontWeight: "800"
   },
+  toolbarButtonCompact: {
+    flexGrow: 1,
+    alignItems: "center"
+  },
   secondaryButton: {
     minHeight: 38,
     justifyContent: "center",
@@ -847,7 +872,6 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(15, 23, 42, 0.28)"
   },
   slideoutPanel: {
-    width: "min(460px, 92vw)",
     height: "100%",
     gap: 14,
     padding: 18,
@@ -855,11 +879,18 @@ const styles = StyleSheet.create({
     borderLeftWidth: 1,
     borderLeftColor: "#d8dee4"
   },
+  slideoutPanelCompact: {
+    padding: 14,
+    borderLeftWidth: 0
+  },
   slideoutHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 12
+  },
+  slideoutHeaderCompact: {
+    alignItems: "flex-start"
   },
   slideoutTitleWrap: {
     flex: 1

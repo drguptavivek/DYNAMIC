@@ -28,6 +28,8 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 
 - Upgraded the Expo application to SDK 57.0.8 with React 19.2.3, React Native 0.86.0, `@expo/ui` 57.0.7, Reanimated 4.5.3, and Worklets 0.10.3.
 - Standardized dependency installation on npm 11.14.1 and regenerated the npm lockfile without local native-library workarounds.
+- Upgraded API Drizzle ORM to 0.45.2 and pinned the Admin React Router dependency to the audited 6.30.4 build path.
+- Routed generic questionnaire entry through the native Expo Survey Core renderer and removed the unused `survey-react-ui` dependency from the Expo workspace.
 - Reworked the household-questionnaire mobile shell so the DYNAMIC header collapses on scroll, the questionnaire title remains compact, and Previous/Preview/Save/Next retain their requested bottom positions.
 - Changed dynamic-panel rendering to show compact committed-entry summaries and open explicit Add or Update editors only when requested.
 - Reworked Admin user management so Create and Edit use named site selectors and locality checkboxes, while the user table shows readable site and locality names with their codes and IDs.
@@ -35,6 +37,8 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 
 ### Fixed
 
+- Kept the Household members slideout inside the Android phone width and allowed the Household toolbar actions to wrap on compact screens.
+- Prevented HHQ roster calculations from recreating a hidden or deleted minimum household-member placeholder after declined consent or final-row deletion.
 - Directed blocked forward navigation to the first visible validation error and displayed definition-provided regex messages.
 - Preserved ISO date values in the questionnaire model while displaying dates as `DD-MMM-YYYY` and using the native Android Material date picker.
 - Prevented non-applicable consent-dependent sections from occupying compact progress space or blocking final review.
@@ -44,11 +48,13 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 
 ### Security
 
+- Removed the production high-severity npm audit finding from the direct API Drizzle ORM dependency.
 - Enforced site/locality assignment scope on the API, saved user and locality changes atomically, and prevented duplicate or cross-site assignments.
 - Prevented users from changing their own account status or the status of higher-precedence roles, and revoked active sessions immediately when an account is deactivated.
 
 ### Testing
 
+- Added native renderer registry coverage for all 11 bundled questionnaire definitions and re-ran Expo web and Android exports.
 - Verified Admin typecheck and production build, all Expo validation scripts, Expo Doctor, Android and web exports, and clean npm dependency trees after the SDK 57 upgrade.
 - Regenerated the ignored Android project and completed debug and release APK builds plus debug installation on the Pixel 7 API 36 emulator.
 - Exercised native household-questionnaire validation, consent routing, date storage/display, preview, draft recovery, section progress, repeat editing, language switching, and current-session Android logcat checks.

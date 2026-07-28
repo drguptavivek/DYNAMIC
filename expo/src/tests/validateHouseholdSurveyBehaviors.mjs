@@ -37,6 +37,7 @@ function createModel(data, questions = []) {
       this.errors = [];
     }
   };
+  const householdMembersQuestion = { isVisible: true };
 
   return {
     data,
@@ -50,7 +51,9 @@ function createModel(data, questions = []) {
     onValueChanged: createEvent(),
     onValidateQuestion: createEvent(),
     getQuestionByName(name) {
-      return name === "hhq_household_number" ? householdNumberQuestion : null;
+      if (name === "hhq_household_number") return householdNumberQuestion;
+      if (name === "hhq_household_members") return householdMembersQuestion;
+      return null;
     },
     getAllQuestions() {
       return questions;
@@ -60,6 +63,9 @@ function createModel(data, questions = []) {
     },
     setValue(name, value) {
       this.data[name] = value;
+    },
+    clearValue(name) {
+      delete this.data[name];
     },
     notify(message, type) {
       this.notifications.push({ message, type });

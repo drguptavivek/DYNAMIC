@@ -2,7 +2,7 @@
 
 ## Status
 
-Active DYNAMIC renderer architecture. The baseline household questionnaire (HHQ) is the first implemented vertical slice. Extend this design capability by capability across the remaining form definitions.
+Active DYNAMIC renderer architecture. All 11 bundled questionnaire definitions pass the native capability registry and generic questionnaire entry uses native Expo controls. HHQ remains the deepest form-specific vertical slice because it also includes household ID checks, roster confirmation, and registry promotion behavior.
 
 ## Purpose
 
@@ -227,7 +227,7 @@ When adding a capability or moving another form to native rendering:
 
 ## Current Limits
 
-- HHQ is the first native form slice; other forms remain to be moved capability by capability.
+- All bundled questionnaire definitions pass the native capability registry, but non-HHQ forms still need broader real-device QA and any form-specific workflow behavior such as derived IDs, promotion rules, task creation, or attachment persistence.
 - Camera/file selection modules exist, but durable attachment persistence, encryption, sync, retry, and server acceptance remain separate work.
 - Date uses platform calendar widgets and displays `DD-MMM-YYYY` while preserving the ISO `YYYY-MM-DD` stored-value contract.
 - Draft/autosave policy remains authoritative and must be applied when the native renderer is integrated into the generic questionnaire lifecycle.

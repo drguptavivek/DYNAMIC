@@ -38,6 +38,9 @@ function createModel(data, questionsByName = {}, questions = []) {
     },
     setValue(name, value) {
       this.data[name] = value;
+    },
+    clearValue(name) {
+      delete this.data[name];
     }
   };
 }
@@ -64,6 +67,8 @@ const model = createModel({
     { member_name: "Asha" },
     { member_name: "Bala" }
   ]
+}, {
+  hhq_household_members: { isVisible: true }
 });
 
 attachHouseholdSurveyBehaviors(model, { form_code: "HHQ" });
@@ -77,7 +82,9 @@ assert.deepEqual(
 );
 assert.equal(model.getValue("hhq_total_household_members"), 2);
 
-const restoredDraftModel = createModel({});
+const restoredDraftModel = createModel({}, {
+  hhq_household_members: { isVisible: true }
+});
 attachHouseholdSurveyBehaviors(restoredDraftModel, { form_code: "HHQ" });
 restoredDraftModel.data = {
   hhq_household_members: [
@@ -98,16 +105,52 @@ assert.equal(restoredDraftModel.getValue("hhq_total_eligible_women"), 1);
 const visibleEmptyPanelModel = createModel(
   {},
   {
-    hhq_household_members: { panelCount: 1 }
+    hhq_household_members: { isVisible: true, panelCount: 1 }
   }
 );
 attachHouseholdSurveyBehaviors(visibleEmptyPanelModel, { form_code: "HHQ" });
 visibleEmptyPanelModel.onAfterRenderSurvey.handlers[0](visibleEmptyPanelModel);
 
-assert.deepEqual(visibleEmptyPanelModel.getValue("hhq_household_members"), [
-  { member_line_number: 1, member_woman_questionnaire_eligible: 2 }
-]);
-assert.equal(visibleEmptyPanelModel.getValue("hhq_total_household_members"), 1);
-assert.equal(visibleEmptyPanelModel.getValue("hhq_total_eligible_women"), 0);
+assert.equal(visibleEmptyPanelModel.getValue("hhq_household_members"), undefined);
+assert.equal(visibleEmptyPanelModel.getValue("hhq_total_household_members"), undefined);
+assert.equal(visibleEmptyPanelModel.getValue("hhq_total_eligible_women"), undefined);
+
+const hiddenRosterModel = createModel(
+  {
+    hhq_household_members: [
+      { member_line_number: 1, member_woman_questionnaire_eligible: 2 }
+    ],
+    hhq_total_household_members: 1,
+    hhq_total_eligible_women: 0
+  },
+  {
+    hhq_household_members: { isVisible: false, panelCount: 1 }
+  }
+);
+attachHouseholdSurveyBehaviors(hiddenRosterModel, { form_code: "HHQ" });
+hiddenRosterModel.onAfterRenderSurvey.handlers[0](hiddenRosterModel);
+
+assert.equal(hiddenRosterModel.getValue("hhq_household_members"), undefined);
+assert.equal(hiddenRosterModel.getValue("hhq_total_household_members"), undefined);
+assert.equal(hiddenRosterModel.getValue("hhq_total_eligible_women"), undefined);
+
+const deletedFinalEntryModel = createModel(
+  {
+    hhq_household_members: [
+      { member_line_number: 1, member_woman_questionnaire_eligible: 2 }
+    ],
+    hhq_total_household_members: 1,
+    hhq_total_eligible_women: 0
+  },
+  {
+    hhq_household_members: { isVisible: true, panelCount: 1 }
+  }
+);
+attachHouseholdSurveyBehaviors(deletedFinalEntryModel, { form_code: "HHQ" });
+deletedFinalEntryModel.onAfterRenderSurvey.handlers[0](deletedFinalEntryModel);
+
+assert.equal(deletedFinalEntryModel.getValue("hhq_household_members"), undefined);
+assert.equal(deletedFinalEntryModel.getValue("hhq_total_household_members"), undefined);
+assert.equal(deletedFinalEntryModel.getValue("hhq_total_eligible_women"), undefined);
 
 console.log("Validated questionnaire SurveyJS behavior attachment.");

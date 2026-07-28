@@ -3,6 +3,16 @@
  */
 const HHQ_CODE = "HHQ";
 const HH_MEMBER_PANEL = "hhq_household_members";
+const HH_MEMBER_GENERATED_FIELDS = new Set([
+  "member_line_number",
+  "member_woman_questionnaire_eligible"
+]);
+const HH_MEMBER_TOTAL_FIELDS = [
+  "hhq_total_household_members",
+  "hhq_total_household_members_end_summary",
+  "hhq_total_eligible_women",
+  "hhq_total_eligible_women_end_summary"
+];
 const HOUSEHOLD_ID_FIELDS = new Set([
   "hhq_site_id",
   "hhq_locality_code",
@@ -46,26 +56,59 @@ function isWomanQuestionnaireEligible(member) {
   );
 }
 
-function getHouseholdMemberPanelCount(model) {
+function isEmptyRosterValue(value) {
+  if (value === undefined || value === null || value === "") return true;
+  if (Array.isArray(value)) return value.length === 0;
+  if (typeof value === "object") return Object.values(value).every(isEmptyRosterValue);
+  return false;
+}
+
+function hasEnteredHouseholdMemberValue(member) {
+  if (!member || typeof member !== "object" || Array.isArray(member)) return false;
+  return Object.entries(member).some(
+    ([key, value]) => !HH_MEMBER_GENERATED_FIELDS.has(key) && !isEmptyRosterValue(value)
+  );
+}
+
+function clearModelValue(model, name) {
+  if (typeof model.clearValue === "function") {
+    model.clearValue(name);
+    return;
+  }
+  model.setValue(name, undefined);
+}
+
+function clearHouseholdListingCalculations(model) {
+  clearModelValue(model, HH_MEMBER_PANEL);
+  HH_MEMBER_TOTAL_FIELDS.forEach((field) => clearModelValue(model, field));
+}
+
+function isHouseholdMemberPanelApplicable(model) {
   const question = model.getQuestionByName?.(HH_MEMBER_PANEL);
-  const panelCount = Number(question?.panelCount ?? question?.panels?.length ?? 0);
-  return Number.isFinite(panelCount) && panelCount > 0 ? panelCount : 0;
+  if (!question) return false;
+  return question.isVisible !== false && question.page?.isVisible !== false;
 }
 
 function updateHouseholdListingCalculations(model) {
+  if (!isHouseholdMemberPanelApplicable(model)) {
+    clearHouseholdListingCalculations(model);
+    return;
+  }
+
   const members = Array.isArray(model.getValue(HH_MEMBER_PANEL))
     ? model.getValue(HH_MEMBER_PANEL)
     : [];
-  const memberCount = Math.max(members.length, getHouseholdMemberPanelCount(model));
-  const calculationMembers = Array.from(
-    { length: memberCount },
-    (_, index) => members[index] || {}
-  );
-  const normalizedMembers = calculationMembers.map((member, index) => ({
+  const enteredMembers = members.filter(hasEnteredHouseholdMemberValue);
+  const normalizedMembers = enteredMembers.map((member, index) => ({
     ...member,
     member_line_number: index + 1,
     member_woman_questionnaire_eligible: isWomanQuestionnaireEligible(member) ? 1 : 2
   }));
+
+  if (!normalizedMembers.length) {
+    clearHouseholdListingCalculations(model);
+    return;
+  }
 
   if (JSON.stringify(members) !== JSON.stringify(normalizedMembers)) {
     model.setValue(HH_MEMBER_PANEL, normalizedMembers);

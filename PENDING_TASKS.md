@@ -4,7 +4,7 @@ This file tracks concrete unfinished engineering work. Canonical architecture an
 
 ## Priority 0 - Clear hidden household-roster values after declined consent
 
-Status: Blocker for full baseline household-questionnaire acceptance.
+Status: Core implementation fixed locally; full baseline household-questionnaire acceptance still needs device/export/database verification.
 
 When consent is changed to `No`, the roster and later interview sections correctly disappear, but the saved draft can still contain a minimum dynamic-panel placeholder and derived totals, for example:
 
@@ -26,7 +26,9 @@ Likely investigation area: the household-listing behavior refresh and dynamic-pa
 
 ## Priority 1 - Triage npm audit findings
 
-The clean npm 11 installation currently reports 39 audit findings: 16 moderate and 23 high.
+Status: Direct high-severity API dependency fixed locally; remaining production findings are moderate transitive Expo/React Router audit items requiring upstream/major-upgrade review.
+
+The current production audit (`npm audit --omit=dev`) reports 12 moderate findings and 0 high findings after upgrading `drizzle-orm` to 0.45.2. The previous direct high-severity `drizzle-orm` SQL identifier advisory is cleared.
 
 - Identify direct versus transitive findings and whether they affect shipped runtime paths.
 - Prefer compatible upstream upgrades; do not use a forced audit fix that breaks the Expo SDK 57 dependency policy.
@@ -34,6 +36,11 @@ The clean npm 11 installation currently reports 39 audit findings: 16 moderate a
 
 ## Priority 1 - Extend native questionnaire coverage
 
+Status: Generic native renderer coverage implemented locally for all 11 bundled questionnaire definitions; broad device QA remains.
+
+- The generic questionnaire route now uses native Expo controls instead of `survey-react-ui`.
+- All bundled definitions are covered by the native capability registry regression test.
+- Web and Android exports passed locally after the route change.
 - Continue device QA for long English and Hindi labels, accessibility, keyboard behavior, and small-screen layouts.
-- Extend the native capability registry to the remaining questionnaire definitions without adding DOM or WebView fallbacks.
+- Extend form-specific workflow behavior where remaining questionnaire definitions need derived IDs, promotion rules, task creation, or attachment persistence.
 - Preserve the existing Survey Core state/validation boundary and the canonical draft, preview, navigation, and submission policies.

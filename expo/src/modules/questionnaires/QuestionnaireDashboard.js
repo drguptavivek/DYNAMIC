@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Model } from "survey-core";
-import { Survey } from "survey-react-ui";
 
-import { LanguageToggle } from "../../components/LanguageToggle";
+import { NativeSurveyRenderer } from "../../components/forms/NativeSurveyRenderer.js";
+import { RendererLanguageSwitcher } from "../../components/forms/RendererLanguageSwitcher.js";
+import { PreviewRenderer } from "../../components/forms/renderers/PreviewRenderer.js";
 import { formsByCode } from "../../data/formCatalog";
 import { ROUTES, navigateTo } from "../../navigation/routes";
 import {
@@ -37,101 +38,8 @@ const AUTOSAVE_INTERVAL_MS = 30000;
 const HOUSEHOLD_SCHEDULE_PAGE_NAME = "page_02_household_schedule";
 const HOUSEHOLD_CHARACTERISTICS_PAGE_NAME = "page_03_household_characteristics";
 
-function getText(value, locale = "default") {
-  if (!value || typeof value !== "object") return value || "";
-  return value[locale] || value.default || Object.values(value).find(Boolean) || "";
-}
-
-function getValueLabel(value) {
-  if (Array.isArray(value)) {
-    if (value.some((item) => item && typeof item === "object")) {
-      return `${value.length} ${value.length === 1 ? "row" : "rows"}`;
-    }
-    return value.join(", ");
-  }
-  if (value && typeof value === "object") return JSON.stringify(value);
-  if (value === undefined || value === null || value === "") return "-";
-  return String(value);
-}
-
 function getDataSignature(data) {
   return JSON.stringify(data || {});
-}
-
-function buildGenericRepeatRows(value) {
-  const rows = Array.isArray(value) ? value.filter((item) => item && typeof item === "object") : [];
-  const keys = Array.from(new Set(rows.flatMap((row) => Object.keys(row)))).slice(0, 6);
-  return {
-    repeatColumns: keys.map((key) => ({ key, title: key.replaceAll("_", " ") })),
-    repeatRows: rows.map((row, index) => ({
-      ...row,
-      __row: index + 1,
-    })),
-  };
-}
-
-function buildPreviewRows(model, locale, form) {
-  if (!model) return [];
-  const data = model.data || {};
-  const questions =
-    typeof model.getAllQuestions === "function" ? model.getAllQuestions() : [];
-  const questionMap = new Map(questions.map((question) => [question.name, question]));
-  const orderedNames = [];
-  for (const question of questions) {
-    const baseSummaryName = question.name?.endsWith("_end_summary")
-      ? question.name.replace(/_end_summary$/, "")
-      : null;
-    if (
-      question.name &&
-      Object.prototype.hasOwnProperty.call(data, question.name) &&
-      !(baseSummaryName && Object.prototype.hasOwnProperty.call(data, baseSummaryName)) &&
-      !orderedNames.includes(question.name)
-    ) {
-      orderedNames.push(question.name);
-    }
-  }
-  const orderedNameSet = new Set(orderedNames);
-  const extraNames = Object.keys(data).filter((name) => !orderedNameSet.has(name));
-
-  return [...orderedNames, ...extraNames]
-    .map((name) => {
-      const question = questionMap.get(name);
-      if (
-        name === "hhq_household_members" &&
-        Array.isArray(data[name]) &&
-        data[name].some((item) => item && typeof item === "object")
-      ) {
-        return {
-          name,
-          title: getText(question?.title, locale) || question?.title || name,
-          repeatColumns: [
-            { key: "sr", title: "Sr" },
-            { key: "memberName", title: "Member name" },
-            { key: "age", title: "Age" },
-            { key: "sex", title: "Sex" },
-            { key: "relation", title: "Relation" },
-            { key: "wqEligible", title: "WQ Eligible" },
-          ],
-          repeatRows: buildHouseholdMemberSummaryRows(data, form, locale),
-        };
-      }
-      if (Array.isArray(data[name]) && data[name].some((item) => item && typeof item === "object")) {
-        return {
-          name,
-          title: getText(question?.title, locale) || question?.title || name,
-          ...buildGenericRepeatRows(data[name]),
-        };
-      }
-      const displayValue =
-        typeof question?.getDisplayValue === "function"
-          ? question.getDisplayValue(true, data[name])
-          : data[name];
-      return {
-        name,
-        title: getText(question?.title, locale) || question?.title || name,
-        value: getValueLabel(displayValue),
-      };
-    });
 }
 
 export function QuestionnaireDashboard({
@@ -153,10 +61,12 @@ export function QuestionnaireDashboard({
   const [lastSavedAt, setLastSavedAt] = useState("");
   const [dirty, setDirty] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [previewRows, setPreviewRows] = useState([]);
   const [previewConfirmed, setPreviewConfirmed] = useState(false);
   const [memberSummaryOpen, setMemberSummaryOpen] = useState(false);
   const [memberSummaryConfirmed, setMemberSummaryConfirmed] = useState(false);
+  const [sectionDrawerOpen, setSectionDrawerOpen] = useState(false);
+  const { width } = useWindowDimensions();
+  const compact = width < 700;
   const form = formsByCode[formCode];
   const showForm = mode === "new";
   const draftIdRef = useRef(null);
@@ -224,9 +134,9 @@ export function QuestionnaireDashboard({
   async function openPreviewFromModel(model) {
     if (!model) return;
     await saveDraftFromModel(model, { silent: true });
-    setPreviewRows(buildPreviewRows(model, locale, form));
     setPreviewOpen(true);
     setMemberSummaryOpen(false);
+    setSectionDrawerOpen(false);
     hasPreviewedRef.current = true;
     setPreviewConfirmed(true);
     previewSignatureRef.current = getDataSignature(model.data);
@@ -238,6 +148,7 @@ export function QuestionnaireDashboard({
     if (!model || form?.form_code !== "HHQ") return;
     refreshHouseholdSurveyBehaviors(model, form);
     setPreviewOpen(false);
+    setSectionDrawerOpen(false);
     setMemberSummaryOpen(true);
     updateSurveyStatus(model);
     setSaveMessage("Confirm household member summary before Section 03");
@@ -249,6 +160,7 @@ export function QuestionnaireDashboard({
     memberSummaryConfirmedRef.current = true;
     setMemberSummaryConfirmed(true);
     setMemberSummaryOpen(false);
+    setSectionDrawerOpen(false);
     await saveDraftFromModel(model, { silent: true });
     goToSurveySection(model, HOUSEHOLD_CHARACTERISTICS_PAGE_NAME);
     updateSurveyStatus(model);
@@ -283,6 +195,7 @@ export function QuestionnaireDashboard({
     goToSurveySection(model, sectionName);
     setPreviewOpen(false);
     setMemberSummaryOpen(false);
+    setSectionDrawerOpen(false);
     updateSurveyStatus(model);
   }
 
@@ -476,7 +389,7 @@ export function QuestionnaireDashboard({
     <View style={styles.wrap}>
       {showForm && (
         <View style={styles.formWindow}>
-          <View style={styles.formWindowHeader}>
+          <View style={[styles.formWindowHeader, compact && styles.formWindowHeaderCompact]}>
             <View style={styles.titleBlock}>
               <Text style={styles.code}>{form.form_code}</Text>
               <View>
@@ -488,7 +401,7 @@ export function QuestionnaireDashboard({
                 </Text>
               </View>
             </View>
-            <View style={styles.formWindowActions}>
+            <View style={[styles.formWindowActions, compact && styles.formWindowActionsCompact]}>
               <Pressable
                 onPress={() => saveDraftFromModel(survey)}
                 style={styles.secondaryButton}
@@ -501,7 +414,7 @@ export function QuestionnaireDashboard({
               >
                 <Text style={styles.secondaryButtonText}>Preview</Text>
               </Pressable>
-              <LanguageToggle locale={locale} onChange={onLocaleChange} />
+              <RendererLanguageSwitcher locale={locale} onChange={onLocaleChange} />
               <Pressable
                 onPress={() => handleCloseForm(survey)}
                 style={styles.secondaryButton}
@@ -510,7 +423,7 @@ export function QuestionnaireDashboard({
               </Pressable>
             </View>
           </View>
-          <View style={styles.formWindowBody}>
+          <View style={[styles.formWindowBody, compact && styles.formWindowBodyCompact]}>
             <View style={styles.progressHeader}>
               <View style={styles.progressTextRow}>
                 <Text style={styles.panelTitle}>Progress</Text>
@@ -523,8 +436,8 @@ export function QuestionnaireDashboard({
               </View>
             </View>
 
-            <View style={styles.formWorkspace}>
-              <View style={styles.sectionNav}>
+            <View style={[styles.formWorkspace, compact && styles.formWorkspaceCompact]}>
+              {!compact ? <View style={styles.sectionNav}>
                 <Text style={styles.sectionNavTitle}>Table of Contents</Text>
                 <ScrollView style={styles.sectionNavList}>
                   {displayedSections.map((section) => (
@@ -554,9 +467,9 @@ export function QuestionnaireDashboard({
                     </Pressable>
                   ))}
                 </ScrollView>
-              </View>
+              </View> : null}
 
-              <View style={styles.formContentPane}>
+              <View style={[styles.formContentPane, compact && styles.formContentPaneCompact]}>
                 {memberSummaryOpen ? (
                   <View style={styles.memberSummaryPanel}>
                     <View style={styles.previewHeader}>
@@ -617,7 +530,10 @@ export function QuestionnaireDashboard({
                       </View>
                       <View style={styles.formWindowActions}>
                         <Pressable
-                          onPress={() => setPreviewOpen(false)}
+                          onPress={() => {
+                            setPreviewOpen(false);
+                            if (survey) updateSurveyStatus(survey);
+                          }}
                           style={styles.secondaryButton}
                         >
                           <Text style={styles.secondaryButtonText}>Edit Form</Text>
@@ -630,57 +546,20 @@ export function QuestionnaireDashboard({
                         </Pressable>
                       </View>
                     </View>
-                    <ScrollView style={styles.previewRows}>
-                      {previewRows.length ? (
-                        <View style={styles.previewTable}>
-                          <View style={[styles.previewRow, styles.previewHeaderRow]}>
-                            <Text style={[styles.previewLabel, styles.previewFieldCell]}>Field</Text>
-                            <Text style={[styles.previewLabel, styles.previewAnswerCell]}>Answer</Text>
-                          </View>
-                          {previewRows.map((row) => (
-                            row.repeatRows ? (
-                              <View key={row.name} style={styles.previewRepeatBlock}>
-                                <Text style={styles.previewRepeatTitle}>{row.title}</Text>
-                                <View style={styles.previewRepeatWrap}>
-                                  <View style={styles.previewRepeatHeader}>
-                                    {row.repeatColumns.map((column) => (
-                                      <Text key={column.key} style={styles.previewRepeatHeaderCell}>
-                                        {column.title}
-                                      </Text>
-                                    ))}
-                                  </View>
-                                  {row.repeatRows.map((repeatRow, rowIndex) => (
-                                    <View key={`${row.name}-${rowIndex}`} style={styles.previewRepeatRow}>
-                                      {row.repeatColumns.map((column) => (
-                                        <Text key={column.key} style={styles.previewRepeatCell} numberOfLines={2}>
-                                          {getValueLabel(repeatRow[column.key])}
-                                        </Text>
-                                      ))}
-                                    </View>
-                                  ))}
-                                </View>
-                              </View>
-                            ) : (
-                              <View key={row.name} style={styles.previewRow}>
-                                <Text style={[styles.previewLabel, styles.previewFieldCell]} numberOfLines={2}>
-                                  {row.title}
-                                </Text>
-                                <Text style={[styles.previewValue, styles.previewAnswerCell]} numberOfLines={3}>
-                                  {row.value}
-                                </Text>
-                              </View>
-                            )
-                          ))}
-                        </View>
-                      ) : (
-                        <View style={styles.emptyPanel}>
-                          <Text style={styles.subtle}>No answers entered yet.</Text>
-                        </View>
-                      )}
-                    </ScrollView>
+                    <PreviewRenderer model={survey} />
                   </View>
                 ) : survey ? (
-                  <Survey model={survey} />
+                  <NativeSurveyRenderer
+                    model={survey}
+                    notice={saveMessage}
+                    onCompleteRequested={(activeModel) => activeModel?.doComplete?.()}
+                    onPreviewRequested={() => openPreviewFromModel(survey)}
+                    onSaveDraft={(options) => saveDraftFromModel(survey, options)}
+                    sectionDrawerOpen={sectionDrawerOpen}
+                    onSectionDrawerOpenChange={setSectionDrawerOpen}
+                    sections={compact ? displayedSections : []}
+                    onSectionSelect={(section) => handleSectionNavPress(survey, section.name)}
+                  />
                 ) : null}
               </View>
             </View>
@@ -738,7 +617,7 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 14,
     padding: 22,
-    minHeight: "calc(100vh - 76px)",
+    ...(Platform.OS === "web" ? { minHeight: "calc(100vh - 76px)" } : {}),
   },
   toolbar: {
     flexDirection: "row",
@@ -823,11 +702,9 @@ const styles = StyleSheet.create({
     color: "#18202a",
   },
   formWindow: {
-    position: "fixed",
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0,
+    ...(Platform.OS === "web"
+      ? { position: "fixed", top: 0, right: 0, bottom: 0, left: 0 }
+      : { flex: 1 }),
     zIndex: 20,
     backgroundColor: "#eef2f5",
   },
@@ -842,12 +719,23 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#d8dee4",
   },
+  formWindowHeaderCompact: {
+    minHeight: 0,
+    alignItems: "flex-start",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
   formWindowActions: {
     flexDirection: "row",
     alignItems: "center",
     flexWrap: "wrap",
     justifyContent: "flex-end",
     gap: 12,
+  },
+  formWindowActionsCompact: {
+    flex: 1,
+    justifyContent: "flex-start",
+    gap: 8,
   },
   formWindowTitle: {
     fontSize: 20,
@@ -872,6 +760,9 @@ const styles = StyleSheet.create({
     margin: 18,
     gap: 12,
     overflow: "hidden",
+  },
+  formWindowBodyCompact: {
+    margin: 10,
   },
   progressHeader: {
     padding: 12,
@@ -903,6 +794,9 @@ const styles = StyleSheet.create({
     minHeight: 0,
     flexDirection: "row",
     gap: 12,
+  },
+  formWorkspaceCompact: {
+    flexDirection: "column",
   },
   sectionNav: {
     width: 260,
@@ -959,7 +853,12 @@ const styles = StyleSheet.create({
     borderColor: "#d8dee4",
     backgroundColor: "#ffffff",
     padding: 12,
-    overflow: "auto",
+    ...(Platform.OS === "web" ? { overflow: "auto" } : {}),
+  },
+  formContentPaneCompact: {
+    borderWidth: 0,
+    padding: 0,
+    backgroundColor: "transparent",
   },
   previewPanel: {
     flex: 1,
