@@ -19,7 +19,7 @@ import { navigateTo } from "../navigation/routes.js";
 import { buildClockDriftAlert } from "../modules/sync/syncWorkflow.js";
 import { useFieldApp } from "./FieldAppProvider.js";
 
-export function FieldAppShell({ route, title, children }) {
+export function FieldAppShell({ route, title, children, topBarCollapsed = false }) {
   const app = useFieldApp();
   const [menuOpen, setMenuOpen] = useState(false);
   const clockAlert = buildClockDriftAlert(app.clockStatus);
@@ -123,19 +123,21 @@ export function FieldAppShell({ route, title, children }) {
         </View>
 
         <View style={styles.main}>
-          <View style={styles.topBar}>
-            <Pressable
-              accessibilityLabel="Open menu"
-              onPress={() => setMenuOpen(true)}
-              style={styles.menuButton}
-            >
-              <Text style={styles.menuButtonText}>☰</Text>
-            </Pressable>
-            <View style={styles.titleGroup}>
-              <Text style={styles.appTitle}>DYNAMIC</Text>
-              <Text style={styles.subtle}>{title || "Field App"}</Text>
+          {!topBarCollapsed ? (
+            <View style={styles.topBar}>
+              <Pressable
+                accessibilityLabel="Open menu"
+                onPress={() => setMenuOpen(true)}
+                style={styles.menuButton}
+              >
+                <Text style={styles.menuButtonText}>☰</Text>
+              </Pressable>
+              <View style={styles.titleGroup}>
+                <Text style={styles.appTitle}>DYNAMIC</Text>
+                <Text style={styles.subtle}>{title || "Field App"}</Text>
+              </View>
             </View>
-          </View>
+          ) : null}
 
           {clockAlert && <ClockDriftAlert alert={clockAlert} />}
           {children}

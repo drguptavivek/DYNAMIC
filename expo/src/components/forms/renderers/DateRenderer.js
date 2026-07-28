@@ -1,30 +1,81 @@
-/** Renders an ISO date question with native input semantics and Survey Core validation. */
-import React from "react";
-import { TextInput } from "react-native";
+/** Renders a native calendar control while preserving ISO dates in Survey Core. */
+import React, { useState } from "react";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+import DateTimePicker from "@expo/ui/community/datetime-picker";
 
+import {
+  formatSurveyDate,
+  formatSurveyDateDisplay,
+  parseSurveyDate,
+} from "../dateValue.js";
 import { setNativeQuestionValue } from "../nativeSurveyModel.js";
-import { QuestionFrame, controlStyles } from "./QuestionFrame.js";
+import { QuestionFrame } from "./QuestionFrame.js";
 
 export function DateRenderer({ question, onChange }) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const selectedDate = parseSurveyDate(question.value) || new Date();
+  const displayValue = formatSurveyDateDisplay(question.value);
+
+  function setDateValue(date) {
+    setNativeQuestionValue(question, formatSurveyDate(date));
+    question.validate?.();
+    onChange?.();
+  }
+
   return (
     <QuestionFrame question={question}>
-      <TextInput
-        accessibilityLabel={question.name}
-        value={question.value || ""}
-        editable={!question.isReadOnly}
-        keyboardType="numbers-and-punctuation"
-        placeholder="YYYY-MM-DD"
-        maxLength={10}
-        onChangeText={(value) => {
-          setNativeQuestionValue(question, value.replace(/[^0-9-]/g, ""));
-          onChange?.();
-        }}
-        onBlur={() => {
-          question.validate?.();
-          onChange?.();
-        }}
-        style={[controlStyles.input, question.isReadOnly && controlStyles.readOnly]}
-      />
+      <View style={styles.pickerWrap}>
+        <Pressable
+          accessibilityLabel={question.name}
+          accessibilityRole="button"
+          disabled={question.isReadOnly || Platform.OS === "web"}
+          onPress={() => setPickerOpen(true)}
+          style={[styles.dateButton, question.isReadOnly && styles.readOnly]}
+        >
+          <Text style={[styles.dateText, !displayValue && styles.placeholder]}>
+            {displayValue || "DD-MMM-YYYY"}
+          </Text>
+          <MaterialCommunityIcons color="#475467" name="calendar-month-outline" size={22} />
+        </Pressable>
+        {Platform.OS === "web" && !question.isReadOnly
+          ? React.createElement("input", {
+              "aria-label": question.name,
+              max: question.maxValue || undefined,
+              min: question.minValue || undefined,
+              onChange: (event) => {
+                const nextDate = parseSurveyDate(event.target.value);
+                if (nextDate) setDateValue(nextDate);
+              },
+              style: styles.webDateInput,
+              type: "date",
+              value: question.value || "",
+            })
+          : null}
+      </View>
+      {pickerOpen && Platform.OS !== "web" ? (
+        <DateTimePicker
+          maximumDate={parseSurveyDate(question.maxValue) || undefined}
+          minimumDate={parseSurveyDate(question.minValue) || undefined}
+          mode="date"
+          onDismiss={() => setPickerOpen(false)}
+          onValueChange={(_event, date) => {
+            setPickerOpen(false);
+            if (date) setDateValue(date);
+          }}
+          presentation="dialog"
+          value={selectedDate}
+        />
+      ) : null}
     </QuestionFrame>
   );
 }
+
+const styles = StyleSheet.create({
+  pickerWrap: { minHeight: 44, position: "relative" },
+  dateButton: { minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, paddingHorizontal: 12, borderWidth: 1, borderColor: "#b8c2cc", borderRadius: 8, backgroundColor: "#ffffff" },
+  readOnly: { backgroundColor: "#f3f4f6" },
+  dateText: { flex: 1, color: "#18202a", fontSize: 16 },
+  placeholder: { color: "#667085" },
+  webDateInput: { position: "absolute", inset: 0, width: "100%", height: "100%", cursor: "pointer", opacity: 0.01 },
+});

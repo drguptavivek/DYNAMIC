@@ -131,3 +131,20 @@ Open:
 - Continue device QA across long translated labels and remaining native form definitions.
 Archive:
 - `session-log-archive.md#2026-07-28-native-hhq-mobile-viewport`
+
+## 2026-07-28 09:45 [saved]
+Goal: Make the Android HHQ shell and repeat editing denser and error-directed.
+Decisions:
+- Questionnaire title row owns Sections, title, and Close; language is an upper-right overlay.
+- DYNAMIC chrome collapses on form scroll; compact dots exclude Preview while the drawer retains it.
+- Bottom arrows sit at the outer edges, with compact Preview and Save controls centered.
+- Blocked Next scrolls to the first visible validation problem.
+- Repeat rows stay collapsed until Add/Edit and expose Add, Update, and Delete actions.
+- Date questions use platform calendar widgets with `DD-MMM-YYYY` display and ISO storage.
+Rejected:
+- Treating a completed preview as a green questionnaire-section dot.
+- Keeping repeat editors permanently expanded.
+Open:
+- Continue long-label and translated-content device QA.
+Archive:
+- `session-log-archive.md#2026-07-28-native-hhq-icon-shell-and-repeat-editor`

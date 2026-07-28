@@ -29,7 +29,8 @@ export function HouseholdModule({
   user,
   localities = [],
   selectedLocalityCode,
-  onDataSynced
+  onDataSynced,
+  onFormScrollOffsetChange,
 }) {
   const [households, setHouseholds] = useState([]);
   const [search, setSearch] = useState("");
@@ -165,6 +166,7 @@ export function HouseholdModule({
         user={user}
         localities={localities}
         selectedLocalityCode={selectedLocalityCode}
+        onScrollOffsetChange={onFormScrollOffsetChange}
         onClose={() => navigateTo(ROUTES.households)}
         onSaved={async () => {
           await refreshHouseholds();

@@ -16,7 +16,7 @@ JWT_REFRESH_SECRET ?= dev_refresh_secret
 	backend-up backend-stop backend-restart backend-logs backend-status \
 	api-up api-stop api-restart api-logs api-status \
 	app-up app-stop app-restart app-logs app-status \
-	db-up db-stop db-recreate db-restart db-reset-full db-logs db-status db-push db-migrate db-seed db-smoke \
+	db-up db-stop db-recreate db-restart db-reset-full db-logs db-status db-push db-migrate db-seed seed-large db-smoke \
 	edge-up edge-start edge-stop edge-restart edge-logs edge-status \
 	expo-up expo-stop expo-restart \
 	bacedn-up bacedn-restart \
@@ -42,6 +42,7 @@ help:
 	@echo "  db-push           Push the full API schema to $(DATABASE_URL)"
 	@echo "  db-migrate        Legacy: run API Drizzle migrations against $(DATABASE_URL)"
 	@echo "  db-seed           Upsert development users, assignments, and seed task"
+	@echo "  seed-large        Replace and repopulate the deterministic large synthetic field dataset"
 	@echo "  db-smoke          Seed and smoke-test dev login/sync against the API"
 	@echo "  backend-up        Start the backend API on port $(API_PORT)"
 	@echo "  backend-stop      Stop the backend API on port $(API_PORT)"
@@ -139,6 +140,9 @@ db-migrate:
 
 db-seed:
 	DATABASE_URL="$(DATABASE_URL)" JWT_SECRET="$(JWT_SECRET)" JWT_REFRESH_SECRET="$(JWT_REFRESH_SECRET)" npx tsx apps/api/src/dev/dev-seed.ts
+
+seed-large:
+	DATABASE_URL="$(DATABASE_URL)" JWT_SECRET="$(JWT_SECRET)" JWT_REFRESH_SECRET="$(JWT_REFRESH_SECRET)" npm --workspace @dynamic/api run seed:large
 
 db-smoke:
 	DATABASE_URL="$(DATABASE_URL)" JWT_SECRET="$(JWT_SECRET)" JWT_REFRESH_SECRET="$(JWT_REFRESH_SECRET)" npm --workspace @dynamic/api run smoke:dev

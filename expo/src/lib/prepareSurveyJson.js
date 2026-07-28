@@ -76,10 +76,14 @@ export function prepareSurveyJson(form) {
     showQuestionNumbers: "off",
     questionTitlePattern: "title",
     showCompletedPage: false,
+    ...(form.clearInvisibleValues
+      ? { clearInvisibleValues: form.clearInvisibleValues }
+      : {}),
     pages: form.pages.map((page) => ({
       name: page.name,
       title: page.title,
       description: page.description,
+      ...(page.visibleIf ? { visibleIf: page.visibleIf } : {}),
       elements: page.elements.map(cleanElement)
     }))
   };

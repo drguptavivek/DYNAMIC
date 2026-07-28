@@ -69,7 +69,7 @@ export function getCurrentPageName(model) {
 export function goToSurveySection(model, pageName) {
   if (!model || !pageName) return false;
   const pageIndex = model.pages.findIndex((page) => page.name === pageName);
-  if (pageIndex < 0) return false;
+  if (pageIndex < 0 || model.pages[pageIndex]?.isVisible === false) return false;
   model.currentPageNo = pageIndex;
   return true;
 }
@@ -102,15 +102,21 @@ export function buildSurveySections(model, options = {}) {
         section.name === "page_02_household_schedule" ||
         section.title === "02-HOUSEHOLD SCHEDULE",
     );
+    const scheduleSection = sections[insertAfterIndex];
+    const summaryApplicable = scheduleSection?.applicable ?? true;
     const summarySection = {
       index: insertAfterIndex >= 0 ? insertAfterIndex + 0.5 : sections.length,
       name: HOUSEHOLD_MEMBER_SUMMARY_SECTION_NAME,
       title: HOUSEHOLD_MEMBER_SUMMARY_SECTION_TITLE,
-      answered: options.householdMemberSummaryConfirmed ? 1 : 0,
+      answered: summaryApplicable && options.householdMemberSummaryConfirmed ? 1 : 0,
       total: 1,
       hasErrors: false,
-      applicable: true,
-      status: options.householdMemberSummaryConfirmed ? "complete" : "pending",
+      applicable: summaryApplicable,
+      status: summaryApplicable
+        ? options.householdMemberSummaryConfirmed
+          ? "complete"
+          : "pending"
+        : "not_applicable",
       isCurrent: options.currentSectionName === HOUSEHOLD_MEMBER_SUMMARY_SECTION_NAME,
     };
     if (summarySection.isCurrent) {
@@ -132,6 +138,9 @@ export function buildSurveySections(model, options = {}) {
       applicable: true,
       status: options.compactPreviewConfirmed ? "complete" : "pending",
       isCurrent: options.currentSectionName === COMPACT_PREVIEW_SECTION_NAME,
+      // Preview remains navigable in the detailed drawer, but it is an action/review gate,
+      // not a questionnaire section represented by the compact progress dots.
+      showInCompactProgress: false,
     };
     if (previewSection.isCurrent) {
       sections.forEach((section) => {

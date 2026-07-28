@@ -20,6 +20,11 @@ const { prepareQuestionnaireSurveyJson } = await import(
 const { getRegexValidationErrors } = await import(
   "../components/forms/validators/RegexValidator.js"
 );
+const {
+  formatSurveyDate,
+  formatSurveyDateDisplay,
+  parseSurveyDate,
+} = await import("../components/forms/dateValue.js");
 const { attachHouseholdSurveyBehaviors, refreshHouseholdSurveyBehaviors } = await import(
   "../lib/householdSurveyBehaviors.js"
 );
@@ -45,7 +50,14 @@ setNativeQuestionValue(structure, "0042");
 assert.deepEqual(getRegexValidationErrors(structure), []);
 assert.equal(structure.value, "0042");
 
+assert.equal(formatSurveyDateDisplay("2026-07-28"), "28-Jul-2026");
+assert.equal(formatSurveyDate(parseSurveyDate("2026-07-28")), "2026-07-28");
+assert.equal(parseSurveyDate("2026-02-30"), null);
+
 const site = model.getQuestionByName("hhq_site_id");
+const consent = model.getQuestionByName(
+  "hhq_consent_study_provide_pis_explain_study_adult_member"
+);
 const localizedQuestion = model.getQuestionByName("hhq_residence_area_type");
 const defaultLocalizedTitle = getNativeQuestionTitle(localizedQuestion);
 model.locale = "hi";
@@ -53,6 +65,8 @@ assert.notEqual(getNativeQuestionTitle(localizedQuestion), defaultLocalizedTitle
 model.locale = "default";
 setNativeQuestionValue(site, 1);
 assert.equal(site.value, 1);
+setNativeQuestionValue(consent, 1);
+assert.equal(model.visiblePages.length, 3);
 
 const roster = model.getQuestionByName("hhq_household_members");
 roster.value = [

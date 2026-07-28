@@ -58,6 +58,7 @@ function toMultipleMobilePanel(element) {
     panelCount: 1,
     addPanelText: "Add mobile number",
     removePanelText: "Remove mobile number",
+    ...(element.visibleIf ? { visibleIf: element.visibleIf } : {}),
     templateElements: [
       {
         type: "text",

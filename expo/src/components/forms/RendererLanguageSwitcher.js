@@ -3,6 +3,7 @@
  */
 import React, { useRef, useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
 import { LanguageToggle } from "../LanguageToggle.js";
 
@@ -11,7 +12,7 @@ const LANGUAGES = [
   { code: "hi", label: "Hindi" },
 ];
 
-export function RendererLanguageSwitcher({ locale, onChange }) {
+export function RendererLanguageSwitcher({ iconOnly = false, locale, onChange }) {
   const { width } = useWindowDimensions();
   const compact = width < 700;
   const triggerRef = useRef(null);
@@ -46,9 +47,13 @@ export function RendererLanguageSwitcher({ locale, onChange }) {
         accessibilityLabel={`Language: ${activeLanguage.label}`}
         onPress={openMenu}
         ref={triggerRef}
-        style={styles.trigger}
+        style={[styles.trigger, iconOnly && styles.iconTrigger]}
       >
-        <Text numberOfLines={1} style={styles.triggerText}>{activeLanguage.label}</Text>
+        {iconOnly ? (
+          <MaterialCommunityIcons color="#344054" name="translate" size={22} />
+        ) : (
+          <Text numberOfLines={1} style={styles.triggerText}>{activeLanguage.label}</Text>
+        )}
       </Pressable>
       <Modal animationType="fade" onRequestClose={() => setOpen(false)} transparent visible={open}>
         <View style={styles.modalRoot}>
@@ -81,6 +86,7 @@ export function RendererLanguageSwitcher({ locale, onChange }) {
 
 const styles = StyleSheet.create({
   trigger: { minHeight: 44, flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 10, borderWidth: 1, borderColor: "#98a2b3", borderRadius: 8, backgroundColor: "#ffffff" },
+  iconTrigger: { width: 44, flex: 0, paddingHorizontal: 0, borderColor: "#d0d5dd" },
   triggerText: { color: "#344054", fontSize: 13, fontWeight: "800" },
   modalRoot: { flex: 1 },
   menu: { position: "absolute", overflow: "hidden", borderWidth: 1, borderColor: "#d0d5dd", borderRadius: 8, backgroundColor: "#ffffff", shadowColor: "#101828", shadowOpacity: 0.18, shadowRadius: 12, elevation: 6 },

@@ -79,6 +79,8 @@ Survey Core is the authoritative validation runtime on Android and web.
 
 Missing translations follow Survey Core's definition fallback rules. Renderer components must not keep independent translated copies of protocol labels.
 
+Date questions use the native platform calendar. Android renders the React Native community date-picker calendar; web opens the browser's native date input. The interviewer-facing control displays `DD-MMM-YYYY`, while Survey Core continues to store the stable ISO `YYYY-MM-DD` value.
+
 ## Section State And Navigation
 
 `SectionNavigator` derives state from the current Survey Core model on every answer change.
@@ -102,11 +104,13 @@ On narrow mobile screens, the persistent section surface is a thin row of status
 - grey dot: not applicable;
 - blue ring: current section.
 
-The adjacent `Sections` control opens a left-side overlay with full section names, answer counts, detailed status, and navigation. Section cards must not permanently consume the question viewport on mobile. The compact section strip, section heading, messages, and questions share one vertical scroll surface so context can scroll away while the bottom navigation remains available.
+The section icon in the questionnaire title row opens a left-side overlay with full section names, answer counts, detailed status, and navigation. Section cards must not permanently consume the question viewport on mobile. Synthetic preview remains available in the detailed drawer but is not shown as a compact progress dot; opening preview must not create a misleading green form-section dot. The compact section strip, section heading, messages, and questions share one vertical scroll surface so context can scroll away while the bottom navigation remains available. If Next is blocked by validation, the form scrolls to the first visible question with a validation problem.
 
 ## Mobile Form Shell
 
-The native HHQ header uses one compact action row: Preview, language dropdown, and Close. The global locality switcher belongs in the main DYNAMIC drawer rather than the fixed app bar. Previous, Save draft, and Next share the fixed bottom action row.
+The native HHQ title row is `Sections icon — form title — red Close icon`. On compact screens the language menu is an icon overlay at the upper-right of the form body. The global locality switcher belongs in the main DYNAMIC drawer. The DYNAMIC app header is visible at form entry and collapses after the interviewer scrolls into the questionnaire; the questionnaire title row remains available.
+
+The fixed bottom row uses compact icon controls. Previous and Next sit at the outer edges; Preview and Save draft remain grouped in the middle. Their visible button height is compact while hit slop preserves a usable touch target.
 
 Manual Save draft writes immediately to the shared offline draft repository. HHQ also autosaves dirty state every 30 seconds, when the app backgrounds or the form closes, and after form navigation actions including Previous, Next, section jumps, preview, and roster confirmation. Reopening the same baseline-locality context restores answers and the last active section.
 
@@ -117,8 +121,10 @@ A repeated panel is not rendered as one long anonymous list.
 - Show the number of entries added.
 - Show a compact entry list.
 - Allow the interviewer to select a specific entry for editing.
-- Allow deletion of a specific entry when the form definition's `minPanelCount` permits it.
-- After adding an entry, select the new entry for editing.
+- Allow deletion of every committed row. If Survey Core retains a `minPanelCount` placeholder, deleting the last committed row clears the placeholder values and displays zero committed entries.
+- Keep the editor collapsed until the interviewer selects an existing row or starts a new entry.
+- Editing an existing row exposes an explicit Update action; starting a new row exposes an explicit Add action.
+- Do not include an unconfirmed new-entry panel in the displayed committed-entry count.
 - Preserve Survey Core panel order as the row sequence.
 - Generate stable semantic entity IDs outside the generic repeat renderer.
 
@@ -223,5 +229,5 @@ When adding a capability or moving another form to native rendering:
 
 - HHQ is the first native form slice; other forms remain to be moved capability by capability.
 - Camera/file selection modules exist, but durable attachment persistence, encryption, sync, retry, and server acceptance remain separate work.
-- Date currently uses a native text input contract with ISO `YYYY-MM-DD`; a platform date-picker capability may replace its UI without changing the stored value contract.
+- Date uses platform calendar widgets and displays `DD-MMM-YYYY` while preserving the ISO `YYYY-MM-DD` stored-value contract.
 - Draft/autosave policy remains authoritative and must be applied when the native renderer is integrated into the generic questionnaire lifecycle.

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { Model } from "survey-core";
 
 const { prepareQuestionnaireSurveyJson } = await import(
   "../modules/questionnaires/questionnaireSurveyJsonTransforms.js"
@@ -37,6 +38,10 @@ assert.equal(singleMobile, null);
 assert.equal(mobilePanel.type, "paneldynamic");
 assert.equal(mobilePanel.panelCount, 1);
 assert.equal(mobilePanel.minPanelCount, 1);
+assert.equal(
+  mobilePanel.visibleIf,
+  "{hhq_consent_study_provide_pis_explain_study_adult_member} = 1"
+);
 assert.equal(mobilePanel.isRequired, undefined);
 assert.equal(mobilePanel.templateElements.length, 1);
 assert.equal(mobilePanel.templateElements[0].name, "mobile_number");
@@ -60,5 +65,20 @@ assert.deepEqual(mobilePanel.templateElements[0].validators, [
 assert.equal(memberMaritalStatus.visibleIf, "{panel.member_age_years} >= 13");
 assert.equal(householdTotal.renderAs, "readonly_calculated_numeric");
 assert.equal(householdNumber.renderAs, "db_check");
+assert.equal(surveyJson.clearInvisibleValues, "onHiddenContainer");
+assert.equal(
+  surveyJson.pages[1].visibleIf,
+  "{hhq_consent_study_provide_pis_explain_study_adult_member} = 1"
+);
+
+const consentModel = new Model(surveyJson);
+consentModel.setValue("hhq_consent_study_provide_pis_explain_study_adult_member", 1);
+consentModel.setValue("hhq_result_interview", 1);
+consentModel.setValue("hhq_language_questionnaire", 1);
+consentModel.setValue("hhq_consent_study_provide_pis_explain_study_adult_member", 2);
+assert.equal(consentModel.visiblePages.length, 1);
+assert.equal(consentModel.getQuestionByName("hhq_result_interview").isVisible, false);
+assert.equal(consentModel.getValue("hhq_result_interview"), undefined);
+assert.equal(consentModel.getValue("hhq_language_questionnaire"), undefined);
 
 console.log("Validated questionnaire SurveyJS JSON transforms.");

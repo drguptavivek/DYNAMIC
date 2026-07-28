@@ -3,6 +3,7 @@
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppState, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { Model } from "survey-core";
 
 import { NativeSurveyRenderer } from "../../components/forms/NativeSurveyRenderer.js";
@@ -30,7 +31,6 @@ import {
 } from "../questionnaires/questionnaireDraftRepository.js";
 import { saveQuestionnaireSubmission } from "../questionnaires/questionnaireSubmissionRepository.js";
 import { prepareQuestionnaireSurveyJson } from "../questionnaires/questionnaireSurveyJsonTransforms.js";
-import { buildHouseholdIdFromHhqData } from "./householdIds.js";
 import {
   extractHouseholdRegistryFields,
   findExistingHouseholdForHhqData,
@@ -39,6 +39,11 @@ import {
 const AUTOSAVE_INTERVAL_MS = 30000;
 const HOUSEHOLD_SCHEDULE_PAGE_NAME = "page_02_household_schedule";
 const HOUSEHOLD_CHARACTERISTICS_PAGE_NAME = "page_03_household_characteristics";
+const HOUSEHOLD_CONSENT_FIELD = "hhq_consent_study_provide_pis_explain_study_adult_member";
+
+function hasDeclinedHouseholdConsent(model) {
+  return Number(model.getValue(HOUSEHOLD_CONSENT_FIELD)) === 2;
+}
 
 export function BaselineHouseholdForm({
   form,
@@ -48,6 +53,7 @@ export function BaselineHouseholdForm({
   localities,
   selectedLocalityCode,
   onClose,
+  onScrollOffsetChange,
   onSaved,
 }) {
   const { width } = useWindowDimensions();
@@ -58,6 +64,7 @@ export function BaselineHouseholdForm({
   const [memberSummaryConfirmed, setMemberSummaryConfirmed] = useState(false);
   const [previewSignature, setPreviewSignature] = useState("");
   const [finalReview, setFinalReview] = useState(false);
+  const [sectionDrawerOpen, setSectionDrawerOpen] = useState(false);
   const [, setRevision] = useState(0);
   const memberSummaryConfirmedRef = useRef(false);
   const draftIdRef = useRef(null);
@@ -117,6 +124,28 @@ export function BaselineHouseholdForm({
     survey.onValueChanged.add((sender, options) => {
       dirtyRef.current = true;
       setPreviewSignature("");
+      if (options.name === HOUSEHOLD_CONSENT_FIELD) {
+        const consentDeclined = Number(options.value) === 2;
+        if (consentDeclined) {
+          memberSummaryConfirmedRef.current = false;
+          setMemberSummaryConfirmed(false);
+          setFinalReview(false);
+          setView("form");
+          setSectionDrawerOpen(false);
+          setMessage("Consent declined. The interview ends after this section.");
+          setTimeout(() => {
+            const firstVisiblePageName = sender.firstVisiblePage?.name;
+            if (firstVisiblePageName) goToSurveySection(sender, firstVisiblePageName);
+            setRevision((value) => value + 1);
+          }, 0);
+        } else {
+          setMessage((currentMessage) =>
+            currentMessage === "Consent declined. The interview ends after this section."
+              ? ""
+              : currentMessage
+          );
+        }
+      }
       if (
         options.name === "hhq_household_members" ||
         String(options.name || "").startsWith("member_")
@@ -129,6 +158,7 @@ export function BaselineHouseholdForm({
     });
     survey.onCurrentPageChanging.add((sender, options) => {
       if (
+        !hasDeclinedHouseholdConsent(sender) &&
         options.oldCurrentPage?.name === HOUSEHOLD_SCHEDULE_PAGE_NAME &&
         options.newCurrentPage?.name === HOUSEHOLD_CHARACTERISTICS_PAGE_NAME &&
         !memberSummaryConfirmedRef.current
@@ -179,15 +209,25 @@ export function BaselineHouseholdForm({
         draftIdRef.current = draft.draft_id;
         model.data = { ...(model.data || {}), ...(draft.json_payload || {}) };
         refreshHouseholdSurveyBehaviors(model, form);
-        if (draft.completion_state?.currentPageName) {
+        const consentDeclined = hasDeclinedHouseholdConsent(model);
+        if (consentDeclined) {
+          const firstVisiblePageName = model.firstVisiblePage?.name;
+          if (firstVisiblePageName) goToSurveySection(model, firstVisiblePageName);
+        } else if (draft.completion_state?.currentPageName) {
           goToSurveySection(model, draft.completion_state.currentPageName);
         }
-        memberSummaryConfirmedRef.current = Boolean(
-          draft.completion_state?.memberSummaryConfirmed
-        );
+        memberSummaryConfirmedRef.current = consentDeclined
+          ? false
+          : Boolean(draft.completion_state?.memberSummaryConfirmed);
         setMemberSummaryConfirmed(memberSummaryConfirmedRef.current);
         dirtyRef.current = false;
-        showTransientMessage("Draft restored from this device.");
+        if (consentDeclined) {
+          setView("form");
+          setFinalReview(false);
+          setMessage("Consent declined. The interview ends after this section.");
+        } else {
+          showTransientMessage("Draft restored from this device.");
+        }
         setRevision((value) => value + 1);
       } catch (error) {
         if (!cancelled) setMessage(`Could not restore draft: ${error.message}`);
@@ -228,8 +268,6 @@ export function BaselineHouseholdForm({
     compactPreviewConfirmed: previewSignature === signature,
   });
   const memberRows = buildHouseholdMemberSummaryRows(model.data || {}, form, locale);
-  const householdId = buildHouseholdIdFromHhqData(model.data || {}) || "Pending household ID";
-
   async function openPreview({ final = false } = {}) {
     refreshHouseholdSurveyBehaviors(model, form);
     if (!(await saveDraft({ silent: true }))) return;
@@ -240,6 +278,7 @@ export function BaselineHouseholdForm({
   }
 
   async function openMemberSummary() {
+    if (hasDeclinedHouseholdConsent(model)) return;
     refreshHouseholdSurveyBehaviors(model, form);
     await saveDraft({ silent: true });
     setFinalReview(false);
@@ -276,6 +315,7 @@ export function BaselineHouseholdForm({
   }
 
   async function handleSectionSelect(section) {
+    if (!section.applicable) return;
     if (section.name === HOUSEHOLD_MEMBER_SUMMARY_SECTION_NAME) {
       await openMemberSummary();
       return;
@@ -293,14 +333,21 @@ export function BaselineHouseholdForm({
     }
     goToSurveySection(model, section.name);
     setView("form");
+    setMessage("");
     setFinalReview(false);
     setRevision((value) => value + 1);
     await saveDraft({ silent: true });
   }
 
+  function closePreview() {
+    setView("form");
+    setMessage("");
+    setFinalReview(false);
+  }
+
   async function requestFinalReview() {
     refreshHouseholdSurveyBehaviors(model, form);
-    if (!memberSummaryConfirmedRef.current) {
+    if (!hasDeclinedHouseholdConsent(model) && !memberSummaryConfirmedRef.current) {
       await openMemberSummary();
       return;
     }
@@ -378,28 +425,40 @@ export function BaselineHouseholdForm({
   return (
     <View style={styles.window}>
       <View style={[styles.header, compact && styles.headerCompact]}>
-        <View style={styles.headerText}>
-          <Text numberOfLines={compact ? 1 : undefined} style={[styles.title, compact && styles.titleCompact]}>
-            Baseline Household Questionnaire
-          </Text>
-          <Text style={styles.subtle}>{`${householdId} · Native Expo renderer`}</Text>
-        </View>
-        <View style={[styles.actions, compact && styles.actionsCompact]}>
-          <Pressable onPress={() => openPreview()} style={[styles.secondaryButton, compact && styles.actionButtonCompact]}>
-            <Text style={styles.secondaryButtonText}>Preview</Text>
-          </Pressable>
-          <RendererLanguageSwitcher locale={locale} onChange={onLocaleChange} />
-          <Pressable onPress={closeForm} style={[styles.secondaryButton, compact && styles.actionButtonCompact]}>
-            <Text style={styles.secondaryButtonText}>Close</Text>
-          </Pressable>
-        </View>
+        <Pressable
+          accessibilityLabel="Open sections"
+          onPress={() => setSectionDrawerOpen(true)}
+          style={styles.headerIconButton}
+        >
+          <MaterialCommunityIcons color="#344054" name="format-list-bulleted-square" size={23} />
+        </Pressable>
+        <Text numberOfLines={1} style={[styles.title, compact && styles.titleCompact]}>
+          Baseline Household Questionnaire
+        </Text>
+        {!compact ? (
+          <View style={styles.wideLanguage}>
+            <RendererLanguageSwitcher locale={locale} onChange={onLocaleChange} />
+          </View>
+        ) : null}
+        <Pressable accessibilityLabel="Close questionnaire" onPress={closeForm} style={styles.headerIconButton}>
+          <MaterialCommunityIcons color="#d92d20" name="close-circle" size={25} />
+        </Pressable>
       </View>
       <View style={styles.body}>
+        {compact ? (
+          <View style={styles.languageOverlay}>
+            <RendererLanguageSwitcher iconOnly locale={locale} onChange={onLocaleChange} />
+          </View>
+        ) : null}
         {view === "form" ? (
           <NativeSurveyRenderer
             model={model}
             notice={message}
+            onPreviewRequested={() => openPreview()}
+            onScrollOffsetChange={onScrollOffsetChange}
             sections={sections}
+            sectionDrawerOpen={sectionDrawerOpen}
+            onSectionDrawerOpenChange={setSectionDrawerOpen}
             onSectionSelect={handleSectionSelect}
             onCompleteRequested={requestFinalReview}
             onSaveDraft={saveDraft}
@@ -407,7 +466,13 @@ export function BaselineHouseholdForm({
         ) : (
           <>
             {message ? <Text style={styles.message}>{message}</Text> : null}
-            <SectionNavigator sections={sections} onSelect={handleSectionSelect} />
+            <SectionNavigator
+              drawerOpen={sectionDrawerOpen}
+              onDrawerOpenChange={setSectionDrawerOpen}
+              onSelect={handleSectionSelect}
+              sections={sections}
+              showCompactTrigger={false}
+            />
             {view === "member-summary" ? (
               <View style={styles.specialView}>
                 <DisplayRenderer
@@ -437,7 +502,7 @@ export function BaselineHouseholdForm({
               <View style={styles.specialView}>
                 <PreviewRenderer model={model} />
                 <View style={styles.footerActions}>
-                  <Pressable onPress={() => setView("form")} style={styles.secondaryButton}>
+                  <Pressable onPress={closePreview} style={styles.secondaryButton}>
                     <Text style={styles.secondaryButtonText}>Edit form</Text>
                   </Pressable>
                   {finalReview ? (
@@ -457,16 +522,14 @@ export function BaselineHouseholdForm({
 
 const styles = StyleSheet.create({
   window: { flex: 1, backgroundColor: "#eef2f5" },
-  header: { minHeight: 72, flexDirection: "row", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#d8dee4", backgroundColor: "#ffffff" },
-  headerCompact: { minHeight: 0, alignItems: "stretch", gap: 8, paddingHorizontal: 12, paddingVertical: 9 },
-  headerText: { flex: 1, minWidth: 240 },
-  title: { color: "#18202a", fontSize: 20, fontWeight: "800" },
-  titleCompact: { fontSize: 17 },
-  subtle: { color: "#667085", fontSize: 13 },
-  actions: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8 },
-  actionsCompact: { width: "100%", flexWrap: "nowrap", gap: 7 },
-  actionButtonCompact: { flex: 1 },
-  body: { flex: 1, gap: 10, padding: 12 },
+  header: { minHeight: 60, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#d8dee4", backgroundColor: "#ffffff" },
+  headerCompact: { minHeight: 56, paddingVertical: 6 },
+  headerIconButton: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 8, backgroundColor: "#ffffff" },
+  title: { flex: 1, color: "#18202a", fontSize: 18, fontWeight: "800", textAlign: "center" },
+  titleCompact: { fontSize: 15 },
+  wideLanguage: { width: 260 },
+  body: { flex: 1, position: "relative", gap: 10, padding: 12 },
+  languageOverlay: { position: "absolute", top: 2, right: 12, zIndex: 5, elevation: 5 },
   message: { padding: 9, borderRadius: 7, color: "#1f4d7a", backgroundColor: "#eef6ff", fontSize: 13, fontWeight: "700" },
   specialView: { flex: 1, gap: 10, minHeight: 0 },
   footerActions: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 10, paddingTop: 8 },

@@ -123,6 +123,7 @@ assert.equal(sectionsWithPreviewActive.at(-1).name, COMPACT_PREVIEW_SECTION_NAME
 assert.equal(sectionsWithPreviewActive.at(-1).answered, 1);
 assert.equal(sectionsWithPreviewActive.at(-1).isCurrent, true);
 assert.equal(sectionsWithPreviewActive.at(-1).status, "complete");
+assert.equal(sectionsWithPreviewActive.at(-1).showInCompactProgress, false);
 
 const conditionalModel = new Model({
   pages: [
@@ -141,6 +142,33 @@ assert.equal(buildSurveySections(conditionalModel)[1].status, "not_applicable");
 conditionalModel.setValue("answer", "yes");
 assert.equal(buildSurveySections(conditionalModel)[0].status, "complete");
 assert.equal(buildSurveySections(conditionalModel)[1].status, "pending");
+conditionalModel.setValue("answer", "no");
+assert.equal(goToSurveySection(conditionalModel, "conditional"), false);
+
+const conditionalSectionsWithSummary = buildSurveySections(conditionalModel, {
+  includeHouseholdMemberSummary: true,
+});
+assert.equal(conditionalSectionsWithSummary[1].status, "not_applicable");
+
+const hiddenScheduleModel = new Model({
+  pages: [
+    {
+      name: "page_01_identification",
+      elements: [{ type: "text", name: "consent", title: "Consent" }],
+    },
+    {
+      name: "page_02_household_schedule",
+      visibleIf: "{consent} = 'yes'",
+      elements: [{ type: "text", name: "member", title: "Member" }],
+    },
+  ],
+});
+const hiddenScheduleSections = buildSurveySections(hiddenScheduleModel, {
+  includeHouseholdMemberSummary: true,
+});
+assert.equal(hiddenScheduleSections[1].status, "not_applicable");
+assert.equal(hiddenScheduleSections[2].status, "not_applicable");
+assert.equal(hiddenScheduleSections[2].applicable, false);
 
 const repeatModel = new Model({
   pages: [

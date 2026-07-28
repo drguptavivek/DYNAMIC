@@ -28,10 +28,25 @@ const STATUS_COLORS = {
   complete: "#12b76a",
 };
 
-export function SectionNavigator({ sections, onSelect }) {
+export function SectionNavigator({
+  drawerOpen: controlledDrawerOpen,
+  onDrawerOpenChange,
+  onSelect,
+  sections,
+  showCompactTrigger = true,
+}) {
   const { width } = useWindowDimensions();
   const compact = width < 700;
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [internalDrawerOpen, setInternalDrawerOpen] = useState(false);
+  const drawerOpen = controlledDrawerOpen ?? internalDrawerOpen;
+  const progressSections = sections.filter(
+    (section) => section.showInCompactProgress !== false && section.applicable !== false
+  );
+
+  function setDrawerOpen(nextOpen) {
+    if (controlledDrawerOpen === undefined) setInternalDrawerOpen(nextOpen);
+    onDrawerOpenChange?.(nextOpen);
+  }
 
   function selectSection(section) {
     setDrawerOpen(false);
@@ -44,18 +59,24 @@ export function SectionNavigator({ sections, onSelect }) {
 
   return (
     <View style={styles.compactWrap}>
-      <Pressable
-        accessibilityLabel="Open section navigator"
-        onPress={() => setDrawerOpen(true)}
-        style={styles.sectionButton}
+      {showCompactTrigger ? (
+        <Pressable
+          accessibilityLabel="Open section navigator"
+          onPress={() => setDrawerOpen(true)}
+          style={styles.sectionButton}
+        >
+          <Text style={styles.sectionButtonText}>Sections</Text>
+        </Pressable>
+      ) : null}
+      <View
+        accessibilityLabel="Section progress"
+        style={[styles.dots, !showCompactTrigger && styles.dotsOnly]}
       >
-        <Text style={styles.sectionButtonText}>Sections</Text>
-      </Pressable>
-      <View accessibilityLabel="Section progress" style={styles.dots}>
-        {sections.map((section, index) => (
+        {progressSections.map((section, index) => (
           <Pressable
             key={section.name}
             accessibilityLabel={`${index + 1}. ${section.title}. ${STATUS_LABELS[section.status] || section.status}`}
+            hitSlop={8}
             onPress={() => setDrawerOpen(true)}
             style={styles.dotTarget}
           >
@@ -180,11 +201,12 @@ const styles = StyleSheet.create({
   status_in_progress: { color: "#b54708" },
   status_needs_attention: { color: "#d92d20" },
   status_complete: { color: "#027a48" },
-  compactWrap: { minHeight: 44, flexDirection: "row", alignItems: "center", gap: 10 },
+  compactWrap: { minHeight: 28, flexDirection: "row", alignItems: "center", gap: 10 },
   sectionButton: { minHeight: 44, justifyContent: "center", paddingHorizontal: 12, borderWidth: 1, borderColor: "#98a2b3", borderRadius: 8, backgroundColor: "#ffffff" },
   sectionButtonText: { color: "#344054", fontSize: 13, fontWeight: "800" },
   dots: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 3 },
-  dotTarget: { width: 30, height: 44, alignItems: "center", justifyContent: "center" },
+  dotsOnly: { justifyContent: "center", paddingHorizontal: 48 },
+  dotTarget: { width: 28, height: 28, alignItems: "center", justifyContent: "center" },
   dot: { width: 12, height: 12, borderRadius: 6, borderWidth: 1, borderColor: "transparent" },
   dotPending: { borderColor: "#98a2b3" },
   dotCurrent: { borderWidth: 3, borderColor: "#1f6feb" },

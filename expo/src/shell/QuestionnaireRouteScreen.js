@@ -1,7 +1,7 @@
 /**
  * Routes questionnaire launches to either the native HHQ flow or the generic form dashboard.
  */
-import React from "react";
+import React, { useCallback, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { formsByCode } from "../data/formCatalog.js";
@@ -12,6 +12,10 @@ import { FieldAppShell } from "./FieldAppShell.js";
 
 export function QuestionnaireRouteScreen({ formCode, mode }) {
   const app = useFieldApp();
+  const [topBarCollapsed, setTopBarCollapsed] = useState(false);
+  const handleFormScrollOffsetChange = useCallback((offset) => {
+    setTopBarCollapsed((collapsed) => (collapsed ? offset > 8 : offset > 28));
+  }, []);
   const normalizedFormCode = String(formCode || "").toUpperCase();
   const form = formsByCode[normalizedFormCode];
   const route = { view: "questionnaire", formCode: normalizedFormCode, mode };
@@ -41,7 +45,7 @@ export function QuestionnaireRouteScreen({ formCode, mode }) {
 
   if (isEntryRoute && isHhqHouseholdEntry) {
     return (
-      <FieldAppShell route={route} title={title}>
+      <FieldAppShell route={route} title={title} topBarCollapsed={topBarCollapsed}>
         <HouseholdModule
           locale={app.locale}
           mode="new"
@@ -49,6 +53,7 @@ export function QuestionnaireRouteScreen({ formCode, mode }) {
           user={app.user}
           localities={app.localities}
           selectedLocalityCode={app.selectedLocalityCode}
+          onFormScrollOffsetChange={handleFormScrollOffsetChange}
           onDataSynced={app.refreshLocalities}
         />
       </FieldAppShell>

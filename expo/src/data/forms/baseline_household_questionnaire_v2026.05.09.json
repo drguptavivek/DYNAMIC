@@ -23,6 +23,7 @@
   "version": "9 MAY 2026",
   "showQuestionNumbers": "on",
   "questionTitlePattern": "numTitle",
+  "clearInvisibleValues": "onHiddenContainer",
   "pages": [
     {
       "name": "page_01_identification",
@@ -468,6 +469,7 @@
         {
           "type": "radiogroup",
           "name": "hhq_result_interview",
+          "visibleIf": "{hhq_consent_study_provide_pis_explain_study_adult_member} = 1",
           "title": {
             "default": "Result of Interview",
             "hi": "",
@@ -619,7 +621,7 @@
             "render_as": "input"
           },
           "rawText": "Other (specify)",
-          "visibleIf": "{hhq_result_interview} = 9",
+          "visibleIf": "{hhq_consent_study_provide_pis_explain_study_adult_member} = 1 and {hhq_result_interview} = 9",
           "isRequired": true,
           "validators": [
             {
@@ -650,6 +652,7 @@
         {
           "type": "radiogroup",
           "name": "hhq_language_questionnaire",
+          "visibleIf": "{hhq_consent_study_provide_pis_explain_study_adult_member} = 1",
           "title": {
             "default": "Language of questionnaire",
             "hi": "",
@@ -769,6 +772,7 @@
         {
           "type": "text",
           "name": "hhq_contact_mobile",
+          "visibleIf": "{hhq_consent_study_provide_pis_explain_study_adult_member} = 1",
           "title": {
             "default": "Mobile number",
             "hi": "",
@@ -821,6 +825,7 @@
     {
       "name": "page_02_household_schedule",
       "order": 2,
+      "visibleIf": "{hhq_consent_study_provide_pis_explain_study_adult_member} = 1",
       "title": {
         "default": "02-HOUSEHOLD SCHEDULE",
         "hi": "02-घरेलू अनुसूची",
@@ -1994,6 +1999,7 @@
     {
       "name": "page_03_household_characteristics",
       "order": 3,
+      "visibleIf": "{hhq_consent_study_provide_pis_explain_study_adult_member} = 1",
       "title": {
         "default": "03-HOUSEHOLD CHARACTERISTICS",
         "hi": "03-घरेलू लक्षण",

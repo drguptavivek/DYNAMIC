@@ -24,7 +24,7 @@ Wide layouts should use:
 Table of Contents | active SurveyJS page/section
 ```
 
-Narrow/mobile layouts expose compact state dots plus a left-side section drawer. The drawer owns full labels, counts, detailed status, and navigation; persistent cards must not reduce the question viewport. Do not remove section navigation on mobile.
+Narrow/mobile layouts expose compact state dots plus a left-side section drawer opened from the questionnaire title row. The drawer owns full labels, counts, detailed status, and navigation; persistent cards must not reduce the question viewport. Synthetic review steps remain in the drawer but do not create compact progress dots that could be confused with questionnaire sections. Do not remove section navigation on mobile.
 
 ## Behavior
 
@@ -38,6 +38,7 @@ The Table of Contents must:
 - include synthetic review sections when required, such as HHQ member summary or final preview
 - preserve read-only prefill fields and skip logic while navigating
 - never bypass final validation
+- when Next is blocked by validation, scroll the native form to the first visible question with a validation problem
 
 ## Progress
 

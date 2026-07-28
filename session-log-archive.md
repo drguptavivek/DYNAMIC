@@ -150,3 +150,29 @@ Increase the usable Android question area while retaining section visibility, la
 - `npx expo export --platform web --output-dir /tmp/dynamic-hhq-mobile-web-final2-20260728 --clear`
 - Android export bundled 1,117 modules; web export bundled 823 modules.
 - Android logcat showed no fatal exception, React Native JS error, SQLite native-database error, TypeError, or ReferenceError after the exercised flow.
+
+## 2026-07-28 Native HHQ Icon Shell And Repeat Editor
+
+### Goal
+
+Use more of the Android viewport for actual questions while making validation and repeat-entry actions explicit.
+
+### Decisions And Implementation
+
+- Replaced the text-heavy HHQ header with `Sections icon — form title — red Close icon` and moved language selection to a compact upper-right overlay.
+- Kept Preview and Save as centered bottom icons, moved Previous and Next to the outer edges, and reduced visible button height while retaining hit slop.
+- Collapsed the DYNAMIC app header after form scroll and restored it near the top.
+- Kept final Preview in the detailed section drawer but removed it from compact progress dots, preventing preview completion from appearing as a completed form section.
+- Cleared preview-only notice text when returning to Edit form.
+- When Next is blocked, measured the first visible invalid question and scrolled it into view.
+- Converted dynamic panels to compact committed-entry rows. Add opens a new-entry editor with an Add action; Edit opens an existing-entry editor with an Update action; every committed row has Delete.
+- Where Survey Core retains a minimum placeholder panel, deleting the last committed row clears its values and reports zero committed entries.
+- Replaced typed ISO date controls with the React Native community calendar on Android and the browser-native date input on web. The visible value is `DD-MMM-YYYY`; the stored Survey Core value remains `YYYY-MM-DD`.
+
+### Device Evidence
+
+- Pixel 7 API 36 viewport: 1080 x 2400.
+- Verified four compact progress dots with Preview retained in the five-item drawer.
+- Verified DYNAMIC chrome collapses on scroll while the questionnaire title and bottom actions remain available.
+- Verified Preview/Edit clears the preview notice, language menu anchoring, outer arrow placement, error-directed Next, collapsed repeat row, Add editor, Update editor, and last-row deletion.
+- Verified the Android calendar dialog opens from the date control and commits `15-Jul-2026` display text for the ISO model value.
