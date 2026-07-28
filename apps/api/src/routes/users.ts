@@ -1,11 +1,12 @@
 import { Router, Request, Response } from "express";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
-import { eq, and, ilike, or } from "drizzle-orm";
+import { eq, and, ilike, inArray, isNull, or } from "drizzle-orm";
 import { db, schema } from "../db";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { sendError, sendSuccess } from "../lib/errors";
 import { hashPassword } from "../lib/password";
+import { markAccessSessionRevoked } from "../lib/tokenSessionCache";
 
 const router = Router();
 const userRoleValues = [
@@ -17,6 +18,119 @@ const userRoleValues = [
   "central_data_manager",
   "us_collaborator",
 ] as const;
+
+type UserRole = (typeof userRoleValues)[number];
+
+const siteScopedRoles = new Set<UserRole>([
+  "field_worker",
+  "field_supervisor",
+  "site_research_scientist",
+  "site_data_manager",
+]);
+
+const roleRank: Record<UserRole, number> = {
+  field_worker: 10,
+  field_supervisor: 20,
+  site_data_manager: 30,
+  site_research_scientist: 40,
+  central_data_manager: 50,
+  us_collaborator: 50,
+  central_admin: 60,
+};
+
+function uniqueLocalityCodes(codes: string[]): string[] {
+  return [...new Set(codes.map((code) => code.trim()).filter(Boolean))];
+}
+
+async function validateSiteAndLocalities(
+  role: UserRole,
+  siteId: number | null | undefined,
+  localityCodes: string[],
+): Promise<string | null> {
+  if (siteScopedRoles.has(role) && siteId == null) {
+    return "A site is required for this role";
+  }
+  if (localityCodes.length > 0 && siteId == null) {
+    return "Select a site before assigning localities";
+  }
+  if (siteId == null) return null;
+
+  const [site] = await db
+    .select({ site_id: schema.studySites.site_id })
+    .from(schema.studySites)
+    .where(eq(schema.studySites.site_id, siteId));
+  if (!site) return "Selected site does not exist";
+
+  if (localityCodes.length > 0) {
+    const localities = await db
+      .select({ locality_code: schema.studyLocalities.locality_code })
+      .from(schema.studyLocalities)
+      .where(
+        and(
+          eq(schema.studyLocalities.site_id, siteId),
+          inArray(schema.studyLocalities.locality_code, localityCodes),
+        ),
+      );
+    const found = new Set(localities.map((locality) => locality.locality_code));
+    const missing = localityCodes.filter((code) => !found.has(code));
+    if (missing.length > 0) return `Unknown localities for selected site: ${missing.join(", ")}`;
+  }
+
+  return null;
+}
+
+function statusChangeError(
+  actor: { sub: string; role: string },
+  target: { user_id: string; role: string },
+): { status: number; code: string; message: string } | null {
+  if (actor.sub === target.user_id) {
+    return {
+      status: 400,
+      code: "CANNOT_CHANGE_OWN_STATUS",
+      message: "Cannot change your own account status",
+    };
+  }
+  const actorRank = roleRank[actor.role as UserRole] ?? 0;
+  const targetRank = roleRank[target.role as UserRole] ?? Number.MAX_SAFE_INTEGER;
+  if (targetRank > actorRank) {
+    return {
+      status: 403,
+      code: "CANNOT_CHANGE_HIGHER_ROLE_STATUS",
+      message: "Cannot change the status of a higher-level role",
+    };
+  }
+  return null;
+}
+
+async function revokeUserSessions(userId: string): Promise<void> {
+  const sessions = await db
+    .select({
+      session_id: schema.refreshTokenSessions.session_id,
+      expires_at: schema.refreshTokenSessions.expires_at,
+    })
+    .from(schema.refreshTokenSessions)
+    .where(
+      and(
+        eq(schema.refreshTokenSessions.user_id, userId),
+        isNull(schema.refreshTokenSessions.revoked_at),
+      ),
+    );
+
+  if (sessions.length === 0) return;
+
+  await db
+    .update(schema.refreshTokenSessions)
+    .set({ revoked_at: new Date() })
+    .where(
+      and(
+        eq(schema.refreshTokenSessions.user_id, userId),
+        isNull(schema.refreshTokenSessions.revoked_at),
+      ),
+    );
+  await Promise.all(
+    sessions.map((session) => markAccessSessionRevoked(session.session_id, session.expires_at)),
+  );
+}
 
 function parseBoolean(value: string | undefined): boolean | undefined {
   if (value === undefined) return undefined;
@@ -228,7 +342,8 @@ const createUserSchema = z.object({
   display_name: z.string().optional(),
   email: z.string().email().optional(),
   role: z.enum(userRoleValues),
-  site_id: z.number().int().optional(),
+  site_id: z.number().int().nullable().optional(),
+  locality_codes: z.array(z.string().min(1)).default([]),
   staff: z.object({
     full_name: z.string().min(1),
     email: z.string().email().optional(),
@@ -259,6 +374,7 @@ router.post(
       // Validate role restrictions
       const targetSiteId =
         req.user!.role === "site_research_scientist" ? req.user!.site_id : data.site_id;
+      const localityCodes = uniqueLocalityCodes(data.locality_codes);
       if (req.user!.role === "site_research_scientist") {
         if (
           data.role === "central_admin" ||
@@ -291,6 +407,16 @@ router.post(
           );
           return;
         }
+      }
+
+      const scopeValidationError = await validateSiteAndLocalities(
+        data.role,
+        targetSiteId,
+        localityCodes,
+      );
+      if (scopeValidationError) {
+        sendError(res, 400, "INVALID_AREA_SCOPE", scopeValidationError);
+        return;
       }
 
       // Check if username already exists
@@ -378,6 +504,20 @@ router.post(
           created_at: now,
           updated_at: now,
         });
+
+        if (targetSiteId != null && localityCodes.length > 0) {
+          await tx.insert(schema.userAreaAssignments).values(
+            localityCodes.map((localityCode) => ({
+              assignment_id: randomUUID(),
+              user_id,
+              site_id: targetSiteId,
+              locality_code: localityCode,
+              role: data.role,
+              active_from: now.toISOString().slice(0, 10),
+              created_at: now,
+            })),
+          );
+        }
       });
 
       const createdUser = await selectUserWithStaff(user_id);
@@ -438,7 +578,8 @@ const patchUserSchema = z.object({
   display_name: z.string().optional(),
   email: z.string().email().optional(),
   role: z.enum(userRoleValues).optional(),
-  site_id: z.number().int().optional(),
+  site_id: z.number().int().nullable().optional(),
+  locality_codes: z.array(z.string().min(1)).optional(),
   password: z.string().min(8).optional(),
   active: z.boolean().optional(),
 });
@@ -499,6 +640,29 @@ router.patch(
         }
       }
 
+      if (data.active !== undefined && data.active !== user.active) {
+        const statusError = statusChangeError(req.user!, user);
+        if (statusError) {
+          sendError(res, statusError.status, statusError.code, statusError.message);
+          return;
+        }
+      }
+
+      const nextRole = (data.role ?? user.role) as UserRole;
+      const nextSiteId = data.site_id !== undefined ? data.site_id : user.site_id;
+      const localityCodes = data.locality_codes
+        ? uniqueLocalityCodes(data.locality_codes)
+        : undefined;
+      const scopeValidationError = await validateSiteAndLocalities(
+        nextRole,
+        nextSiteId,
+        localityCodes ?? [],
+      );
+      if (scopeValidationError) {
+        sendError(res, 400, "INVALID_AREA_SCOPE", scopeValidationError);
+        return;
+      }
+
       // Build update object
       const updateData: any = {
         updated_at: new Date(),
@@ -513,7 +677,37 @@ router.patch(
         updateData.password_hash = await hashPassword(data.password);
       }
 
-      await db.update(schema.users).set(updateData).where(eq(schema.users.user_id, userId));
+      await db.transaction(async (tx) => {
+        await tx.update(schema.users).set(updateData).where(eq(schema.users.user_id, userId));
+
+        if (localityCodes !== undefined || data.site_id !== undefined) {
+          await tx
+            .delete(schema.userAreaAssignments)
+            .where(eq(schema.userAreaAssignments.user_id, userId));
+          if (nextSiteId != null && localityCodes && localityCodes.length > 0) {
+            await tx.insert(schema.userAreaAssignments).values(
+              localityCodes.map((localityCode) => ({
+                assignment_id: randomUUID(),
+                user_id: userId,
+                site_id: nextSiteId,
+                locality_code: localityCode,
+                role: nextRole,
+                active_from: new Date().toISOString().slice(0, 10),
+                created_at: new Date(),
+              })),
+            );
+          }
+        } else if (data.role !== undefined) {
+          await tx
+            .update(schema.userAreaAssignments)
+            .set({ role: nextRole })
+            .where(eq(schema.userAreaAssignments.user_id, userId));
+        }
+      });
+
+      if (data.active === false && user.active !== false) {
+        await revokeUserSessions(userId);
+      }
 
       const updatedUser = await selectUserWithStaff(userId);
 
@@ -556,6 +750,12 @@ router.delete(
         return;
       }
 
+      const statusError = statusChangeError(req.user!, user);
+      if (statusError) {
+        sendError(res, statusError.status, statusError.code, statusError.message);
+        return;
+      }
+
       // Permission check
       if (req.user!.role === "site_research_scientist" && user.site_id !== req.user!.site_id) {
         sendError(
@@ -571,6 +771,8 @@ router.delete(
         .update(schema.users)
         .set({ active: false, updated_at: new Date() })
         .where(eq(schema.users.user_id, userId));
+
+      await revokeUserSessions(userId);
 
       sendSuccess(res, { message: "User deactivated" });
     } catch (error) {

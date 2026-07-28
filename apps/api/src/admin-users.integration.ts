@@ -77,6 +77,7 @@ test("central admin can create, update, assign, and deactivate a user", async ()
         email: `${username}@example.test`,
         role: "field_worker",
         site_id: 1,
+        locality_codes: ["DEV001"],
         staff: {
           full_name: "Field Worker API Test",
           designation: "Field Worker",
@@ -100,6 +101,15 @@ test("central admin can create, update, assign, and deactivate a user", async ()
     createdUserId = createdUser.user_id;
     createdStaffId = createdUser.staff.staff_id;
     createdInstitutionId = createdUser.staff.institution.institution_id;
+
+    const initialAssignments = await fetchData(
+      `${baseUrl}/users/${createdUser.user_id}/area-assignments`,
+      { headers: { Authorization: authorization } },
+    );
+    assert.deepEqual(
+      initialAssignments.map((item: { locality_code: string }) => item.locality_code).sort(),
+      ["DEV001"],
+    );
 
     const collaboratorUsername = `us-collaborator-${Date.now()}`;
     const createdCollaborator = await fetchData(`${baseUrl}/users`, {
@@ -137,10 +147,26 @@ test("central admin can create, update, assign, and deactivate a user", async ()
     const patchedUser = await fetchData(`${baseUrl}/users/${createdUser.user_id}`, {
       method: "PATCH",
       headers: { Authorization: authorization },
-      body: JSON.stringify({ display_name: "Updated Field Worker", active: true }),
+      body: JSON.stringify({
+        display_name: "Updated Field Worker",
+        active: true,
+        site_id: 1,
+        locality_codes: [],
+      }),
     });
     assert.equal(patchedUser.display_name, "Updated Field Worker");
     assert.equal(patchedUser.staff.full_name, "Field Worker API Test");
+
+    await fetchData(`${baseUrl}/auth/login`, {
+      method: "POST",
+      body: JSON.stringify({ username, password: "field-password" }),
+    });
+
+    const replacedAssignments = await fetchData(
+      `${baseUrl}/users/${createdUser.user_id}/area-assignments`,
+      { headers: { Authorization: authorization } },
+    );
+    assert.deepEqual(replacedAssignments, []);
 
     const assignment = await fetchData(`${baseUrl}/users/${createdUser.user_id}/area-assignments`, {
       method: "POST",
@@ -171,11 +197,30 @@ test("central admin can create, update, assign, and deactivate a user", async ()
       headers: { Authorization: authorization },
     });
     assert.equal(deletedUser.message, "User deactivated");
+
+    const revokedSessions = await db
+      .select({ revoked_at: schema.refreshTokenSessions.revoked_at })
+      .from(schema.refreshTokenSessions)
+      .where(eq(schema.refreshTokenSessions.user_id, createdUser.user_id));
+    assert.ok(revokedSessions.length > 0);
+    assert.ok(revokedSessions.every((session) => session.revoked_at instanceof Date));
+
+    const selfDeactivateResponse = await fetch(`${baseUrl}/users/${adminUser.user_id}`, {
+      method: "PATCH",
+      headers: { Authorization: authorization, "Content-Type": "application/json" },
+      body: JSON.stringify({ active: false }),
+    });
+    const selfDeactivateBody = await selfDeactivateResponse.json();
+    assert.equal(selfDeactivateResponse.status, 400);
+    assert.equal(selfDeactivateBody.error.code, "CANNOT_CHANGE_OWN_STATUS");
   } finally {
     if (createdUserId) {
       await db
         .delete(schema.userAreaAssignments)
         .where(eq(schema.userAreaAssignments.user_id, createdUserId));
+      await db
+        .delete(schema.refreshTokenSessions)
+        .where(eq(schema.refreshTokenSessions.user_id, createdUserId));
       await db.delete(schema.users).where(eq(schema.users.user_id, createdUserId));
     }
     if (createdCollaboratorUserId) {
@@ -224,6 +269,7 @@ test("site admin creates users only within their own site", async () => {
   const server = createServer(createApp());
   await new Promise<void>((resolve) => server.listen(0, resolve));
   const siteAdminId = `site-admin-${Date.now()}`;
+  const higherRoleUserId = `higher-role-${Date.now()}`;
   let createdUserId: string | null = null;
   let createdStaffId: string | null = null;
   let createdInstitutionId: string | null = null;
@@ -238,6 +284,18 @@ test("site admin creates users only within their own site", async () => {
       username: siteAdminId,
       display_name: "Site Admin API Test",
       role: "site_research_scientist",
+      site_id: 1,
+      password_hash: "unused",
+      active: true,
+      created_at: new Date(),
+      updated_at: new Date(),
+    });
+
+    await db.insert(schema.users).values({
+      user_id: higherRoleUserId,
+      username: higherRoleUserId,
+      display_name: "Higher Role API Test",
+      role: "central_data_manager",
       site_id: 1,
       password_hash: "unused",
       active: true,
@@ -261,6 +319,7 @@ test("site admin creates users only within their own site", async () => {
         display_name: "Site Created User",
         email: `${username}@example.test`,
         role: "site_data_manager",
+        locality_codes: ["DEV001"],
         password: "site-created-password",
         staff: {
           full_name: "Site Created User",
@@ -278,6 +337,22 @@ test("site admin creates users only within their own site", async () => {
     createdUserId = createdUser.user_id;
     createdStaffId = createdUser.staff.staff_id;
     createdInstitutionId = createdUser.staff.institution.institution_id;
+
+    const createdAssignments = await fetchData(
+      `${baseUrl}/users/${createdUser.user_id}/area-assignments`,
+      { headers: { Authorization: authorization } },
+    );
+    assert.equal(createdAssignments.length, 1);
+    assert.equal(createdAssignments[0].locality_code, "DEV001");
+
+    const higherRoleResponse = await fetch(`${baseUrl}/users/${higherRoleUserId}`, {
+      method: "PATCH",
+      headers: { Authorization: authorization, "Content-Type": "application/json" },
+      body: JSON.stringify({ active: false }),
+    });
+    const higherRoleBody = await higherRoleResponse.json();
+    assert.equal(higherRoleResponse.status, 403);
+    assert.equal(higherRoleBody.error.code, "CANNOT_CHANGE_HIGHER_ROLE_STATUS");
 
     const crossSiteResponse = await fetch(`${baseUrl}/users`, {
       method: "POST",
@@ -306,6 +381,9 @@ test("site admin creates users only within their own site", async () => {
     assert.equal(crossSiteBody.error.code, "INSUFFICIENT_PERMISSIONS");
   } finally {
     if (createdUserId) {
+      await db
+        .delete(schema.userAreaAssignments)
+        .where(eq(schema.userAreaAssignments.user_id, createdUserId));
       await db.delete(schema.users).where(eq(schema.users.user_id, createdUserId));
     }
     if (createdStaffId) {
@@ -320,6 +398,7 @@ test("site admin creates users only within their own site", async () => {
     await db
       .delete(schema.refreshTokenSessions)
       .where(eq(schema.refreshTokenSessions.user_id, siteAdminId));
+    await db.delete(schema.users).where(eq(schema.users.user_id, higherRoleUserId));
     await db.delete(schema.users).where(eq(schema.users.user_id, siteAdminId));
     await new Promise<void>((resolve, reject) => {
       server.close((error) => (error ? reject(error) : resolve()));

@@ -16,6 +16,22 @@ router.get("/users/:userId/area-assignments", requireAuth, async (req: Request, 
   try {
     const userId = req.params.userId;
 
+    const [user] = await db.select().from(schema.users).where(eq(schema.users.user_id, userId));
+    if (!user) {
+      sendError(res, 404, "USER_NOT_FOUND", "User not found");
+      return;
+    }
+    const canView =
+      req.user!.role === "central_admin" ||
+      req.user!.sub === userId ||
+      ((req.user!.role === "site_research_scientist" || req.user!.role === "field_supervisor") &&
+        req.user!.site_id != null &&
+        user.site_id === req.user!.site_id);
+    if (!canView) {
+      sendError(res, 403, "INSUFFICIENT_PERMISSIONS", "You cannot view this user's assignments");
+      return;
+    }
+
     const assignments = await db
       .select()
       .from(schema.userAreaAssignments)
@@ -30,8 +46,8 @@ router.get("/users/:userId/area-assignments", requireAuth, async (req: Request, 
 
 const createAssignmentSchema = z.object({
   site_id: z.number().int(),
-  locality_code: z.string(),
-  role: z.string(),
+  locality_code: z.string().min(1),
+  role: z.string().optional(),
   active_from: z.string().datetime().optional(),
   active_to: z.string().datetime().optional(),
 });
@@ -68,6 +84,44 @@ router.post(
         return;
       }
 
+      if (user.site_id !== data.site_id) {
+        sendError(res, 400, "INVALID_AREA_SCOPE", "Assignment site must match the user's site");
+        return;
+      }
+      if (req.user!.role === "site_research_scientist" && data.site_id !== req.user!.site_id) {
+        sendError(res, 403, "INSUFFICIENT_PERMISSIONS", "You can only assign your own site");
+        return;
+      }
+
+      const [locality] = await db
+        .select({ locality_code: schema.studyLocalities.locality_code })
+        .from(schema.studyLocalities)
+        .where(
+          and(
+            eq(schema.studyLocalities.site_id, data.site_id),
+            eq(schema.studyLocalities.locality_code, data.locality_code),
+          ),
+        );
+      if (!locality) {
+        sendError(res, 400, "INVALID_AREA_SCOPE", "Locality does not belong to the selected site");
+        return;
+      }
+
+      const [existing] = await db
+        .select()
+        .from(schema.userAreaAssignments)
+        .where(
+          and(
+            eq(schema.userAreaAssignments.user_id, userId),
+            eq(schema.userAreaAssignments.site_id, data.site_id),
+            eq(schema.userAreaAssignments.locality_code, data.locality_code),
+          ),
+        );
+      if (existing) {
+        sendError(res, 409, "ASSIGNMENT_EXISTS", "User is already assigned to this locality");
+        return;
+      }
+
       const assignment_id = randomUUID();
 
       const parseDate = (dateStr: string | undefined) => {
@@ -80,7 +134,7 @@ router.post(
         user_id: userId,
         site_id: data.site_id,
         locality_code: data.locality_code,
-        role: data.role,
+        role: user.role,
         active_from: parseDate(data.active_from) as any,
         active_to: parseDate(data.active_to) as any,
         created_at: new Date(),
@@ -125,6 +179,11 @@ router.delete(
 
       if (!assignment) {
         sendError(res, 404, "ASSIGNMENT_NOT_FOUND", "Assignment not found");
+        return;
+      }
+
+      if (assignment.user_id !== userId) {
+        sendError(res, 404, "ASSIGNMENT_NOT_FOUND", "Assignment not found for this user");
         return;
       }
 

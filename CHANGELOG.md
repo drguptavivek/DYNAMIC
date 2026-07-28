@@ -12,11 +12,46 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 - Added a branch inventory describing each local and remote branch, their relationships, their high-level contents, and the working-branch convention.
 - Added a development guide covering the canonical runtime, environment setup, verification, and tested Android APK build and emulator workflow.
 - Added production build and deployment guidance for the backend API and Admin UI, and clarified that the checked-in Nginx configuration is for local development.
+- Updated the native SurveyJS renderer and survey-navigation policies with the compact mobile shell, section progress, repeat editing, and date-display rules.
 
 ### Added
 
 - Added checked-in API and Expo environment examples while keeping real environment files ignored.
 - Added the Expo Android application ID required by native prebuild and documented that the current local release APK is debug-signed and intended only for testing.
+- Added a fully native Expo renderer for the baseline household questionnaire while retaining Survey Core for questionnaire state, validation, visibility, and localization.
+- Added SQLite-backed questionnaire drafts with manual save, timed/background autosave, navigation autosave, and restoration of the active applicable section.
+- Added compact section-state dots and a detailed section drawer, English/Hindi switching, partial-data preview, native Android date selection, and compact repeat-entry Add, Update, and Delete flows.
+- Added the Expo and EAS agent-skill bundle used for future Expo development, upgrade, simulator, hosting, and store workflows.
+
+### Changed
+
+- Upgraded the Expo application to SDK 57.0.8 with React 19.2.3, React Native 0.86.0, `@expo/ui` 57.0.7, Reanimated 4.5.3, and Worklets 0.10.3.
+- Standardized dependency installation on npm 11.14.1 and regenerated the npm lockfile without local native-library workarounds.
+- Reworked the household-questionnaire mobile shell so the DYNAMIC header collapses on scroll, the questionnaire title remains compact, and Previous/Preview/Save/Next retain their requested bottom positions.
+- Changed dynamic-panel rendering to show compact committed-entry summaries and open explicit Add or Update editors only when requested.
+- Reworked Admin user management so Create and Edit use named site selectors and locality checkboxes, while the user table shows readable site and locality names with their codes and IDs.
+- Replaced the separate user deactivation action with an accessible Active/Inactive switch in the Users table.
+
+### Fixed
+
+- Directed blocked forward navigation to the first visible validation error and displayed definition-provided regex messages.
+- Preserved ISO date values in the questionnaire model while displaying dates as `DD-MMM-YYYY` and using the native Android Material date picker.
+- Prevented non-applicable consent-dependent sections from occupying compact progress space or blocking final review.
+- Cleared the partial-preview notice when returning to edit mode and preserved entered values while switching questionnaire languages.
+- Shared the native SQLite database owner across repositories and avoided the prior `NativeDatabase.prepareSync` failure during route changes.
+- Prevented browser credential autofill from populating Admin user-edit email and password fields.
+
+### Security
+
+- Enforced site/locality assignment scope on the API, saved user and locality changes atomically, and prevented duplicate or cross-site assignments.
+- Prevented users from changing their own account status or the status of higher-precedence roles, and revoked active sessions immediately when an account is deactivated.
+
+### Testing
+
+- Verified Admin typecheck and production build, all Expo validation scripts, Expo Doctor, Android and web exports, and clean npm dependency trees after the SDK 57 upgrade.
+- Regenerated the ignored Android project and completed debug and release APK builds plus debug installation on the Pixel 7 API 36 emulator.
+- Exercised native household-questionnaire validation, consent routing, date storage/display, preview, draft recovery, section progress, repeat editing, language switching, and current-session Android logcat checks.
+- Added database integration coverage for atomic locality assignment, site-admin scope, self/higher-role status protection, and session revocation; verified the Nginx-served Admin Users flow in the browser.
 
 ## 2026-07-22
 
