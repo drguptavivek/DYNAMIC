@@ -139,6 +139,52 @@ export function FieldAppProvider({ children }) {
     return { ok: false, error: "Biometric unlock was not completed" };
   }
 
+  async function unlockAppWithPassword(password) {
+    if (!user) return { ok: false, error: "Login is required" };
+    const username = user.username || user.email;
+    if (!username || !password) {
+      return { ok: false, error: "Enter your login password" };
+    }
+
+    const result = await authStore.login(username, password);
+    if (!result.ok) {
+      return { ok: false, error: result.error || "Password did not match" };
+    }
+
+    setUser(result.user);
+    setAppLocked(false);
+    return { ok: true };
+  }
+
+  async function changeAppPinWithPassword(password, newPin) {
+    if (!user) return { ok: false, error: "Login is required" };
+    const username = user.username || user.email;
+    if (!username || !password) {
+      return { ok: false, error: "Enter your login password" };
+    }
+
+    const loginResult = await authStore.login(username, password);
+    if (!loginResult.ok) {
+      return { ok: false, error: loginResult.error || "Password did not match" };
+    }
+
+    try {
+      const existingRecord = await appLockStore.readLockRecord();
+      const lockUserId = appLockStore.getLockUserId(loginResult.user);
+      await appLockStore.configureLockForUser(loginResult.user, newPin, {
+        biometricEnabled: Boolean(
+          existingRecord?.user_id === lockUserId && existingRecord.biometric_enabled,
+        ),
+      });
+      setUser(loginResult.user);
+      setAppLockConfigured(true);
+      setAppLocked(false);
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, error: error.message };
+    }
+  }
+
   function clearFormContext() {
     setCurrentTaskContext(null);
     setPrefillData(null);
@@ -220,6 +266,8 @@ export function FieldAppProvider({ children }) {
       configureAppLock,
       unlockAppWithPin,
       unlockAppWithBiometrics,
+      unlockAppWithPassword,
+      changeAppPinWithPassword,
     }),
     [
       locale,

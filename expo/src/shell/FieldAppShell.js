@@ -159,6 +159,8 @@ function AppLockScreen() {
   const app = useFieldApp();
   const [pin, setPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
+  const [password, setPassword] = useState("");
+  const [forgotMode, setForgotMode] = useState(false);
   const [useBiometrics, setUseBiometrics] = useState(app.appLockBiometricAvailable);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -178,6 +180,26 @@ function AppLockScreen() {
         : await app.unlockAppWithPin(pin);
       if (!result.ok) {
         setError(result.error || "Unlock failed");
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handlePasswordUnlock() {
+    if (!password) {
+      setError("Enter your login password");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+    try {
+      const result = await app.unlockAppWithPassword(password);
+      if (!result.ok) {
+        setError(result.error || "Password unlock failed");
       }
     } catch (err) {
       setError(err.message);
@@ -208,33 +230,47 @@ function AppLockScreen() {
           <Text style={styles.loginTitle}>DYNAMIC</Text>
           <Text style={styles.loginSubtitle}>{setupMode ? "Create App PIN" : "App Locked"}</Text>
 
-          <TextInput
-            style={styles.loginInput}
-            placeholder="4-8 digit PIN"
-            value={pin}
-            onChangeText={setPin}
-            editable={!loading}
-            keyboardType="number-pad"
-            secureTextEntry={true}
-            maxLength={8}
-            placeholderTextColor="#999"
-          />
-
-          {setupMode && (
+          {forgotMode ? (
             <TextInput
               style={styles.loginInput}
-              placeholder="Confirm PIN"
-              value={confirmPin}
-              onChangeText={setConfirmPin}
+              placeholder="Login password"
+              value={password}
+              onChangeText={setPassword}
               editable={!loading}
-              keyboardType="number-pad"
               secureTextEntry={true}
-              maxLength={8}
               placeholderTextColor="#999"
             />
+          ) : (
+            <>
+              <TextInput
+                style={styles.loginInput}
+                placeholder="4-8 digit PIN"
+                value={pin}
+                onChangeText={setPin}
+                editable={!loading}
+                keyboardType="number-pad"
+                secureTextEntry={true}
+                maxLength={8}
+                placeholderTextColor="#999"
+              />
+
+              {setupMode && (
+                <TextInput
+                  style={styles.loginInput}
+                  placeholder="Confirm PIN"
+                  value={confirmPin}
+                  onChangeText={setConfirmPin}
+                  editable={!loading}
+                  keyboardType="number-pad"
+                  secureTextEntry={true}
+                  maxLength={8}
+                  placeholderTextColor="#999"
+                />
+              )}
+            </>
           )}
 
-          {setupMode && app.appLockBiometricAvailable && (
+          {setupMode && !forgotMode && app.appLockBiometricAvailable && (
             <Pressable
               onPress={() => setUseBiometrics((value) => !value)}
               style={[styles.biometricToggle, useBiometrics && styles.biometricToggleActive]}
@@ -253,7 +289,7 @@ function AppLockScreen() {
           {error ? <Text style={styles.loginError}>{error}</Text> : null}
 
           <Pressable
-            onPress={handleSubmit}
+            onPress={forgotMode ? handlePasswordUnlock : handleSubmit}
             disabled={loading}
             style={({ pressed }) => [
               styles.loginButton,
@@ -263,11 +299,29 @@ function AppLockScreen() {
             {loading ? (
               <ActivityIndicator color="#ffffff" />
             ) : (
-              <Text style={styles.loginButtonText}>{setupMode ? "Set PIN" : "Unlock"}</Text>
+              <Text style={styles.loginButtonText}>
+                {forgotMode ? "Unlock with Password" : setupMode ? "Set PIN" : "Unlock"}
+              </Text>
             )}
           </Pressable>
 
-          {!setupMode && app.appLockBiometricAvailable && (
+          {!setupMode && (
+            <Pressable
+              onPress={() => {
+                setForgotMode((value) => !value);
+                setError("");
+                setPassword("");
+              }}
+              disabled={loading}
+              style={styles.forgotPinButton}
+            >
+              <Text style={styles.forgotPinText}>
+                {forgotMode ? "Use PIN instead" : "Forgot PIN?"}
+              </Text>
+            </Pressable>
+          )}
+
+          {!setupMode && !forgotMode && app.appLockBiometricAvailable && (
             <Pressable
               onPress={handleBiometricUnlock}
               disabled={loading}
@@ -698,6 +752,16 @@ const styles = StyleSheet.create({
   secondaryLockButtonText: {
     color: "#17202a",
     fontSize: 15,
+    fontWeight: "800",
+  },
+  forgotPinButton: {
+    minHeight: 36,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  forgotPinText: {
+    color: "#0369a1",
+    fontSize: 14,
     fontWeight: "800",
   },
   biometricToggle: {

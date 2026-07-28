@@ -22,6 +22,7 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 - Added SQLite-backed questionnaire drafts with manual save, timed/background autosave, navigation autosave, and restoration of the active applicable section.
 - Added compact section-state dots and a detailed section drawer, English/Hindi switching, partial-data preview, native Android date selection, and compact repeat-entry Add, Update, and Delete flows.
 - Added the Expo and EAS agent-skill bundle used for future Expo development, upgrade, simulator, hosting, and store workflows.
+- Added a password-verified Forgot PIN unlock flow and a Profile option for changing the field-app PIN.
 
 ### Changed
 

@@ -181,6 +181,14 @@ export async function verifyPinForUser(user, pin) {
   return candidateHash === record.pin_hash;
 }
 
+export async function clearLockForUser(user) {
+  const userId = getUserLockId(user);
+  const record = await readLockRecord();
+  if (userId && record?.user_id === userId) {
+    await deleteItem(LOCK_RECORD_KEY);
+  }
+}
+
 export async function unlockWithBiometrics(user) {
   const userId = getUserLockId(user);
   const record = await readLockRecord();

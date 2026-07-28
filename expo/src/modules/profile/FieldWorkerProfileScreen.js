@@ -1,7 +1,8 @@
-import React from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useState } from "react";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { buildFieldWorkerProfile } from "./profileData.js";
+import { useFieldApp } from "../../shell/FieldAppProvider.js";
 
 function formatRole(role) {
   return String(role || "")
@@ -12,7 +13,41 @@ function formatRole(role) {
 }
 
 export function FieldWorkerProfileScreen({ user, localities }) {
+  const app = useFieldApp();
   const profile = buildFieldWorkerProfile(user, localities);
+  const [password, setPassword] = useState("");
+  const [pin, setPin] = useState("");
+  const [confirmPin, setConfirmPin] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+
+  async function handleChangePin() {
+    if (pin !== confirmPin) {
+      setError("PIN entries do not match");
+      setMessage("");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+    setMessage("");
+    try {
+      const result = await app.changeAppPinWithPassword(password, pin);
+      if (!result.ok) {
+        setError(result.error || "Could not change PIN");
+        return;
+      }
+      setPassword("");
+      setPin("");
+      setConfirmPin("");
+      setMessage("App PIN changed.");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -37,6 +72,57 @@ export function FieldWorkerProfileScreen({ user, localities }) {
             <Text style={styles.value}>{profile.site_name || profile.site_id || "-"}</Text>
           </View>
         </View>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>App PIN</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Login password"
+          value={password}
+          onChangeText={setPassword}
+          editable={!loading}
+          secureTextEntry={true}
+          placeholderTextColor="#999"
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="New 4-8 digit PIN"
+          value={pin}
+          onChangeText={setPin}
+          editable={!loading}
+          keyboardType="number-pad"
+          secureTextEntry={true}
+          maxLength={8}
+          placeholderTextColor="#999"
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Confirm new PIN"
+          value={confirmPin}
+          onChangeText={setConfirmPin}
+          editable={!loading}
+          keyboardType="number-pad"
+          secureTextEntry={true}
+          maxLength={8}
+          placeholderTextColor="#999"
+        />
+        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+        {message ? <Text style={styles.successText}>{message}</Text> : null}
+        <Pressable
+          onPress={handleChangePin}
+          disabled={loading}
+          style={({ pressed }) => [
+            styles.primaryButton,
+            (pressed || loading) && styles.primaryButtonPressed,
+          ]}
+        >
+          {loading ? (
+            <ActivityIndicator color="#ffffff" />
+          ) : (
+            <Text style={styles.primaryButtonText}>Change PIN</Text>
+          )}
+        </Pressable>
       </View>
 
       <View style={styles.section}>
@@ -102,14 +188,49 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#d8dee4",
     borderRadius: 8,
-    padding: 18
+    padding: 18,
+    gap: 10
   },
   sectionTitle: {
     fontSize: 15,
     fontWeight: "800",
     color: "#475467",
     textTransform: "uppercase",
-    marginBottom: 14
+    marginBottom: 4
+  },
+  input: {
+    minHeight: 44,
+    borderWidth: 1,
+    borderColor: "#d8dee4",
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    fontSize: 15,
+    backgroundColor: "#ffffff"
+  },
+  primaryButton: {
+    minHeight: 44,
+    borderRadius: 6,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#17202a"
+  },
+  primaryButtonPressed: {
+    opacity: 0.8
+  },
+  primaryButtonText: {
+    color: "#ffffff",
+    fontSize: 15,
+    fontWeight: "800"
+  },
+  errorText: {
+    color: "#b42318",
+    fontSize: 13,
+    fontWeight: "700"
+  },
+  successText: {
+    color: "#116329",
+    fontSize: 13,
+    fontWeight: "800"
   },
   infoGrid: {
     flexDirection: "row",
