@@ -24,7 +24,7 @@ Wide layouts should use:
 Table of Contents | active SurveyJS page/section
 ```
 
-Narrow/mobile layouts must still expose the section list through a drawer, compact control, or equivalent. Do not remove section navigation on mobile.
+Narrow/mobile layouts expose compact state dots plus a left-side section drawer. The drawer owns full labels, counts, detailed status, and navigation; persistent cards must not reduce the question viewport. Do not remove section navigation on mobile.
 
 ## Behavior
 

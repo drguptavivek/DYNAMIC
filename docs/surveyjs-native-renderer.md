@@ -93,6 +93,23 @@ Missing translations follow Survey Core's definition fallback rules. Renderer co
 
 Navigation can move among applicable sections, but app-specific gates still apply. For HHQ, Section 03 cannot be entered until the household roster summary has been confirmed.
 
+On narrow mobile screens, the persistent section surface is a thin row of status dots:
+
+- empty outlined dot: not started;
+- yellow dot: in progress;
+- green dot: complete;
+- red dot: needs attention;
+- grey dot: not applicable;
+- blue ring: current section.
+
+The adjacent `Sections` control opens a left-side overlay with full section names, answer counts, detailed status, and navigation. Section cards must not permanently consume the question viewport on mobile. The compact section strip, section heading, messages, and questions share one vertical scroll surface so context can scroll away while the bottom navigation remains available.
+
+## Mobile Form Shell
+
+The native HHQ header uses one compact action row: Preview, language dropdown, and Close. The global locality switcher belongs in the main DYNAMIC drawer rather than the fixed app bar. Previous, Save draft, and Next share the fixed bottom action row.
+
+Manual Save draft writes immediately to the shared offline draft repository. HHQ also autosaves dirty state every 30 seconds, when the app backgrounds or the form closes, and after form navigation actions including Previous, Next, section jumps, preview, and roster confirmation. Reopening the same baseline-locality context restores answers and the last active section.
+
 ## Repeat Sections
 
 A repeated panel is not rendered as one long anonymous list.

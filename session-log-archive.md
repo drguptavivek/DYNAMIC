@@ -119,3 +119,34 @@ SurveyJS-compatible JSON remains the definition format. `survey-core` is headles
 - Expo Go required Expo `~54.0.36`; aligning the patch removed the initial native bridge mismatch.
 - Task and household repositories opened repeated wrappers for `dynamic_offline.db`, causing `NativeDatabase.prepareSync` null-pointer failures after route changes. Both now use one shared offline database owner.
 - Verified on `Pixel_7_API_36`: login and PIN unlock, native HHQ identification, Hindi locale switch, select-one update, interim preview, section progress, and repeat-entry rendering. Logcat contained no Survey Core, SQLite, React Native JS, or Android fatal errors after the cold restart.
+
+## 2026-07-28 Native HHQ Mobile Viewport
+
+### Goal
+
+Increase the usable Android question area while retaining section visibility, language switching, locality scope, and draft safety.
+
+### Decisions And Implementation
+
+- Replaced persistent mobile section cards with compact state dots and a left-side detailed section drawer.
+- Put the compact section strip, notices, section heading, and questions in one vertical scroll surface; kept Previous, Save draft, and Next fixed at the bottom.
+- Collapsed Preview, language dropdown, and Close into one action row.
+- Moved locality selection from the fixed top bar into the main DYNAMIC drawer.
+- Added the `questionnaire_drafts` table to the shared native SQLite schema while preserving browser local-storage behavior.
+- HHQ restores answers and active section, saves manually, saves every 30 seconds when dirty, saves when backgrounded/closed, and saves after navigation, preview, and roster confirmation.
+- Final HHQ save now uses the canonical questionnaire submission path and marks the linked draft submitted.
+
+### Device Evidence
+
+- Pixel 7 API 36 viewport: 1080 x 2400.
+- Before: first question label began at y=1460.
+- After: first question label began at y=948, a 512-pixel gain on the same device state while retaining 44-pixel action targets.
+- Verified mobile section drawer, state colors, anchored language menu, locality in the main drawer, manual SQLite draft save, section-navigation autosave, and restoration to Section 02 after reload.
+
+### Verification
+
+- `npm --workspace expo test`
+- `npx expo export --platform android --output-dir /tmp/dynamic-hhq-mobile-android-final2-20260728 --clear`
+- `npx expo export --platform web --output-dir /tmp/dynamic-hhq-mobile-web-final2-20260728 --clear`
+- Android export bundled 1,117 modules; web export bundled 823 modules.
+- Android logcat showed no fatal exception, React Native JS error, SQLite native-database error, TypeError, or ReferenceError after the exercised flow.

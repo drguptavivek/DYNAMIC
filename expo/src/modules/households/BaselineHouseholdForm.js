@@ -1,8 +1,8 @@
 /**
  * Composes the native baseline household interview, confirmation gate, and final preview flow.
  */
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AppState, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Model } from "survey-core";
 
 import { NativeSurveyRenderer } from "../../components/forms/NativeSurveyRenderer.js";
@@ -23,14 +23,20 @@ import {
   goToSurveySection,
 } from "../questionnaires/surveyNavigation.js";
 import { buildHouseholdMemberSummaryRows } from "../questionnaires/householdMemberSummary.js";
+import {
+  getActiveQuestionnaireDraft,
+  markQuestionnaireDraftSubmitted,
+  saveQuestionnaireDraft,
+} from "../questionnaires/questionnaireDraftRepository.js";
+import { saveQuestionnaireSubmission } from "../questionnaires/questionnaireSubmissionRepository.js";
 import { prepareQuestionnaireSurveyJson } from "../questionnaires/questionnaireSurveyJsonTransforms.js";
 import { buildHouseholdIdFromHhqData } from "./householdIds.js";
 import {
   extractHouseholdRegistryFields,
   findExistingHouseholdForHhqData,
-  saveHousehold,
 } from "./householdRepository.js";
 
+const AUTOSAVE_INTERVAL_MS = 30000;
 const HOUSEHOLD_SCHEDULE_PAGE_NAME = "page_02_household_schedule";
 const HOUSEHOLD_CHARACTERISTICS_PAGE_NAME = "page_03_household_characteristics";
 
@@ -44,6 +50,8 @@ export function BaselineHouseholdForm({
   onClose,
   onSaved,
 }) {
+  const { width } = useWindowDimensions();
+  const compact = width < 700;
   const [view, setView] = useState("form");
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
@@ -52,6 +60,32 @@ export function BaselineHouseholdForm({
   const [finalReview, setFinalReview] = useState(false);
   const [, setRevision] = useState(0);
   const memberSummaryConfirmedRef = useRef(false);
+  const draftIdRef = useRef(null);
+  const dirtyRef = useRef(false);
+  const messageTimerRef = useRef(null);
+
+  const draftContext = useMemo(() => ({
+    formCode: form.form_code,
+    formVersion: form.version,
+    taskId: null,
+    subjectType: "locality",
+    subjectId: selectedLocalityCode || "unselected",
+    deviceId: user?.device_id || "dev-device",
+    userId: user?.user_id || user?.id || user?.username || "dev-user",
+  }), [form, selectedLocalityCode, user]);
+
+  const showTransientMessage = useCallback((text) => {
+    if (messageTimerRef.current) clearTimeout(messageTimerRef.current);
+    setMessage(text);
+    messageTimerRef.current = setTimeout(() => {
+      setMessage("");
+      messageTimerRef.current = null;
+    }, 3000);
+  }, []);
+
+  useEffect(() => () => {
+    if (messageTimerRef.current) clearTimeout(messageTimerRef.current);
+  }, []);
 
   const model = useMemo(() => {
     const surveyJson = applyHouseholdMasterChoices(prepareQuestionnaireSurveyJson(form), {
@@ -81,6 +115,7 @@ export function BaselineHouseholdForm({
       findExistingHousehold: findExistingHouseholdForHhqData,
     });
     survey.onValueChanged.add((sender, options) => {
+      dirtyRef.current = true;
       setPreviewSignature("");
       if (
         options.name === "hhq_household_members" ||
@@ -112,6 +147,73 @@ export function BaselineHouseholdForm({
     setRevision((value) => value + 1);
   }, [model, locale]);
 
+  const saveDraft = useCallback(async ({ silent = false } = {}) => {
+    try {
+      refreshHouseholdSurveyBehaviors(model, form);
+      const draft = await saveQuestionnaireDraft({
+        ...draftContext,
+        draftId: draftIdRef.current,
+        payload: model.data || {},
+        completionState: {
+          currentPageName: model.currentPage?.name || null,
+          memberSummaryConfirmed: memberSummaryConfirmedRef.current,
+        },
+      });
+      draftIdRef.current = draft.draft_id;
+      dirtyRef.current = false;
+      if (!silent) showTransientMessage("Draft saved on this device.");
+      return draft;
+    } catch (error) {
+      setMessage(`Could not save draft: ${error.message}`);
+      return null;
+    }
+  }, [draftContext, form, model, showTransientMessage]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function restoreDraft() {
+      try {
+        const draft = await getActiveQuestionnaireDraft(draftContext);
+        if (cancelled || !draft) return;
+        draftIdRef.current = draft.draft_id;
+        model.data = { ...(model.data || {}), ...(draft.json_payload || {}) };
+        refreshHouseholdSurveyBehaviors(model, form);
+        if (draft.completion_state?.currentPageName) {
+          goToSurveySection(model, draft.completion_state.currentPageName);
+        }
+        memberSummaryConfirmedRef.current = Boolean(
+          draft.completion_state?.memberSummaryConfirmed
+        );
+        setMemberSummaryConfirmed(memberSummaryConfirmedRef.current);
+        dirtyRef.current = false;
+        showTransientMessage("Draft restored from this device.");
+        setRevision((value) => value + 1);
+      } catch (error) {
+        if (!cancelled) setMessage(`Could not restore draft: ${error.message}`);
+      }
+    }
+
+    restoreDraft();
+    return () => {
+      cancelled = true;
+    };
+  }, [draftContext, form, model, showTransientMessage]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (dirtyRef.current) saveDraft({ silent: true });
+    }, AUTOSAVE_INTERVAL_MS);
+    const appStateSubscription = AppState.addEventListener("change", (nextState) => {
+      if (nextState !== "active" && dirtyRef.current) saveDraft({ silent: true });
+    });
+    return () => {
+      clearInterval(interval);
+      appStateSubscription.remove();
+      if (dirtyRef.current) saveDraft({ silent: true });
+    };
+  }, [saveDraft]);
+
   const signature = JSON.stringify(model.data || {});
   const sections = buildSurveySections(model, {
     includeHouseholdMemberSummary: true,
@@ -128,16 +230,18 @@ export function BaselineHouseholdForm({
   const memberRows = buildHouseholdMemberSummaryRows(model.data || {}, form, locale);
   const householdId = buildHouseholdIdFromHhqData(model.data || {}) || "Pending household ID";
 
-  function openPreview({ final = false } = {}) {
+  async function openPreview({ final = false } = {}) {
     refreshHouseholdSurveyBehaviors(model, form);
+    if (!(await saveDraft({ silent: true }))) return;
     setPreviewSignature(JSON.stringify(model.data || {}));
     setFinalReview(final);
     setView("preview");
     setMessage(final ? "Review all entered data before final save." : "Previewing data entered so far.");
   }
 
-  function openMemberSummary() {
+  async function openMemberSummary() {
     refreshHouseholdSurveyBehaviors(model, form);
+    await saveDraft({ silent: true });
     setFinalReview(false);
     setView("member-summary");
     setMessage("Confirm the household roster before Section 03.");
@@ -154,7 +258,7 @@ export function BaselineHouseholdForm({
     return results.every(Boolean) && !questions.some((question) => question.errors?.length);
   }
 
-  function confirmMemberSummary() {
+  async function confirmMemberSummary() {
     if (!validateSchedule()) {
       goToSurveySection(model, HOUSEHOLD_SCHEDULE_PAGE_NAME);
       setView("form");
@@ -168,34 +272,36 @@ export function BaselineHouseholdForm({
     setView("form");
     setMessage("Household roster confirmed.");
     setRevision((value) => value + 1);
+    await saveDraft({ silent: true });
   }
 
-  function handleSectionSelect(section) {
+  async function handleSectionSelect(section) {
     if (section.name === HOUSEHOLD_MEMBER_SUMMARY_SECTION_NAME) {
-      openMemberSummary();
+      await openMemberSummary();
       return;
     }
     if (section.name === COMPACT_PREVIEW_SECTION_NAME) {
-      openPreview();
+      await openPreview();
       return;
     }
     if (
       section.name === HOUSEHOLD_CHARACTERISTICS_PAGE_NAME &&
       !memberSummaryConfirmedRef.current
     ) {
-      openMemberSummary();
+      await openMemberSummary();
       return;
     }
     goToSurveySection(model, section.name);
     setView("form");
     setFinalReview(false);
     setRevision((value) => value + 1);
+    await saveDraft({ silent: true });
   }
 
   async function requestFinalReview() {
     refreshHouseholdSurveyBehaviors(model, form);
     if (!memberSummaryConfirmedRef.current) {
-      openMemberSummary();
+      await openMemberSummary();
       return;
     }
     if (!model.validate()) {
@@ -215,7 +321,7 @@ export function BaselineHouseholdForm({
       setRevision((value) => value + 1);
       return;
     }
-    openPreview({ final: true });
+    await openPreview({ final: true });
   }
 
   async function submitFinal() {
@@ -226,6 +332,7 @@ export function BaselineHouseholdForm({
     }
     setSaving(true);
     try {
+      if (!(await saveDraft({ silent: true }))) return;
       if (!model.validate()) {
         setView("form");
         setMessage("Complete the highlighted required fields before final save.");
@@ -241,7 +348,18 @@ export function BaselineHouseholdForm({
         return;
       }
       const registryRecord = extractHouseholdRegistryFields(model.data);
-      await saveHousehold(registryRecord);
+      const submission = await saveQuestionnaireSubmission({
+        formCode: form.form_code,
+        formVersion: form.version,
+        payload: model.data,
+        deviceId: user?.device_id || "dev-device",
+      });
+      if (draftIdRef.current) {
+        await markQuestionnaireDraftSubmitted({
+          draftId: draftIdRef.current,
+          submittedFormResponseId: submission.submission_id,
+        });
+      }
       setMessage(`Saved household ${registryRecord.household_id}`);
       await onSaved?.(registryRecord);
     } catch (error) {
@@ -252,34 +370,43 @@ export function BaselineHouseholdForm({
     }
   }
 
+  async function closeForm() {
+    if (dirtyRef.current && !(await saveDraft({ silent: true }))) return;
+    onClose?.();
+  }
+
   return (
     <View style={styles.window}>
-      <View style={styles.header}>
+      <View style={[styles.header, compact && styles.headerCompact]}>
         <View style={styles.headerText}>
-          <Text style={styles.title}>Baseline Household Questionnaire</Text>
+          <Text numberOfLines={compact ? 1 : undefined} style={[styles.title, compact && styles.titleCompact]}>
+            Baseline Household Questionnaire
+          </Text>
           <Text style={styles.subtle}>{`${householdId} · Native Expo renderer`}</Text>
         </View>
-        <View style={styles.actions}>
-          <Pressable onPress={() => openPreview()} style={styles.secondaryButton}>
+        <View style={[styles.actions, compact && styles.actionsCompact]}>
+          <Pressable onPress={() => openPreview()} style={[styles.secondaryButton, compact && styles.actionButtonCompact]}>
             <Text style={styles.secondaryButtonText}>Preview</Text>
           </Pressable>
           <RendererLanguageSwitcher locale={locale} onChange={onLocaleChange} />
-          <Pressable onPress={onClose} style={styles.secondaryButton}>
+          <Pressable onPress={closeForm} style={[styles.secondaryButton, compact && styles.actionButtonCompact]}>
             <Text style={styles.secondaryButtonText}>Close</Text>
           </Pressable>
         </View>
       </View>
       <View style={styles.body}>
-        {message ? <Text style={styles.message}>{message}</Text> : null}
         {view === "form" ? (
           <NativeSurveyRenderer
             model={model}
+            notice={message}
             sections={sections}
             onSectionSelect={handleSectionSelect}
             onCompleteRequested={requestFinalReview}
+            onSaveDraft={saveDraft}
           />
         ) : (
           <>
+            {message ? <Text style={styles.message}>{message}</Text> : null}
             <SectionNavigator sections={sections} onSelect={handleSectionSelect} />
             {view === "member-summary" ? (
               <View style={styles.specialView}>
@@ -331,17 +458,21 @@ export function BaselineHouseholdForm({
 const styles = StyleSheet.create({
   window: { flex: 1, backgroundColor: "#eef2f5" },
   header: { minHeight: 72, flexDirection: "row", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#d8dee4", backgroundColor: "#ffffff" },
+  headerCompact: { minHeight: 0, alignItems: "stretch", gap: 8, paddingHorizontal: 12, paddingVertical: 9 },
   headerText: { flex: 1, minWidth: 240 },
   title: { color: "#18202a", fontSize: 20, fontWeight: "800" },
+  titleCompact: { fontSize: 17 },
   subtle: { color: "#667085", fontSize: 13 },
   actions: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8 },
+  actionsCompact: { width: "100%", flexWrap: "nowrap", gap: 7 },
+  actionButtonCompact: { flex: 1 },
   body: { flex: 1, gap: 10, padding: 12 },
   message: { padding: 9, borderRadius: 7, color: "#1f4d7a", backgroundColor: "#eef6ff", fontSize: 13, fontWeight: "700" },
   specialView: { flex: 1, gap: 10, minHeight: 0 },
   footerActions: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 10, paddingTop: 8 },
   primaryButton: { minHeight: 44, alignItems: "center", justifyContent: "center", paddingHorizontal: 16, borderRadius: 8, backgroundColor: "#1f6feb" },
   primaryButtonText: { color: "#ffffff", fontWeight: "800" },
-  secondaryButton: { minHeight: 42, alignItems: "center", justifyContent: "center", paddingHorizontal: 12, borderWidth: 1, borderColor: "#d0d5dd", borderRadius: 8, backgroundColor: "#ffffff" },
+  secondaryButton: { minHeight: 44, alignItems: "center", justifyContent: "center", paddingHorizontal: 12, borderWidth: 1, borderColor: "#d0d5dd", borderRadius: 8, backgroundColor: "#ffffff" },
   secondaryButtonText: { color: "#18202a", fontWeight: "700" },
   disabled: { opacity: 0.5 },
 });

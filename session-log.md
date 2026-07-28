@@ -118,3 +118,16 @@ Open:
 - Extend the native capability registry across the remaining form definitions after HHQ field verification.
 Archive:
 - `session-log-archive.md#2026-07-27-native-hhq-renderer`
+
+## 2026-07-28 08:45 [saved]
+Goal: Reclaim the Android HHQ question viewport and add reliable draft recovery.
+Decisions:
+- Mobile uses compact header actions, section-state dots, and a left section drawer.
+- Locality moved into the main DYNAMIC drawer.
+- HHQ drafts persist in shared SQLite, save manually from the bottom row, and autosave after navigation.
+Rejected:
+- Persistent mobile section cards and a fixed full-width language toggle.
+Open:
+- Continue device QA across long translated labels and remaining native form definitions.
+Archive:
+- `session-log-archive.md#2026-07-28-native-hhq-mobile-viewport`

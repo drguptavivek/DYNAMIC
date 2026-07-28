@@ -1,3 +1,6 @@
+/**
+ * Provides the authenticated field-app shell, primary drawer, locality scope, and app lock.
+ */
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -98,6 +101,8 @@ export function FieldAppShell({ route, title, children }) {
             </Pressable>
           </View>
 
+          <LocalitySwitcher inDrawer />
+
           {SHELL_NAV_ITEMS.map((item) => {
             const active = route?.view === item.id;
             return (
@@ -130,7 +135,6 @@ export function FieldAppShell({ route, title, children }) {
               <Text style={styles.appTitle}>DYNAMIC</Text>
               <Text style={styles.subtle}>{title || "Field App"}</Text>
             </View>
-            <LocalitySwitcher />
           </View>
 
           {clockAlert && <ClockDriftAlert alert={clockAlert} />}
@@ -364,10 +368,10 @@ function ClockDriftAlert({ alert }) {
   );
 }
 
-function LocalitySwitcher() {
+function LocalitySwitcher({ inDrawer = false }) {
   const app = useFieldApp();
   return (
-    <View style={styles.localitySwitcher}>
+    <View style={[styles.localitySwitcher, inDrawer && styles.drawerLocalitySwitcher]}>
       <Text style={styles.localityLabel}>Locality</Text>
       <ScrollView
         horizontal
@@ -422,7 +426,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   topBar: {
-    minHeight: 76,
+    minHeight: 60,
     flexDirection: "row",
     alignItems: "center",
     gap: 14,
@@ -432,6 +436,7 @@ const styles = StyleSheet.create({
     borderBottomColor: "#d8dee4",
   },
   titleGroup: {
+    flex: 1,
     minWidth: 150,
   },
   appTitle: {
@@ -563,6 +568,12 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
     gap: 4,
+  },
+  drawerLocalitySwitcher: {
+    flex: 0,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e5e7eb",
   },
   localityLabel: {
     fontSize: 11,

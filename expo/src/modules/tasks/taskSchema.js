@@ -1,5 +1,5 @@
 /**
- * Initializes task, workflow, response, and outbox tables on the shared offline database.
+ * Initializes task, workflow, response, draft, and outbox tables on the shared offline database.
  */
 import { getOfflineDatabase } from "../storage/offlineDatabase.js";
 
@@ -71,6 +71,31 @@ export function initTaskDb() {
       device_id TEXT,
       created_at TEXT
     )
+  `);
+
+  db.runSync(`
+    CREATE TABLE IF NOT EXISTS questionnaire_drafts (
+      draft_id TEXT PRIMARY KEY,
+      draft_key TEXT NOT NULL,
+      form_code TEXT NOT NULL,
+      form_version TEXT,
+      task_id TEXT,
+      subject_type TEXT,
+      subject_id TEXT,
+      device_id TEXT,
+      user_id TEXT,
+      json_payload TEXT NOT NULL,
+      completion_state TEXT NOT NULL,
+      draft_status TEXT NOT NULL DEFAULT 'active',
+      submitted_form_response_id TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )
+  `);
+
+  db.runSync(`
+    CREATE INDEX IF NOT EXISTS questionnaire_drafts_key_status_idx
+    ON questionnaire_drafts (draft_key, draft_status, updated_at)
   `);
 
   db.runSync(`

@@ -68,6 +68,7 @@ Rules:
 
 - Autosave writes locally every 30 seconds only when the form has unsaved changes.
 - Manual Save Draft writes locally immediately.
+- Form navigation actions save the current local draft after the destination section/page has been resolved.
 - App backgrounding, navigation away, or form close should save dirty drafts before leaving.
 - Failed local draft save must be visible to the field user.
 - Drafts are not uploaded or returned by sync.

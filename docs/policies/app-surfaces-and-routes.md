@@ -18,6 +18,7 @@ Rules:
 
 - Field app surfaces are locality-aware.
 - The global locality switcher scopes household/member/task lists.
+- On narrow field-app layouts, the locality switcher lives in the main DYNAMIC drawer rather than occupying the fixed top bar.
 - Field users must not see a global unscoped study dataset.
 - Add Household opens HHQ; it does not call a direct admin create-household endpoint.
 - Duplicate household ID checks must run before final HHQ submission and again in the save path.
