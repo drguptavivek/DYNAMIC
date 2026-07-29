@@ -321,7 +321,7 @@ function AppLockScreen() {
             </Pressable>
           )}
 
-          {!setupMode && !forgotMode && app.appLockBiometricAvailable && (
+          {!setupMode && !forgotMode && app.appLockBiometricEnabled && (
             <Pressable
               onPress={handleBiometricUnlock}
               disabled={loading}

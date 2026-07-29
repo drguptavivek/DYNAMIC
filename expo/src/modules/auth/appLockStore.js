@@ -5,6 +5,7 @@ const LOCK_RECORD_KEY = "dynamic_app_lock_v1";
 const PIN_PATTERN = /^\d{4,8}$/;
 
 const memoryStore = new Map();
+let localAuthenticationOverride = null;
 
 async function loadSecureStore() {
   try {
@@ -23,6 +24,9 @@ async function loadCrypto() {
 }
 
 async function loadLocalAuthentication() {
+  if (localAuthenticationOverride) {
+    return localAuthenticationOverride;
+  }
   try {
     return await import("expo-local-authentication");
   } catch {
@@ -148,6 +152,12 @@ export async function isLockConfiguredForUser(user) {
   return Boolean(userId && record?.user_id === userId);
 }
 
+export async function isBiometricUnlockEnabledForUser(user) {
+  const userId = getUserLockId(user);
+  const record = await readLockRecord();
+  return Boolean(userId && record?.user_id === userId && record.biometric_enabled);
+}
+
 export async function configureLockForUser(user, pin, options = {}) {
   const userId = getUserLockId(user);
   if (!userId) {
@@ -189,6 +199,29 @@ export async function clearLockForUser(user) {
   }
 }
 
+export async function setBiometricUnlockForUser(user, enabled) {
+  const userId = getUserLockId(user);
+  const record = await readLockRecord();
+  if (!userId || record?.user_id !== userId) {
+    return { ok: false, reason: "not_configured" };
+  }
+
+  if (enabled) {
+    const status = await getBiometricStatus();
+    if (!status.available || !status.enrolled) {
+      return { ok: false, reason: "unavailable" };
+    }
+  }
+
+  const nextRecord = {
+    ...record,
+    biometric_enabled: Boolean(enabled),
+    updated_at: new Date().toISOString(),
+  };
+  await setItem(LOCK_RECORD_KEY, JSON.stringify(nextRecord));
+  return { ok: true, record: nextRecord };
+}
+
 export async function unlockWithBiometrics(user) {
   const userId = getUserLockId(user);
   const record = await readLockRecord();
@@ -214,4 +247,8 @@ export async function unlockWithBiometrics(user) {
 
 export async function clearLockForTests() {
   await deleteItem(LOCK_RECORD_KEY);
+}
+
+export function setLocalAuthenticationForTests(module) {
+  localAuthenticationOverride = module;
 }

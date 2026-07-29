@@ -15,6 +15,12 @@
     "plugins": [
       "expo-router",
       "expo-secure-store",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow DYNAMIC to use Face ID to unlock the field app after login."
+        }
+      ],
       "expo-sqlite"
     ],
     "android": {

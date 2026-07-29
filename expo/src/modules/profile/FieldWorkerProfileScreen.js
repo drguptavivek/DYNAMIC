@@ -49,6 +49,24 @@ export function FieldWorkerProfileScreen({ user, localities }) {
     }
   }
 
+  async function handleToggleBiometric() {
+    setLoading(true);
+    setError("");
+    setMessage("");
+    try {
+      const result = await app.setAppLockBiometricPreference(!app.appLockBiometricEnabled);
+      if (!result.ok) {
+        setError(result.error || "Could not update biometric unlock");
+        return;
+      }
+      setMessage(result.enabled ? "Biometric unlock enabled." : "Biometric unlock disabled.");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
@@ -123,6 +141,36 @@ export function FieldWorkerProfileScreen({ user, localities }) {
             <Text style={styles.primaryButtonText}>Change PIN</Text>
           )}
         </Pressable>
+        {app.appLockBiometricAvailable ? (
+          <View style={styles.biometricPanel}>
+            <View style={styles.biometricTextGroup}>
+              <Text style={styles.biometricTitle}>Biometric unlock</Text>
+              <Text style={styles.biometricDescription}>
+                {app.appLockBiometricEnabled
+                  ? "Enabled for this app PIN."
+                  : "Use your enrolled phone biometric to unlock after login."}
+              </Text>
+            </View>
+            <Pressable
+              onPress={handleToggleBiometric}
+              disabled={loading || !app.appLockConfigured}
+              style={[
+                styles.biometricButton,
+                app.appLockBiometricEnabled && styles.biometricButtonActive,
+                (loading || !app.appLockConfigured) && styles.buttonDisabled,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.biometricButtonText,
+                  app.appLockBiometricEnabled && styles.biometricButtonTextActive,
+                ]}
+              >
+                {app.appLockBiometricEnabled ? "Disable" : "Enable"}
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
       </View>
 
       <View style={styles.section}>
@@ -221,6 +269,52 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     fontSize: 15,
     fontWeight: "800"
+  },
+  buttonDisabled: {
+    opacity: 0.6
+  },
+  biometricPanel: {
+    marginTop: 4,
+    gap: 10,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#d8dee4",
+    borderRadius: 8,
+    backgroundColor: "#f8fafc"
+  },
+  biometricTextGroup: {
+    gap: 3
+  },
+  biometricTitle: {
+    fontSize: 14,
+    color: "#18202a",
+    fontWeight: "800"
+  },
+  biometricDescription: {
+    fontSize: 13,
+    color: "#667085",
+    fontWeight: "600"
+  },
+  biometricButton: {
+    minHeight: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#17202a",
+    borderRadius: 6,
+    backgroundColor: "#ffffff"
+  },
+  biometricButtonActive: {
+    borderColor: "#0369a1",
+    backgroundColor: "#e0f2fe"
+  },
+  biometricButtonText: {
+    color: "#17202a",
+    fontSize: 14,
+    fontWeight: "800"
+  },
+  biometricButtonTextActive: {
+    color: "#0369a1"
   },
   errorText: {
     color: "#b42318",

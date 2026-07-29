@@ -44,3 +44,13 @@ Status: Generic native renderer coverage implemented locally for all 11 bundled 
 - Continue device QA for long English and Hindi labels, accessibility, keyboard behavior, and small-screen layouts.
 - Extend form-specific workflow behavior where remaining questionnaire definitions need derived IDs, promotion rules, task creation, or attachment persistence.
 - Preserve the existing Survey Core state/validation boundary and the canonical draft, preview, navigation, and submission policies.
+
+## Priority 1 - Verify app-lock biometric unlock on physical Android
+
+Status: Functional state handling fixed locally; physical APK verification still pending.
+
+- App-lock biometric unlock now depends on the saved per-user biometric preference, not only device hardware availability.
+- The unlock screen hides the biometric button unless biometrics are enabled for the current app PIN.
+- Profile exposes a biometric enable/disable control after the user is logged in and the phone reports enrolled biometrics.
+- Expo native config now includes the local-authentication plugin for future APK builds.
+- Rebuild and install the Android APK, then verify PIN setup with biometric enabled, app background/return lock, biometric prompt display, successful unlock, cancel fallback to PIN, and Profile enable/disable behavior.

@@ -37,6 +37,7 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 
 ### Fixed
 
+- Made post-login app-lock biometric unlock use the saved per-user biometric preference and added a Profile control to enable or disable it.
 - Kept the Household members slideout inside the Android phone width and allowed the Household toolbar actions to wrap on compact screens.
 - Prevented HHQ roster calculations from recreating a hidden or deleted minimum household-member placeholder after declined consent or final-row deletion.
 - Directed blocked forward navigation to the first visible validation error and displayed definition-provided regex messages.

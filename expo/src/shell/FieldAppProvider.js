@@ -32,6 +32,7 @@ export function FieldAppProvider({ children }) {
   const [appLocked, setAppLocked] = useState(false);
   const [appLockConfigured, setAppLockConfigured] = useState(false);
   const [appLockBiometricAvailable, setAppLockBiometricAvailable] = useState(false);
+  const [appLockBiometricEnabled, setAppLockBiometricEnabled] = useState(false);
 
   useEffect(() => {
     setNavigationHandler((route) => router.push(route));
@@ -90,6 +91,7 @@ export function FieldAppProvider({ children }) {
     setUser(null);
     setAppLocked(false);
     setAppLockConfigured(false);
+    setAppLockBiometricEnabled(false);
     setAppLockReady(true);
     clearFormContext();
   }
@@ -97,8 +99,11 @@ export function FieldAppProvider({ children }) {
   async function initializeAppLock(nextUser, options = {}) {
     const configured = await appLockStore.isLockConfiguredForUser(nextUser);
     const biometricStatus = await appLockStore.getBiometricStatus();
+    const biometricEnabled = await appLockStore.isBiometricUnlockEnabledForUser(nextUser);
+    const biometricAvailable = Boolean(biometricStatus.available && biometricStatus.enrolled);
     setAppLockConfigured(configured);
-    setAppLockBiometricAvailable(Boolean(biometricStatus.available && biometricStatus.enrolled));
+    setAppLockBiometricAvailable(biometricAvailable);
+    setAppLockBiometricEnabled(Boolean(configured && biometricEnabled && biometricAvailable));
     setAppLocked(configured ? !options.afterLogin : true);
     setAppLockReady(true);
   }
@@ -108,10 +113,11 @@ export function FieldAppProvider({ children }) {
       return { ok: false, error: "Login is required before setting an app lock" };
     }
     try {
-      await appLockStore.configureLockForUser(user, pin, {
-        biometricEnabled: options.biometricEnabled && appLockBiometricAvailable,
+      const record = await appLockStore.configureLockForUser(user, pin, {
+        biometricEnabled: Boolean(options.biometricEnabled && appLockBiometricAvailable),
       });
       setAppLockConfigured(true);
+      setAppLockBiometricEnabled(Boolean(record.biometric_enabled && appLockBiometricAvailable));
       setAppLocked(false);
       return { ok: true };
     } catch (error) {
@@ -135,6 +141,15 @@ export function FieldAppProvider({ children }) {
     if (result.ok) {
       setAppLocked(false);
       return { ok: true };
+    }
+    if (result.reason === "not_configured") {
+      setAppLockBiometricEnabled(false);
+      return { ok: false, error: "Biometric unlock is not enabled for this app PIN" };
+    }
+    if (result.reason === "unavailable") {
+      setAppLockBiometricAvailable(false);
+      setAppLockBiometricEnabled(false);
+      return { ok: false, error: "Biometric unlock is not available on this device" };
     }
     return { ok: false, error: "Biometric unlock was not completed" };
   }
@@ -171,18 +186,39 @@ export function FieldAppProvider({ children }) {
     try {
       const existingRecord = await appLockStore.readLockRecord();
       const lockUserId = appLockStore.getLockUserId(loginResult.user);
-      await appLockStore.configureLockForUser(loginResult.user, newPin, {
+      const record = await appLockStore.configureLockForUser(loginResult.user, newPin, {
         biometricEnabled: Boolean(
           existingRecord?.user_id === lockUserId && existingRecord.biometric_enabled,
         ),
       });
       setUser(loginResult.user);
       setAppLockConfigured(true);
+      setAppLockBiometricEnabled(Boolean(record.biometric_enabled && appLockBiometricAvailable));
       setAppLocked(false);
       return { ok: true };
     } catch (error) {
       return { ok: false, error: error.message };
     }
+  }
+
+  async function setAppLockBiometricPreference(enabled) {
+    if (!user) return { ok: false, error: "Login is required" };
+    const result = await appLockStore.setBiometricUnlockForUser(user, enabled);
+    if (!result.ok) {
+      if (result.reason === "not_configured") {
+        setAppLockBiometricEnabled(false);
+        return { ok: false, error: "Create an app PIN before enabling biometric unlock" };
+      }
+      if (result.reason === "unavailable") {
+        setAppLockBiometricAvailable(false);
+        setAppLockBiometricEnabled(false);
+        return { ok: false, error: "Biometric unlock is not available on this device" };
+      }
+      return { ok: false, error: "Could not update biometric unlock" };
+    }
+    const nextEnabled = Boolean(result.record?.biometric_enabled && appLockBiometricAvailable);
+    setAppLockBiometricEnabled(nextEnabled);
+    return { ok: true, enabled: nextEnabled };
   }
 
   function clearFormContext() {
@@ -263,11 +299,13 @@ export function FieldAppProvider({ children }) {
       appLocked,
       appLockConfigured,
       appLockBiometricAvailable,
+      appLockBiometricEnabled,
       configureAppLock,
       unlockAppWithPin,
       unlockAppWithBiometrics,
       unlockAppWithPassword,
       changeAppPinWithPassword,
+      setAppLockBiometricPreference,
     }),
     [
       locale,
@@ -286,6 +324,7 @@ export function FieldAppProvider({ children }) {
       appLocked,
       appLockConfigured,
       appLockBiometricAvailable,
+      appLockBiometricEnabled,
     ],
   );
 
