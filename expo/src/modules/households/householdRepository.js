@@ -464,8 +464,23 @@ export async function initializeHouseholdRepository() {
 }
 
 export async function listHouseholds(filters = {}) {
-  const { localityCode, search, limit = 50, offset = 0 } = filters;
+  const {
+    localityCode,
+    localityCodes,
+    search,
+    localitySearch,
+    householdNumber,
+    address,
+    limit = 50,
+    offset = 0
+  } = filters;
   const normalizedSearch = String(search || "").trim().toLowerCase();
+  const normalizedLocalitySearch = String(localitySearch || "").trim().toLowerCase();
+  const normalizedHouseholdNumber = String(householdNumber || "").trim().toLowerCase();
+  const normalizedAddress = String(address || "").trim().toLowerCase();
+  const normalizedLocalityCodes = Array.isArray(localityCodes)
+    ? localityCodes.map((code) => String(code)).filter(Boolean)
+    : [];
   const db = await getDatabase();
   if (db) {
     await initializeSqlite(db);
@@ -474,6 +489,22 @@ export async function listHouseholds(filters = {}) {
     if (localityCode) {
       conditions.push("locality_code = ?");
       params.push(localityCode);
+    }
+    if (normalizedLocalityCodes.length) {
+      conditions.push(`locality_code IN (${normalizedLocalityCodes.map(() => "?").join(", ")})`);
+      params.push(...normalizedLocalityCodes);
+    }
+    if (normalizedLocalitySearch) {
+      conditions.push("LOWER(COALESCE(locality_code, '') || ' ' || COALESCE(locality_name, '')) LIKE ?");
+      params.push(`%${normalizedLocalitySearch}%`);
+    }
+    if (normalizedHouseholdNumber) {
+      conditions.push("LOWER(COALESCE(household_number, '')) LIKE ?");
+      params.push(`%${normalizedHouseholdNumber}%`);
+    }
+    if (normalizedAddress) {
+      conditions.push("LOWER(COALESCE(address, '')) LIKE ?");
+      params.push(`%${normalizedAddress}%`);
     }
     if (normalizedSearch) {
       conditions.push(`LOWER(
@@ -509,6 +540,22 @@ export async function listHouseholds(filters = {}) {
   if (!storage) return [];
   return readStorageArray(storage, HOUSEHOLD_STORAGE_KEY)
     .filter((row) => !localityCode || row.locality_code === localityCode)
+    .filter((row) => !normalizedLocalityCodes.length || normalizedLocalityCodes.includes(String(row.locality_code)))
+    .filter((household) => {
+      if (!normalizedLocalitySearch) return true;
+      return [household.locality_code, household.locality_name]
+        .join(" ")
+        .toLowerCase()
+        .includes(normalizedLocalitySearch);
+    })
+    .filter((household) => {
+      if (!normalizedHouseholdNumber) return true;
+      return String(household.household_number || "").toLowerCase().includes(normalizedHouseholdNumber);
+    })
+    .filter((household) => {
+      if (!normalizedAddress) return true;
+      return String(household.address || "").toLowerCase().includes(normalizedAddress);
+    })
     .filter((household) => {
       if (!normalizedSearch) return true;
       return [
@@ -606,10 +653,23 @@ export async function listLocalities() {
 }
 
 export async function searchHouseholdMembers(filters = {}) {
-  const { localityCode, name, householdNumber, sex, limit = 50, offset = 0 } = filters;
+  const {
+    localityCode,
+    localityCodes,
+    name,
+    householdNumber,
+    address,
+    sex,
+    limit = 50,
+    offset = 0
+  } = filters;
   const normalizedName = String(name || "").trim().toLowerCase();
   const normalizedHouseholdNumber = String(householdNumber || "").trim();
+  const normalizedAddress = String(address || "").trim().toLowerCase();
   const normalizedSex = sex === undefined || sex === null || sex === "" ? "" : String(sex);
+  const normalizedLocalityCodes = Array.isArray(localityCodes)
+    ? localityCodes.map((code) => String(code)).filter(Boolean)
+    : [];
 
   const db = await getDatabase();
   if (db) {
@@ -629,9 +689,17 @@ export async function searchHouseholdMembers(filters = {}) {
       sql += " AND h.locality_code = ?";
       params.push(localityCode);
     }
+    if (normalizedLocalityCodes.length) {
+      sql += ` AND h.locality_code IN (${normalizedLocalityCodes.map(() => "?").join(", ")})`;
+      params.push(...normalizedLocalityCodes);
+    }
     if (normalizedHouseholdNumber) {
       sql += " AND h.household_number = ?";
       params.push(normalizedHouseholdNumber);
+    }
+    if (normalizedAddress) {
+      sql += " AND LOWER(COALESCE(h.address, '')) LIKE ?";
+      params.push(`%${normalizedAddress}%`);
     }
     if (normalizedSex === "other") {
       sql += " AND (m.sex IS NULL OR CAST(m.sex AS TEXT) NOT IN ('1', '2'))";
@@ -650,7 +718,12 @@ export async function searchHouseholdMembers(filters = {}) {
   }
 
   const storage = getStorage();
-  const households = await listHouseholds({ localityCode });
+  const households = await listHouseholds({
+    localityCode,
+    localityCodes: normalizedLocalityCodes,
+    householdNumber: normalizedHouseholdNumber,
+    address: normalizedAddress
+  });
   const householdById = new Map(households.map((household) => [household.household_id, household]));
   const members = storage ? readStorageArray(storage, MEMBER_STORAGE_KEY) : [];
 
@@ -660,6 +733,7 @@ export async function searchHouseholdMembers(filters = {}) {
       const household = row.household;
       if (!household) return false;
       if (normalizedHouseholdNumber && household.household_number !== normalizedHouseholdNumber) return false;
+      if (normalizedAddress && !String(household.address || "").toLowerCase().includes(normalizedAddress)) return false;
       if (normalizedSex === "other" && ["1", "2"].includes(String(row.sex))) return false;
       if (normalizedSex && normalizedSex !== "other" && String(row.sex) !== normalizedSex) return false;
       if (normalizedName && !String(row.member_name || "").toLowerCase().includes(normalizedName)) return false;

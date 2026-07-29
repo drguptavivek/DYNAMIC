@@ -1,10 +1,11 @@
 /**
  * Provides household list, detail, and baseline-household-form routes for the field app.
  */
-import React, { useEffect, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
+import React, { useEffect, useMemo, useState } from "react";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 
 import { formsByCode } from "../../data/formCatalog";
+import { getAssignedLocalities, getAssignedSites } from "../../lib/householdMasterChoices.js";
 import { ROUTES, navigateTo } from "../../navigation/routes";
 import * as syncService from "../sync/syncService.js";
 import { BaselineHouseholdForm } from "./BaselineHouseholdForm.js";
@@ -35,11 +36,12 @@ export function HouseholdModule({
   const { width } = useWindowDimensions();
   const compact = width < 760;
   const [households, setHouseholds] = useState([]);
-  const [search, setSearch] = useState("");
+  const [selectedLocalityCodes, setSelectedLocalityCodes] = useState([]);
+  const [householdNumber, setHouseholdNumber] = useState("");
+  const [addressSearch, setAddressSearch] = useState("");
   const [householdPage, setHouseholdPage] = useState(0);
   const [householdHasNextPage, setHouseholdHasNextPage] = useState(false);
   const [memberName, setMemberName] = useState("");
-  const [memberHouseholdNumber, setMemberHouseholdNumber] = useState("");
   const [memberSex, setMemberSex] = useState("");
   const [memberPage, setMemberPage] = useState(0);
   const [memberHasNextPage, setMemberHasNextPage] = useState(false);
@@ -52,12 +54,22 @@ export function HouseholdModule({
   const [syncProgress, setSyncProgress] = useState(null);
   const hhqForm = formsByCode[HHQ_CODE];
   const showForm = mode === "new";
+  const assignedLocalities = useMemo(() => {
+    const assignedSites = getAssignedSites(user);
+    const selectedSiteId = assignedSites.length === 1 ? assignedSites[0].value : null;
+    return getAssignedLocalities(user, localities, selectedSiteId).map((choice) => ({
+      locality_code: choice.value,
+      locality_name: choice.text?.default || choice.value
+    }));
+  }, [user, localities]);
 
   const refreshHouseholds = async () => {
     await initializeHouseholdRepository();
     const rows = await listHouseholds({
       localityCode: selectedLocalityCode,
-      search,
+      localityCodes: selectedLocalityCodes,
+      householdNumber,
+      address: addressSearch,
       limit: PAGE_SIZE + 1,
       offset: householdPage * PAGE_SIZE
     });
@@ -67,20 +79,25 @@ export function HouseholdModule({
 
   useEffect(() => {
     refreshHouseholds();
-  }, [selectedLocalityCode, search, householdPage]);
+  }, [selectedLocalityCode, selectedLocalityCodes, householdNumber, addressSearch, householdPage]);
 
   useEffect(() => {
     setHouseholdPage(0);
-  }, [selectedLocalityCode, search]);
+  }, [selectedLocalityCode, selectedLocalityCodes, householdNumber, addressSearch]);
 
   useEffect(() => {
     setMemberPage(0);
-  }, [selectedLocalityCode, memberName, memberHouseholdNumber, memberSex]);
+  }, [selectedLocalityCode, memberName, memberSex]);
+
+  useEffect(() => {
+    const allowedCodes = new Set(assignedLocalities.map((locality) => String(locality.locality_code)));
+    setSelectedLocalityCodes((current) => current.filter((code) => allowedCodes.has(String(code))));
+  }, [assignedLocalities]);
 
   useEffect(() => {
     let active = true;
     const hasMemberSearch =
-      memberName.trim() || memberHouseholdNumber.trim() || memberSex;
+      memberName.trim() || memberSex;
 
     async function runMemberSearch() {
       if (!hasMemberSearch) {
@@ -90,8 +107,10 @@ export function HouseholdModule({
       }
       const rows = await searchHouseholdMembers({
         localityCode: selectedLocalityCode,
+        localityCodes: selectedLocalityCodes,
         name: memberName,
-        householdNumber: memberHouseholdNumber,
+        householdNumber,
+        address: addressSearch,
         sex: memberSex,
         limit: MEMBER_SEARCH_PAGE_SIZE + 1,
         offset: memberPage * MEMBER_SEARCH_PAGE_SIZE
@@ -106,7 +125,17 @@ export function HouseholdModule({
     return () => {
       active = false;
     };
-  }, [selectedLocalityCode, memberName, memberHouseholdNumber, memberSex, memberPage]);
+  }, [selectedLocalityCode, selectedLocalityCodes, householdNumber, addressSearch, memberName, memberSex, memberPage]);
+
+  function toggleLocalityFilter(localityCode) {
+    setSelectedLocalityCodes((current) => {
+      const code = String(localityCode || "");
+      if (!code) return [];
+      return current.includes(code)
+        ? current.filter((value) => value !== code)
+        : [...current, code];
+    });
+  }
 
   async function openHouseholdPanel(memberOrHousehold) {
     const householdId = memberOrHousehold.household_id;
@@ -202,51 +231,33 @@ export function HouseholdModule({
       </View>
 
       <View style={styles.panel}>
-          <TextInput
-            value={search}
-            onChangeText={setSearch}
-            placeholder="Search by HH ID, hamlet, structure, address, or head"
-            style={styles.search}
+        <View style={[styles.filterRow, compact && styles.filterRowCompact]}>
+          <LocalityFilterDropdown
+            localities={assignedLocalities}
+            selectedCodes={selectedLocalityCodes}
+            onToggle={toggleLocalityFilter}
+            onClear={() => setSelectedLocalityCodes([])}
+            compact={compact}
           />
-        <View style={styles.memberFilters}>
+          <TextInput
+            value={householdNumber}
+            onChangeText={setHouseholdNumber}
+            placeholder="HH No"
+            style={[styles.search, styles.householdNumberFilterInput]}
+          />
+          <TextInput
+            value={addressSearch}
+            onChangeText={setAddressSearch}
+            placeholder="Addr"
+            style={[styles.search, styles.addressFilterInput]}
+          />
           <TextInput
             value={memberName}
             onChangeText={setMemberName}
-            placeholder="Member name"
-            style={[styles.search, styles.memberFilterInput]}
+            placeholder="Name"
+            style={[styles.search, styles.memberNameFilterInput]}
           />
-          <TextInput
-            value={memberHouseholdNumber}
-            onChangeText={setMemberHouseholdNumber}
-            placeholder="HH number"
-            style={[styles.search, styles.hhNumberInput]}
-          />
-          <View style={styles.sexFilterGroup}>
-            {[
-              ["", "Any sex"],
-              ["1", "Male"],
-              ["2", "Female"],
-              ["other", "Other"]
-            ].map(([value, label]) => (
-              <Pressable
-                key={value || "any"}
-                onPress={() => setMemberSex(value)}
-                style={[
-                  styles.sexFilterButton,
-                  memberSex === value && styles.sexFilterButtonActive
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.sexFilterButtonText,
-                    memberSex === value && styles.sexFilterButtonTextActive
-                  ]}
-                >
-                  {label}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
+          <SexFilterDropdown value={memberSex} onChange={setMemberSex} compact={compact} />
         </View>
         {syncProgress ? <SyncProgressPanel progress={syncProgress} /> : null}
         {saveMessage ? <Text style={styles.saveMessage}>{saveMessage}</Text> : null}
@@ -363,6 +374,150 @@ function SyncProgressPanel({ progress }) {
       </View>
       {progress.hasNextBatch ? (
         <Text style={styles.syncProgressHint}>Next batch will start automatically.</Text>
+      ) : null}
+    </View>
+  );
+}
+
+function LocalityFilterDropdown({ localities = [], selectedCodes = [], onToggle, onClear, compact }) {
+  const [open, setOpen] = useState(false);
+  const selectedSet = new Set(selectedCodes.map((code) => String(code)));
+  const selectedLabel =
+    selectedCodes.length === 0
+      ? "Locality"
+      : selectedCodes.length === 1
+        ? localities.find((locality) => String(locality.locality_code) === selectedCodes[0])?.locality_name ||
+          selectedCodes[0]
+        : `${selectedCodes.length} localities`;
+
+  return (
+    <View style={[styles.localityDropdownWrap, compact && styles.localityDropdownWrapCompact]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Locality filter"
+        onPress={() => setOpen((current) => !current)}
+        style={[styles.dropdownButton, open && styles.dropdownButtonActive]}
+      >
+        <Text
+          style={[styles.dropdownButtonText, selectedCodes.length === 0 && styles.dropdownPlaceholderText]}
+          numberOfLines={1}
+        >
+          {selectedLabel}
+        </Text>
+        <View style={[styles.dropdownChevronIcon, open && styles.dropdownChevronIconOpen]} />
+      </Pressable>
+      {open ? (
+        <>
+          <Pressable
+            accessibilityLabel="Close locality filter"
+            onPress={() => setOpen(false)}
+            style={styles.dropdownDismissLayer}
+          />
+          <View style={styles.localityDropdownMenu}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={onClear}
+              style={[styles.dropdownOption, selectedCodes.length === 0 && styles.dropdownOptionActive]}
+            >
+              <Text
+                style={[
+                  styles.dropdownOptionText,
+                  selectedCodes.length === 0 && styles.dropdownOptionTextActive
+                ]}
+              >
+                All localities
+              </Text>
+            </Pressable>
+            <ScrollView style={styles.localityDropdownList}>
+              {localities.length ? (
+                localities.map((locality) => {
+                  const code = String(locality.locality_code || "");
+                  const selected = selectedSet.has(code);
+                  return (
+                    <Pressable
+                      key={code}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: selected }}
+                      onPress={() => onToggle(code)}
+                      style={[styles.localityDropdownOption, selected && styles.dropdownOptionActive]}
+                    >
+                      <Text style={[styles.checkboxMark, selected && styles.checkboxMarkActive]}>
+                        {selected ? "[x]" : "[ ]"}
+                      </Text>
+                      <Text
+                        style={[styles.dropdownOptionText, selected && styles.dropdownOptionTextActive]}
+                        numberOfLines={1}
+                      >
+                        {locality.locality_name || code}
+                      </Text>
+                    </Pressable>
+                  );
+                })
+              ) : (
+                <Text style={styles.emptyDropdownText}>No localities synced</Text>
+              )}
+            </ScrollView>
+          </View>
+        </>
+      ) : null}
+    </View>
+  );
+}
+
+function SexFilterDropdown({ value, onChange, compact }) {
+  const [open, setOpen] = useState(false);
+  const options = [
+    ["", "Sex"],
+    ["1", "Male"],
+    ["2", "Female"],
+    ["other", "Other"]
+  ];
+  const selectedLabel = options.find(([optionValue]) => optionValue === value)?.[1] || "Sex";
+
+  function selectSex(optionValue) {
+    onChange(optionValue);
+    setOpen(false);
+  }
+
+  return (
+    <View style={[styles.dropdownWrap, compact && styles.compactFilterInput]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Sex filter"
+        onPress={() => setOpen((current) => !current)}
+        style={[styles.dropdownButton, open && styles.dropdownButtonActive]}
+      >
+        <Text style={[styles.dropdownButtonText, !value && styles.dropdownPlaceholderText]}>
+          {selectedLabel}
+        </Text>
+        <View style={[styles.dropdownChevronIcon, open && styles.dropdownChevronIconOpen]} />
+      </Pressable>
+      {open ? (
+        <>
+          <Pressable
+            accessibilityLabel="Close sex filter"
+            onPress={() => setOpen(false)}
+            style={styles.dropdownDismissLayer}
+          />
+          <View style={styles.dropdownMenu}>
+            {options.map(([optionValue, label]) => {
+              const selected = optionValue === value;
+              return (
+                <Pressable
+                  key={optionValue || "any"}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  onPress={() => selectSex(optionValue)}
+                  style={[styles.dropdownOption, selected && styles.dropdownOptionActive]}
+                >
+                  <Text style={[styles.dropdownOptionText, selected && styles.dropdownOptionTextActive]}>
+                    {label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </>
       ) : null}
     </View>
   );
@@ -560,20 +715,22 @@ const styles = StyleSheet.create({
     color: "#667085"
   },
   panel: {
-    gap: 8,
-    padding: 14,
+    gap: 6,
+    padding: 12,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: "#d8dee4",
-    backgroundColor: "#ffffff"
+    backgroundColor: "#ffffff",
+    position: "relative",
+    zIndex: 50
   },
   search: {
-    minHeight: 42,
+    minHeight: 38,
     borderWidth: 1,
     borderColor: "#d8dee4",
     borderRadius: 6,
-    paddingHorizontal: 12,
-    fontSize: 14,
+    paddingHorizontal: 10,
+    fontSize: 13,
     backgroundColor: "#ffffff"
   },
   saveMessage: {
@@ -621,52 +778,182 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#667085"
   },
-  memberFilters: {
-    flexDirection: "row",
-    alignItems: "center",
-    flexWrap: "wrap",
-    gap: 8
-  },
-  memberFilterInput: {
-    flex: 1,
-    minWidth: 180
-  },
-  hhNumberInput: {
-    width: 120
-  },
-  sexFilterGroup: {
+  filterRow: {
     flexDirection: "row",
     alignItems: "center",
     flexWrap: "wrap",
     gap: 6
   },
-  sexFilterButton: {
+  filterRowCompact: {
+    alignItems: "center"
+  },
+  localityDropdownWrap: {
+    width: 92,
+    maxWidth: "100%",
     minHeight: 38,
+    position: "relative",
+    zIndex: 40
+  },
+  localityDropdownWrapCompact: {
+    width: 92
+  },
+  householdNumberFilterInput: {
+    width: 72,
+    maxWidth: "100%"
+  },
+  addressFilterInput: {
+    width: 66,
+    maxWidth: "100%"
+  },
+  memberNameFilterInput: {
+    width: 78,
+    maxWidth: "100%"
+  },
+  dropdownWrap: {
+    width: 76,
+    maxWidth: "100%",
+    minHeight: 38,
+    position: "relative",
+    zIndex: 20
+  },
+  compactFilterInput: {
+    width: 76
+  },
+  dropdownButton: {
+    minHeight: 38,
+    flexDirection: "row",
+    alignItems: "center",
     justifyContent: "center",
+    gap: 6,
     paddingHorizontal: 10,
     borderRadius: 6,
     borderWidth: 1,
     borderColor: "#d8dee4",
     backgroundColor: "#ffffff"
   },
-  sexFilterButtonActive: {
+  dropdownButtonActive: {
     borderColor: "#1f6feb",
+    backgroundColor: "#f8fafc"
+  },
+  dropdownButtonText: {
+    flex: 1,
+    fontSize: 13,
+    color: "#18202a",
+    fontWeight: "800"
+  },
+  dropdownPlaceholderText: {
+    color: "#475467",
+    fontWeight: "700"
+  },
+  dropdownChevronIcon: {
+    width: 9,
+    height: 9,
+    borderRightWidth: 2,
+    borderBottomWidth: 2,
+    borderColor: "#667085",
+    transform: [{ rotate: "45deg" }],
+    marginBottom: 4
+  },
+  dropdownChevronIconOpen: {
+    transform: [{ rotate: "225deg" }],
+    marginTop: 4,
+    marginBottom: 0
+  },
+  dropdownMenu: {
+    position: "absolute",
+    top: 42,
+    left: 0,
+    right: 0,
+    zIndex: 30,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#d8dee4",
+    backgroundColor: "#ffffff",
+    overflow: "hidden"
+  },
+  localityDropdownMenu: {
+    position: "absolute",
+    top: 42,
+    left: 0,
+    width: 260,
+    zIndex: 60,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#d8dee4",
+    backgroundColor: "#ffffff",
+    overflow: "hidden"
+  },
+  dropdownDismissLayer: {
+    ...(Platform.OS === "web"
+      ? {
+          position: "fixed",
+          top: 0,
+          right: 0,
+          bottom: 0,
+          left: 0
+        }
+      : {
+          position: "absolute",
+          top: -1000,
+          right: -1000,
+          bottom: -1000,
+          left: -1000
+        }),
+    zIndex: 55
+  },
+  localityDropdownList: {
+    maxHeight: 190
+  },
+  dropdownOption: {
+    minHeight: 36,
+    justifyContent: "center",
+    paddingHorizontal: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#eef2f5"
+  },
+  dropdownOptionActive: {
     backgroundColor: "#eef6ff"
   },
-  sexFilterButtonText: {
+  dropdownOptionText: {
     fontSize: 13,
     color: "#475467",
     fontWeight: "700"
   },
-  sexFilterButtonTextActive: {
+  dropdownOptionTextActive: {
     color: "#1f6feb"
+  },
+  localityDropdownOption: {
+    minHeight: 36,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#eef2f5"
+  },
+  checkboxMark: {
+    width: 28,
+    fontSize: 12,
+    color: "#667085",
+    fontWeight: "800",
+    fontVariant: ["tabular-nums"]
+  },
+  checkboxMarkActive: {
+    color: "#1f6feb"
+  },
+  emptyDropdownText: {
+    padding: 12,
+    fontSize: 13,
+    color: "#667085",
+    fontWeight: "700"
   },
   memberResults: {
     borderRadius: 8,
     borderWidth: 1,
     borderColor: "#d8dee4",
     backgroundColor: "#ffffff",
-    overflow: "hidden"
+    overflow: "hidden",
+    zIndex: 1
   },
   memberResultRows: {
     maxHeight: 360
@@ -723,7 +1010,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#d8dee4",
     backgroundColor: "#ffffff",
-    overflow: "hidden"
+    overflow: "hidden",
+    zIndex: 1
   },
   rows: {
     maxHeight: 280

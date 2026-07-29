@@ -26,6 +26,9 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 
 ### Changed
 
+- Reworked the field-app Household page filters into a compact row with locality checkbox multi-select plus household number, address, member name, and sex filters.
+- Scoped the Household page locality checkbox filter to the logged-in user's active locality assignments.
+- Kept the Household page dropdowns from resizing the search panel, added outside-click dismissal for locality and sex selectors, and tightened closed filter widths.
 - Upgraded the Expo application to SDK 57.0.8 with React 19.2.3, React Native 0.86.0, `@expo/ui` 57.0.7, Reanimated 4.5.3, and Worklets 0.10.3.
 - Standardized dependency installation on npm 11.14.1 and regenerated the npm lockfile without local native-library workarounds.
 - Upgraded API Drizzle ORM to 0.45.2 and pinned the Admin React Router dependency to the audited 6.30.4 build path.
