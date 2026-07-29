@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "expo-router";
 import { AppState } from "react-native";
 
@@ -21,6 +21,7 @@ export function FieldAppProvider({ children }) {
   const [taskDbReady, setTaskDbReady] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
   const [showTaskModal, setShowTaskModal] = useState(false);
+  const openTaskIdRef = useRef(null);
   const [taskWorklistRevision, setTaskWorklistRevision] = useState(0);
   const [currentTaskContext, setCurrentTaskContext] = useState(null);
   const [prefillData, setPrefillData] = useState(null);
@@ -230,7 +231,9 @@ export function FieldAppProvider({ children }) {
 
   function openTask(task) {
     if (!task) return;
-    if (showTaskModal && selectedTask?.id === task.id) return;
+    const taskId = task.id || task.task_id || task.task_key;
+    if (openTaskIdRef.current) return;
+    openTaskIdRef.current = taskId || "open";
     setSelectedTask(task);
     setShowTaskModal(true);
   }
@@ -238,6 +241,7 @@ export function FieldAppProvider({ children }) {
   function closeTaskModal() {
     setShowTaskModal(false);
     setSelectedTask(null);
+    openTaskIdRef.current = null;
   }
 
   function notifyTaskWorklistChanged() {

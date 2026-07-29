@@ -20,6 +20,9 @@ const offlineDatabaseSource = fs.readFileSync(
 
 assert.doesNotMatch(householdRepositorySource, /openDatabase(?:Async|Sync)/);
 assert.doesNotMatch(taskSchemaSource, /openDatabase(?:Async|Sync)/);
+assert.doesNotMatch(offlineDatabaseSource, /import \* as SQLite from "expo-sqlite"/);
+assert.doesNotMatch(offlineDatabaseSource, /return require\("expo-sqlite"\)/);
+assert.match(offlineDatabaseSource, /nativeRequire\("expo-sqlite"\)/);
 assert.match(offlineDatabaseSource, /SQLite\.openDatabaseSync\(DATABASE_NAME\)/);
 
 const {

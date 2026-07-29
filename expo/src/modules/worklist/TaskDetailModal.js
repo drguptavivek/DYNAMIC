@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   Alert,
@@ -131,10 +132,8 @@ export function TaskDetailModal({ visible, task, onClose, onOpenForm, onTaskChan
   const subjectLabel =
     task.subject_type === "household" ? task.household_id : task.subject_name || task.subject_id;
 
-  return (
-    <Modal visible={visible} animationType="slide" transparent={true} onRequestClose={onClose}>
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
+  const modalContent = (
+    <View style={styles.modalContent}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>{task.task_type}</Text>
             <Pressable onPress={onClose} style={styles.closeButton}>
@@ -373,12 +372,43 @@ export function TaskDetailModal({ visible, task, onClose, onOpenForm, onTaskChan
             )}
           </ScrollView>
         </View>
+  );
+
+  if (Platform.OS === "web") {
+    if (!visible) return null;
+    return (
+      <View style={styles.webModalLayer}>
+        <Pressable style={styles.webBackdrop} onPress={onClose} />
+        {modalContent}
       </View>
+    );
+  }
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent={true} onRequestClose={onClose}>
+      <View style={styles.modalOverlay}>{modalContent}</View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  webModalLayer: {
+    position: "fixed",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    zIndex: 1000,
+    justifyContent: "flex-end",
+  },
+  webBackdrop: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    backgroundColor: "rgba(15, 23, 42, 0.12)",
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.38)",

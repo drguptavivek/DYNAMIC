@@ -44,7 +44,9 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 ### Fixed
 
 - Added Expo Metro workspace package resolution so Android embedded-bundle builds can resolve shared monorepo packages from the short Windows build path.
-- Prevented the field-app worklist task detail modal from stacking on repeated taps and kept the seeded HHQ task identity aligned with the 2-digit locality code.
+- Added Expo Metro WASM asset resolution so the field-app web preview can bundle the `expo-sqlite` web worker.
+- Routed the field-app web preview through the localStorage SQLite shim so Chrome does not crash on `SharedArrayBuffer` startup.
+- Prevented the field-app worklist task detail modal from stacking on repeated taps, softened the web backdrop so it no longer blacks out the page, and kept the seeded HHQ task identity aligned with the 2-digit locality code.
 - Made post-login app-lock biometric unlock use the saved per-user biometric preference and added a Profile control to enable or disable it.
 - Kept the Household members slideout inside the Android phone width and allowed the Household toolbar actions to wrap on compact screens.
 - Prevented HHQ roster calculations from recreating a hidden or deleted minimum household-member placeholder after declined consent or final-row deletion.

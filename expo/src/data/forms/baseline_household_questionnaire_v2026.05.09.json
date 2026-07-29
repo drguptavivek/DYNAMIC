@@ -42,7 +42,7 @@
           "type": "radiogroup",
           "name": "hhq_site_id",
           "title": {
-            "default": "What is the site of residence?",
+            "default": "What is the site of study?",
             "hi": "",
             "kn": "",
             "mr": "",
@@ -57,7 +57,7 @@
           "renderingHint": {
             "render_as": "radio"
           },
-          "rawText": "What is the site of residence? 1 Bareilley 2 Ballabgarh 3 Belgavi 4 Chennai",
+          "rawText": "What is the site of study? 1 Bareilley 2 Ballabgarh 3 Belgavi 4 Ayapakkam",
           "choices": [
             {
               "value": 1,
@@ -98,8 +98,8 @@
             {
               "value": 4,
               "text": {
-                "default": "Chennai",
-                "hi": "चेन्नई",
+                "default": "Ayapakkam",
+                "hi": "अयपक्कम",
                 "kn": "",
                 "mr": "",
                 "ta": "",
