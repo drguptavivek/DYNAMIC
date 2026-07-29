@@ -24,6 +24,7 @@ test("central admin can manage masters and mapping-frame records", async () => {
   const uniqueSuffix = randomInt(100000, 999999);
   const siteId = 1000000000 + uniqueSuffix;
   const localityCode = `T${String(uniqueSuffix).padStart(5, "0")}`;
+  const renamedLocalityCode = `R${String(uniqueSuffix).padStart(5, "0")}`;
 
   try {
     const address = server.address();
@@ -47,6 +48,18 @@ test("central admin can manage masters and mapping-frame records", async () => {
       }),
     });
     assert.equal(site.site_id, siteId);
+
+    const updatedSite = await fetchData(`${baseUrl}/masters/sites/${siteId}`, {
+      method: "PATCH",
+      headers: { Authorization: authorization },
+      body: JSON.stringify({
+        site_code: `${siteCode}U`,
+        site_name: "Updated API Integration Site",
+      }),
+    });
+    assert.equal(updatedSite.site_id, siteId);
+    assert.equal(updatedSite.site_code, `${siteCode}U`);
+    assert.equal(updatedSite.site_name, "Updated API Integration Site");
 
     const duplicateSite = await fetchJson(`${baseUrl}/masters/sites`, {
       method: "POST",
@@ -72,20 +85,36 @@ test("central admin can manage masters and mapping-frame records", async () => {
     });
     assert.equal(locality.locality_code, localityCode);
 
+    const updatedLocality = await fetchData(
+      `${baseUrl}/masters/localities/${siteId}/${encodeURIComponent(localityCode)}`,
+      {
+        method: "PATCH",
+        headers: { Authorization: authorization },
+        body: JSON.stringify({
+          locality_code: renamedLocalityCode,
+          locality_name: "Updated API Integration Locality",
+          locality_type: "rural",
+        }),
+      },
+    );
+    assert.equal(updatedLocality.locality_code, renamedLocalityCode);
+    assert.equal(updatedLocality.locality_name, "Updated API Integration Locality");
+    assert.equal(updatedLocality.locality_type, "rural");
+
     const listedLocalities = await fetchData(
       `${baseUrl}/masters/localities?site_id=${siteId}`,
       { headers: { Authorization: authorization } },
     );
     assert.equal(listedLocalities.length, 1);
-    assert.equal(listedLocalities[0].locality_code, localityCode);
+    assert.equal(listedLocalities[0].locality_code, renamedLocalityCode);
 
     const mappingRecord = {
       site_id: siteId,
-      locality_code: localityCode,
+      locality_code: renamedLocalityCode,
       structure_map_id: "0201",
       household_number: "01",
     };
-    const householdId = `${siteId}-${localityCode}-0201-01`;
+    const householdId = `${siteId}-${renamedLocalityCode}-0201-01`;
 
     const mappingFrame = await fetchData(`${baseUrl}/masters/mapping-frame`, {
       method: "POST",
@@ -132,13 +161,13 @@ test("central admin can manage masters and mapping-frame records", async () => {
         records: [
           {
             site_id: siteId,
-            locality_code: localityCode,
+            locality_code: renamedLocalityCode,
             structure_map_id: "0202",
             household_number: "01",
           },
           {
             site_id: siteId,
-            locality_code: localityCode,
+            locality_code: renamedLocalityCode,
             structure_map_id: "0202",
             household_number: "02",
           },
@@ -149,7 +178,7 @@ test("central admin can manage masters and mapping-frame records", async () => {
     assert.equal(bulk.skipped, 0);
 
     const listedMappingFrame = await fetchData(
-      `${baseUrl}/masters/mapping-frame?site_id=${siteId}&locality_code=${localityCode}&per_page=10`,
+      `${baseUrl}/masters/mapping-frame?site_id=${siteId}&locality_code=${renamedLocalityCode}&per_page=10`,
       { headers: { Authorization: authorization } },
     );
     assert.equal(listedMappingFrame.length, 3);

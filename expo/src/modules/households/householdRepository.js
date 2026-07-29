@@ -59,9 +59,9 @@ export function clearHouseholdCacheForSync() {
 
 const SEED_HOUSEHOLDS = [
   {
-    household_id: "1-101-0234-01",
+    household_id: "1-01-0234-01",
     site_id: 1,
-    locality_code: "101",
+    locality_code: "01",
     locality_name: "Sunped",
     structure_number: "0234",
     household_number: "01",
@@ -76,8 +76,8 @@ const SEED_HOUSEHOLDS = [
     updated_at: "2026-09-01T00:00:00.000Z",
     members: [
       {
-        individual_id: "1-101-0234-01-01",
-        household_id: "1-101-0234-01",
+        individual_id: "1-01-0234-01-01",
+        household_id: "1-01-0234-01",
         line_number: 1,
         member_name: "Ramesh Kumar",
         relationship_to_head: 1,
@@ -89,8 +89,8 @@ const SEED_HOUSEHOLDS = [
         updated_at: "2026-09-01T00:00:00.000Z"
       },
       {
-        individual_id: "1-101-0234-01-02",
-        household_id: "1-101-0234-01",
+        individual_id: "1-01-0234-01-02",
+        household_id: "1-01-0234-01",
         line_number: 2,
         member_name: "Sita Devi",
         relationship_to_head: 2,
@@ -102,8 +102,8 @@ const SEED_HOUSEHOLDS = [
         updated_at: "2026-09-01T00:00:00.000Z"
       },
       {
-        individual_id: "1-101-0234-01-03",
-        household_id: "1-101-0234-01",
+        individual_id: "1-01-0234-01-03",
+        household_id: "1-01-0234-01",
         line_number: 3,
         member_name: "Amit Kumar",
         relationship_to_head: 4,
@@ -117,9 +117,9 @@ const SEED_HOUSEHOLDS = [
     ]
   },
   {
-    household_id: "2-204-1180-01",
+    household_id: "2-02-1180-01",
     site_id: 2,
-    locality_code: "204",
+    locality_code: "02",
     locality_name: "Sagarpur",
     structure_number: "1180",
     household_number: "01",
@@ -134,8 +134,8 @@ const SEED_HOUSEHOLDS = [
     updated_at: "2026-09-01T00:00:00.000Z",
     members: [
       {
-        individual_id: "2-204-1180-01-01",
-        household_id: "2-204-1180-01",
+        individual_id: "2-02-1180-01-01",
+        household_id: "2-02-1180-01",
         line_number: 1,
         member_name: "Sunita Devi",
         relationship_to_head: 1,
@@ -147,8 +147,8 @@ const SEED_HOUSEHOLDS = [
         updated_at: "2026-09-01T00:00:00.000Z"
       },
       {
-        individual_id: "2-204-1180-01-02",
-        household_id: "2-204-1180-01",
+        individual_id: "2-02-1180-01-02",
+        household_id: "2-02-1180-01",
         line_number: 2,
         member_name: "Mohan Lal",
         relationship_to_head: 2,
@@ -160,8 +160,8 @@ const SEED_HOUSEHOLDS = [
         updated_at: "2026-09-01T00:00:00.000Z"
       },
       {
-        individual_id: "2-204-1180-01-03",
-        household_id: "2-204-1180-01",
+        individual_id: "2-02-1180-01-03",
+        household_id: "2-02-1180-01",
         line_number: 3,
         member_name: "Pooja",
         relationship_to_head: 4,
@@ -175,9 +175,9 @@ const SEED_HOUSEHOLDS = [
     ]
   },
   {
-    household_id: "1-102-0310-01",
+    household_id: "1-02-0310-01",
     site_id: 1,
-    locality_code: "102",
+    locality_code: "02",
     locality_name: "Chhainsa",
     structure_number: "0310",
     household_number: "01",
@@ -192,8 +192,8 @@ const SEED_HOUSEHOLDS = [
     updated_at: "2026-09-02T00:00:00.000Z",
     members: [
       {
-        individual_id: "1-102-0310-01-01",
-        household_id: "1-102-0310-01",
+        individual_id: "1-02-0310-01-01",
+        household_id: "1-02-0310-01",
         line_number: 1,
         member_name: "Kavita Sharma",
         relationship_to_head: 1,
@@ -205,8 +205,8 @@ const SEED_HOUSEHOLDS = [
         updated_at: "2026-09-02T00:00:00.000Z"
       },
       {
-        individual_id: "1-102-0310-01-02",
-        household_id: "1-102-0310-01",
+        individual_id: "1-02-0310-01-02",
+        household_id: "1-02-0310-01",
         line_number: 2,
         member_name: "Deepak Sharma",
         relationship_to_head: 2,
@@ -218,8 +218,8 @@ const SEED_HOUSEHOLDS = [
         updated_at: "2026-09-02T00:00:00.000Z"
       },
       {
-        individual_id: "1-102-0310-01-03",
-        household_id: "1-102-0310-01",
+        individual_id: "1-02-0310-01-03",
+        household_id: "1-02-0310-01",
         line_number: 3,
         member_name: "Neha Sharma",
         relationship_to_head: 4,
@@ -233,9 +233,9 @@ const SEED_HOUSEHOLDS = [
     ]
   },
   {
-    household_id: "2-205-1245-02",
+    household_id: "2-05-1245-02",
     site_id: 2,
-    locality_code: "205",
+    locality_code: "05",
     locality_name: "Ajronda",
     structure_number: "1245",
     household_number: "02",
@@ -250,8 +250,8 @@ const SEED_HOUSEHOLDS = [
     updated_at: "2026-09-02T00:00:00.000Z",
     members: [
       {
-        individual_id: "2-205-1245-02-01",
-        household_id: "2-205-1245-02",
+        individual_id: "2-05-1245-02-01",
+        household_id: "2-05-1245-02",
         line_number: 1,
         member_name: "Farida Begum",
         relationship_to_head: 1,
@@ -263,8 +263,8 @@ const SEED_HOUSEHOLDS = [
         updated_at: "2026-09-02T00:00:00.000Z"
       },
       {
-        individual_id: "2-205-1245-02-02",
-        household_id: "2-205-1245-02",
+        individual_id: "2-05-1245-02-02",
+        household_id: "2-05-1245-02",
         line_number: 2,
         member_name: "Imran Khan",
         relationship_to_head: 2,
@@ -276,8 +276,8 @@ const SEED_HOUSEHOLDS = [
         updated_at: "2026-09-02T00:00:00.000Z"
       },
       {
-        individual_id: "2-205-1245-02-03",
-        household_id: "2-205-1245-02",
+        individual_id: "2-05-1245-02-03",
+        household_id: "2-05-1245-02",
         line_number: 3,
         member_name: "Saba Khan",
         relationship_to_head: 4,

@@ -20,9 +20,14 @@ export function buildHhqHouseholdId(answers: HhqAnswers): string {
     return "";
   }
 
+  const normalizedLocalityCode = normalizeIdPart(localityCode, "00", 2);
+  if (!/^[0-9]{2}$/.test(normalizedLocalityCode)) {
+    return "";
+  }
+
   return [
     normalizeIdPart(siteId, "0"),
-    normalizeIdPart(localityCode, "00", 2),
+    normalizedLocalityCode,
     normalizeIdPart(structureMapId, "0000", 4),
     normalizeIdPart(householdNumber, "00", 2),
   ].join("-");
@@ -80,7 +85,14 @@ export function buildHhqHouseholdPromotionValues(
       ? String(answers.hhq_household_number)
       : parsed.household_number;
 
-  if (!householdId || siteId === undefined || !localityCode || !structureMapId || !householdNumber) {
+  if (
+    !householdId ||
+    siteId === undefined ||
+    !localityCode ||
+    !/^[0-9]{2}$/.test(localityCode) ||
+    !structureMapId ||
+    !householdNumber
+  ) {
     throw new Error("Missing HHQ household identity fields");
   }
 

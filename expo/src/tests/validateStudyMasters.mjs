@@ -11,7 +11,7 @@ assert.equal(STUDY_SITES.length, 4);
 assert.equal(getStudySiteName(1), "Bareilly");
 assert.equal(getStudySiteName(2), "Ballabgarh");
 assert.equal(listStudyVillages(2).length, 4);
-assert.equal(getStudyVillageName(2, "101"), "Sunped");
-assert.equal(getStudyVillageName(2, "204"), "Sagarpur");
+assert.equal(getStudyVillageName(2, "01"), "Sunped");
+assert.equal(getStudyVillageName(2, "02"), "Sagarpur");
 
 console.log("Validated study site and village masters.");

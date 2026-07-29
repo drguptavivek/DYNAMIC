@@ -128,6 +128,8 @@ export function TaskDetailModal({ visible, task, onClose, onOpenForm, onTaskChan
   const openBlockReason = getTaskOpenBlockReason(task);
   const isDisabled = Boolean(openBlockReason);
   const canOpenForm = openBlockReason === null;
+  const subjectLabel =
+    task.subject_type === "household" ? task.household_id : task.subject_name || task.subject_id;
 
   return (
     <Modal visible={visible} animationType="slide" transparent={true} onRequestClose={onClose}>
@@ -144,7 +146,7 @@ export function TaskDetailModal({ visible, task, onClose, onOpenForm, onTaskChan
             <View style={styles.section}>
               <View style={styles.infoRow}>
                 <Text style={styles.label}>Subject:</Text>
-                <Text style={styles.value}>{task.subject_name || task.subject_id}</Text>
+                <Text style={styles.value}>{subjectLabel}</Text>
               </View>
 
               <View style={styles.infoRow}>
@@ -379,7 +381,7 @@ export function TaskDetailModal({ visible, task, onClose, onOpenForm, onTaskChan
 const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    backgroundColor: "rgba(0, 0, 0, 0.38)",
     justifyContent: "flex-end",
   },
   modalContent: {

@@ -27,14 +27,14 @@ const context = {
   formVersion: "9 MAY 2026",
   taskId: "task-hhq-1",
   subjectType: "household",
-  subjectId: "1-101-0001-01",
+  subjectId: "1-01-0001-01",
   deviceId: "device-1",
   userId: "fdc-1",
 };
 
 assert.equal(
   buildDraftKey(context),
-  "HHQ|9 MAY 2026|task-hhq-1|household|1-101-0001-01|device-1|fdc-1",
+  "HHQ|9 MAY 2026|task-hhq-1|household|1-01-0001-01|device-1|fdc-1",
 );
 
 const firstDraft = await saveQuestionnaireDraft({

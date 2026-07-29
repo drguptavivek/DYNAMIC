@@ -59,7 +59,7 @@ export async function upsertDevSeed() {
     .insert(schema.studyLocalities)
     .values({
       site_id: 1,
-      locality_code: "DEV001",
+      locality_code: "01",
       locality_name: "Development Locality",
       locality_type: "urban",
     })
@@ -74,12 +74,12 @@ export async function upsertDevSeed() {
   await db
     .insert(schema.mappingFrame)
     .values({
-      household_id: "1-DEV001-0001-01",
+      household_id: "1-01-0001-01",
       site_id: 1,
-      locality_code: "DEV001",
+      locality_code: "01",
       structure_map_id: "0001",
       household_number: "01",
-      structure_id: "1-DEV001-0001",
+      structure_id: "1-01-0001",
       mapping_status: "enrolled",
       baseline_enrollment_status: "completed",
     })
@@ -258,9 +258,9 @@ export async function upsertDevSeed() {
   await db
     .insert(schema.households)
     .values({
-      household_id: "1-DEV001-0001-01",
+      household_id: "1-01-0001-01",
       site_id: 1,
-      locality_code: "DEV001",
+      locality_code: "01",
       structure_map_id: "0001",
       household_number: "01",
       household_head_name: "Dev Household",
@@ -544,10 +544,10 @@ export async function upsertDevSeed() {
   await db
     .insert(schema.userAreaAssignments)
     .values({
-      assignment_id: "dev-field-worker-DEV001",
+      assignment_id: "dev-field-worker-1-01",
       user_id: smokeUser.user_id,
       site_id: 1,
-      locality_code: "DEV001",
+      locality_code: "01",
       role: "field_worker",
       active_from: "2026-06-04",
       active_to: null,
@@ -558,7 +558,7 @@ export async function upsertDevSeed() {
       set: {
         user_id: smokeUser.user_id,
         site_id: 1,
-        locality_code: "DEV001",
+        locality_code: "01",
         role: "field_worker",
         active_from: "2026-06-04",
         active_to: null,
@@ -569,12 +569,12 @@ export async function upsertDevSeed() {
     .insert(schema.followUpTasks)
     .values({
       task_id: "dev-task-hhq-1",
-      task_key: "1-DEV001-0001-01:household:1-DEV001-0001-01:HHQ:baseline:2026-09-01:v1",
+      task_key: "1-01-0001-01:household:1-01-0001-01:HHQ:baseline:2026-09-01:v1",
       site_id: 1,
-      locality_code: "DEV001",
-      household_id: "1-DEV001-0001-01",
+      locality_code: "01",
+      household_id: "1-01-0001-01",
       subject_type: "household",
-      subject_id: "1-DEV001-0001-01",
+      subject_id: "1-01-0001-01",
       task_type: "HHQ",
       form_code: "HHQ",
       expected_forms: ["HHQ"],
@@ -592,7 +592,23 @@ export async function upsertDevSeed() {
     .onConflictDoUpdate({
       target: schema.followUpTasks.task_id,
       set: {
+        task_key: "1-01-0001-01:household:1-01-0001-01:HHQ:baseline:2026-09-01:v1",
+        site_id: 1,
+        locality_code: "01",
+        household_id: "1-01-0001-01",
+        subject_type: "household",
+        subject_id: "1-01-0001-01",
+        task_type: "HHQ",
+        form_code: "HHQ",
+        expected_forms: ["HHQ"],
+        protocol_visit_label: "baseline",
+        generation_source: "dev_seed",
+        target_date: "2026-09-01",
+        deadline_date: "2026-09-30",
         status: "planned",
+        rules_version: "1.0.0",
+        form_availability: "available",
+        action_state: "enabled",
         updated_at: now,
       },
     });

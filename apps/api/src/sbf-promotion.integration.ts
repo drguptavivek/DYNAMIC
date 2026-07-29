@@ -39,7 +39,7 @@ test("SBF sync evidence is held for review until stillbirth promotion is impleme
   await new Promise<void>((resolve) => server.listen(0, resolve));
 
   const responseId = `sbf-${randomUUID()}`;
-  const householdId = "1-DEV001-0001-01";
+  const householdId = "1-01-0001-01";
 
   try {
     const address = server.address();
@@ -67,7 +67,7 @@ test("SBF sync evidence is held for review until stillbirth promotion is impleme
               id: responseId,
               household_id: householdId,
               site_id: 1,
-              locality_code: "DEV001",
+              locality_code: "01",
               subject_id: "stillbirth-subject",
               subject_type: "child",
               form_code: "SBF",

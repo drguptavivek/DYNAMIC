@@ -28,6 +28,9 @@ export function buildHouseholdIdFromHhqData(hhqData) {
   if (!siteId || !localityCode || !structureNumber || !householdNumber) {
     return "";
   }
+  if (!/^[0-9]{2}$/.test(normalizeIdPart(localityCode, "00", 2))) {
+    return "";
+  }
   if (!/^[0-9]{4}$/.test(String(structureNumber))) {
     return "";
   }

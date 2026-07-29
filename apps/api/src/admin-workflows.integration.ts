@@ -22,7 +22,7 @@ test("admin correction and review workflows expose audit-ready API behavior", as
   const now = new Date();
   const flagId = `dq-${randomUUID()}`;
   const responseId = `response-${randomUUID()}`;
-  const memberId = `1-DEV001-0001-01-${randomUUID()}`;
+  const memberId = `1-01-0001-01-${randomUUID()}`;
   const memberNumber = randomInt(700000, 999999);
   const outOfScopeSrs = {
     user_id: `srs-${randomUUID()}`,
@@ -32,10 +32,10 @@ test("admin correction and review workflows expose audit-ready API behavior", as
 
   await db.insert(schema.householdMembers).values({
     household_member_id: memberId,
-    household_id: "1-DEV001-0001-01",
+    household_id: "1-01-0001-01",
     member_number: memberNumber,
     site_id: 1,
-    locality_code: "DEV001",
+    locality_code: "01",
     name: "Original Member Name",
     relationship_to_head: 1,
     sex: 2,
@@ -53,7 +53,7 @@ test("admin correction and review workflows expose audit-ready API behavior", as
     site_id: 1,
     flag_type: "duplicate_response",
     subject_type: "household",
-    subject_id: "1-DEV001-0001-01",
+    subject_id: "1-01-0001-01",
     task_id: "dev-task-hhq-1",
     primary_response_id: responseId,
     duplicate_response_id: `${responseId}-duplicate`,
@@ -66,14 +66,14 @@ test("admin correction and review workflows expose audit-ready API behavior", as
     form_response_id: responseId,
     response_id: responseId,
     site_id: 1,
-    locality_code: "DEV001",
-    household_id: "1-DEV001-0001-01",
+    locality_code: "01",
+    household_id: "1-01-0001-01",
     task_id: "dev-task-hhq-1",
     form_code: "HHQ",
     form_version: "2026.05.17",
     subject_type: "household",
-    subject_id: "1-DEV001-0001-01",
-    prefill_snapshot_json: { hhq_site_id: 1, hhq_locality_code: "DEV001" },
+    subject_id: "1-01-0001-01",
+    prefill_snapshot_json: { hhq_site_id: 1, hhq_locality_code: "01" },
     answers_json: { hhq_interview_date: "2026-09-01" },
     created_offline_at: now,
     device_id: "integration-device",
@@ -133,7 +133,7 @@ test("admin correction and review workflows expose audit-ready API behavior", as
     assert.equal(reviewedFlag.review_note, "Confirmed as duplicate evidence.");
 
     const listedResponses = await fetchData(
-      `${baseUrl}/form-responses?household_id=1-DEV001-0001-01&form_code=HHQ`,
+      `${baseUrl}/form-responses?household_id=1-01-0001-01&form_code=HHQ`,
       { headers: { Authorization: authorization } },
     );
     assert.ok(listedResponses.some((response: any) => response.id === responseId));
@@ -146,7 +146,7 @@ test("admin correction and review workflows expose audit-ready API behavior", as
     assert.equal(responseDetail.task.id, "dev-task-hhq-1");
 
     const householdCorrection = await fetchData(
-      `${baseUrl}/households/1-DEV001-0001-01/corrections`,
+      `${baseUrl}/households/1-01-0001-01/corrections`,
       {
         method: "POST",
         headers: { Authorization: authorization },
@@ -158,7 +158,7 @@ test("admin correction and review workflows expose audit-ready API behavior", as
         }),
       },
     );
-    assert.equal(householdCorrection.household_id, "1-DEV001-0001-01");
+    assert.equal(householdCorrection.household_id, "1-01-0001-01");
     assert.equal(householdCorrection.corrected_by, adminUser.user_id);
 
     const householdCorrectionEvents = await db
@@ -167,11 +167,11 @@ test("admin correction and review workflows expose audit-ready API behavior", as
       .where(eq(schema.adminCorrectionEvents.correction_event_id, householdCorrection.correction_id));
     assert.equal(householdCorrectionEvents.length, 1);
     assert.equal(householdCorrectionEvents[0].subject_type, "household");
-    assert.equal(householdCorrectionEvents[0].subject_id, "1-DEV001-0001-01");
+    assert.equal(householdCorrectionEvents[0].subject_id, "1-01-0001-01");
     assert.equal(householdCorrectionEvents[0].field_name, "baseline_enrollment_status");
 
     const householdCorrections = await fetchData(
-      `${baseUrl}/households/1-DEV001-0001-01/corrections`,
+      `${baseUrl}/households/1-01-0001-01/corrections`,
       { headers: { Authorization: authorization } },
     );
     assert.ok(
@@ -208,7 +208,7 @@ test("admin correction and review workflows expose audit-ready API behavior", as
     assert.equal(updatedMember.name, "Corrected Member Name");
 
     const outOfScopeHouseholdCorrection = await fetchJson(
-      `${baseUrl}/households/1-DEV001-0001-01/corrections`,
+      `${baseUrl}/households/1-01-0001-01/corrections`,
       {
         method: "POST",
         headers: { Authorization: srsAuthorization },
@@ -236,7 +236,7 @@ test("admin correction and review workflows expose audit-ready API behavior", as
       .where(eq(schema.adminCorrectionEvents.corrected_by_user_id, adminUser.user_id));
     await db
       .delete(schema.adminCorrections)
-      .where(eq(schema.adminCorrections.entity_id, "1-DEV001-0001-01"));
+      .where(eq(schema.adminCorrections.entity_id, "1-01-0001-01"));
     await db.delete(schema.adminCorrections).where(eq(schema.adminCorrections.entity_id, memberId));
     await db.delete(schema.dataQualityFlags).where(eq(schema.dataQualityFlags.flag_id, flagId));
     await db.delete(schema.formResponses).where(eq(schema.formResponses.response_id, responseId));
@@ -248,7 +248,7 @@ test("admin correction and review workflows expose audit-ready API behavior", as
         baseline_enrollment_status: "completed",
         updated_at: new Date(),
       })
-      .where(eq(schema.households.household_id, "1-DEV001-0001-01"));
+      .where(eq(schema.households.household_id, "1-01-0001-01"));
   }
 });
 

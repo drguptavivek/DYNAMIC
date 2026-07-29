@@ -74,8 +74,8 @@ describe("field event modules", () => {
     const event = pregnancyEnrolled.buildEvent({
       event_id: "evt-pef-1",
       site_id: 1,
-      locality_code: "DEV001",
-      household_id: "1-DEV001-0001-01",
+      locality_code: "01",
+      household_id: "1-01-0001-01",
       pregnancy_id: "preg-1",
       woman_id: "woman-1",
       household_member_id: "member-1",
@@ -103,8 +103,8 @@ describe("field event modules", () => {
     const event = pregnancyOutcomeRecorded.buildEvent({
       event_id: "evt-pof-1",
       site_id: 1,
-      locality_code: "DEV001",
-      household_id: "1-DEV001-0001-01",
+      locality_code: "01",
+      household_id: "1-01-0001-01",
       pregnancy_id: "preg-1",
       woman_id: "woman-1",
       outcome_date: "2027-01-10",
@@ -128,8 +128,8 @@ describe("field event modules", () => {
     const event = birthAssessmentCompleted.buildEvent({
       event_id: "evt-baf-1",
       site_id: 1,
-      locality_code: "DEV001",
-      household_id: "1-DEV001-0001-01",
+      locality_code: "01",
+      household_id: "1-01-0001-01",
       pregnancy_id: "preg-1",
       woman_id: "woman-1",
       child_id: "child-1",
@@ -154,8 +154,8 @@ describe("field event modules", () => {
     const event = pregnancyEnrolled.buildEvent({
       event_id: "evt-pef-duplicate",
       site_id: 1,
-      locality_code: "DEV001",
-      household_id: "1-DEV001-0001-01",
+      locality_code: "01",
+      household_id: "1-01-0001-01",
       pregnancy_id: "preg-1",
       woman_id: "woman-1",
       household_member_id: "member-1",

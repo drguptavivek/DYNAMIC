@@ -77,7 +77,7 @@ test("central admin can create, update, assign, and deactivate a user", async ()
         email: `${username}@example.test`,
         role: "field_worker",
         site_id: 1,
-        locality_codes: ["DEV001"],
+        locality_codes: ["01"],
         staff: {
           full_name: "Field Worker API Test",
           designation: "Field Worker",
@@ -108,7 +108,7 @@ test("central admin can create, update, assign, and deactivate a user", async ()
     );
     assert.deepEqual(
       initialAssignments.map((item: { locality_code: string }) => item.locality_code).sort(),
-      ["DEV001"],
+      ["01"],
     );
 
     const collaboratorUsername = `us-collaborator-${Date.now()}`;
@@ -173,13 +173,13 @@ test("central admin can create, update, assign, and deactivate a user", async ()
       headers: { Authorization: authorization },
       body: JSON.stringify({
         site_id: 1,
-        locality_code: "DEV001",
+        locality_code: "01",
         role: "field_worker",
         active_from: "2026-06-04T00:00:00.000Z",
       }),
     });
     assert.equal(assignment.user_id, createdUser.user_id);
-    assert.equal(assignment.locality_code, "DEV001");
+    assert.equal(assignment.locality_code, "01");
 
     const assignments = await fetchData(`${baseUrl}/users/${createdUser.user_id}/area-assignments`, {
       headers: { Authorization: authorization },
@@ -319,7 +319,7 @@ test("site admin creates users only within their own site", async () => {
         display_name: "Site Created User",
         email: `${username}@example.test`,
         role: "site_data_manager",
-        locality_codes: ["DEV001"],
+        locality_codes: ["01"],
         password: "site-created-password",
         staff: {
           full_name: "Site Created User",
@@ -343,7 +343,7 @@ test("site admin creates users only within their own site", async () => {
       { headers: { Authorization: authorization } },
     );
     assert.equal(createdAssignments.length, 1);
-    assert.equal(createdAssignments[0].locality_code, "DEV001");
+    assert.equal(createdAssignments[0].locality_code, "01");
 
     const higherRoleResponse = await fetch(`${baseUrl}/users/${higherRoleUserId}`, {
       method: "PATCH",

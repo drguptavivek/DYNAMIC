@@ -8,25 +8,25 @@ export const STUDY_SITES = [
 export const STUDY_VILLAGES = [
   {
     site_id: 2,
-    village_code: "101",
+    village_code: "01",
     village_name: "Sunped",
     village_type: "village"
   },
   {
     site_id: 2,
-    village_code: "204",
+    village_code: "02",
     village_name: "Sagarpur",
     village_type: "village"
   },
   {
     site_id: 2,
-    village_code: "309",
+    village_code: "03",
     village_name: "Pehladpur",
     village_type: "village"
   },
   {
     site_id: 2,
-    village_code: "410",
+    village_code: "04",
     village_name: "Deegh",
     village_type: "village"
   }

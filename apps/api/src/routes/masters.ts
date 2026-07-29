@@ -38,6 +38,11 @@ const createSiteSchema = z.object({
   site_name: z.string().min(1),
 });
 
+const updateSiteSchema = z.object({
+  site_code: z.string().min(1),
+  site_name: z.string().min(1),
+});
+
 /**
  * POST /api/v1/masters/sites
  * Create new study site
@@ -85,6 +90,60 @@ router.post("/sites", requireRole("central_admin"), async (req: Request, res: Re
   }
 });
 
+/**
+ * PATCH /api/v1/masters/sites/:site_id
+ * Update an existing study site
+ */
+router.patch("/sites/:site_id", requireRole("central_admin"), async (req: Request, res: Response) => {
+  try {
+    const siteId = Number(req.params.site_id);
+    if (!Number.isInteger(siteId) || siteId <= 0) {
+      sendError(res, 400, "VALIDATION_ERROR", "Invalid site ID");
+      return;
+    }
+
+    const data = updateSiteSchema.parse(req.body);
+
+    const [existing] = await db
+      .select()
+      .from(schema.studySites)
+      .where(eq(schema.studySites.site_id, siteId));
+
+    if (!existing) {
+      sendError(res, 404, "SITE_NOT_FOUND", "Site not found");
+      return;
+    }
+
+    await db
+      .update(schema.studySites)
+      .set({
+        site_code: data.site_code,
+        site_name: data.site_name,
+      })
+      .where(eq(schema.studySites.site_id, siteId));
+
+    const [updatedSite] = await db
+      .select({
+        site_id: schema.studySites.site_id,
+        site_code: schema.studySites.site_code,
+        site_name: schema.studySites.site_name,
+      })
+      .from(schema.studySites)
+      .where(eq(schema.studySites.site_id, siteId));
+
+    sendSuccess(res, updatedSite, 200);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      sendError(res, 400, "VALIDATION_ERROR", "Invalid request body", {
+        errors: error.errors,
+      });
+    } else {
+      console.error("Update site error:", error);
+      sendError(res, 500, "INTERNAL_ERROR", "An error occurred");
+    }
+  }
+});
+
 // ============= STUDY LOCALITIES =============
 
 /**
@@ -120,7 +179,13 @@ router.get("/localities", async (req: Request, res: Response) => {
 
 const createLocalitySchema = z.object({
   site_id: z.number().int().positive(),
-  locality_code: z.string().min(1),
+  locality_code: z.string().regex(/^\d{2}$/, "Locality code must be exactly 2 digits"),
+  locality_name: z.string().min(1),
+  locality_type: z.string().optional(),
+});
+
+const updateLocalitySchema = z.object({
+  locality_code: z.string().regex(/^\d{2}$/, "Locality code must be exactly 2 digits"),
   locality_name: z.string().min(1),
   locality_type: z.string().optional(),
 });
@@ -184,11 +249,242 @@ router.post("/localities", requireRole("central_admin"), async (req: Request, re
   }
 });
 
+/**
+ * PATCH /api/v1/masters/localities/:site_id/:locality_code
+ * Update an existing study locality
+ */
+router.patch(
+  "/localities/:site_id/:locality_code",
+  requireRole("central_admin"),
+  async (req: Request, res: Response) => {
+    try {
+      const siteId = Number(req.params.site_id);
+      const { locality_code: localityCode } = req.params;
+
+      if (!Number.isInteger(siteId) || siteId <= 0) {
+        sendError(res, 400, "VALIDATION_ERROR", "Invalid site ID");
+        return;
+      }
+
+      const data = updateLocalitySchema.parse(req.body);
+      const nextLocalityCode = data.locality_code.trim();
+
+      const [existing] = await db
+        .select()
+        .from(schema.studyLocalities)
+        .where(
+          and(
+            eq(schema.studyLocalities.site_id, siteId),
+            eq(schema.studyLocalities.locality_code, localityCode),
+          ),
+        );
+
+      if (!existing) {
+        sendError(res, 404, "LOCALITY_NOT_FOUND", "Locality not found");
+        return;
+      }
+
+      if (nextLocalityCode !== localityCode) {
+        const [conflictingLocality] = await db
+          .select()
+          .from(schema.studyLocalities)
+          .where(
+            and(
+              eq(schema.studyLocalities.site_id, siteId),
+              eq(schema.studyLocalities.locality_code, nextLocalityCode),
+            ),
+          );
+
+        if (conflictingLocality) {
+          sendError(res, 409, "LOCALITY_EXISTS", "Locality code already exists for this site");
+          return;
+        }
+      }
+
+      await db.transaction(async (tx) => {
+        if (nextLocalityCode !== localityCode) {
+          await tx.execute(sql`
+            CREATE TEMP TABLE locality_household_rename ON COMMIT DROP AS
+            SELECT
+              household_id AS old_household_id,
+              concat(site_id::text, '-', ${nextLocalityCode}::text, '-', structure_map_id, '-', household_number) AS new_household_id
+            FROM households
+            WHERE site_id = ${siteId} AND locality_code = ${localityCode}
+          `);
+
+          await tx.execute(sql`
+            INSERT INTO households (
+              household_id,
+              site_id,
+              locality_code,
+              structure_map_id,
+              household_number,
+              residence_area_type,
+              address,
+              household_head_name,
+              contact_mobile,
+              consent_status,
+              result_interview,
+              language_questionnaire,
+              baseline_enrollment_status,
+              baseline_completed_date,
+              cohort_status,
+              closed_reason,
+              religion_head,
+              caste_category,
+              household_characteristics,
+              sync_status,
+              created_at,
+              updated_at
+            )
+            SELECT
+              r.new_household_id,
+              h.site_id,
+              ${nextLocalityCode},
+              h.structure_map_id,
+              h.household_number,
+              h.residence_area_type,
+              h.address,
+              h.household_head_name,
+              h.contact_mobile,
+              h.consent_status,
+              h.result_interview,
+              h.language_questionnaire,
+              h.baseline_enrollment_status,
+              h.baseline_completed_date,
+              h.cohort_status,
+              h.closed_reason,
+              h.religion_head,
+              h.caste_category,
+              h.household_characteristics,
+              h.sync_status,
+              h.created_at,
+              now()
+            FROM households h
+            JOIN locality_household_rename r ON r.old_household_id = h.household_id
+          `);
+
+          await tx.execute(sql`
+            UPDATE household_members AS m
+            SET household_id = r.new_household_id, locality_code = ${nextLocalityCode}, updated_at = now()
+            FROM locality_household_rename r
+            WHERE m.household_id = r.old_household_id
+          `);
+          await tx.execute(sql`
+            UPDATE eligible_women AS w
+            SET household_id = r.new_household_id, locality_code = ${nextLocalityCode}, updated_at = now()
+            FROM locality_household_rename r
+            WHERE w.household_id = r.old_household_id
+          `);
+          await tx.execute(sql`
+            UPDATE pregnancies AS p
+            SET household_id = r.new_household_id, locality_code = ${nextLocalityCode}, updated_at = now()
+            FROM locality_household_rename r
+            WHERE p.household_id = r.old_household_id
+          `);
+          await tx.execute(sql`
+            UPDATE children AS c
+            SET household_id = r.new_household_id, updated_at = now()
+            FROM locality_household_rename r
+            WHERE c.household_id = r.old_household_id
+          `);
+          await tx.execute(sql`
+            UPDATE visits AS v
+            SET household_id = r.new_household_id, locality_code = ${nextLocalityCode}
+            FROM locality_household_rename r
+            WHERE v.household_id = r.old_household_id
+          `);
+          await tx.execute(sql`
+            UPDATE form_responses AS f
+            SET household_id = r.new_household_id, locality_code = ${nextLocalityCode}
+            FROM locality_household_rename r
+            WHERE f.household_id = r.old_household_id
+          `);
+          await tx.execute(sql`
+            UPDATE domain_events AS e
+            SET household_id = r.new_household_id, locality_code = ${nextLocalityCode}
+            FROM locality_household_rename r
+            WHERE e.household_id = r.old_household_id
+          `);
+          await tx.execute(sql`
+            UPDATE follow_up_tasks AS t
+            SET household_id = r.new_household_id, locality_code = ${nextLocalityCode}, updated_at = now()
+            FROM locality_household_rename r
+            WHERE t.household_id = r.old_household_id
+          `);
+          await tx.execute(sql`
+            DELETE FROM households AS h
+            USING locality_household_rename r
+            WHERE h.household_id = r.old_household_id
+          `);
+          await tx.execute(sql`
+            UPDATE mapping_frame
+            SET
+              locality_code = ${nextLocalityCode},
+              household_id = concat(site_id::text, '-', ${nextLocalityCode}::text, '-', structure_map_id, '-', household_number),
+              structure_id = concat(site_id::text, '-', ${nextLocalityCode}::text, '-', structure_map_id)
+            WHERE site_id = ${siteId} AND locality_code = ${localityCode}
+          `);
+          await tx.execute(sql`
+            UPDATE user_area_assignments
+            SET locality_code = ${nextLocalityCode}
+            WHERE site_id = ${siteId} AND locality_code = ${localityCode}
+          `);
+          await tx.execute(sql`
+            UPDATE study_localities
+            SET locality_code = ${nextLocalityCode}
+            WHERE site_id = ${siteId} AND locality_code = ${localityCode}
+          `);
+        }
+
+        await tx
+          .update(schema.studyLocalities)
+          .set({
+            locality_name: data.locality_name,
+            locality_type: data.locality_type,
+          })
+          .where(
+            and(
+              eq(schema.studyLocalities.site_id, siteId),
+              eq(schema.studyLocalities.locality_code, nextLocalityCode),
+            ),
+          );
+      });
+
+      const [updatedLocality] = await db
+        .select({
+          site_id: schema.studyLocalities.site_id,
+          locality_code: schema.studyLocalities.locality_code,
+          locality_name: schema.studyLocalities.locality_name,
+          locality_type: schema.studyLocalities.locality_type,
+        })
+        .from(schema.studyLocalities)
+        .where(
+          and(
+            eq(schema.studyLocalities.site_id, siteId),
+            eq(schema.studyLocalities.locality_code, nextLocalityCode),
+          ),
+        );
+
+      sendSuccess(res, updatedLocality, 200);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        sendError(res, 400, "VALIDATION_ERROR", "Invalid request body", {
+          errors: error.errors,
+        });
+      } else {
+        console.error("Update locality error:", error);
+        sendError(res, 500, "INTERNAL_ERROR", "An error occurred");
+      }
+    }
+  },
+);
+
 // ============= MAPPING FRAME =============
 
 const mappingFrameRecordSchema = z.object({
   site_id: z.number().int().positive(),
-  locality_code: z.string().min(1),
+  locality_code: z.string().regex(/^\d{2}$/, "Locality code must be exactly 2 digits"),
   structure_map_id: z.string().length(4),
   household_number: z.string().length(2),
 });

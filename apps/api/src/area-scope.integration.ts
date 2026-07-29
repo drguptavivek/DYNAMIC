@@ -17,7 +17,7 @@ test("field worker household list is intersected with active area assignments", 
   const { createSessionBackedAccessToken } = await import("./test-helpers/session-token");
 
   const userId = `scope-user-${randomUUID()}`;
-  const outOfScopeHouseholdId = `1-DEV002-${randomUUID().slice(0, 4)}-01`;
+  const outOfScopeHouseholdId = `1-02-${randomUUID().slice(0, 4)}-01`;
   const now = new Date();
 
   await db.insert(schema.studySites).values({
@@ -32,13 +32,13 @@ test("field worker household list is intersected with active area assignments", 
   await db.insert(schema.studyLocalities).values([
     {
       site_id: 1,
-      locality_code: "DEV001",
+      locality_code: "01",
       locality_name: "Assigned Locality",
       locality_type: "urban",
     },
     {
       site_id: 1,
-      locality_code: "DEV002",
+      locality_code: "02",
       locality_name: "Out-of-scope Locality",
       locality_type: "urban",
     },
@@ -60,7 +60,7 @@ test("field worker household list is intersected with active area assignments", 
     assignment_id: `assignment-${randomUUID()}`,
     user_id: userId,
     site_id: 1,
-    locality_code: "DEV001",
+    locality_code: "01",
     role: "field_worker",
     active_from: "2026-01-01",
     active_to: null,
@@ -70,7 +70,7 @@ test("field worker household list is intersected with active area assignments", 
   await db.insert(schema.households).values({
     household_id: outOfScopeHouseholdId,
     site_id: 1,
-    locality_code: "DEV002",
+    locality_code: "02",
     structure_map_id: outOfScopeHouseholdId.split("-")[2],
     household_number: "01",
     household_head_name: "Out Of Scope",
@@ -95,7 +95,7 @@ test("field worker household list is intersected with active area assignments", 
     });
 
     const response = await fetch(
-      `http://127.0.0.1:${address.port}/api/v1/households?locality_code=DEV002`,
+      `http://127.0.0.1:${address.port}/api/v1/households?locality_code=02`,
       { headers: { Authorization: `Bearer ${token}` } },
     );
     const body = await response.json();

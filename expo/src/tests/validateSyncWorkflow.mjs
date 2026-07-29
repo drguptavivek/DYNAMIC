@@ -16,14 +16,14 @@ const {
 const user = {
   site_id: 2,
   area_assignments: [
-    { locality_code: "101", active_to: null },
-    { locality_code: "102", active_to: "2026-12-31" },
-    { locality_code: "101", active_to: null },
+    { locality_code: "01", active_to: null },
+    { locality_code: "02", active_to: "2026-12-31" },
+    { locality_code: "01", active_to: null },
     { locality_code: "999", active_to: "2026-01-01" },
   ],
 };
 
-assert.deepEqual(collectAssignedLocalityCodes(user, "2026-06-04"), ["101", "102"]);
+assert.deepEqual(collectAssignedLocalityCodes(user, "2026-06-04"), ["01", "02"]);
 
 const records = buildPushRecords({
   formResponses: [{ id: "response-1" }],

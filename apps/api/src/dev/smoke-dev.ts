@@ -55,7 +55,7 @@ async function runSmoke() {
     throw new Error("/protocol/forms/batch did not return the two available requested forms");
   }
 
-  const pull = await fetchJson("/sync/pull?locality_codes=DEV001", {
+  const pull = await fetchJson("/sync/pull?locality_codes=01", {
     headers: { Authorization: authorization },
   });
   if (!Array.isArray(pull.tasks) || pull.tasks.length === 0) {

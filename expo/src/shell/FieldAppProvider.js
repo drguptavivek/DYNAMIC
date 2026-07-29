@@ -229,12 +229,15 @@ export function FieldAppProvider({ children }) {
   }
 
   function openTask(task) {
+    if (!task) return;
+    if (showTaskModal && selectedTask?.id === task.id) return;
     setSelectedTask(task);
     setShowTaskModal(true);
   }
 
   function closeTaskModal() {
     setShowTaskModal(false);
+    setSelectedTask(null);
   }
 
   function notifyTaskWorklistChanged() {

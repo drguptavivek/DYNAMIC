@@ -69,7 +69,7 @@ test("API smoke flow passes against dynamic_test without a fixed port", async ()
     );
 
     const pull = await fetchData(
-      `${baseUrl}/sync/pull?locality_codes=DEV001&since=${encodeURIComponent(seedSince)}`,
+      `${baseUrl}/sync/pull?locality_codes=01&since=${encodeURIComponent(seedSince)}`,
       { headers: { Authorization: authorization } },
     );
     assert.ok(pull.tasks.some((task: { id: string; form_code: string }) => task.id === "dev-task-hhq-1" && task.form_code === "HHQ"));
@@ -77,7 +77,7 @@ test("API smoke flow passes against dynamic_test without a fixed port", async ()
 
     const oldCursor = "1970-01-01T00:00:00.000Z";
     const firstPage = await fetchData(
-      `${baseUrl}/sync/pull?locality_codes=DEV001&include_members=false&page_size=1&since=${encodeURIComponent(oldCursor)}`,
+      `${baseUrl}/sync/pull?locality_codes=01&include_members=false&page_size=1&since=${encodeURIComponent(oldCursor)}`,
       { headers: { Authorization: authorization } },
     );
     assert.notEqual(firstPage.sync_cursor, oldCursor);
@@ -98,7 +98,7 @@ test("API smoke flow passes against dynamic_test without a fixed port", async ()
     assert.equal(push.accepted, 0);
 
     const hhqResponseId = `hhq-${randomUUID()}`;
-    const hhqHouseholdId = `1-DEV001-${randomUUID().slice(0, 4)}-01`;
+    const hhqHouseholdId = `1-01-${randomUUID().slice(0, 4)}-01`;
     const hhqPush = await fetchData(`${baseUrl}/sync/push`, {
       method: "POST",
       headers: { Authorization: authorization },
@@ -111,14 +111,14 @@ test("API smoke flow passes against dynamic_test without a fixed port", async ()
               id: hhqResponseId,
               household_id: hhqHouseholdId,
               site_id: 1,
-              locality_code: "DEV001",
+              locality_code: "01",
               subject_id: hhqHouseholdId,
               subject_type: "household",
               form_code: "HHQ",
               form_version: "2026.05.17",
               answers_json: {
                 hhq_site_id: 1,
-                hhq_locality_code: "DEV001",
+                hhq_locality_code: "01",
                 hhq_structure_map_id: hhqHouseholdId.split("-")[2],
                 hhq_household_number: "01",
                 hhq_household_address: "Smoke HHQ address",
@@ -164,9 +164,9 @@ test("API smoke flow passes against dynamic_test without a fixed port", async ()
             type: "form_response",
             data: {
               id: `missing-user-${randomUUID()}`,
-              household_id: `1-DEV001-${randomUUID().slice(0, 4)}-03`,
+              household_id: `1-01-${randomUUID().slice(0, 4)}-03`,
               site_id: 1,
-              locality_code: "DEV001",
+              locality_code: "01",
               subject_type: "household",
               form_code: "HHQ",
               form_version: "2026.05.17",
@@ -181,7 +181,7 @@ test("API smoke flow passes against dynamic_test without a fixed port", async ()
     assert.match(missingUserPush.errors[0].error, /user_id/);
 
     const loggedOutResponseId = `hhq-logged-out-${randomUUID()}`;
-    const loggedOutHouseholdId = `1-DEV001-${randomUUID().slice(0, 4)}-02`;
+    const loggedOutHouseholdId = `1-01-${randomUUID().slice(0, 4)}-02`;
     const loggedOutPush = await fetchData(`${baseUrl}/sync/push`, {
       method: "POST",
       body: JSON.stringify({
@@ -194,14 +194,14 @@ test("API smoke flow passes against dynamic_test without a fixed port", async ()
               user_id: smokeUser.user_id,
               household_id: loggedOutHouseholdId,
               site_id: 1,
-              locality_code: "DEV001",
+              locality_code: "01",
               subject_id: loggedOutHouseholdId,
               subject_type: "household",
               form_code: "HHQ",
               form_version: "2026.05.17",
               answers_json: {
                 hhq_site_id: 1,
-                hhq_locality_code: "DEV001",
+                hhq_locality_code: "01",
                 hhq_structure_map_id: loggedOutHouseholdId.split("-")[2],
                 hhq_household_number: "02",
                 hhq_household_head_name: "Logged Out Head",
@@ -281,7 +281,7 @@ test("API smoke flow passes against dynamic_test without a fixed port", async ()
     assert.equal((await collaboratorRawResponse.json()).error.code, "INSUFFICIENT_DATA_ACCESS");
 
     const collaboratorSyncPull = await fetch(
-      `${baseUrl}/sync/pull?locality_codes=DEV001&since=${encodeURIComponent(seedSince)}`,
+      `${baseUrl}/sync/pull?locality_codes=01&since=${encodeURIComponent(seedSince)}`,
       { headers: { Authorization: collaboratorAuthorization } },
     );
     assert.equal(collaboratorSyncPull.status, 403);
@@ -293,7 +293,7 @@ test("API smoke flow passes against dynamic_test without a fixed port", async ()
       if (
         typeof args[0] === "string" &&
         (args[0].includes(`Error processing form response ${failedPromotionResponseId}`) ||
-          args[0].includes("Error in promotePef for 1-DEV001-0001-01/missing-active-pregnancy"))
+          args[0].includes("Error in promotePef for 1-01-0001-01/missing-active-pregnancy"))
       ) {
         expectedPromotionErrors.push(args);
         return;
@@ -312,7 +312,7 @@ test("API smoke flow passes against dynamic_test without a fixed port", async ()
               type: "form_response",
               data: {
                 id: failedPromotionResponseId,
-                household_id: "1-DEV001-0001-01",
+                household_id: "1-01-0001-01",
                 subject_id: "missing-active-pregnancy",
                 subject_type: "woman",
                 form_code: "PEF",

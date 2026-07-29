@@ -20,7 +20,7 @@ test("children list filters locality through household locality", async () => {
   await upsertDevSeed();
 
   const suffix = randomUUID().slice(0, 8);
-  const householdId = "1-DEV001-0001-01";
+  const householdId = "1-01-0001-01";
   const womanId = `${householdId}-test-woman-${suffix}`;
   const pregnancyId = `preg-${suffix}`;
   const childId = `child-${suffix}`;
@@ -32,7 +32,7 @@ test("children list filters locality through household locality", async () => {
     household_id: householdId,
     member_number: memberNumber,
     site_id: 1,
-    locality_code: "DEV001",
+    locality_code: "01",
     name: "Children Filter Mother",
     sex: 2,
     woman_questionnaire_eligible: true,
@@ -45,7 +45,7 @@ test("children list filters locality through household locality", async () => {
     household_member_id: womanId,
     household_id: householdId,
     site_id: 1,
-    locality_code: "DEV001",
+    locality_code: "01",
     eligibility_start_date: "2026-01-01",
     created_at: now,
     updated_at: now,
@@ -57,7 +57,7 @@ test("children list filters locality through household locality", async () => {
     household_member_id: womanId,
     household_id: householdId,
     site_id: 1,
-    locality_code: "DEV001",
+    locality_code: "01",
     pregnancy_sequence: 1,
     pregnancy_status: "closed",
     detected_date: "2026-01-01",
@@ -97,7 +97,7 @@ test("children list filters locality through household locality", async () => {
     });
 
     const response = await fetch(
-      `http://127.0.0.1:${address.port}/api/v1/children?locality_code=DEV001`,
+      `http://127.0.0.1:${address.port}/api/v1/children?locality_code=01`,
       { headers: { Authorization: `Bearer ${token}` } },
     );
     const body = await response.json();
@@ -105,7 +105,7 @@ test("children list filters locality through household locality", async () => {
     assert.equal(response.status, 200);
     assert.ok(
       body.data.some((child: { child_id: string }) => child.child_id === childId),
-      `Expected ${childId} to be returned for locality DEV001`,
+      `Expected ${childId} to be returned for locality 01`,
     );
   } finally {
     await new Promise<void>((resolve, reject) => {

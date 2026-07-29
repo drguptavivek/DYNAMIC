@@ -55,13 +55,13 @@ test("HHQ offline submission creates local WQ workflow, syncs backend, and pulls
     });
 
   const structureMapId = String(randomInt(1000, 9999));
-  const householdId = `1-DEV001-${structureMapId}-01`;
+  const householdId = `1-01-${structureMapId}-01`;
   const eligibleMemberId = `${householdId}-02`;
   const wqTaskKey = `${householdId}|person|${eligibleMemberId}|WQ|baseline|2026-09-01|v1`;
   const sinceBeforePush = new Date(Date.now() - 1000).toISOString();
   const hhqPayload = {
     hhq_site_id: 1,
-    hhq_locality_code: "DEV001",
+    hhq_locality_code: "01",
     hhq_structure_map_id: structureMapId,
     hhq_household_number: "01",
     hhq_household_address: "E2E HHQ sync address",
@@ -305,7 +305,7 @@ test("HHQ offline submission creates local WQ workflow, syncs backend, and pulls
               form_version: "2026.05.17",
               household_id: householdId,
               site_id: 1,
-              locality_code: "DEV001",
+              locality_code: "01",
               subject_type: "woman",
               subject_id: eligibleMemberId,
               answers_json: {
@@ -495,7 +495,7 @@ test("HHQ offline submission creates local WQ workflow, syncs backend, and pulls
               form_version: "2026.05.17",
               household_id: householdId,
               site_id: 1,
-              locality_code: "DEV001",
+              locality_code: "01",
               subject_type: "pregnancy",
               subject_id: activePregnancies[0].pregnancy_id,
               answers_json: {
@@ -579,7 +579,7 @@ test("HHQ offline submission creates local WQ workflow, syncs backend, and pulls
               form_version: "2026.05.17",
               household_id: householdId,
               site_id: 1,
-              locality_code: "DEV001",
+              locality_code: "01",
               subject_type: "pregnancy",
               subject_id: activePregnancies[0].pregnancy_id,
               answers_json: {
@@ -647,7 +647,7 @@ test("HHQ offline submission creates local WQ workflow, syncs backend, and pulls
               form_version: "2026.05.17",
               household_id: householdId,
               site_id: 1,
-              locality_code: "DEV001",
+              locality_code: "01",
               subject_type: "child",
               subject_id: childRows[0].child_id,
               answers_json: {
@@ -698,7 +698,7 @@ test("HHQ offline submission creates local WQ workflow, syncs backend, and pulls
     );
 
     const pulled = await fetchData(
-      `${baseUrl}/sync/pull?locality_codes=DEV001&include_members=false&page_size=100&since=${encodeURIComponent(sinceBeforePush)}`,
+      `${baseUrl}/sync/pull?locality_codes=01&include_members=false&page_size=100&since=${encodeURIComponent(sinceBeforePush)}`,
       { headers: { Authorization: authorization } },
     );
     assert.ok(
@@ -768,7 +768,7 @@ function pffPushRecordsData(firstPffTask: any, householdId: string, pregnancyId:
     form_version: "2026.05.17",
     household_id: householdId,
     site_id: 1,
-    locality_code: "DEV001",
+    locality_code: "01",
     subject_type: "pregnancy",
     subject_id: pregnancyId,
     answers_json: {

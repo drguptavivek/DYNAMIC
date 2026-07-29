@@ -109,6 +109,21 @@
   background-color: #efefef;
 }
 
+.smallBtn {
+  padding: 0.45rem 0.75rem;
+  background-color: #fff;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
+  border-radius: 4px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.smallBtn:hover {
+  background-color: #eff6ff;
+}
+
 .error {
   background-color: #fee2e2;
   color: #dc2626;
@@ -239,7 +254,8 @@
   color: #333;
 }
 
-.formGroup input {
+.formGroup input,
+.formGroup select {
   width: 100%;
   padding: 0.75rem;
   border: 1px solid #ddd;
@@ -248,7 +264,8 @@
   box-sizing: border-box;
 }
 
-.formGroup input:focus {
+.formGroup input:focus,
+.formGroup select:focus {
   outline: none;
   border-color: #2563eb;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);

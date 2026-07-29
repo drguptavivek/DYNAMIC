@@ -16,6 +16,7 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 
 ### Added
 
+- Added central-admin Study Masters edit flows for updating existing study site codes/names and locality codes/names/types, including dependent locality-code records.
 - Added checked-in API and Expo environment examples while keeping real environment files ignored.
 - Added the Expo Android application ID required by native prebuild and documented that the current local release APK is debug-signed and intended only for testing.
 - Added a fully native Expo renderer for the baseline household questionnaire while retaining Survey Core for questionnaire state, validation, visibility, and localization.
@@ -30,6 +31,7 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 - Scoped the Household page locality checkbox filter to the logged-in user's active locality assignments.
 - Tightened the Household page mobile spacing and fixed the compact household-member panel overlay positioning.
 - Kept the Household page dropdowns from resizing the search panel, added outside-click dismissal for locality and sex selectors, and tightened closed filter widths.
+- Standardized active seed, master, and test locality codes to the required 2-digit format.
 - Upgraded the Expo application to SDK 57.0.8 with React 19.2.3, React Native 0.86.0, `@expo/ui` 57.0.7, Reanimated 4.5.3, and Worklets 0.10.3.
 - Standardized dependency installation on npm 11.14.1 and regenerated the npm lockfile without local native-library workarounds.
 - Upgraded API Drizzle ORM to 0.45.2 and pinned the Admin React Router dependency to the audited 6.30.4 build path.
@@ -41,6 +43,7 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 
 ### Fixed
 
+- Prevented the field-app worklist task detail modal from stacking on repeated taps and kept the seeded HHQ task identity aligned with the 2-digit locality code.
 - Made post-login app-lock biometric unlock use the saved per-user biometric preference and added a Profile control to enable or disable it.
 - Kept the Household members slideout inside the Android phone width and allowed the Household toolbar actions to wrap on compact screens.
 - Prevented HHQ roster calculations from recreating a hidden or deleted minimum household-member placeholder after declined consent or final-row deletion.
