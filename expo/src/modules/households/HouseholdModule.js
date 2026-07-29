@@ -211,7 +211,7 @@ export function HouseholdModule({
     <View style={[styles.wrap, compact && styles.wrapCompact]}>
       <View style={[styles.toolbar, compact && styles.toolbarCompact]}>
         <View>
-          <Text style={styles.title}>Households</Text>
+          <Text style={[styles.title, compact && styles.titleCompact]}>Households</Text>
         </View>
         <View style={[styles.toolbarActions, compact && styles.toolbarActionsCompact]}>
           <Pressable
@@ -676,12 +676,15 @@ async function copyText(value) {
 const styles = StyleSheet.create({
   wrap: {
     flex: 1,
-    gap: 14,
+    gap: 12,
     padding: 22,
     minHeight: "calc(100vh - 76px)"
   },
   wrapCompact: {
-    padding: 12,
+    paddingHorizontal: 8,
+    paddingTop: 6,
+    paddingBottom: 8,
+    gap: 8,
     minHeight: "100%"
   },
   toolbar: {
@@ -691,9 +694,9 @@ const styles = StyleSheet.create({
     gap: 16
   },
   toolbarCompact: {
-    alignItems: "stretch",
+    alignItems: "center",
     flexWrap: "wrap",
-    gap: 10
+    gap: 6
   },
   toolbarActions: {
     flexDirection: "row",
@@ -710,13 +713,16 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#18202a"
   },
+  titleCompact: {
+    fontSize: 22
+  },
   subtle: {
     fontSize: 13,
     color: "#667085"
   },
   panel: {
     gap: 6,
-    padding: 12,
+    padding: 8,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: "#d8dee4",
@@ -725,12 +731,12 @@ const styles = StyleSheet.create({
     zIndex: 50
   },
   search: {
-    minHeight: 38,
+    minHeight: 34,
     borderWidth: 1,
     borderColor: "#d8dee4",
     borderRadius: 6,
-    paddingHorizontal: 10,
-    fontSize: 13,
+    paddingHorizontal: 8,
+    fontSize: 12,
     backgroundColor: "#ffffff"
   },
   saveMessage: {
@@ -788,44 +794,44 @@ const styles = StyleSheet.create({
     alignItems: "center"
   },
   localityDropdownWrap: {
-    width: 92,
+    width: 84,
     maxWidth: "100%",
-    minHeight: 38,
+    minHeight: 34,
     position: "relative",
     zIndex: 40
   },
   localityDropdownWrapCompact: {
-    width: 92
+    width: 84
   },
   householdNumberFilterInput: {
-    width: 72,
+    width: 62,
     maxWidth: "100%"
   },
   addressFilterInput: {
-    width: 66,
+    width: 60,
     maxWidth: "100%"
   },
   memberNameFilterInput: {
-    width: 78,
+    width: 72,
     maxWidth: "100%"
   },
   dropdownWrap: {
-    width: 76,
+    width: 62,
     maxWidth: "100%",
-    minHeight: 38,
+    minHeight: 34,
     position: "relative",
     zIndex: 20
   },
   compactFilterInput: {
-    width: 76
+    width: 62
   },
   dropdownButton: {
-    minHeight: 38,
+    minHeight: 34,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
     borderRadius: 6,
     borderWidth: 1,
     borderColor: "#d8dee4",
@@ -837,7 +843,7 @@ const styles = StyleSheet.create({
   },
   dropdownButtonText: {
     flex: 1,
-    fontSize: 13,
+    fontSize: 12,
     color: "#18202a",
     fontWeight: "800"
   },
@@ -861,7 +867,7 @@ const styles = StyleSheet.create({
   },
   dropdownMenu: {
     position: "absolute",
-    top: 42,
+    top: 38,
     left: 0,
     right: 0,
     zIndex: 30,
@@ -873,7 +879,7 @@ const styles = StyleSheet.create({
   },
   localityDropdownMenu: {
     position: "absolute",
-    top: 42,
+    top: 38,
     left: 0,
     width: 260,
     zIndex: 60,
@@ -1142,12 +1148,13 @@ const styles = StyleSheet.create({
     overflow: "auto"
   },
   slideoutLayer: {
-    position: "fixed",
+    position: Platform.OS === "web" ? "fixed" : "absolute",
     top: 0,
     right: 0,
     bottom: 0,
     left: 0,
-    zIndex: 30,
+    zIndex: 100,
+    elevation: 24,
     flexDirection: "row",
     justifyContent: "flex-end"
   },
@@ -1168,8 +1175,9 @@ const styles = StyleSheet.create({
     borderLeftColor: "#d8dee4"
   },
   slideoutPanelCompact: {
-    padding: 14,
-    borderLeftWidth: 0
+    padding: 10,
+    borderLeftWidth: 0,
+    height: "100%"
   },
   slideoutHeader: {
     flexDirection: "row",
