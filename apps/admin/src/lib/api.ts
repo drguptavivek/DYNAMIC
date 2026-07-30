@@ -35,6 +35,36 @@ export async function apiFetchPage<T>(
   return { data: json.data as T, meta: json.meta };
 }
 
+export async function apiUpload<T>(path: string, formData: FormData): Promise<T> {
+  const token = getToken();
+  const res = await fetch(`${BASE}${path}`, {
+    method: "POST",
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: formData,
+  });
+
+  const json = await res.json();
+  if (!res.ok) throw new Error(json?.error?.message ?? `HTTP ${res.status}`);
+  return json.data as T;
+}
+
+export async function apiDownload(path: string): Promise<Blob> {
+  const token = getToken();
+  const res = await fetch(`${BASE}${path}`, {
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+
+  if (!res.ok) {
+    const json = await res.json().catch(() => undefined);
+    throw new Error(json?.error?.message ?? `HTTP ${res.status}`);
+  }
+  return res.blob();
+}
+
 export const api = {
   get: <T>(path: string) => apiFetch<T>(path),
   getPage: <T>(path: string) => apiFetchPage<T>(path),
@@ -43,4 +73,6 @@ export const api = {
   patch: <T>(path: string, body: unknown) =>
     apiFetch<T>(path, { method: "PATCH", body: JSON.stringify(body) }),
   delete: <T>(path: string) => apiFetch<T>(path, { method: "DELETE" }),
+  upload: <T>(path: string, formData: FormData) => apiUpload<T>(path, formData),
+  download: (path: string) => apiDownload(path),
 };

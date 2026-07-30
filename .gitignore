@@ -22,6 +22,7 @@ llm_cache.json
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+apps/api/uploads/
 
 # Environment files
 .env

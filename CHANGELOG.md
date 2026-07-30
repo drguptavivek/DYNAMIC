@@ -16,6 +16,12 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 
 ### Added
 
+- Added a Mapping Frame CSV import workflow for the study-site Excel format, including upload preview, HHID generation, duplicate/error reporting, and Add Data commit into mapping frame and household records.
+- Accepted the official Mapping Listing CSV headers when Excel saves wrapped header text with line breaks and range hints.
+- Added selected-site validation to Mapping Frame CSV import so uploaded Study Site IDs and locality codes must match existing Study Sites and Study Localities master rows before household import.
+- Added Mapping Frame upload archiving with matched and unmatched CSV outputs plus an Unmatched Uploads history/download view for central admins.
+- Added Mapping Frame CSV invalid-row rules for missing IDs, Excel-internal duplicate HHIDs, master site/locality mismatches, over-length codes, and left-side zero padding of short numeric codes.
+- Added search and pagination to the Mapping Frame CSV preview so large upload previews remain usable.
 - Added central-admin Study Masters edit flows for updating existing study site codes/names and locality codes/names/types, including dependent locality-code records.
 - Added checked-in API and Expo environment examples while keeping real environment files ignored.
 - Added the Expo Android application ID required by native prebuild and documented that the current local release APK is debug-signed and intended only for testing.
@@ -27,6 +33,13 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 
 ### Changed
 
+- Updated the development seed for study site ID 1 to use the Bareilly site code and name.
+- Updated the development seed locality for site ID 1 and locality code 01 to use Sunped.
+- Removed the separate Site Code field from the Study Sites UI because Site ID is the master identifier.
+- Replaced Mapping Status on the Mapping Frame page with Consent Given.
+- Renamed Mapping Frame columns to Structure, Household, and Household consent given for clearer admin review.
+- Restricted Mapping Frame import to CSV files in both the Admin file picker and API upload endpoints.
+- Ignored fully blank CSV rows during Mapping Frame preview/import while still marking partially filled rows with missing required mapping fields as invalid.
 - Reworked the field-app Household page filters into a compact row with locality checkbox multi-select plus household number, address, member name, and sex filters.
 - Scoped the Household page locality checkbox filter to the logged-in user's active locality assignments.
 - Tightened the Household page mobile spacing and fixed the compact household-member panel overlay positioning.
@@ -50,6 +63,7 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 - Made post-login app-lock biometric unlock use the saved per-user biometric preference and added a Profile control to enable or disable it.
 - Kept the Household members slideout inside the Android phone width and allowed the Household toolbar actions to wrap on compact screens.
 - Prevented HHQ roster calculations from recreating a hidden or deleted minimum household-member placeholder after declined consent or final-row deletion.
+- Fixed the Study Localities edit form so valid 2-digit locality codes pass browser validation.
 - Directed blocked forward navigation to the first visible validation error and displayed definition-provided regex messages.
 - Preserved ISO date values in the questionnaire model while displaying dates as `DD-MMM-YYYY` and using the native Android Material date picker.
 - Prevented non-applicable consent-dependent sections from occupying compact progress space or blocking final review.
@@ -65,6 +79,7 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 
 ### Testing
 
+- Added API integration coverage for Mapping Frame CSV preview/import, generated HHID output, and imported household visibility with address, head name, and comments.
 - Added native renderer registry coverage for all 11 bundled questionnaire definitions and re-ran Expo web and Android exports.
 - Verified Admin typecheck and production build, all Expo validation scripts, Expo Doctor, Android and web exports, and clean npm dependency trees after the SDK 57 upgrade.
 - Regenerated the ignored Android project and completed debug and release APK builds plus debug installation on the Pixel 7 API 36 emulator.

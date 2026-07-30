@@ -23,8 +23,8 @@ test("central admin can manage masters and mapping-frame records", async () => {
   await new Promise<void>((resolve) => server.listen(0, resolve));
   const uniqueSuffix = randomInt(100000, 999999);
   const siteId = 1000000000 + uniqueSuffix;
-  const localityCode = `T${String(uniqueSuffix).padStart(5, "0")}`;
-  const renamedLocalityCode = `R${String(uniqueSuffix).padStart(5, "0")}`;
+  const localityCode = "01";
+  const renamedLocalityCode = "02";
 
   try {
     const address = server.address();
@@ -122,7 +122,7 @@ test("central admin can manage masters and mapping-frame records", async () => {
       body: JSON.stringify(mappingRecord),
     });
     assert.equal(mappingFrame.household_id, householdId);
-    assert.equal(mappingFrame.structure_id, `${siteId}-${localityCode}-0201`);
+    assert.equal(mappingFrame.structure_id, `${siteId}-${renamedLocalityCode}-0201`);
     assert.equal(mappingFrame.mapping_status, "listed");
     assert.equal(mappingFrame.baseline_enrollment_status, "pending");
 
@@ -183,7 +183,64 @@ test("central admin can manage masters and mapping-frame records", async () => {
     );
     assert.equal(listedMappingFrame.length, 3);
     assert.ok(listedMappingFrame.some((entry: any) => entry.household_id === householdId));
+
+    const importCsv = [
+      [
+        "Study Site",
+        "Colony / Village Code",
+        "Structure Serial No (same as on map) - Only Residential ones",
+        "Address/ Location / description of structure",
+        "Serial number of household in the structure",
+        "Name of Head of Household",
+        "Comments (if any)",
+      ].join(","),
+      [
+        `${siteId}`,
+        renamedLocalityCode,
+        "303",
+        "CSV imported address",
+        "7",
+        "CSV Head",
+        "CSV comment",
+      ].join(","),
+    ].join("\n");
+
+    const previewFormData = new FormData();
+    previewFormData.append("site_id", String(siteId));
+    previewFormData.append("file", new Blob([importCsv], { type: "text/csv" }), "mapping.csv");
+    const preview = await fetchData(`${baseUrl}/masters/mapping-frame/import-csv/preview`, {
+      method: "POST",
+      headers: { Authorization: authorization },
+      body: previewFormData,
+    });
+    assert.equal(preview.ready, 1);
+    assert.equal(preview.rows[0].household_id, `${siteId}-${renamedLocalityCode}-0303-07`);
+
+    const importFormData = new FormData();
+    importFormData.append("site_id", String(siteId));
+    importFormData.append("file", new Blob([importCsv], { type: "text/csv" }), "mapping.csv");
+    const imported = await fetchData(`${baseUrl}/masters/mapping-frame/import-csv`, {
+      method: "POST",
+      headers: { Authorization: authorization },
+      body: importFormData,
+    });
+    assert.equal(imported.inserted, 1);
+    assert.equal(imported.invalid, 0);
+    assert.ok(imported.upload.matched_csv_path.endsWith("matched.csv"));
+    assert.ok(imported.upload.unmatched_csv_path.endsWith("unmatched.csv"));
+
+    const importedHouseholds = await fetchData(`${baseUrl}/households?site_id=${siteId}`, {
+      headers: { Authorization: authorization },
+    });
+    const importedHousehold = importedHouseholds.find(
+      (entry: any) => entry.household_id === `${siteId}-${renamedLocalityCode}-0303-07`,
+    );
+    assert.ok(importedHousehold);
+    assert.equal(importedHousehold.address, "CSV imported address");
+    assert.equal(importedHousehold.household_head_name, "CSV Head");
+    assert.equal(importedHousehold.household_characteristics.mapping_frame_comments, "CSV comment");
   } finally {
+    await db.delete(schema.households).where(eq(schema.households.site_id, siteId));
     await db.delete(schema.mappingFrame).where(eq(schema.mappingFrame.site_id, siteId));
     await db.delete(schema.studyLocalities).where(eq(schema.studyLocalities.site_id, siteId));
     await db.delete(schema.studySites).where(eq(schema.studySites.site_id, siteId));
@@ -204,10 +261,11 @@ async function fetchData(url: string, options: RequestInit = {}) {
 }
 
 async function fetchJson(url: string, options: RequestInit = {}) {
+  const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
   const response = await fetch(url, {
     ...options,
     headers: {
-      "Content-Type": "application/json",
+      ...(isFormData ? {} : { "Content-Type": "application/json" }),
       ...options.headers,
     },
   });

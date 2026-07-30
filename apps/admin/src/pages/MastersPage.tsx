@@ -18,25 +18,64 @@ interface Locality {
 interface MappingFrame {
   household_id: string;
   structure_map_id: string;
-  household_number: number;
+  household_number: string;
+  structure_id?: string;
   mapping_status: string;
   baseline_enrollment_status: string;
+  consent_status?: string | null;
   site_id?: number;
   locality_code?: string;
+}
+
+interface MappingImportPreviewRow {
+  source_line: number;
+  household_id?: string;
+  site_id?: number;
+  locality_code?: string;
+  structure_map_id?: string;
+  household_number?: string;
+  structure_id?: string;
+  address?: string;
+  household_head_name?: string;
+  comments?: string;
+  status: "ready" | "duplicate" | "error";
+  errors: string[];
+}
+
+interface MappingImportPreview {
+  rows: MappingImportPreviewRow[];
+  ready: number;
+  duplicate: number;
+  invalid: number;
+}
+
+interface MappingImportUpload {
+  upload_id: string;
+  uploaded_at: string;
+  site_id: number;
+  original_file_name: string;
+  total_rows: number;
+  matched_rows: number;
+  unmatched_rows: number;
+  original_csv_path: string;
+  matched_csv_path: string;
+  unmatched_csv_path: string;
 }
 
 export default function MastersPage() {
   const [activeTab, setActiveTab] = useState<"sites" | "localities" | "mapping">("sites");
   const [sites, setSites] = useState<Site[]>([]);
   const [localities, setLocalities] = useState<Locality[]>([]);
-  const [mappingFrames] = useState<MappingFrame[]>([]);
+  const [mappingFrames, setMappingFrames] = useState<MappingFrame[]>([]);
   const [loadingSites, setLoadingSites] = useState(false);
   const [loadingLocalities, setLoadingLocalities] = useState(false);
+  const [loadingMappingFrames, setLoadingMappingFrames] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
     loadSites();
     loadLocalities();
+    loadMappingFrames();
   }, []);
 
   async function loadSites() {
@@ -74,6 +113,19 @@ export default function MastersPage() {
       const message = err instanceof Error ? err.message : "Failed to create site";
       setError(message);
       throw new Error(message);
+    }
+  }
+
+  async function loadMappingFrames() {
+    setLoadingMappingFrames(true);
+    setError("");
+    try {
+      const result = await api.getPage<MappingFrame[]>("/masters/mapping-frame?per_page=500");
+      setMappingFrames(result.data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load mapping frame");
+    } finally {
+      setLoadingMappingFrames(false);
     }
   }
 
@@ -151,7 +203,14 @@ export default function MastersPage() {
             onUpdateLocality={handleUpdateLocality}
           />
         )}
-        {activeTab === "mapping" && <MappingTab mappingFrames={mappingFrames} />}
+        {activeTab === "mapping" && (
+          <MappingTab
+            sites={sites}
+            mappingFrames={mappingFrames}
+            loading={loadingMappingFrames}
+            onRefresh={loadMappingFrames}
+          />
+        )}
       </div>
     </div>
   );
@@ -190,7 +249,6 @@ function SitesTab({
             <thead>
               <tr>
                 <th>Site ID</th>
-                <th>Site Code</th>
                 <th>Site Name</th>
                 <th>Actions</th>
               </tr>
@@ -199,7 +257,6 @@ function SitesTab({
               {sites.map((site) => (
                 <tr key={site.site_id}>
                   <td>{site.site_id}</td>
-                  <td>{site.site_code}</td>
                   <td>{site.site_name}</td>
                   <td>
                     <button
@@ -250,7 +307,6 @@ function CreateSiteModal({
 }) {
   const [formData, setFormData] = useState({
     site_id: "",
-    site_code: "",
     site_name: "",
   });
   const [error, setError] = useState("");
@@ -263,7 +319,7 @@ function CreateSiteModal({
     try {
       await onSubmit({
         site_id: Number(formData.site_id),
-        site_code: formData.site_code.trim(),
+        site_code: formData.site_id.trim(),
         site_name: formData.site_name.trim(),
       });
     } catch (err) {
@@ -294,17 +350,6 @@ function CreateSiteModal({
               min="1"
               value={formData.site_id}
               onChange={(e) => setFormData({ ...formData, site_id: e.target.value })}
-              required
-            />
-          </div>
-
-          <div className={styles.formGroup}>
-            <label htmlFor="site-code">Site Code *</label>
-            <input
-              id="site-code"
-              type="text"
-              value={formData.site_code}
-              onChange={(e) => setFormData({ ...formData, site_code: e.target.value })}
               required
             />
           </div>
@@ -344,7 +389,6 @@ function EditSiteModal({
   onSubmit: (data: Omit<Site, "site_id">) => Promise<void>;
 }) {
   const [formData, setFormData] = useState({
-    site_code: site.site_code,
     site_name: site.site_name,
   });
   const [error, setError] = useState("");
@@ -356,7 +400,7 @@ function EditSiteModal({
     setSaving(true);
     try {
       await onSubmit({
-        site_code: formData.site_code.trim(),
+        site_code: String(site.site_id),
         site_name: formData.site_name.trim(),
       });
     } catch (err) {
@@ -382,17 +426,6 @@ function EditSiteModal({
           <div className={styles.formGroup}>
             <label htmlFor="edit-site-id">Site ID</label>
             <input id="edit-site-id" type="number" value={site.site_id} disabled />
-          </div>
-
-          <div className={styles.formGroup}>
-            <label htmlFor="edit-site-code">Site Code *</label>
-            <input
-              id="edit-site-code"
-              type="text"
-              value={formData.site_code}
-              onChange={(e) => setFormData({ ...formData, site_code: e.target.value })}
-              required
-            />
           </div>
 
           <div className={styles.formGroup}>
@@ -567,7 +600,7 @@ function EditLocalityModal({
               type="text"
               inputMode="numeric"
               maxLength={2}
-              pattern="\\d{2}"
+              pattern="[0-9]{2}"
               title="Enter exactly 2 digits"
               value={formData.locality_code}
               onChange={(e) => setFormData({ ...formData, locality_code: e.target.value })}
@@ -613,16 +646,57 @@ function EditLocalityModal({
   );
 }
 
-function MappingTab({ mappingFrames }: { mappingFrames: MappingFrame[] }) {
+function MappingTab({
+  sites,
+  mappingFrames,
+  loading,
+  onRefresh,
+}: {
+  sites: Site[];
+  mappingFrames: MappingFrame[];
+  loading: boolean;
+  onRefresh: () => Promise<void>;
+}) {
   const [siteFilter, setSiteFilter] = useState("");
+  const [search, setSearch] = useState("");
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [showUploadsModal, setShowUploadsModal] = useState(false);
+  const [uploads, setUploads] = useState<MappingImportUpload[]>([]);
+  const [uploadsLoading, setUploadsLoading] = useState(false);
+  const [uploadsError, setUploadsError] = useState("");
   const [page, setPage] = useState(1);
   const pageSize = 50;
 
-  const filtered = mappingFrames.filter((m) =>
-    siteFilter ? m.site_id?.toString() === siteFilter : true,
-  );
+  const filtered = mappingFrames.filter((m) => {
+    const matchesSite = siteFilter ? m.site_id?.toString() === siteFilter : true;
+    const searchTerm = search.trim().toLowerCase();
+    const matchesSearch = searchTerm
+      ? [m.household_id, m.structure_map_id, m.structure_id, m.locality_code]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(searchTerm))
+      : true;
+    return matchesSite && matchesSearch;
+  });
   const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
-  const totalPages = Math.ceil(filtered.length / pageSize);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+
+  useEffect(() => {
+    setPage(1);
+  }, [siteFilter, search]);
+
+  async function openUploadsModal() {
+    setShowUploadsModal(true);
+    setUploadsLoading(true);
+    setUploadsError("");
+    try {
+      const data = await api.get<MappingImportUpload[]>("/masters/mapping-frame/import-uploads");
+      setUploads(data);
+    } catch (err) {
+      setUploadsError(err instanceof Error ? err.message : "Failed to load unmatched uploads");
+    } finally {
+      setUploadsLoading(false);
+    }
+  }
 
   return (
     <div>
@@ -632,6 +706,8 @@ function MappingTab({ mappingFrames }: { mappingFrames: MappingFrame[] }) {
           <input
             type="text"
             placeholder="Search structure_map_id..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
             className={styles.searchInput}
           />
           <select
@@ -640,13 +716,27 @@ function MappingTab({ mappingFrames }: { mappingFrames: MappingFrame[] }) {
             className={styles.filterSelect}
           >
             <option value="">All Sites</option>
+            {sites.map((site) => (
+              <option key={site.site_id} value={site.site_id}>
+                {site.site_name} ({site.site_id})
+              </option>
+            ))}
           </select>
-          <button className={styles.primaryBtn}>Import CSV</button>
+          <button className={styles.primaryBtn} onClick={() => setShowImportModal(true)}>
+            Import CSV
+          </button>
+          <button className={styles.secondaryBtn} onClick={openUploadsModal}>
+            Unmatched Uploads
+          </button>
         </div>
       </div>
 
-      {mappingFrames.length === 0 ? (
+      {loading ? (
+        <div className={styles.empty}>Loading mapping frame...</div>
+      ) : mappingFrames.length === 0 ? (
         <div className={styles.empty}>No mapping frame data found</div>
+      ) : filtered.length === 0 ? (
+        <div className={styles.empty}>No mapping frame rows match the filters</div>
       ) : (
         <>
           <div className={styles.tableContainer}>
@@ -654,9 +744,11 @@ function MappingTab({ mappingFrames }: { mappingFrames: MappingFrame[] }) {
               <thead>
                 <tr>
                   <th>Household ID</th>
-                  <th>Structure Map ID</th>
-                  <th>Household Number</th>
-                  <th>Mapping Status</th>
+                  <th>Site</th>
+                  <th>Locality</th>
+                  <th>Structure</th>
+                  <th>Household</th>
+                  <th>Household consent given</th>
                   <th>Baseline Enrollment</th>
                 </tr>
               </thead>
@@ -664,9 +756,11 @@ function MappingTab({ mappingFrames }: { mappingFrames: MappingFrame[] }) {
                 {paginated.map((frame) => (
                   <tr key={frame.household_id}>
                     <td>{frame.household_id}</td>
+                    <td>{frame.site_id || "—"}</td>
+                    <td>{frame.locality_code || "—"}</td>
                     <td>{frame.structure_map_id}</td>
                     <td>{frame.household_number}</td>
-                    <td>{frame.mapping_status}</td>
+                    <td>{formatConsent(frame.consent_status)}</td>
                     <td>{frame.baseline_enrollment_status}</td>
                   </tr>
                 ))}
@@ -695,6 +789,419 @@ function MappingTab({ mappingFrames }: { mappingFrames: MappingFrame[] }) {
           </div>
         </>
       )}
+
+      {showImportModal && (
+        <MappingCsvImportModal
+          sites={sites}
+          onClose={() => setShowImportModal(false)}
+          onImported={async () => {
+            await onRefresh();
+            setShowImportModal(false);
+          }}
+        />
+      )}
+      {showUploadsModal && (
+        <MappingUploadsModal
+          uploads={uploads}
+          loading={uploadsLoading}
+          error={uploadsError}
+          onClose={() => setShowUploadsModal(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+function MappingCsvImportModal({
+  sites,
+  onClose,
+  onImported,
+}: {
+  sites: Site[];
+  onClose: () => void;
+  onImported: () => Promise<void>;
+}) {
+  const [selectedSiteId, setSelectedSiteId] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<MappingImportPreview | null>(null);
+  const [error, setError] = useState("");
+  const [previewing, setPreviewing] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [previewSearch, setPreviewSearch] = useState("");
+  const [previewPage, setPreviewPage] = useState(1);
+  const canImport = Boolean(selectedSiteId && file && preview && preview.ready > 0);
+  const previewPageSize = 100;
+  const filteredPreviewRows = preview
+    ? preview.rows.filter((row) => {
+        const term = previewSearch.trim().toLowerCase();
+        if (!term) return true;
+        return [
+          row.source_line,
+          row.household_id,
+          row.site_id,
+          row.locality_code,
+          row.structure_map_id,
+          row.household_number,
+          row.household_head_name,
+          row.address,
+          row.comments,
+          row.status,
+          ...row.errors,
+        ]
+          .filter((value) => value !== undefined && value !== null)
+          .some((value) => String(value).toLowerCase().includes(term));
+      })
+    : [];
+  const previewTotalPages = Math.max(1, Math.ceil(filteredPreviewRows.length / previewPageSize));
+  const paginatedPreviewRows = filteredPreviewRows.slice(
+    (previewPage - 1) * previewPageSize,
+    previewPage * previewPageSize,
+  );
+
+  useEffect(() => {
+    setPreviewPage(1);
+  }, [preview, previewSearch]);
+
+  function buildFormData() {
+    if (!selectedSiteId) throw new Error("Select a study site first");
+    if (!file) throw new Error("Choose a CSV file first");
+    const formData = new FormData();
+    formData.append("site_id", selectedSiteId);
+    formData.append("file", file);
+    return formData;
+  }
+
+  async function handlePreview() {
+    setError("");
+    setPreview(null);
+    setPreviewing(true);
+    try {
+      const result = await api.upload<MappingImportPreview>(
+        "/masters/mapping-frame/import-csv/preview",
+        buildFormData(),
+      );
+      setPreview(result);
+      setPreviewSearch("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to preview CSV");
+    } finally {
+      setPreviewing(false);
+    }
+  }
+
+  async function handleImport() {
+    if (!window.confirm("Are you sure to add the household?")) return;
+    setError("");
+    setImporting(true);
+    try {
+      await api.upload<{ inserted: number; skipped: number }>(
+        "/masters/mapping-frame/import-csv",
+        buildFormData(),
+      );
+      await onImported();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to import CSV");
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  return (
+    <div className={styles.modal}>
+      <div className={`${styles.modalContent} ${styles.wideModalContent}`}>
+        <div className={styles.modalHeader}>
+          <h2>Import Mapping Frame CSV</h2>
+          <button type="button" onClick={onClose} className={styles.closeBtn} aria-label="Close">
+            X
+          </button>
+        </div>
+
+        <div className={styles.importBody}>
+          {error && <div className={styles.error}>{error}</div>}
+          <div className={styles.formGroupInline}>
+            <label htmlFor="mapping-import-site">Study Site</label>
+            <select
+              id="mapping-import-site"
+              value={selectedSiteId}
+              onChange={(event) => {
+                setSelectedSiteId(event.target.value);
+                setFile(null);
+                setPreview(null);
+                setError("");
+              }}
+            >
+              <option value="">Select site</option>
+              {sites.map((site) => (
+                <option key={site.site_id} value={site.site_id}>
+                  {site.site_id} - {site.site_name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {selectedSiteId && (
+            <div className={styles.fileRow}>
+              <input
+                type="file"
+                accept=".csv,text/csv"
+                onChange={(event) => {
+                  const nextFile = event.target.files?.[0] || null;
+                  if (nextFile && !nextFile.name.toLowerCase().endsWith(".csv")) {
+                    setFile(null);
+                    setPreview(null);
+                    setError("Only CSV files are allowed");
+                    event.target.value = "";
+                    return;
+                  }
+                  setFile(nextFile);
+                  setPreview(null);
+                  setError("");
+                }}
+              />
+              <button
+                type="button"
+                className={styles.secondaryBtn}
+                onClick={handlePreview}
+                disabled={!file || previewing}
+              >
+                {previewing ? "Previewing..." : "Preview"}
+              </button>
+            </div>
+          )}
+
+          {preview && (
+            <>
+              <div className={styles.previewSummary}>
+                <span>{preview.ready} ready</span>
+                <span>{preview.duplicate} duplicate</span>
+                <span>{preview.invalid} invalid</span>
+              </div>
+              <div className={styles.previewToolbar}>
+                <input
+                  type="text"
+                  value={previewSearch}
+                  onChange={(event) => setPreviewSearch(event.target.value)}
+                  placeholder="Search preview rows..."
+                />
+                <span>
+                  Showing {filteredPreviewRows.length === 0 ? 0 : (previewPage - 1) * previewPageSize + 1}-
+                  {Math.min(previewPage * previewPageSize, filteredPreviewRows.length)} of{" "}
+                  {filteredPreviewRows.length}
+                </span>
+              </div>
+              <div className={styles.previewTableWrap}>
+                <table className={styles.table}>
+                  <thead>
+                    <tr>
+                      <th>Line</th>
+                      <th>HHID</th>
+                      <th>Site</th>
+                      <th>Locality</th>
+                      <th>Structure</th>
+                      <th>HH No.</th>
+                      <th>Head</th>
+                      <th>Address</th>
+                      <th>Comments</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paginatedPreviewRows.map((row) => (
+                      <tr key={`${row.source_line}-${row.household_id || row.status}`}>
+                        <td>{row.source_line}</td>
+                        <td>{row.household_id || "—"}</td>
+                        <td>{row.site_id || "—"}</td>
+                        <td>{row.locality_code || "—"}</td>
+                        <td>{row.structure_map_id || "—"}</td>
+                        <td>{row.household_number || "—"}</td>
+                        <td>{row.household_head_name || "—"}</td>
+                        <td>{row.address || "—"}</td>
+                        <td>{row.comments || "—"}</td>
+                        <td>
+                          <span
+                            className={`${styles.statusPill} ${
+                              row.status === "error" ? styles.invalid : styles[row.status]
+                            }`}
+                          >
+                            {row.status}
+                          </span>
+                          {row.errors.length > 0 && (
+                            <div className={styles.rowError}>{row.errors.join("; ")}</div>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className={styles.previewPagination}>
+                <button
+                  type="button"
+                  className={styles.pageBtn}
+                  disabled={previewPage === 1}
+                  onClick={() => setPreviewPage(previewPage - 1)}
+                >
+                  Previous
+                </button>
+                <span>
+                  Page {previewPage} of {previewTotalPages}
+                </span>
+                <button
+                  type="button"
+                  className={styles.pageBtn}
+                  disabled={previewPage === previewTotalPages}
+                  onClick={() => setPreviewPage(previewPage + 1)}
+                >
+                  Next
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className={styles.modalFooter}>
+          <button type="button" onClick={onClose} className={styles.secondaryBtn}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={!canImport || importing}
+            className={styles.primaryBtn}
+            onClick={handleImport}
+          >
+            {importing ? "Adding..." : "Add Data"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function formatConsent(value?: string | null): string {
+  if (!value) return "No";
+  const normalized = String(value).trim().toLowerCase();
+  if (["yes", "y", "true", "1"].includes(normalized)) return "Yes";
+  if (["no", "n", "false", "0"].includes(normalized)) return "No";
+  return "No";
+}
+
+function formatUploadDate(value: string): string {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+}
+
+function fileNameFromPath(filePath: string): string {
+  return filePath.split(/[\\/]/).pop() || filePath;
+}
+
+async function downloadUploadFile(upload: MappingImportUpload, kind: "matched" | "unmatched") {
+  const blob = await api.download(
+    `/masters/mapping-frame/import-uploads/${encodeURIComponent(upload.upload_id)}/${kind}`,
+  );
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${upload.upload_id}-${kind}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function MappingUploadsModal({
+  uploads,
+  loading,
+  error,
+  onClose,
+}: {
+  uploads: MappingImportUpload[];
+  loading: boolean;
+  error: string;
+  onClose: () => void;
+}) {
+  const [downloadError, setDownloadError] = useState("");
+
+  async function handleDownload(upload: MappingImportUpload, kind: "matched" | "unmatched") {
+    setDownloadError("");
+    try {
+      await downloadUploadFile(upload, kind);
+    } catch (err) {
+      setDownloadError(err instanceof Error ? err.message : "Failed to download upload CSV");
+    }
+  }
+
+  return (
+    <div className={styles.modal}>
+      <div className={`${styles.modalContent} ${styles.wideModalContent}`}>
+        <div className={styles.modalHeader}>
+          <h2>Unmatched Uploads</h2>
+          <button type="button" onClick={onClose} className={styles.closeBtn} aria-label="Close">
+            X
+          </button>
+        </div>
+
+        <div className={styles.importBody}>
+          {(error || downloadError) && <div className={styles.error}>{error || downloadError}</div>}
+          {loading ? (
+            <div className={styles.empty}>Loading uploads...</div>
+          ) : uploads.length === 0 ? (
+            <div className={styles.empty}>No upload history found</div>
+          ) : (
+            <div className={styles.previewTableWrap}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>Upload Date</th>
+                    <th>Site ID</th>
+                    <th>Original File</th>
+                    <th>Matched</th>
+                    <th>Unmatched</th>
+                    <th>Matched CSV</th>
+                    <th>Unmatched CSV</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {uploads.map((upload) => (
+                    <tr key={upload.upload_id}>
+                      <td>{formatUploadDate(upload.uploaded_at)}</td>
+                      <td>{upload.site_id}</td>
+                      <td>{upload.original_file_name}</td>
+                      <td>{upload.matched_rows}</td>
+                      <td>{upload.unmatched_rows}</td>
+                      <td>
+                        <div className={styles.pathText}>{fileNameFromPath(upload.matched_csv_path)}</div>
+                        <button
+                          type="button"
+                          className={styles.smallBtn}
+                          onClick={() => handleDownload(upload, "matched")}
+                        >
+                          Download
+                        </button>
+                      </td>
+                      <td>
+                        <div className={styles.pathText}>{fileNameFromPath(upload.unmatched_csv_path)}</div>
+                        <button
+                          type="button"
+                          className={styles.smallBtn}
+                          onClick={() => handleDownload(upload, "unmatched")}
+                        >
+                          Download
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        <div className={styles.modalFooter}>
+          <button type="button" onClick={onClose} className={styles.secondaryBtn}>
+            Close
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

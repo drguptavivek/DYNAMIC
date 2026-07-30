@@ -6,13 +6,18 @@ interface Household {
   household_id: string;
   household_head_name?: string;
   contact_mobile?: string;
-  cohort_status: "enrolled" | "empty_at_baseline" | "refused" | "not_found";
+  cohort_status?: "enrolled" | "empty_at_baseline" | "refused" | "not_found" | "listed";
   baseline_completed_date?: string;
   site_id?: number;
   locality_code?: string;
   structure_map_id?: string;
   household_number?: string;
   address?: string;
+  household_characteristics?: {
+    mapping_frame_comments?: string;
+    mapping_frame_source?: string;
+    mapping_frame_source_line?: number;
+  };
   eligible_women_names?: string[];
   pregnancy_tracking_eligible_names?: string[];
 }
@@ -37,7 +42,7 @@ interface Task {
   target_date?: string;
 }
 
-const COHORT_STATUSES = ["enrolled", "empty_at_baseline", "refused", "not_found"] as const;
+const COHORT_STATUSES = ["listed", "enrolled", "empty_at_baseline", "refused", "not_found"] as const;
 const PER_PAGE = 50;
 
 export default function HouseholdsPage() {
@@ -280,12 +285,40 @@ function HouseholdDetailModal({
                   <span>{household.household_head_name || "—"}</span>
                 </div>
                 <div className={styles.infoItem}>
+                  <label>Household ID</label>
+                  <span>{household.household_id}</span>
+                </div>
+                <div className={styles.infoItem}>
+                  <label>Site</label>
+                  <span>{household.site_id || "—"}</span>
+                </div>
+                <div className={styles.infoItem}>
+                  <label>Locality</label>
+                  <span>{household.locality_code || "—"}</span>
+                </div>
+                <div className={styles.infoItem}>
+                  <label>Structure Serial No</label>
+                  <span>{household.structure_map_id || "—"}</span>
+                </div>
+                <div className={styles.infoItem}>
+                  <label>Household Number</label>
+                  <span>{household.household_number || "—"}</span>
+                </div>
+                <div className={styles.infoItem}>
+                  <label>Address</label>
+                  <span>{household.address || "—"}</span>
+                </div>
+                <div className={styles.infoItem}>
+                  <label>Comments</label>
+                  <span>{household.household_characteristics?.mapping_frame_comments || "—"}</span>
+                </div>
+                <div className={styles.infoItem}>
                   <label>Contact</label>
                   <span>{household.contact_mobile || "—"}</span>
                 </div>
                 <div className={styles.infoItem}>
                   <label>Cohort Status</label>
-                  <span>{household.cohort_status.replace(/_/g, " ")}</span>
+                  <span>{household.cohort_status?.replace(/_/g, " ") || "—"}</span>
                 </div>
                 <div className={styles.infoItem}>
                   <label>Baseline Date</label>

@@ -44,14 +44,14 @@ export async function upsertDevSeed() {
     .insert(schema.studySites)
     .values({
       site_id: 1,
-      site_code: "DEV",
-      site_name: "Development Site",
+      site_code: "Bar",
+      site_name: "Bareilly",
     })
     .onConflictDoUpdate({
       target: schema.studySites.site_id,
       set: {
-        site_code: "DEV",
-        site_name: "Development Site",
+        site_code: "Bar",
+        site_name: "Bareilly",
       },
     });
 
@@ -60,13 +60,13 @@ export async function upsertDevSeed() {
     .values({
       site_id: 1,
       locality_code: "01",
-      locality_name: "Development Locality",
+      locality_name: "Sunped",
       locality_type: "urban",
     })
     .onConflictDoUpdate({
       target: [schema.studyLocalities.site_id, schema.studyLocalities.locality_code],
       set: {
-        locality_name: "Development Locality",
+        locality_name: "Sunped",
         locality_type: "urban",
       },
     });

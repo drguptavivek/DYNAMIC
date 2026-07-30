@@ -218,6 +218,10 @@
   overflow-y: auto;
 }
 
+.wideModalContent {
+  max-width: 1100px;
+}
+
 .modalHeader {
   display: flex;
   justify-content: space-between;
@@ -278,4 +282,129 @@
   padding: 1.5rem;
   border-top: 1px solid #ddd;
   margin-top: 1.5rem;
+}
+
+.importBody {
+  padding: 1.5rem;
+}
+
+.fileRow {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+}
+
+.fileRow input {
+  flex: 1;
+  min-width: 260px;
+  padding: 0.7rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.previewSummary {
+  display: flex;
+  gap: 1rem;
+  margin: 1rem 0;
+  color: #333;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.previewToolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+  color: #555;
+  font-size: 0.8125rem;
+}
+
+.previewToolbar input {
+  min-width: 260px;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 0.875rem;
+}
+
+.previewTableWrap {
+  max-height: 430px;
+  overflow: auto;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+}
+
+.previewTableWrap .table {
+  min-width: 1050px;
+}
+
+.previewPagination {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.statusPill {
+  display: inline-flex;
+  padding: 0.25rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.ready {
+  background-color: #dcfce7;
+  color: #166534;
+}
+
+.duplicate {
+  background-color: #fef3c7;
+  color: #92400e;
+}
+
+.invalid {
+  background-color: #fee2e2;
+  color: #dc2626;
+}
+
+.rowError {
+  max-width: 220px;
+  margin-top: 0.25rem;
+  color: #dc2626;
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+
+.formGroupInline {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: 360px;
+}
+
+.formGroupInline label {
+  font-weight: 600;
+  color: #333;
+}
+
+.formGroupInline select {
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 0.875rem;
+}
+
+.pathText {
+  max-width: 220px;
+  margin-bottom: 0.5rem;
+  color: #555;
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
 }
