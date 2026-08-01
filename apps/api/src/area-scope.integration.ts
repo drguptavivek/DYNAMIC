@@ -7,7 +7,7 @@ const testDatabaseUrl =
   process.env.TEST_DATABASE_URL ??
   "postgresql://dynamic:dynamic_dev_password@localhost:55432/dynamic_test";
 
-test("field worker household list is intersected with active area assignments", async () => {
+test("field worker household list is scoped to assigned households", async () => {
   process.env.DATABASE_URL = testDatabaseUrl;
   process.env.JWT_SECRET = "test_jwt_secret";
   process.env.JWT_REFRESH_SECRET = "test_refresh_secret";
@@ -17,6 +17,7 @@ test("field worker household list is intersected with active area assignments", 
   const { createSessionBackedAccessToken } = await import("./test-helpers/session-token");
 
   const userId = `scope-user-${randomUUID()}`;
+  const assignedHouseholdId = `1-01-${randomUUID().slice(0, 4)}-01`;
   const outOfScopeHouseholdId = `1-02-${randomUUID().slice(0, 4)}-01`;
   const now = new Date();
 
@@ -56,28 +57,41 @@ test("field worker household list is intersected with active area assignments", 
     updated_at: now,
   });
 
-  await db.insert(schema.userAreaAssignments).values({
-    assignment_id: `assignment-${randomUUID()}`,
-    user_id: userId,
-    site_id: 1,
-    locality_code: "01",
-    role: "field_worker",
-    active_from: "2026-01-01",
-    active_to: null,
-    created_at: now,
-  });
+  await db.insert(schema.households).values([
+    {
+      household_id: assignedHouseholdId,
+      site_id: 1,
+      locality_code: "01",
+      structure_map_id: assignedHouseholdId.split("-")[2],
+      household_number: "01",
+      household_head_name: "Assigned Household",
+      baseline_enrollment_status: "completed",
+      baseline_completed_date: "2026-09-01",
+      cohort_status: "enrolled",
+      created_at: now,
+      updated_at: now,
+    },
+    {
+      household_id: outOfScopeHouseholdId,
+      site_id: 1,
+      locality_code: "02",
+      structure_map_id: outOfScopeHouseholdId.split("-")[2],
+      household_number: "01",
+      household_head_name: "Out Of Scope",
+      baseline_enrollment_status: "completed",
+      baseline_completed_date: "2026-09-01",
+      cohort_status: "enrolled",
+      created_at: now,
+      updated_at: now,
+    },
+  ]);
 
-  await db.insert(schema.households).values({
-    household_id: outOfScopeHouseholdId,
-    site_id: 1,
-    locality_code: "02",
-    structure_map_id: outOfScopeHouseholdId.split("-")[2],
-    household_number: "01",
-    household_head_name: "Out Of Scope",
-    baseline_enrollment_status: "completed",
-    baseline_completed_date: "2026-09-01",
-    cohort_status: "enrolled",
-    created_at: now,
+  await db.insert(schema.fieldWorkerHouseholdAssignments).values({
+    assignment_id: `household-assignment-${randomUUID()}`,
+    household_id: assignedHouseholdId,
+    user_id: userId,
+    assigned_by_user_id: userId,
+    assigned_at: now,
     updated_at: now,
   });
 
@@ -93,6 +107,16 @@ test("field worker household list is intersected with active area assignments", 
       role: "field_worker",
       site_id: 1,
     });
+
+    const assignedResponse = await fetch(
+      `http://127.0.0.1:${address.port}/api/v1/households?locality_code=01`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    const assignedBody = await assignedResponse.json();
+
+    assert.equal(assignedResponse.status, 200);
+    assert.equal(assignedBody.data.length, 1);
+    assert.equal(assignedBody.data[0].household_id, assignedHouseholdId);
 
     const response = await fetch(
       `http://127.0.0.1:${address.port}/api/v1/households?locality_code=02`,

@@ -10,3 +10,4 @@ export * from "./events";
 export * from "./tasks";
 export * from "./sync-auth";
 export * from "./corrections";
+export * from "./household-assignments";

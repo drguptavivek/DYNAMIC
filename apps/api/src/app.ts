@@ -16,6 +16,7 @@ import syncRouter from "./routes/sync";
 import protocolRouter from "./routes/protocol";
 import correctionsRouter from "./routes/corrections";
 import formResponsesRouter from "./routes/form-responses";
+import fieldWorkerHouseholdAssignmentsRouter from "./routes/field-worker-household-assignments";
 import { requireAuth } from "./middleware/auth";
 
 export function createApp() {
@@ -70,6 +71,11 @@ export function createApp() {
   app.use("/api/v1/protocol", requireAuth, protocolRouter);
   app.use("/api/v1", requireAuth, correctionsRouter);
   app.use("/api/v1/form-responses", requireAuth, formResponsesRouter);
+  app.use(
+    "/api/v1/field-worker-household-assignments",
+    requireAuth,
+    fieldWorkerHouseholdAssignmentsRouter,
+  );
 
   return app;
 }

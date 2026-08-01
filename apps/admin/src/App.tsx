@@ -5,6 +5,7 @@ import Layout from "./components/Layout";
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
 import UsersPage from "./pages/UsersPage";
+import FieldWorkerHouseholdAssignmentPage from "./pages/FieldWorkerHouseholdAssignmentPage";
 import MastersPage from "./pages/MastersPage";
 import HouseholdsPage from "./pages/HouseholdsPage";
 import HouseholdMembersPage from "./pages/HouseholdMembersPage";
@@ -25,6 +26,7 @@ export default function App() {
             <Route element={<Layout />}>
               <Route path="/" element={<DashboardPage />} />
               <Route path="/users" element={<UsersPage />} />
+              <Route path="/field-worker-household-assignment" element={<FieldWorkerHouseholdAssignmentPage />} />
               <Route path="/masters" element={<MastersPage />} />
               <Route path="/households" element={<HouseholdsPage />} />
               <Route path="/household-members" element={<HouseholdMembersPage />} />

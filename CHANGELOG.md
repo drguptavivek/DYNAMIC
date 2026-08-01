@@ -17,6 +17,20 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 ### Added
 
 - Added a Mapping Frame CSV import workflow for the study-site Excel format, including upload preview, HHID generation, duplicate/error reporting, and Add Data commit into mapping frame and household records.
+- Added a guarded Delete action for pending CSV-imported Add Households rows, with API protection against deleting records that already have study data.
+- Added a Field Worker Household Assignment admin menu page for the upcoming dedicated assignment workflow.
+- Added responsive site and locality selector controls to the Field Worker Household Assignment page.
+- Added Start and End Household Range inputs to the Field Worker Household Assignment selector row.
+- Added a View button to the Field Worker Household Assignment selector row.
+- Added the first Field Worker Household Assignment table view with range filtering, row selection, select-all, assign-selected, clear-selected, and per-row Assign controls.
+- Added multi-field-worker household assignment support with checkbox user selection for per-row and bulk assignment.
+- Added clearing of selected field-worker household assignments from the assignment page.
+- Added per-worker unassign controls and outside-click closing for household assignment field-worker selectors.
+- Moved assigned field-worker tags into a separate assignment column on the household assignment page.
+- Added household search and 1000-row pagination to the field-worker household assignment table.
+- Added backend field-worker household assignment storage and API support for saving selected household assignments.
+- Added Drizzle migration metadata for field-worker household assignments so the schema history includes the new assignment table.
+- Scoped field-worker household sync/access to assigned household IDs.
 - Accepted the official Mapping Listing CSV headers when Excel saves wrapped header text with line breaks and range hints.
 - Added selected-site validation to Mapping Frame CSV import so uploaded Study Site IDs and locality codes must match existing Study Sites and Study Localities master rows before household import.
 - Added Mapping Frame upload archiving with matched and unmatched CSV outputs plus an Unmatched Uploads history/download view for central admins.
@@ -31,11 +45,16 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 - Added the Expo and EAS agent-skill bundle used for future Expo development, upgrade, simulator, hosting, and store workflows.
 - Added a password-verified Forgot PIN unlock flow and a Profile option for changing the field-app PIN.
 
+### Testing
+
+- Updated field-worker household scope coverage to verify only explicitly assigned households are visible to that worker.
+
 ### Changed
 
 - Updated the development seed for study site ID 1 to use the Bareilly site code and name.
 - Updated the development seed locality for site ID 1 and locality code 01 to use Sunped.
 - Removed the separate Site Code field from the Study Sites UI because Site ID is the master identifier.
+- Renamed the admin Mapping Frame tab/page to Add Households and updated the CSV import confirmation wording.
 - Replaced Mapping Status on the Mapping Frame page with Consent Given.
 - Renamed Mapping Frame columns to Structure, Household, and Household consent given for clearer admin review.
 - Restricted Mapping Frame import to CSV files in both the Admin file picker and API upload endpoints.
@@ -51,11 +70,13 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 - Routed generic questionnaire entry through the native Expo Survey Core renderer and removed the unused `survey-react-ui` dependency from the Expo workspace.
 - Reworked the household-questionnaire mobile shell so the DYNAMIC header collapses on scroll, the questionnaire title remains compact, and Previous/Preview/Save/Next retain their requested bottom positions.
 - Changed dynamic-panel rendering to show compact committed-entry summaries and open explicit Add or Update editors only when requested.
-- Reworked Admin user management so Create and Edit use named site selectors and locality checkboxes, while the user table shows readable site and locality names with their codes and IDs.
+- Reworked Admin user management so Create and Edit use named site selectors, while the user table shows readable site and locality names with their codes and IDs.
+- Removed locality assignment checkboxes from the Admin Users create/edit dialogs so locality assignment can move to a dedicated admin page.
 - Replaced the separate user deactivation action with an accessible Active/Inactive switch in the Users table.
 
 ### Fixed
 
+- Improved Admin user-create/edit validation messages so required API fields such as password length are shown clearly instead of a generic invalid-body error.
 - Added Expo Metro workspace package resolution so Android embedded-bundle builds can resolve shared monorepo packages from the short Windows build path.
 - Added Expo Metro WASM asset resolution so the field-app web preview can bundle the `expo-sqlite` web worker.
 - Routed the field-app web preview through the localStorage SQLite shim so Chrome does not crash on `SharedArrayBuffer` startup.

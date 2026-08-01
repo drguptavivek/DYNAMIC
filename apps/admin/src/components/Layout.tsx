@@ -30,6 +30,9 @@ export default function Layout() {
     { path: "/children", label: "Children" },
     { path: "/masters", label: "Study Masters" },
     ...(isAdmin ? [{ path: "/users", label: "Users" }] : []),
+    ...(isAdmin
+      ? [{ path: "/field-worker-household-assignment", label: "Field Worker Household Assignment" }]
+      : []),
   ];
 
   return (

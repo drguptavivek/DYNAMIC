@@ -47,17 +47,18 @@ const parseAnswersJson = (answersJson: unknown): Record<string, unknown> => {
 
 const parseHouseholdScope = (
   householdId: unknown,
-): { site_id?: number; locality_code?: string } => {
+): { site_id?: number; locality_code?: string; household_id?: string } => {
   if (typeof householdId !== "string") return {};
   const [siteId, localityCode] = householdId.split("-");
   const parsedSiteId = Number.parseInt(siteId, 10);
   return {
     site_id: Number.isFinite(parsedSiteId) ? parsedSiteId : undefined,
     locality_code: localityCode || undefined,
+    household_id: householdId,
   };
 };
 
-const resolveRecordScope = (data: any): { site_id: number; locality_code: string } => {
+const resolveRecordScope = (data: any): { site_id: number; locality_code: string; household_id?: string } => {
   const answers = parseAnswersJson(data.answers_json);
   const householdScope = parseHouseholdScope(data.household_id ?? answers.household_id);
   const site_id =
@@ -72,7 +73,14 @@ const resolveRecordScope = (data: any): { site_id: number; locality_code: string
     throw new Error("Missing site_id/locality_code for synced record");
   }
 
-  return { site_id, locality_code: String(locality_code) };
+  const household_id =
+    typeof data.household_id === "string"
+      ? data.household_id
+      : typeof answers.household_id === "string"
+        ? answers.household_id
+        : householdScope.household_id;
+
+  return { site_id, locality_code: String(locality_code), household_id };
 };
 
 const buildLocationConditions = (
@@ -535,7 +543,7 @@ router.post(
           }
 
           const scope = resolveRecordScope(data);
-          if (!(await canAccessLocation(recordUser, scope.site_id, scope.locality_code))) {
+          if (!(await canAccessLocation(recordUser, scope.site_id, scope.locality_code, scope.household_id))) {
             errors.push({ id, error: "Record is outside the user's assigned area scope" });
             continue;
           }
@@ -606,7 +614,7 @@ router.post(
             continue;
           }
 
-          if (!(await canAccessLocation(recordUser, task.site_id, task.locality_code))) {
+          if (!(await canAccessLocation(recordUser, task.site_id, task.locality_code, task.household_id))) {
             errors.push({ id, error: "Task attempt is outside the user's assigned area scope" });
             continue;
           }
@@ -696,7 +704,7 @@ router.post(
             continue;
           }
 
-          if (!(await canAccessLocation(recordUser, task.site_id, task.locality_code))) {
+          if (!(await canAccessLocation(recordUser, task.site_id, task.locality_code, task.household_id))) {
             errors.push({ id: task_key, error: "Task is outside the user's assigned area scope" });
             continue;
           }

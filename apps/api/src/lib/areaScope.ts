@@ -1,10 +1,11 @@
-import { and, eq, or, sql, SQL } from "drizzle-orm";
+import { and, eq, inArray, or, sql, SQL } from "drizzle-orm";
 import { db, schema } from "../db";
 import { JwtPayload } from "../middleware/auth";
 
 interface ScopedTable {
   site_id: any;
   locality_code: any;
+  household_id?: any;
 }
 
 function todayIsoDate(): string {
@@ -28,6 +29,21 @@ export async function buildAreaScopeCondition(
     user.role === "us_collaborator"
   ) {
     return undefined;
+  }
+
+  if (user.role === "field_worker" && table.household_id) {
+    const householdAssignments = await db
+      .select({ household_id: schema.fieldWorkerHouseholdAssignments.household_id })
+      .from(schema.fieldWorkerHouseholdAssignments)
+      .where(eq(schema.fieldWorkerHouseholdAssignments.user_id, user.sub));
+
+    if (householdAssignments.length > 0) {
+      return inArray(
+        table.household_id,
+        householdAssignments.map((assignment) => assignment.household_id),
+      );
+    }
+    return sql`false`;
   }
 
   const assignments = (
@@ -59,6 +75,7 @@ export async function canAccessLocation(
   user: JwtPayload,
   siteId: number,
   localityCode: string,
+  householdId?: string | null,
 ): Promise<boolean> {
   if (
     user.role === "central_admin" ||
@@ -66,6 +83,20 @@ export async function canAccessLocation(
     user.role === "us_collaborator"
   ) {
     return true;
+  }
+
+  if (user.role === "field_worker") {
+    if (!householdId) return false;
+    const [assignment] = await db
+      .select({ household_id: schema.fieldWorkerHouseholdAssignments.household_id })
+      .from(schema.fieldWorkerHouseholdAssignments)
+      .where(
+        and(
+          eq(schema.fieldWorkerHouseholdAssignments.user_id, user.sub),
+          eq(schema.fieldWorkerHouseholdAssignments.household_id, householdId),
+        ),
+      );
+    return Boolean(assignment);
   }
 
   const assignments = (
@@ -82,7 +113,7 @@ export async function canAccessLocation(
     );
   }
 
-  return user.site_id === siteId && user.role !== "field_worker";
+  return user.site_id === siteId;
 }
 
 export async function appendAreaScopeCondition(

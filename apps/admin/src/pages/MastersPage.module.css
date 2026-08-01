@@ -109,6 +109,26 @@
   background-color: #efefef;
 }
 
+.dangerBtn {
+  padding: 0.45rem 0.75rem;
+  background-color: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+  border-radius: 4px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.dangerBtn:hover:not(:disabled) {
+  background-color: #fecaca;
+}
+
+.dangerBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .smallBtn {
   padding: 0.45rem 0.75rem;
   background-color: #fff;

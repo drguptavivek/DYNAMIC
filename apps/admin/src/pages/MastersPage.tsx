@@ -23,6 +23,7 @@ interface MappingFrame {
   mapping_status: string;
   baseline_enrollment_status: string;
   consent_status?: string | null;
+  can_delete?: boolean;
   site_id?: number;
   locality_code?: string;
 }
@@ -182,7 +183,7 @@ export default function MastersPage() {
           className={`${styles.tab} ${activeTab === "mapping" ? styles.active : ""}`}
           onClick={() => setActiveTab("mapping")}
         >
-          Mapping Frame
+          Add Households
         </button>
       </div>
 
@@ -664,6 +665,8 @@ function MappingTab({
   const [uploads, setUploads] = useState<MappingImportUpload[]>([]);
   const [uploadsLoading, setUploadsLoading] = useState(false);
   const [uploadsError, setUploadsError] = useState("");
+  const [deleteError, setDeleteError] = useState("");
+  const [deletingId, setDeletingId] = useState("");
   const [page, setPage] = useState(1);
   const pageSize = 50;
 
@@ -698,10 +701,29 @@ function MappingTab({
     }
   }
 
+  async function handleDelete(frame: MappingFrame) {
+    if (!window.confirm("Are you sure you want to delete?")) {
+      return;
+    }
+
+    setDeleteError("");
+    setDeletingId(frame.household_id);
+    try {
+      await api.delete<{ deleted: string }>(
+        `/masters/mapping-frame/${encodeURIComponent(frame.household_id)}`,
+      );
+      await onRefresh();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : "Failed to delete household");
+    } finally {
+      setDeletingId("");
+    }
+  }
+
   return (
     <div>
       <div className={styles.tabHeader}>
-        <h2>Mapping Frame</h2>
+        <h2>Add Households</h2>
         <div className={styles.filterGroup}>
           <input
             type="text"
@@ -731,12 +753,14 @@ function MappingTab({
         </div>
       </div>
 
+      {deleteError && <div className={styles.error}>{deleteError}</div>}
+
       {loading ? (
-        <div className={styles.empty}>Loading mapping frame...</div>
+        <div className={styles.empty}>Loading households...</div>
       ) : mappingFrames.length === 0 ? (
-        <div className={styles.empty}>No mapping frame data found</div>
+        <div className={styles.empty}>No household data found</div>
       ) : filtered.length === 0 ? (
-        <div className={styles.empty}>No mapping frame rows match the filters</div>
+        <div className={styles.empty}>No household rows match the filters</div>
       ) : (
         <>
           <div className={styles.tableContainer}>
@@ -750,6 +774,7 @@ function MappingTab({
                   <th>Household</th>
                   <th>Household consent given</th>
                   <th>Baseline Enrollment</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -762,6 +787,20 @@ function MappingTab({
                     <td>{frame.household_number}</td>
                     <td>{formatConsent(frame.consent_status)}</td>
                     <td>{frame.baseline_enrollment_status}</td>
+                    <td>
+                      {frame.can_delete ? (
+                        <button
+                          type="button"
+                          className={styles.dangerBtn}
+                          onClick={() => handleDelete(frame)}
+                          disabled={deletingId === frame.household_id}
+                        >
+                          {deletingId === frame.household_id ? "Deleting..." : "Delete"}
+                        </button>
+                      ) : (
+                        "-"
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -890,7 +929,7 @@ function MappingCsvImportModal({
   }
 
   async function handleImport() {
-    if (!window.confirm("Are you sure to add the household?")) return;
+    if (!window.confirm("Are you sure you want to import the csv?")) return;
     setError("");
     setImporting(true);
     try {
@@ -910,7 +949,7 @@ function MappingCsvImportModal({
     <div className={styles.modal}>
       <div className={`${styles.modalContent} ${styles.wideModalContent}`}>
         <div className={styles.modalHeader}>
-          <h2>Import Mapping Frame CSV</h2>
+          <h2>Import Household CSV</h2>
           <button type="button" onClick={onClose} className={styles.closeBtn} aria-label="Close">
             X
           </button>

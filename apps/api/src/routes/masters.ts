@@ -1031,6 +1031,13 @@ router.get("/mapping-frame", async (req: Request, res: Response) => {
         mapping_status: schema.mappingFrame.mapping_status,
         baseline_enrollment_status: schema.mappingFrame.baseline_enrollment_status,
         consent_status: schema.households.consent_status,
+        can_delete: sql<boolean>`coalesce(
+          ${schema.households.household_characteristics}->>'mapping_frame_source' = 'csv_import'
+          and ${schema.mappingFrame.baseline_enrollment_status} = 'pending'
+          and coalesce(${schema.households.baseline_enrollment_status}, 'pending') = 'pending'
+          and ${schema.households.consent_status} is null,
+          false
+        )`,
       })
       .from(schema.mappingFrame)
       .leftJoin(schema.households, eq(schema.mappingFrame.household_id, schema.households.household_id))
@@ -1069,6 +1076,90 @@ router.get(
 );
 
 /**
+ * DELETE /api/v1/masters/mapping-frame/:household_id
+ * Removes only pending households created through Mapping Frame CSV import.
+ */
+router.delete("/mapping-frame/:household_id", requireRole("central_admin"), async (req: Request, res: Response) => {
+  try {
+    const { household_id } = req.params;
+
+    const [entry] = await db
+      .select({
+        household_id: schema.mappingFrame.household_id,
+        mapping_baseline_status: schema.mappingFrame.baseline_enrollment_status,
+        household_baseline_status: schema.households.baseline_enrollment_status,
+        consent_status: schema.households.consent_status,
+        household_characteristics: schema.households.household_characteristics,
+      })
+      .from(schema.mappingFrame)
+      .leftJoin(schema.households, eq(schema.mappingFrame.household_id, schema.households.household_id))
+      .where(eq(schema.mappingFrame.household_id, household_id));
+
+    if (!entry) {
+      sendError(res, 404, "MAPPING_FRAME_NOT_FOUND", "Mapping frame entry not found");
+      return;
+    }
+
+    const characteristics = (entry.household_characteristics ?? {}) as Record<string, unknown>;
+    const isCsvImport = characteristics.mapping_frame_source === "csv_import";
+    const isPending =
+      entry.mapping_baseline_status === "pending" &&
+      (entry.household_baseline_status === "pending" || entry.household_baseline_status === null) &&
+      entry.consent_status === null;
+
+    if (!isCsvImport || !isPending) {
+      sendError(
+        res,
+        409,
+        "HOUSEHOLD_DELETE_NOT_ALLOWED",
+        "Only pending households imported from CSV can be deleted",
+      );
+      return;
+    }
+
+    const countByHousehold = (table: any) =>
+      db
+        .select({ count: sql<number>`cast(count(*) as integer)` })
+        .from(table)
+        .where(eq(table.household_id, household_id));
+
+    const [
+      [{ count: memberCount }],
+      [{ count: visitCount }],
+      [{ count: responseCount }],
+      [{ count: taskCount }],
+      [{ count: eventCount }],
+    ] = await Promise.all([
+      countByHousehold(schema.householdMembers),
+      countByHousehold(schema.visits),
+      countByHousehold(schema.formResponses),
+      countByHousehold(schema.followUpTasks),
+      countByHousehold(schema.domainEvents),
+    ]);
+
+    if (memberCount + visitCount + responseCount + taskCount + eventCount > 0) {
+      sendError(
+        res,
+        409,
+        "HOUSEHOLD_HAS_DEPENDENCIES",
+        "Household already has related study records and cannot be deleted",
+      );
+      return;
+    }
+
+    await db.transaction(async (tx) => {
+      await tx.delete(schema.households).where(eq(schema.households.household_id, household_id));
+      await tx.delete(schema.mappingFrame).where(eq(schema.mappingFrame.household_id, household_id));
+    });
+
+    sendSuccess(res, { deleted: household_id });
+  } catch (error) {
+    console.error("Delete mapping frame import row error:", error);
+    sendError(res, 500, "INTERNAL_ERROR", "An error occurred");
+  }
+});
+
+/**
  * GET /api/v1/masters/mapping-frame/:household_id
  * Returns single mapping frame entry
  */
@@ -1087,6 +1178,13 @@ router.get("/mapping-frame/:household_id", async (req: Request, res: Response) =
         mapping_status: schema.mappingFrame.mapping_status,
         baseline_enrollment_status: schema.mappingFrame.baseline_enrollment_status,
         consent_status: schema.households.consent_status,
+        can_delete: sql<boolean>`coalesce(
+          ${schema.households.household_characteristics}->>'mapping_frame_source' = 'csv_import'
+          and ${schema.mappingFrame.baseline_enrollment_status} = 'pending'
+          and coalesce(${schema.households.baseline_enrollment_status}, 'pending') = 'pending'
+          and ${schema.households.consent_status} is null,
+          false
+        )`,
       })
       .from(schema.mappingFrame)
       .leftJoin(schema.households, eq(schema.mappingFrame.household_id, schema.households.household_id))

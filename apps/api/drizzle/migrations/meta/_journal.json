@@ -15,6 +15,13 @@
       "when": 1780553582568,
       "tag": "0001_admin_corrections",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1785555120000,
+      "tag": "0002_field_worker_household_assignments",
+      "breakpoints": true
     }
   ]
 }

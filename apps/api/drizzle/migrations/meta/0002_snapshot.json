@@ -1,0 +1,2666 @@
+{
+  "id": "0b0697b5-8358-47e3-bc76-77f2b50f7d0c",
+  "prevId": "ae0f784d-0af3-4403-901a-a90dde6d5558",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.mapping_frame": {
+      "name": "mapping_frame",
+      "schema": "",
+      "columns": {
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "site_id": {
+          "name": "site_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "locality_code": {
+          "name": "locality_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "structure_map_id": {
+          "name": "structure_map_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "household_number": {
+          "name": "household_number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "structure_id": {
+          "name": "structure_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "mapping_status": {
+          "name": "mapping_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'listed'"
+        },
+        "baseline_enrollment_status": {
+          "name": "baseline_enrollment_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'pending'"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {}
+    },
+    "public.study_localities": {
+      "name": "study_localities",
+      "schema": "",
+      "columns": {
+        "site_id": {
+          "name": "site_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "locality_code": {
+          "name": "locality_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "locality_name": {
+          "name": "locality_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "locality_type": {
+          "name": "locality_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "study_localities_site_id_locality_code_pk": {
+          "name": "study_localities_site_id_locality_code_pk",
+          "columns": [
+            "site_id",
+            "locality_code"
+          ]
+        }
+      },
+      "uniqueConstraints": {}
+    },
+    "public.study_sites": {
+      "name": "study_sites",
+      "schema": "",
+      "columns": {
+        "site_id": {
+          "name": "site_id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "site_code": {
+          "name": "site_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "site_name": {
+          "name": "site_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {}
+    },
+    "public.households": {
+      "name": "households",
+      "schema": "",
+      "columns": {
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "site_id": {
+          "name": "site_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "locality_code": {
+          "name": "locality_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "structure_map_id": {
+          "name": "structure_map_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "household_number": {
+          "name": "household_number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "residence_area_type": {
+          "name": "residence_area_type",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "address": {
+          "name": "address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "household_head_name": {
+          "name": "household_head_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "contact_mobile": {
+          "name": "contact_mobile",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "consent_status": {
+          "name": "consent_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "result_interview": {
+          "name": "result_interview",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "language_questionnaire": {
+          "name": "language_questionnaire",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "baseline_enrollment_status": {
+          "name": "baseline_enrollment_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'pending'"
+        },
+        "baseline_completed_date": {
+          "name": "baseline_completed_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cohort_status": {
+          "name": "cohort_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "closed_reason": {
+          "name": "closed_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "religion_head": {
+          "name": "religion_head",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "caste_category": {
+          "name": "caste_category",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "household_characteristics": {
+          "name": "household_characteristics",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sync_status": {
+          "name": "sync_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'local'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {}
+    },
+    "public.household_members": {
+      "name": "household_members",
+      "schema": "",
+      "columns": {
+        "household_member_id": {
+          "name": "household_member_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "member_number": {
+          "name": "member_number",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "site_id": {
+          "name": "site_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "locality_code": {
+          "name": "locality_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "relationship_to_head": {
+          "name": "relationship_to_head",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sex": {
+          "name": "sex",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_residence_place": {
+          "name": "last_residence_place",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "residence_months": {
+          "name": "residence_months",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "residence_years": {
+          "name": "residence_years",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "date_of_birth": {
+          "name": "date_of_birth",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "date_of_birth_precision": {
+          "name": "date_of_birth_precision",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'inferred_from_age'"
+        },
+        "reported_age_years": {
+          "name": "reported_age_years",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reported_age_as_of_date": {
+          "name": "reported_age_as_of_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dob_inference_rule_version": {
+          "name": "dob_inference_rule_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "marital_status": {
+          "name": "marital_status",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "woman_questionnaire_eligible": {
+          "name": "woman_questionnaire_eligible",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "birth_registration_status": {
+          "name": "birth_registration_status",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ever_attended_school": {
+          "name": "ever_attended_school",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "highest_grade_completed": {
+          "name": "highest_grade_completed",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "member_status": {
+          "name": "member_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'active'"
+        },
+        "usual_resident": {
+          "name": "usual_resident",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": true
+        },
+        "member_source": {
+          "name": "member_source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'baseline'"
+        },
+        "sync_status": {
+          "name": "sync_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'local'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "household_members_household_id_households_household_id_fk": {
+          "name": "household_members_household_id_households_household_id_fk",
+          "tableFrom": "household_members",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "household_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "household_members_household_id_member_number_unique": {
+          "name": "household_members_household_id_member_number_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "household_id",
+            "member_number"
+          ]
+        }
+      }
+    },
+    "public.eligibility_assessments": {
+      "name": "eligibility_assessments",
+      "schema": "",
+      "columns": {
+        "assessment_id": {
+          "name": "assessment_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "person_id": {
+          "name": "person_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "assessment_date": {
+          "name": "assessment_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "age_years_used": {
+          "name": "age_years_used",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "age_source": {
+          "name": "age_source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sex_used": {
+          "name": "sex_used",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "marital_status_used": {
+          "name": "marital_status_used",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "usual_resident_used": {
+          "name": "usual_resident_used",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "eligible_wq": {
+          "name": "eligible_wq",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "eligible_pregnancy_tracking": {
+          "name": "eligible_pregnancy_tracking",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_event_id": {
+          "name": "created_event_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {}
+    },
+    "public.eligible_women": {
+      "name": "eligible_women",
+      "schema": "",
+      "columns": {
+        "woman_id": {
+          "name": "woman_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "household_member_id": {
+          "name": "household_member_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "site_id": {
+          "name": "site_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "locality_code": {
+          "name": "locality_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "eligibility_start_date": {
+          "name": "eligibility_start_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "eligibility_source_event_id": {
+          "name": "eligibility_source_event_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "wq_status": {
+          "name": "wq_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'pending'"
+        },
+        "tracking_status": {
+          "name": "tracking_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'not_tracked'"
+        },
+        "current_eligibility_status": {
+          "name": "current_eligibility_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'eligible'"
+        },
+        "eligibility_basis": {
+          "name": "eligibility_basis",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "woman_permanent_id": {
+          "name": "woman_permanent_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "analysis_eligibility_flag": {
+          "name": "analysis_eligibility_flag",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sync_status": {
+          "name": "sync_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'local'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "eligible_women_household_member_id_household_members_household_member_id_fk": {
+          "name": "eligible_women_household_member_id_household_members_household_member_id_fk",
+          "tableFrom": "eligible_women",
+          "tableTo": "household_members",
+          "columnsFrom": [
+            "household_member_id"
+          ],
+          "columnsTo": [
+            "household_member_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "eligible_women_household_id_households_household_id_fk": {
+          "name": "eligible_women_household_id_households_household_id_fk",
+          "tableFrom": "eligible_women",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "household_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {}
+    },
+    "public.pregnancies": {
+      "name": "pregnancies",
+      "schema": "",
+      "columns": {
+        "pregnancy_id": {
+          "name": "pregnancy_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "woman_id": {
+          "name": "woman_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "household_member_id": {
+          "name": "household_member_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "site_id": {
+          "name": "site_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "locality_code": {
+          "name": "locality_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pregnancy_sequence": {
+          "name": "pregnancy_sequence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pregnancy_status": {
+          "name": "pregnancy_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'active'"
+        },
+        "detected_date": {
+          "name": "detected_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "enrollment_date": {
+          "name": "enrollment_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "detection_source": {
+          "name": "detection_source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lmp_date": {
+          "name": "lmp_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lmp_precision": {
+          "name": "lmp_precision",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "edd_date": {
+          "name": "edd_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "outcome_recorded_date": {
+          "name": "outcome_recorded_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "gestational_age_at_enrollment": {
+          "name": "gestational_age_at_enrollment",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "current_conditions": {
+          "name": "current_conditions",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "current_symptoms": {
+          "name": "current_symptoms",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "anthropometrics": {
+          "name": "anthropometrics",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source_event_id": {
+          "name": "source_event_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sync_status": {
+          "name": "sync_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'local'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "pregnancies_woman_id_eligible_women_woman_id_fk": {
+          "name": "pregnancies_woman_id_eligible_women_woman_id_fk",
+          "tableFrom": "pregnancies",
+          "tableTo": "eligible_women",
+          "columnsFrom": [
+            "woman_id"
+          ],
+          "columnsTo": [
+            "woman_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {}
+    },
+    "public.ultrasound_records": {
+      "name": "ultrasound_records",
+      "schema": "",
+      "columns": {
+        "ultrasound_id": {
+          "name": "ultrasound_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "pregnancy_id": {
+          "name": "pregnancy_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "woman_id": {
+          "name": "woman_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "site_id": {
+          "name": "site_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "report_date": {
+          "name": "report_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "report_sequence": {
+          "name": "report_sequence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "gestational_age": {
+          "name": "gestational_age",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "attachment_reference": {
+          "name": "attachment_reference",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source_form_response_id": {
+          "name": "source_form_response_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "ultrasound_records_pregnancy_id_pregnancies_pregnancy_id_fk": {
+          "name": "ultrasound_records_pregnancy_id_pregnancies_pregnancy_id_fk",
+          "tableFrom": "ultrasound_records",
+          "tableTo": "pregnancies",
+          "columnsFrom": [
+            "pregnancy_id"
+          ],
+          "columnsTo": [
+            "pregnancy_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {}
+    },
+    "public.children": {
+      "name": "children",
+      "schema": "",
+      "columns": {
+        "child_id": {
+          "name": "child_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "birth_id": {
+          "name": "birth_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pregnancy_id": {
+          "name": "pregnancy_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "woman_id": {
+          "name": "woman_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "site_id": {
+          "name": "site_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "birth_rank": {
+          "name": "birth_rank",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "birth_date": {
+          "name": "birth_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "birth_status": {
+          "name": "birth_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "live_birth_status": {
+          "name": "live_birth_status",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "current_vital_status": {
+          "name": "current_vital_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'alive'"
+        },
+        "death_date": {
+          "name": "death_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "gestational_age_at_birth": {
+          "name": "gestational_age_at_birth",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sex": {
+          "name": "sex",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "birth_weight_grams": {
+          "name": "birth_weight_grams",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source_event_id": {
+          "name": "source_event_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sync_status": {
+          "name": "sync_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'local'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "children_pregnancy_id_pregnancies_pregnancy_id_fk": {
+          "name": "children_pregnancy_id_pregnancies_pregnancy_id_fk",
+          "tableFrom": "children",
+          "tableTo": "pregnancies",
+          "columnsFrom": [
+            "pregnancy_id"
+          ],
+          "columnsTo": [
+            "pregnancy_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {}
+    },
+    "public.pregnancy_outcomes": {
+      "name": "pregnancy_outcomes",
+      "schema": "",
+      "columns": {
+        "pregnancy_outcome_id": {
+          "name": "pregnancy_outcome_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "pregnancy_id": {
+          "name": "pregnancy_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "outcome_date": {
+          "name": "outcome_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "outcome_type": {
+          "name": "outcome_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "gestational_age_at_outcome": {
+          "name": "gestational_age_at_outcome",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "live_birth_count": {
+          "name": "live_birth_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "fetal_loss_count": {
+          "name": "fetal_loss_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "source_form_response_id": {
+          "name": "source_form_response_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "pregnancy_outcomes_pregnancy_id_pregnancies_pregnancy_id_fk": {
+          "name": "pregnancy_outcomes_pregnancy_id_pregnancies_pregnancy_id_fk",
+          "tableFrom": "pregnancy_outcomes",
+          "tableTo": "pregnancies",
+          "columnsFrom": [
+            "pregnancy_id"
+          ],
+          "columnsTo": [
+            "pregnancy_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {}
+    },
+    "public.form_responses": {
+      "name": "form_responses",
+      "schema": "",
+      "columns": {
+        "form_response_id": {
+          "name": "form_response_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "response_id": {
+          "name": "response_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "site_id": {
+          "name": "site_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "locality_code": {
+          "name": "locality_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "visit_id": {
+          "name": "visit_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "task_id": {
+          "name": "task_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "series_id": {
+          "name": "series_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sequence_number": {
+          "name": "sequence_number",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "form_code": {
+          "name": "form_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "form_version": {
+          "name": "form_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "subject_type": {
+          "name": "subject_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "subject_id": {
+          "name": "subject_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lineage_ids_json": {
+          "name": "lineage_ids_json",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "prefill_snapshot_json": {
+          "name": "prefill_snapshot_json",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "prefill_mapper_version": {
+          "name": "prefill_mapper_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "answers_json": {
+          "name": "answers_json",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_offline_at": {
+          "name": "created_offline_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_offline_at": {
+          "name": "updated_offline_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "device_id": {
+          "name": "device_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "synced_at": {
+          "name": "synced_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "response_status": {
+          "name": "response_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'primary'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "form_responses_visit_id_visits_visit_id_fk": {
+          "name": "form_responses_visit_id_visits_visit_id_fk",
+          "tableFrom": "form_responses",
+          "tableTo": "visits",
+          "columnsFrom": [
+            "visit_id"
+          ],
+          "columnsTo": [
+            "visit_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "form_responses_response_id_unique": {
+          "name": "form_responses_response_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "response_id"
+          ]
+        }
+      }
+    },
+    "public.visits": {
+      "name": "visits",
+      "schema": "",
+      "columns": {
+        "visit_id": {
+          "name": "visit_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "session_id": {
+          "name": "session_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "site_id": {
+          "name": "site_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "locality_code": {
+          "name": "locality_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "primary_subject_type": {
+          "name": "primary_subject_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "primary_subject_id": {
+          "name": "primary_subject_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "interviewer_id": {
+          "name": "interviewer_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "device_id": {
+          "name": "device_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "actual_mode": {
+          "name": "actual_mode",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "gps_metadata": {
+          "name": "gps_metadata",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sync_status": {
+          "name": "sync_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'local'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {}
+    },
+    "public.domain_events": {
+      "name": "domain_events",
+      "schema": "",
+      "columns": {
+        "event_id": {
+          "name": "event_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "event_type": {
+          "name": "event_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "site_id": {
+          "name": "site_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "locality_code": {
+          "name": "locality_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "subject_type": {
+          "name": "subject_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "subject_id": {
+          "name": "subject_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "visit_id": {
+          "name": "visit_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "task_id": {
+          "name": "task_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "form_response_id": {
+          "name": "form_response_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "event_datetime": {
+          "name": "event_datetime",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_offline_at": {
+          "name": "created_offline_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "device_id": {
+          "name": "device_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sync_status": {
+          "name": "sync_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'local'"
+        },
+        "apply_status": {
+          "name": "apply_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'applied'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {}
+    },
+    "public.follow_up_tasks": {
+      "name": "follow_up_tasks",
+      "schema": "",
+      "columns": {
+        "task_id": {
+          "name": "task_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "task_key": {
+          "name": "task_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "site_id": {
+          "name": "site_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "locality_code": {
+          "name": "locality_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "subject_type": {
+          "name": "subject_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "subject_id": {
+          "name": "subject_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "woman_id": {
+          "name": "woman_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pregnancy_id": {
+          "name": "pregnancy_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "child_id": {
+          "name": "child_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "task_type": {
+          "name": "task_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "form_code": {
+          "name": "form_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "expected_forms": {
+          "name": "expected_forms",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "series_id": {
+          "name": "series_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sequence_number": {
+          "name": "sequence_number",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "protocol_visit_label": {
+          "name": "protocol_visit_label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "generation_source": {
+          "name": "generation_source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_event_id": {
+          "name": "source_event_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "anchor_event_id": {
+          "name": "anchor_event_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "anchor_date": {
+          "name": "anchor_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "window_start": {
+          "name": "window_start",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "target_date": {
+          "name": "target_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "deadline_date": {
+          "name": "deadline_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'planned'"
+        },
+        "priority": {
+          "name": "priority",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "default_expected_mode": {
+          "name": "default_expected_mode",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "allowed_modes": {
+          "name": "allowed_modes",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "mode_rule_strength": {
+          "name": "mode_rule_strength",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "max_failed_attempts": {
+          "name": "max_failed_attempts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "failed_attempt_count": {
+          "name": "failed_attempt_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "requires_final_close_reason": {
+          "name": "requires_final_close_reason",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        },
+        "task_context_json": {
+          "name": "task_context_json",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "context_builder_version": {
+          "name": "context_builder_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "prefill_mapper_version": {
+          "name": "prefill_mapper_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rules_version": {
+          "name": "rules_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "form_availability": {
+          "name": "form_availability",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'available'"
+        },
+        "action_state": {
+          "name": "action_state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'enabled'"
+        },
+        "disabled_reason": {
+          "name": "disabled_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "completed_visit_id": {
+          "name": "completed_visit_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "closed_at": {
+          "name": "closed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "closed_reason": {
+          "name": "closed_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "superseded_by_event_id": {
+          "name": "superseded_by_event_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "follow_up_tasks_task_key_unique": {
+          "name": "follow_up_tasks_task_key_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "task_key"
+          ]
+        }
+      }
+    },
+    "public.task_attempts": {
+      "name": "task_attempts",
+      "schema": "",
+      "columns": {
+        "attempt_id": {
+          "name": "attempt_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "task_id": {
+          "name": "task_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "attempt_number": {
+          "name": "attempt_number",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "visit_id": {
+          "name": "visit_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "attempted_at": {
+          "name": "attempted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "attempted_by_user_id": {
+          "name": "attempted_by_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "device_id": {
+          "name": "device_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "attempted_mode": {
+          "name": "attempted_mode",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "outcome": {
+          "name": "outcome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason_code": {
+          "name": "reason_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "next_attempt_date": {
+          "name": "next_attempt_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {}
+    },
+    "public.admin_correction_events": {
+      "name": "admin_correction_events",
+      "schema": "",
+      "columns": {
+        "correction_event_id": {
+          "name": "correction_event_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "site_id": {
+          "name": "site_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "subject_type": {
+          "name": "subject_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "subject_id": {
+          "name": "subject_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "field_name": {
+          "name": "field_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "old_value": {
+          "name": "old_value",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "new_value": {
+          "name": "new_value",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "old_precision": {
+          "name": "old_precision",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "new_precision": {
+          "name": "new_precision",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reason_code": {
+          "name": "reason_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason_text": {
+          "name": "reason_text",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source_reference": {
+          "name": "source_reference",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "corrected_by_user_id": {
+          "name": "corrected_by_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "corrected_at": {
+          "name": "corrected_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {}
+    },
+    "public.data_quality_flags": {
+      "name": "data_quality_flags",
+      "schema": "",
+      "columns": {
+        "flag_id": {
+          "name": "flag_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "site_id": {
+          "name": "site_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "flag_type": {
+          "name": "flag_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "subject_type": {
+          "name": "subject_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "subject_id": {
+          "name": "subject_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "task_id": {
+          "name": "task_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "primary_response_id": {
+          "name": "primary_response_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "duplicate_response_id": {
+          "name": "duplicate_response_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "severity": {
+          "name": "severity",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'warning'"
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'open'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reviewed_by_user_id": {
+          "name": "reviewed_by_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reviewed_at": {
+          "name": "reviewed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "review_note": {
+          "name": "review_note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {}
+    },
+    "public.devices": {
+      "name": "devices",
+      "schema": "",
+      "columns": {
+        "device_id": {
+          "name": "device_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "device_name": {
+          "name": "device_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_sync_at": {
+          "name": "last_sync_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "registered_at": {
+          "name": "registered_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "devices_user_id_users_user_id_fk": {
+          "name": "devices_user_id_users_user_id_fk",
+          "tableFrom": "devices",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "user_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {}
+    },
+    "public.person_attribute_history": {
+      "name": "person_attribute_history",
+      "schema": "",
+      "columns": {
+        "history_id": {
+          "name": "history_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "person_id": {
+          "name": "person_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "field_name": {
+          "name": "field_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "old_value": {
+          "name": "old_value",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "old_precision": {
+          "name": "old_precision",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "new_value": {
+          "name": "new_value",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "new_precision": {
+          "name": "new_precision",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source_form_response_id": {
+          "name": "source_form_response_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source_event_id": {
+          "name": "source_event_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "changed_at": {
+          "name": "changed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "changed_by_user_id": {
+          "name": "changed_by_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "device_id": {
+          "name": "device_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {}
+    },
+    "public.sync_logs": {
+      "name": "sync_logs",
+      "schema": "",
+      "columns": {
+        "sync_log_id": {
+          "name": "sync_log_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "device_id": {
+          "name": "device_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "direction": {
+          "name": "direction",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "records_sent": {
+          "name": "records_sent",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "records_received": {
+          "name": "records_received",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "conflicts_detected": {
+          "name": "conflicts_detected",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'in_progress'"
+        },
+        "error_detail": {
+          "name": "error_detail",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {}
+    },
+    "public.user_area_assignments": {
+      "name": "user_area_assignments",
+      "schema": "",
+      "columns": {
+        "assignment_id": {
+          "name": "assignment_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "site_id": {
+          "name": "site_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "locality_code": {
+          "name": "locality_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "role": {
+          "name": "role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "active_from": {
+          "name": "active_from",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "active_to": {
+          "name": "active_to",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "user_area_assignments_user_id_users_user_id_fk": {
+          "name": "user_area_assignments_user_id_users_user_id_fk",
+          "tableFrom": "user_area_assignments",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "user_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {}
+    },
+    "public.users": {
+      "name": "users",
+      "schema": "",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "username": {
+          "name": "username",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "display_name": {
+          "name": "display_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "role": {
+          "name": "role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "site_id": {
+          "name": "site_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "password_hash": {
+          "name": "password_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "users_username_unique": {
+          "name": "users_username_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "username"
+          ]
+        }
+      }
+    },
+    "public.admin_corrections": {
+      "name": "admin_corrections",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "entity_type": {
+          "name": "entity_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entity_id": {
+          "name": "entity_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "field": {
+          "name": "field",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "old_value": {
+          "name": "old_value",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "new_value": {
+          "name": "new_value",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "corrected_by": {
+          "name": "corrected_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "corrected_at": {
+          "name": "corrected_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {}
+    },
+    "public.field_worker_household_assignments": {
+      "name": "field_worker_household_assignments",
+      "schema": "",
+      "columns": {
+        "assignment_id": {
+          "name": "assignment_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "household_id": {
+          "name": "household_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "assigned_by_user_id": {
+          "name": "assigned_by_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "assigned_at": {
+          "name": "assigned_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "field_worker_household_assignments_household_id_households_household_id_fk": {
+          "name": "field_worker_household_assignments_household_id_households_household_id_fk",
+          "tableFrom": "field_worker_household_assignments",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "household_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "field_worker_household_assignments_user_id_users_user_id_fk": {
+          "name": "field_worker_household_assignments_user_id_users_user_id_fk",
+          "tableFrom": "field_worker_household_assignments",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "user_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "field_worker_household_assignments_assigned_by_user_id_users_user_id_fk": {
+          "name": "field_worker_household_assignments_assigned_by_user_id_users_user_id_fk",
+          "tableFrom": "field_worker_household_assignments",
+          "tableTo": "users",
+          "columnsFrom": [
+            "assigned_by_user_id"
+          ],
+          "columnsTo": [
+            "user_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "field_worker_household_assignments_household_user_unique": {
+          "name": "field_worker_household_assignments_household_user_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "household_id",
+            "user_id"
+          ]
+        }
+      }
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}
