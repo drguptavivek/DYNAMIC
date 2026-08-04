@@ -4,7 +4,9 @@ import {
   Text,
   StyleSheet,
   FlatList,
+  Platform,
   Pressable,
+  ScrollView,
   ActivityIndicator,
   RefreshControl,
   Alert,
@@ -217,21 +219,42 @@ export function WorklistScreen({
     });
   }
 
+  function renderWorklistItem(item) {
+    if (item.type === "header") {
+      return (
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionHeaderText}>{item.title}</Text>
+        </View>
+      );
+    }
+    return <TaskRow task={item.task} onPress={handleTaskPress} />;
+  }
+
+  if (Platform.OS === "web") {
+    return (
+      <ScrollView
+        style={styles.webTaskScroll}
+        contentContainerStyle={styles.listContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
+      >
+        {sections.map((item) => (
+          <React.Fragment key={item.id}>{renderWorklistItem(item)}</React.Fragment>
+        ))}
+        {syncError && (
+          <View style={styles.centerContainer}>
+            <Text style={styles.errorText}>{syncError}</Text>
+          </View>
+        )}
+      </ScrollView>
+    );
+  }
+
   return (
     <FlatList
       data={sections}
       keyExtractor={(item) => item.id}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
-      renderItem={({ item }) => {
-        if (item.type === "header") {
-          return (
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionHeaderText}>{item.title}</Text>
-            </View>
-          );
-        }
-        return <TaskRow task={item.task} onPress={handleTaskPress} />;
-      }}
+      renderItem={({ item }) => renderWorklistItem(item)}
       ListEmptyComponent={
         syncError ? (
           <View style={styles.centerContainer}>
@@ -254,6 +277,9 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: 12,
     paddingVertical: 8,
+  },
+  webTaskScroll: {
+    flex: 1,
   },
   loadingText: {
     marginTop: 12,

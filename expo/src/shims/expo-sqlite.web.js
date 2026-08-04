@@ -93,7 +93,9 @@ class WebDatabase {
       this.state.follow_up_tasks = [
         row,
         ...this.state.follow_up_tasks.filter(
-          (task) => task.id !== row.id && task.task_key !== row.task_key,
+          (task) =>
+            task.id !== row.id &&
+            !(task.task_key && row.task_key && task.task_key === row.task_key),
         ),
       ];
       this.persist();
@@ -259,6 +261,29 @@ class WebDatabase {
       return { changes: before - this.state.domain_events_outbox.length };
     }
 
+    if (/DELETE FROM task_attempts WHERE task_id IN/i.test(normalized)) {
+      const syncedTaskIds = new Set(
+        this.state.follow_up_tasks
+          .filter((task) => ["synced", "confirmed"].includes(task.sync_status))
+          .map((task) => task.id),
+      );
+      const before = this.state.task_attempts.length;
+      this.state.task_attempts = this.state.task_attempts.filter(
+        (attempt) => !syncedTaskIds.has(attempt.task_id),
+      );
+      this.persist();
+      return { changes: before - this.state.task_attempts.length };
+    }
+
+    if (/DELETE FROM follow_up_tasks WHERE sync_status IN \('synced', 'confirmed'\)/i.test(normalized)) {
+      const before = this.state.follow_up_tasks.length;
+      this.state.follow_up_tasks = this.state.follow_up_tasks.filter(
+        (task) => !["synced", "confirmed"].includes(task.sync_status),
+      );
+      this.persist();
+      return { changes: before - this.state.follow_up_tasks.length };
+    }
+
     return { changes: 0 };
   }
 
@@ -285,12 +310,22 @@ class WebDatabase {
     if (/SELECT \* FROM follow_up_tasks WHERE 1=1/i.test(normalized)) {
       let rows = [...this.state.follow_up_tasks];
       let paramIndex = 0;
-      if (/status = \?/i.test(normalized)) rows = rows.filter((row) => row.status === params[paramIndex++]);
-      if (/task_type = \?/i.test(normalized)) rows = rows.filter((row) => row.task_type === params[paramIndex++]);
-      if (/assigned_locality_code = \?/i.test(normalized)) {
-        rows = rows.filter((row) => row.assigned_locality_code === params[paramIndex++]);
+      if (/status = \?/i.test(normalized)) {
+        const status = params[paramIndex++];
+        rows = rows.filter((row) => row.status === status);
       }
-      if (/target_date < \?/i.test(normalized)) rows = rows.filter((row) => row.target_date < params[paramIndex++]);
+      if (/task_type = \?/i.test(normalized)) {
+        const taskType = params[paramIndex++];
+        rows = rows.filter((row) => row.task_type === taskType);
+      }
+      if (/assigned_locality_code = \?/i.test(normalized)) {
+        const assignedLocalityCode = params[paramIndex++];
+        rows = rows.filter((row) => row.assigned_locality_code === assignedLocalityCode);
+      }
+      if (/target_date < \?/i.test(normalized)) {
+        const targetDate = params[paramIndex++];
+        rows = rows.filter((row) => row.target_date < targetDate);
+      }
       return sortBy(rows, "target_date");
     }
 

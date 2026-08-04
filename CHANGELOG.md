@@ -76,6 +76,10 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 
 ### Fixed
 
+- Cleared synced field-app task and household caches on successful login so switching users cannot show stale households from another site.
+- Created HHQ baseline tasks when field-worker household assignments are saved so assigned households can appear in the field-app sync/worklist.
+- Rendered the field-app web worklist with direct scroll mapping so all synced tasks are visible after sync.
+- Fixed the field-app web SQLite task filters so all pulled worklist tasks remain visible instead of only the first matching task.
 - Improved Admin user-create/edit validation messages so required API fields such as password length are shown clearly instead of a generic invalid-body error.
 - Added Expo Metro workspace package resolution so Android embedded-bundle builds can resolve shared monorepo packages from the short Windows build path.
 - Added Expo Metro WASM asset resolution so the field-app web preview can bundle the `expo-sqlite` web worker.

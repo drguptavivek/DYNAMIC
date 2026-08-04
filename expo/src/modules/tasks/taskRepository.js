@@ -50,6 +50,23 @@ export function getTask(id) {
   }
 }
 
+export function clearSyncedTaskCache() {
+  const db = getDb();
+  try {
+    db.runSync(
+      `DELETE FROM task_attempts
+       WHERE task_id IN (
+         SELECT id FROM follow_up_tasks
+         WHERE sync_status IN ('synced', 'confirmed')
+       )`,
+    );
+    db.runSync("DELETE FROM follow_up_tasks WHERE sync_status IN ('synced', 'confirmed')");
+  } catch (error) {
+    console.error("Error clearing synced task cache:", error);
+    throw error;
+  }
+}
+
 export function saveTask(task) {
   const db = getDb();
   const now = new Date().toISOString();

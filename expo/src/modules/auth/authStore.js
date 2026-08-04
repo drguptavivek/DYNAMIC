@@ -1,4 +1,6 @@
 import { getDb } from "../tasks/taskSchema.js";
+import { clearSyncedTaskCache } from "../tasks/taskRepository.js";
+import { clearHouseholdCacheForSync } from "../households/householdRepository.js";
 import { API_BASE_URL } from "../sync/apiConfig.js";
 
 let currentUser = null;
@@ -28,6 +30,19 @@ function setMeta(key, value) {
   }
 }
 
+function resetSyncedCacheForLogin() {
+  clearSyncedTaskCache();
+  clearHouseholdCacheForSync();
+  setMeta("assigned_localities", "");
+  setMeta("last_sync_at", "");
+  setMeta("sync_clock_metadata", "");
+  setMeta("sync_clock_checked_at_utc", "");
+  setMeta("sync_clock_server_time_utc", "");
+  setMeta("sync_clock_device_time_utc", "");
+  setMeta("sync_clock_delta_ms", "");
+  setMeta("sync_clock_status", "");
+}
+
 export async function login(username, password) {
   try {
     const response = await fetch(`${API_BASE_URL}/auth/login`, {
@@ -48,6 +63,7 @@ export async function login(username, password) {
       setMeta("refresh_token", refresh_token);
     }
     const enrichedUser = await fetchCurrentUser(access_token, user);
+    resetSyncedCacheForLogin();
     storeUser(enrichedUser);
     return { ok: true, user: enrichedUser };
   } catch (error) {

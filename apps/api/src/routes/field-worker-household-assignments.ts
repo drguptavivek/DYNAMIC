@@ -25,10 +25,17 @@ const clearAssignmentsSchema = z.object({
   user_ids: z.array(z.string().min(1)).optional(),
 });
 
+const HHQ_TARGET_DATE = "2026-09-01";
+const HHQ_DEADLINE_DATE = "2026-09-30";
+
 function parseRange(value: string | undefined): number | undefined {
   if (!value?.trim()) return undefined;
   const parsed = Number(value.trim());
   return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function buildHhqTaskKey(householdId: string): string {
+  return `${householdId}:household:${householdId}:HHQ:baseline:${HHQ_TARGET_DATE}:v1`;
 }
 
 router.get(
@@ -170,6 +177,8 @@ router.post(
         .select({
           household_id: schema.households.household_id,
           site_id: schema.households.site_id,
+          locality_code: schema.households.locality_code,
+          baseline_enrollment_status: schema.households.baseline_enrollment_status,
         })
         .from(schema.households)
         .where(inArray(schema.households.household_id, uniqueHouseholdIds));
@@ -217,7 +226,63 @@ router.post(
           },
         });
 
-      sendSuccess(res, { assigned: uniqueHouseholdIds.length, field_workers: uniqueUserIds.length });
+      const hhqTaskValues = households
+        .filter((household) => (household.baseline_enrollment_status ?? "pending") === "pending")
+        .map((household) => ({
+          task_id: randomUUID(),
+          task_key: buildHhqTaskKey(household.household_id),
+          site_id: household.site_id,
+          locality_code: household.locality_code,
+          household_id: household.household_id,
+          subject_type: "household",
+          subject_id: household.household_id,
+          task_type: "HHQ",
+          form_code: "HHQ",
+          expected_forms: ["HHQ"],
+          protocol_visit_label: "baseline",
+          generation_source: "field_worker_household_assignment",
+          target_date: HHQ_TARGET_DATE,
+          deadline_date: HHQ_DEADLINE_DATE,
+          status: "planned",
+          rules_version: "1.0.0",
+          form_availability: "available",
+          action_state: "enabled",
+          created_at: now,
+          updated_at: now,
+        }));
+
+      if (hhqTaskValues.length > 0) {
+        await db
+          .insert(schema.followUpTasks)
+          .values(hhqTaskValues)
+          .onConflictDoUpdate({
+            target: schema.followUpTasks.task_key,
+            set: {
+              site_id: sql`excluded.site_id`,
+              locality_code: sql`excluded.locality_code`,
+              household_id: sql`excluded.household_id`,
+              subject_type: sql`excluded.subject_type`,
+              subject_id: sql`excluded.subject_id`,
+              task_type: sql`excluded.task_type`,
+              form_code: sql`excluded.form_code`,
+              expected_forms: sql`excluded.expected_forms`,
+              protocol_visit_label: sql`excluded.protocol_visit_label`,
+              generation_source: sql`excluded.generation_source`,
+              target_date: sql`excluded.target_date`,
+              deadline_date: sql`excluded.deadline_date`,
+              rules_version: sql`excluded.rules_version`,
+              form_availability: sql`excluded.form_availability`,
+              action_state: sql`excluded.action_state`,
+              updated_at: now,
+            },
+          });
+      }
+
+      sendSuccess(res, {
+        assigned: uniqueHouseholdIds.length,
+        field_workers: uniqueUserIds.length,
+        hhq_tasks_ready: hhqTaskValues.length,
+      });
     } catch (error) {
       if (error instanceof z.ZodError) {
         sendError(res, 400, "VALIDATION_ERROR", "Invalid assignment request", {

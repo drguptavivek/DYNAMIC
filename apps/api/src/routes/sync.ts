@@ -113,6 +113,7 @@ const toExpoTaskStatus = (status: string | null): string => {
 const mapTaskForExpo = (task: typeof schema.followUpTasks.$inferSelect) => ({
   ...task,
   id: task.task_id,
+  task_key: task.task_key,
   window_end: task.deadline_date,
   assigned_locality_code: task.locality_code,
   lifecycle_status: task.status,
