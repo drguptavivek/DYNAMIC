@@ -389,7 +389,7 @@
           "type": "text",
           "name": "hhq_interview_date",
           "title": {
-            "default": "Date of interview",
+            "default": "Interviewer visit date",
             "hi": "साक्षात्कार की तिथि",
             "kn": "",
             "mr": "",
@@ -404,7 +404,7 @@
           "renderingHint": {
             "render_as": "date_picker"
           },
-          "rawText": "Date of interview",
+          "rawText": "Interviewer visit date",
           "inputType": "date"
         },
         {

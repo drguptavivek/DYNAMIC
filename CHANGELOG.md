@@ -52,6 +52,7 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 
 ### Changed
 
+- Renamed the baseline HHQ interview date prompt to "Interviewer visit date".
 - Updated the development seed for study site ID 1 to use the Bareilly site code and name.
 - Updated the development seed locality for site ID 1 and locality code 01 to use Sunped.
 - Removed the separate Site Code field from the Study Sites UI because Site ID is the master identifier.
