@@ -10,9 +10,11 @@ import {
   ActivityIndicator,
   RefreshControl,
   Alert,
+  TextInput,
 } from "react-native";
 import * as syncService from "../sync/syncService.js";
 import { listTaskWorklist } from "./taskWorklistRepository.js";
+import { buildTaskLocalityOptions, filterTaskWorklist } from "./taskWorklist.js";
 import { getTaskOpenBlockReason } from "./taskOpenPolicy.js";
 
 const BADGE_COLORS = {
@@ -54,6 +56,83 @@ function groupTasksByUrgency(tasks) {
   return groups;
 }
 
+function WorklistFilters({
+  searchText,
+  onSearchTextChange,
+  localityFilter,
+  onLocalityFilterChange,
+  localityOptions,
+  filteredCount,
+  totalCount,
+}) {
+  const [localityDropdownOpen, setLocalityDropdownOpen] = useState(false);
+  const selectedLocality = localityOptions.find((option) => option.code === localityFilter);
+  const selectedLocalityLabel = selectedLocality?.label || "All localities";
+  const localityChoices = [{ code: "", label: "All localities" }, ...localityOptions];
+
+  return (
+    <View style={styles.filterPanel}>
+      <TextInput
+        value={searchText}
+        onChangeText={onSearchTextChange}
+        placeholder="Search household, subject, or task"
+        placeholderTextColor="#7a8699"
+        style={styles.searchInput}
+        autoCapitalize="none"
+      />
+      <View style={styles.localityDropdownWrap}>
+        <Pressable
+          onPress={() => setLocalityDropdownOpen((isOpen) => !isOpen)}
+          style={styles.localityDropdownButton}
+        >
+          <Text style={styles.localityDropdownLabel} numberOfLines={1}>
+            {selectedLocalityLabel}
+          </Text>
+          <Text style={styles.localityDropdownIcon}>v</Text>
+        </Pressable>
+        {localityDropdownOpen && (
+          <View style={styles.localityDropdownMenu}>
+            <ScrollView
+              style={styles.localityDropdownList}
+              nestedScrollEnabled
+              keyboardShouldPersistTaps="handled"
+            >
+              {localityChoices.map((option) => {
+                const isActive = localityFilter === option.code;
+                return (
+                  <Pressable
+                    key={option.code || "all-localities"}
+                    onPress={() => {
+                      onLocalityFilterChange(option.code);
+                      setLocalityDropdownOpen(false);
+                    }}
+                    style={[
+                      styles.localityDropdownOption,
+                      isActive && styles.localityDropdownOptionActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.localityDropdownOptionText,
+                        isActive && styles.localityDropdownOptionTextActive,
+                      ]}
+                    >
+                      {option.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
+      </View>
+      <Text style={styles.filterCount}>
+        Showing {filteredCount} of {totalCount} tasks
+      </Text>
+    </View>
+  );
+}
+
 function TaskRow({ task, onPress, onLongPress }) {
   const isDisabled = Boolean(getTaskOpenBlockReason(task));
   const badgeColor = BADGE_COLORS[task.task_type] || "#95a5a6";
@@ -91,6 +170,7 @@ function TaskRow({ task, onPress, onLongPress }) {
 
 export function WorklistScreen({
   onOpenTask,
+  localities = [],
   syncService: syncServiceProp,
   selectedLocalityCode,
   worklistRevision,
@@ -99,10 +179,16 @@ export function WorklistScreen({
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [syncError, setSyncError] = useState(null);
+  const [searchText, setSearchText] = useState("");
+  const [localityFilter, setLocalityFilter] = useState(selectedLocalityCode || "");
 
   useEffect(() => {
     loadTasks();
   }, [selectedLocalityCode, worklistRevision]);
+
+  useEffect(() => {
+    setLocalityFilter(selectedLocalityCode || "");
+  }, [selectedLocalityCode]);
 
   function loadTasks() {
     setLoading(true);
@@ -152,23 +238,46 @@ export function WorklistScreen({
     );
   }
 
-  const grouped = groupTasksByUrgency(tasks);
+  const localityOptions = buildTaskLocalityOptions(tasks, localities);
+  const filteredTasks = filterTaskWorklist(tasks, {
+    search: searchText,
+    locality_code: localityFilter,
+  });
+  const grouped = groupTasksByUrgency(filteredTasks);
   const hasAnyTasks =
     grouped.overdue.length > 0 || grouped.today.length > 0 || grouped.upcoming.length > 0;
+  const filterPanel = (
+    <WorklistFilters
+      searchText={searchText}
+      onSearchTextChange={setSearchText}
+      localityFilter={localityFilter}
+      onLocalityFilterChange={setLocalityFilter}
+      localityOptions={localityOptions}
+      filteredCount={filteredTasks.length}
+      totalCount={tasks.length}
+    />
+  );
 
   if (!hasAnyTasks) {
     return (
-      <FlatList
-        data={[]}
-        renderItem={() => null}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
-        ListEmptyComponent={
-          <View style={styles.centerContainer}>
-            <Text style={styles.emptyText}>No open tasks</Text>
-            {syncError && <Text style={styles.errorText}>{syncError}</Text>}
-          </View>
-        }
-      />
+      <View style={styles.screen}>
+        <View style={styles.fixedFilterHeader}>{filterPanel}</View>
+        <FlatList
+          style={styles.taskList}
+          data={[]}
+          renderItem={() => null}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
+          ListEmptyComponent={
+            <View style={styles.centerContainer}>
+              <Text style={styles.emptyText}>
+                {tasks.length > 0 ? "No matching tasks" : "No open tasks"}
+              </Text>
+              {syncError && <Text style={styles.errorText}>{syncError}</Text>}
+            </View>
+          }
+          contentContainerStyle={styles.taskListContent}
+        />
+      </View>
     );
   }
 
@@ -237,6 +346,7 @@ export function WorklistScreen({
         contentContainerStyle={styles.listContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
       >
+        {filterPanel}
         {sections.map((item) => (
           <React.Fragment key={item.id}>{renderWorklistItem(item)}</React.Fragment>
         ))}
@@ -250,24 +360,31 @@ export function WorklistScreen({
   }
 
   return (
-    <FlatList
-      data={sections}
-      keyExtractor={(item) => item.id}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
-      renderItem={({ item }) => renderWorklistItem(item)}
-      ListEmptyComponent={
-        syncError ? (
-          <View style={styles.centerContainer}>
-            <Text style={styles.errorText}>{syncError}</Text>
-          </View>
-        ) : null
-      }
-      contentContainerStyle={styles.listContent}
-    />
+    <View style={styles.screen}>
+      <View style={styles.fixedFilterHeader}>{filterPanel}</View>
+      <FlatList
+        style={styles.taskList}
+        data={sections}
+        keyExtractor={(item) => item.id}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
+        renderItem={({ item }) => renderWorklistItem(item)}
+        ListEmptyComponent={
+          syncError ? (
+            <View style={styles.centerContainer}>
+              <Text style={styles.errorText}>{syncError}</Text>
+            </View>
+          ) : null
+        }
+        contentContainerStyle={styles.taskListContent}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+  },
   centerContainer: {
     flex: 1,
     justifyContent: "center",
@@ -280,6 +397,103 @@ const styles = StyleSheet.create({
   },
   webTaskScroll: {
     flex: 1,
+  },
+  fixedFilterHeader: {
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    zIndex: 20,
+    elevation: 20,
+  },
+  taskList: {
+    flex: 1,
+  },
+  taskListContent: {
+    paddingHorizontal: 12,
+    paddingBottom: 16,
+  },
+  filterPanel: {
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#d8dee4",
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 8,
+    zIndex: 30,
+    elevation: 20,
+  },
+  searchInput: {
+    minHeight: 44,
+    borderWidth: 1,
+    borderColor: "#cfd7e3",
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    fontSize: 15,
+    color: "#18202a",
+    backgroundColor: "#ffffff",
+  },
+  localityDropdownButton: {
+    minHeight: 42,
+    borderWidth: 1,
+    borderColor: "#cfd7e3",
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    marginTop: 8,
+    marginBottom: 6,
+    backgroundColor: "#ffffff",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  localityDropdownWrap: {
+    position: "relative",
+    zIndex: 40,
+    elevation: 24,
+  },
+  localityDropdownLabel: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#344054",
+  },
+  localityDropdownIcon: {
+    marginLeft: 8,
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#344054",
+  },
+  localityDropdownMenu: {
+    backgroundColor: "#ffffff",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#cfd7e3",
+    marginBottom: 8,
+    overflow: "hidden",
+  },
+  localityDropdownList: {
+    maxHeight: 220,
+  },
+  localityDropdownOption: {
+    minHeight: 44,
+    justifyContent: "center",
+    paddingHorizontal: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eef2f6",
+  },
+  localityDropdownOptionActive: {
+    backgroundColor: "#e8f1ff",
+  },
+  localityDropdownOptionText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#344054",
+  },
+  localityDropdownOptionTextActive: {
+    color: "#0b5bd3",
+  },
+  filterCount: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#667085",
   },
   loadingText: {
     marginTop: 12,

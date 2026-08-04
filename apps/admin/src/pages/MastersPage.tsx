@@ -117,6 +117,18 @@ export default function MastersPage() {
     }
   }
 
+  async function handleCreateLocality(formData: Locality) {
+    setError("");
+    try {
+      await api.post<Locality>("/masters/localities", formData);
+      await loadLocalities();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to create locality";
+      setError(message);
+      throw new Error(message);
+    }
+  }
+
   async function loadMappingFrames() {
     setLoadingMappingFrames(true);
     setError("");
@@ -201,6 +213,7 @@ export default function MastersPage() {
             sites={sites}
             localities={localities}
             loading={loadingLocalities}
+            onCreateLocality={handleCreateLocality}
             onUpdateLocality={handleUpdateLocality}
           />
         )}
@@ -458,11 +471,13 @@ function LocalitiesTab({
   sites,
   localities,
   loading,
+  onCreateLocality,
   onUpdateLocality,
 }: {
   sites: Site[];
   localities: Locality[];
   loading: boolean;
+  onCreateLocality: (data: Locality) => Promise<void>;
   onUpdateLocality: (
     siteId: number,
     localityCode: string,
@@ -470,13 +485,16 @@ function LocalitiesTab({
   ) => Promise<void>;
 }) {
   const siteNamesById = new Map(sites.map((site) => [site.site_id, site.site_name]));
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingLocality, setEditingLocality] = useState<Locality | null>(null);
 
   return (
     <div>
       <div className={styles.tabHeader}>
         <h2>Study Localities</h2>
-        <button className={styles.primaryBtn}>Add Locality</button>
+        <button type="button" className={styles.primaryBtn} onClick={() => setShowCreateModal(true)}>
+          Add Locality
+        </button>
       </div>
 
       {loading ? (
@@ -520,6 +538,17 @@ function LocalitiesTab({
         </div>
       )}
 
+      {showCreateModal && (
+        <CreateLocalityModal
+          sites={sites}
+          onClose={() => setShowCreateModal(false)}
+          onSubmit={async (data) => {
+            await onCreateLocality(data);
+            setShowCreateModal(false);
+          }}
+        />
+      )}
+
       {editingLocality && (
         <EditLocalityModal
           locality={editingLocality}
@@ -531,6 +560,136 @@ function LocalitiesTab({
           }}
         />
       )}
+    </div>
+  );
+}
+
+function CreateLocalityModal({
+  sites,
+  onClose,
+  onSubmit,
+}: {
+  sites: Site[];
+  onClose: () => void;
+  onSubmit: (data: Locality) => Promise<void>;
+}) {
+  const [formData, setFormData] = useState({
+    site_id: sites[0]?.site_id.toString() || "",
+    locality_code: "",
+    locality_name: "",
+    locality_type: "",
+  });
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+
+    const localityCode = formData.locality_code.trim();
+    if (!/^\d{2}$/.test(localityCode)) {
+      setError("Locality code must be exactly 2 digits");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await onSubmit({
+        site_id: Number(formData.site_id),
+        locality_code: localityCode,
+        locality_name: formData.locality_name.trim(),
+        locality_type: formData.locality_type.trim() || undefined,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create locality");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className={styles.modal}>
+      <div className={styles.modalContent}>
+        <div className={styles.modalHeader}>
+          <h2>Add Locality</h2>
+          <button type="button" onClick={onClose} className={styles.closeBtn} aria-label="Close">
+            X
+          </button>
+        </div>
+
+        {error && <div className={styles.error}>{error}</div>}
+
+        <form onSubmit={handleSubmit}>
+          <div className={styles.formGroup}>
+            <label htmlFor="locality-site">Site *</label>
+            <select
+              id="locality-site"
+              value={formData.site_id}
+              onChange={(e) => setFormData({ ...formData, site_id: e.target.value })}
+              required
+            >
+              {sites.length === 0 ? (
+                <option value="">No sites available</option>
+              ) : (
+                sites.map((site) => (
+                  <option key={site.site_id} value={site.site_id}>
+                    {site.site_name} ({site.site_id})
+                  </option>
+                ))
+              )}
+            </select>
+          </div>
+
+          <div className={styles.formGroup}>
+            <label htmlFor="locality-code">Locality Code *</label>
+            <input
+              id="locality-code"
+              type="text"
+              inputMode="numeric"
+              maxLength={2}
+              value={formData.locality_code}
+              onChange={(e) =>
+                setFormData({ ...formData, locality_code: e.target.value.replace(/\D/g, "") })
+              }
+              placeholder="01"
+              required
+            />
+          </div>
+
+          <div className={styles.formGroup}>
+            <label htmlFor="locality-name">Locality Name *</label>
+            <input
+              id="locality-name"
+              type="text"
+              value={formData.locality_name}
+              onChange={(e) => setFormData({ ...formData, locality_name: e.target.value })}
+              required
+            />
+          </div>
+
+          <div className={styles.formGroup}>
+            <label htmlFor="locality-type">Type</label>
+            <select
+              id="locality-type"
+              value={formData.locality_type}
+              onChange={(e) => setFormData({ ...formData, locality_type: e.target.value })}
+            >
+              <option value="">Not set</option>
+              <option value="urban">Urban</option>
+              <option value="rural">Rural</option>
+            </select>
+          </div>
+
+          <div className={styles.modalFooter}>
+            <button type="button" onClick={onClose} className={styles.secondaryBtn}>
+              Cancel
+            </button>
+            <button type="submit" disabled={saving || sites.length === 0} className={styles.primaryBtn}>
+              {saving ? "Saving..." : "Save Locality"}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

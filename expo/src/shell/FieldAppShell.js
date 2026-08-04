@@ -1,7 +1,7 @@
 /**
  * Provides the authenticated field-app shell, primary drawer, locality scope, and app lock.
  */
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -16,6 +16,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { TaskDetailModal } from "../modules/worklist/TaskDetailModal.js";
 import { SHELL_NAV_ITEMS } from "../navigation/appNavigation.js";
 import { navigateTo } from "../navigation/routes.js";
+import { getAssignedLocalities } from "../lib/householdMasterChoices.js";
 import { buildClockDriftAlert } from "../modules/sync/syncWorkflow.js";
 import { useFieldApp } from "./FieldAppProvider.js";
 
@@ -426,6 +427,26 @@ function ClockDriftAlert({ alert }) {
 
 function LocalitySwitcher({ inDrawer = false }) {
   const app = useFieldApp();
+  const localityOptions = useMemo(
+    () =>
+      getAssignedLocalities(app.user, app.localities, app.user?.site_id).map((choice) => ({
+        locality_code: String(choice.value),
+        locality_name: choice.text?.default || String(choice.value),
+      })),
+    [app.localities, app.user],
+  );
+
+  useEffect(() => {
+    if (
+      app.selectedLocalityCode &&
+      !localityOptions.some(
+        (locality) => String(locality.locality_code) === String(app.selectedLocalityCode),
+      )
+    ) {
+      app.setSelectedLocalityCode("");
+    }
+  }, [app.selectedLocalityCode, app.setSelectedLocalityCode, localityOptions]);
+
   return (
     <View style={[styles.localitySwitcher, inDrawer && styles.drawerLocalitySwitcher]}>
       <Text style={styles.localityLabel}>Locality</Text>
@@ -447,12 +468,13 @@ function LocalitySwitcher({ inDrawer = false }) {
             All
           </Text>
         </Pressable>
-        {app.localities.map((locality) => {
-          const active = app.selectedLocalityCode === locality.locality_code;
+        {localityOptions.map((locality) => {
+          const code = String(locality.locality_code);
+          const active = String(app.selectedLocalityCode || "") === code;
           return (
             <Pressable
-              key={locality.locality_code}
-              onPress={() => app.setSelectedLocalityCode(locality.locality_code)}
+              key={code}
+              onPress={() => app.setSelectedLocalityCode(code)}
               style={[styles.localityOption, active && styles.localityOptionActive]}
             >
               <Text
@@ -524,7 +546,8 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     backgroundColor: "rgba(15, 23, 42, 0.38)",
-    zIndex: 9,
+    zIndex: 900,
+    elevation: 28,
   },
   drawer: {
     position: "absolute",
@@ -537,7 +560,8 @@ const styles = StyleSheet.create({
     borderRightColor: "#d8dee4",
     padding: 18,
     gap: 10,
-    zIndex: 10,
+    zIndex: 1000,
+    elevation: 32,
   },
   drawerOpen: {
     left: 0,

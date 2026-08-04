@@ -16,6 +16,7 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 
 ### Added
 
+- Added field app Worklist search and locality filtering so synced tasks can be narrowed on device.
 - Added a Mapping Frame CSV import workflow for the study-site Excel format, including upload preview, HHID generation, duplicate/error reporting, and Add Data commit into mapping frame and household records.
 - Added a guarded Delete action for pending CSV-imported Add Households rows, with API protection against deleting records that already have study data.
 - Added a Field Worker Household Assignment admin menu page for the upcoming dedicated assignment workflow.
@@ -76,6 +77,11 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 
 ### Fixed
 
+- Fixed the field-app Worklist locality dropdown position on mobile and kept the filters fixed while only the task list scrolls.
+- Scoped field-app worklist locality chips and drawer locality buttons to the logged-in worker's visible task and site localities.
+- Raised the field-app drawer above Household page filters so the side navigation fully covers page controls on mobile.
+- Changed the field-app Worklist locality filter to a compact dropdown so many site localities do not consume mobile screen space.
+- Fixed the Study Masters Add Locality button so central admins can create locality master rows from the Localities tab.
 - Fixed the embedded Android field app startup crash by using platform-specific SQLite modules instead of a runtime `require`.
 - Cleared synced field-app task and household caches on successful login so switching users cannot show stale households from another site.
 - Scoped the field-app Households screen and member search to open assigned HHQ tasks so stale local cache cannot show another site's households.

@@ -11,6 +11,8 @@ const {
   saveEligibleWomanWorkflow,
   saveProvisionalPregnancyWorkflow,
   saveProvisionalTasks,
+  buildTaskLocalityOptions,
+  filterTaskWorklist,
   selectActionableTasks,
 } = await import("../modules/worklist/taskWorklist.js");
 
@@ -123,6 +125,59 @@ assert.equal(withdrawnResult.reconciled[0].disposition, "withdrawn");
 
 const worklist = listTaskWorklist({ locality_code: "02" }, repository);
 assert.deepEqual(worklist.map((task) => task.id), ["local-task-1"]);
+
+const searchableTasks = [
+  {
+    ...provisionalTask,
+    id: "alpha-task",
+    task_key: "alpha-key",
+    household_id: "2-02-0002-02",
+    subject_name: "Existing Duplicate Head",
+    assigned_locality_code: "02",
+  },
+  {
+    ...provisionalTask,
+    id: "beta-task",
+    task_key: "beta-key",
+    household_id: "1-01-0001-01",
+    subject_name: "Dev Household",
+    assigned_locality_code: "01",
+  },
+];
+assert.deepEqual(
+  filterTaskWorklist(searchableTasks, { search: "duplicate" }).map((task) => task.id),
+  ["alpha-task"],
+);
+assert.deepEqual(
+  filterTaskWorklist(searchableTasks, { locality_code: "01" }).map((task) => task.id),
+  ["beta-task"],
+);
+assert.deepEqual(
+  filterTaskWorklist(searchableTasks, { search: "0002", locality_code: "02" }).map(
+    (task) => task.id,
+  ),
+  ["alpha-task"],
+);
+assert.deepEqual(
+  buildTaskLocalityOptions(
+    [{ ...searchableTasks[0], assigned_site_id: 2 }],
+    [
+      { site_id: 1, locality_code: "01", locality_name: "Sunped" },
+      { site_id: 2, locality_code: "02", locality_name: "02" },
+    ],
+  ).map((option) => option.code),
+  ["02"],
+);
+assert.deepEqual(
+  buildTaskLocalityOptions(
+    [{ ...searchableTasks[0], assigned_site_id: 2 }],
+    [
+      { site_id: 1, locality_code: "02", locality_name: "Wrong site duplicate" },
+      { site_id: 2, locality_code: "02", locality_name: "02" },
+    ],
+  ),
+  [{ code: "02", label: "02 (02)" }],
+);
 
 assert.deepEqual(saveProvisionalTasks([provisionalTask], repository), { saved: 1 });
 assert.equal(savedTasks[0].sync_status, "local");

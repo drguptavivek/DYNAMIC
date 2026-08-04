@@ -10,6 +10,7 @@ export default function WorklistRoute() {
     <FieldAppShell route={{ view: "worklist" }} title="Worklist">
       <WorklistScreen
         onOpenTask={app.openTask}
+        localities={app.localities}
         selectedLocalityCode={app.selectedLocalityCode}
         worklistRevision={app.taskWorklistRevision}
       />

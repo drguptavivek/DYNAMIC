@@ -71,6 +71,95 @@ export function selectActionableTasks(tasks = []) {
   return tasks.filter(isActionableTask).sort(sortByProtocolDate);
 }
 
+function normalizeSearchValue(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function taskSearchText(task) {
+  return [
+    task?.id,
+    task?.task_key,
+    task?.task_type,
+    task?.household_id,
+    task?.subject_id,
+    task?.subject_name,
+    task?.subject_type,
+    task?.target_date,
+    task?.assigned_site_id,
+    task?.assigned_locality_code,
+  ]
+    .filter((value) => value != null && value !== "")
+    .join(" ")
+    .toLowerCase();
+}
+
+export function filterTaskWorklist(tasks = [], filters = {}) {
+  const search = normalizeSearchValue(filters.search);
+  const localityCode = String(filters.locality_code || "").trim();
+
+  return tasks.filter((task) => {
+    if (localityCode && String(task?.assigned_locality_code || "").trim() !== localityCode) {
+      return false;
+    }
+
+    if (search && !taskSearchText(task).includes(search)) {
+      return false;
+    }
+
+    return true;
+  });
+}
+
+export function buildTaskLocalityOptions(tasks = [], localities = []) {
+  const taskSiteIdsByLocality = new Map();
+
+  for (const task of tasks || []) {
+    const code = String(task?.assigned_locality_code || "").trim();
+    if (!code) continue;
+
+    const siteId = String(task?.assigned_site_id ?? task?.site_id ?? "").trim();
+    if (!taskSiteIdsByLocality.has(code)) {
+      taskSiteIdsByLocality.set(code, new Set());
+    }
+    taskSiteIdsByLocality.get(code).add(siteId);
+  }
+
+  const optionsByCode = new Map();
+
+  for (const locality of localities || []) {
+    const code = String(locality?.locality_code || "").trim();
+    if (!code || !taskSiteIdsByLocality.has(code)) continue;
+
+    const localitySiteId = String(locality?.site_id ?? "").trim();
+    const taskSiteIds = taskSiteIdsByLocality.get(code);
+    if (
+      localitySiteId &&
+      taskSiteIds.size > 0 &&
+      !taskSiteIds.has(localitySiteId) &&
+      !taskSiteIds.has("")
+    ) {
+      continue;
+    }
+
+    const name = String(locality?.locality_name || "").trim();
+    optionsByCode.set(code, {
+      code,
+      label: name ? `${name} (${code})` : `Locality ${code}`,
+    });
+  }
+
+  for (const [code] of taskSiteIdsByLocality) {
+    if (!optionsByCode.has(code)) {
+      optionsByCode.set(code, {
+        code,
+        label: `Locality ${code}`,
+      });
+    }
+  }
+
+  return [...optionsByCode.values()].sort((left, right) => left.code.localeCompare(right.code));
+}
+
 export function listTaskWorklist(filters = {}, repository) {
   if (!repository || typeof repository.listTasks !== "function") {
     throw new Error("Task Worklist repository adapter must provide listTasks");
@@ -80,7 +169,7 @@ export function listTaskWorklist(filters = {}, repository) {
     locality_code: filters.locality_code,
     task_type: filters.task_type,
   });
-  return selectActionableTasks(tasks);
+  return filterTaskWorklist(selectActionableTasks(tasks), { search: filters.search });
 }
 
 export function listTaskAttempts(taskId, repository) {
