@@ -9,21 +9,38 @@ const householdRepositorySource = fs.readFileSync(
   path.resolve(testRoot, "../modules/households/householdRepository.js"),
   "utf8"
 );
+const householdModuleSource = fs.readFileSync(
+  path.resolve(testRoot, "../modules/households/HouseholdModule.js"),
+  "utf8"
+);
 const taskSchemaSource = fs.readFileSync(
   path.resolve(testRoot, "../modules/tasks/taskSchema.js"),
   "utf8"
 );
-const offlineDatabaseSource = fs.readFileSync(
-  path.resolve(testRoot, "../modules/storage/offlineDatabase.js"),
+const offlineDatabaseNativeSource = fs.readFileSync(
+  path.resolve(testRoot, "../modules/storage/offlineDatabase.native.js"),
+  "utf8"
+);
+const offlineDatabaseWebSource = fs.readFileSync(
+  path.resolve(testRoot, "../modules/storage/offlineDatabase.web.js"),
   "utf8"
 );
 
 assert.doesNotMatch(householdRepositorySource, /openDatabase(?:Async|Sync)/);
 assert.doesNotMatch(taskSchemaSource, /openDatabase(?:Async|Sync)/);
-assert.doesNotMatch(offlineDatabaseSource, /import \* as SQLite from "expo-sqlite"/);
-assert.doesNotMatch(offlineDatabaseSource, /return require\("expo-sqlite"\)/);
-assert.match(offlineDatabaseSource, /nativeRequire\("expo-sqlite"\)/);
-assert.match(offlineDatabaseSource, /SQLite\.openDatabaseSync\(DATABASE_NAME\)/);
+assert.match(householdRepositorySource, /from "\.\.\/storage\/offlineDatabase"/);
+assert.match(taskSchemaSource, /from "\.\.\/storage\/offlineDatabase"/);
+assert.match(householdRepositorySource, /householdIds/);
+assert.match(householdModuleSource, /listTasks/);
+assert.match(householdModuleSource, /status: "open", task_type: HHQ_CODE/);
+assert.match(householdModuleSource, /householdIds: scopedHouseholdIds/);
+assert.doesNotMatch(householdRepositorySource, /from "\.\.\/storage\/offlineDatabase\.js"/);
+assert.doesNotMatch(taskSchemaSource, /from "\.\.\/storage\/offlineDatabase\.js"/);
+assert.match(offlineDatabaseNativeSource, /import \* as SQLite from "expo-sqlite"/);
+assert.doesNotMatch(offlineDatabaseNativeSource, /require\("expo-sqlite"\)/);
+assert.match(offlineDatabaseNativeSource, /SQLite\.openDatabaseSync\(DATABASE_NAME\)/);
+assert.match(offlineDatabaseWebSource, /expo-sqlite\.web\.js/);
+assert.doesNotMatch(offlineDatabaseWebSource, /expo-sqlite";/);
 
 const {
   extractHouseholdRegistryFields,

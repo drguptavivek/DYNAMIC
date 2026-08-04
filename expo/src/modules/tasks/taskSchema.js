@@ -1,7 +1,7 @@
 /**
  * Initializes task, workflow, response, draft, and outbox tables on the shared offline database.
  */
-import { getOfflineDatabase } from "../storage/offlineDatabase.js";
+import { getOfflineDatabase } from "../storage/offlineDatabase";
 
 let schemaInitialized = false;
 

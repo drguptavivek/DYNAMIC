@@ -76,7 +76,10 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 
 ### Fixed
 
+- Fixed the embedded Android field app startup crash by using platform-specific SQLite modules instead of a runtime `require`.
 - Cleared synced field-app task and household caches on successful login so switching users cannot show stale households from another site.
+- Scoped the field-app Households screen and member search to open assigned HHQ tasks so stale local cache cannot show another site's households.
+- Tightened the compact field-app Household list so mobile rows no longer stretch into oversized table rows.
 - Created HHQ baseline tasks when field-worker household assignments are saved so assigned households can appear in the field-app sync/worklist.
 - Rendered the field-app web worklist with direct scroll mapping so all synced tasks are visible after sync.
 - Fixed the field-app web SQLite task filters so all pulled worklist tasks remain visible instead of only the first matching task.

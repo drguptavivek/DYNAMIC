@@ -8,6 +8,7 @@ import { formsByCode } from "../../data/formCatalog";
 import { getAssignedLocalities, getAssignedSites } from "../../lib/householdMasterChoices.js";
 import { ROUTES, navigateTo } from "../../navigation/routes";
 import * as syncService from "../sync/syncService.js";
+import { listTasks } from "../tasks/taskRepository.js";
 import { BaselineHouseholdForm } from "./BaselineHouseholdForm.js";
 import {
   formatSite,
@@ -22,6 +23,22 @@ import {
 const HHQ_CODE = "HHQ";
 const PAGE_SIZE = 50;
 const MEMBER_SEARCH_PAGE_SIZE = 10;
+
+function isFieldWorker(user) {
+  return String(user?.role || "").toLowerCase().replace(/[\s-]+/g, "_") === "field_worker";
+}
+
+function getOpenHhqHouseholdIdsForUser(user) {
+  if (!isFieldWorker(user)) return null;
+  return [
+    ...new Set(
+      listTasks({ status: "open", task_type: HHQ_CODE })
+        .map((task) => task.household_id || task.subject_id)
+        .filter(Boolean)
+        .map(String)
+    )
+  ];
+}
 
 export function HouseholdModule({
   locale,
@@ -65,9 +82,11 @@ export function HouseholdModule({
 
   const refreshHouseholds = async () => {
     await initializeHouseholdRepository();
+    const scopedHouseholdIds = getOpenHhqHouseholdIdsForUser(user);
     const rows = await listHouseholds({
       localityCode: selectedLocalityCode,
       localityCodes: selectedLocalityCodes,
+      householdIds: scopedHouseholdIds,
       householdNumber,
       address: addressSearch,
       limit: PAGE_SIZE + 1,
@@ -79,7 +98,7 @@ export function HouseholdModule({
 
   useEffect(() => {
     refreshHouseholds();
-  }, [selectedLocalityCode, selectedLocalityCodes, householdNumber, addressSearch, householdPage]);
+  }, [user, selectedLocalityCode, selectedLocalityCodes, householdNumber, addressSearch, householdPage]);
 
   useEffect(() => {
     setHouseholdPage(0);
@@ -105,9 +124,11 @@ export function HouseholdModule({
         setMemberHasNextPage(false);
         return;
       }
+      const scopedHouseholdIds = getOpenHhqHouseholdIdsForUser(user);
       const rows = await searchHouseholdMembers({
         localityCode: selectedLocalityCode,
         localityCodes: selectedLocalityCodes,
+        householdIds: scopedHouseholdIds,
         name: memberName,
         householdNumber,
         address: addressSearch,
@@ -125,7 +146,7 @@ export function HouseholdModule({
     return () => {
       active = false;
     };
-  }, [selectedLocalityCode, selectedLocalityCodes, householdNumber, addressSearch, memberName, memberSex, memberPage]);
+  }, [user, selectedLocalityCode, selectedLocalityCodes, householdNumber, addressSearch, memberName, memberSex, memberPage]);
 
   function toggleLocalityFilter(localityCode) {
     setSelectedLocalityCodes((current) => {
@@ -319,6 +340,37 @@ export function HouseholdModule({
           onPrevious={() => setHouseholdPage((page) => Math.max(0, page - 1))}
           onNext={() => setHouseholdPage((page) => page + 1)}
         />
+        {compact ? (
+          <ScrollView style={styles.compactHouseholdRows}>
+            {households.map((household) => {
+              const localityLabel = `${formatSite(household.site_id)} · ${household.locality_name || household.locality_code}`;
+              const details = [household.household_head_name, household.address].filter(Boolean).join(" · ");
+              return (
+                <Pressable
+                  key={household.household_id}
+                  onPress={() => openHouseholdPanel(household)}
+                  style={styles.compactHouseholdRow}
+                >
+                  <View style={styles.compactHouseholdMain}>
+                    <Text style={styles.compactHouseholdId}>
+                      {household.structure_number}-{household.household_number}
+                    </Text>
+                    <Text style={styles.compactHouseholdMeta} numberOfLines={1}>
+                      {localityLabel}
+                    </Text>
+                    {details ? (
+                      <Text style={styles.compactHouseholdDetails} numberOfLines={1}>
+                        {details}
+                      </Text>
+                    ) : null}
+                  </View>
+                  <Text style={styles.compactHouseholdOpen}>View</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        ) : (
+          <>
         <View style={[styles.row, styles.headerRow]}>
           <Text style={[styles.cell, styles.hhCell]}>Structure + HH</Text>
           <Text style={[styles.cell, styles.localityCell]}>Hamlet / village / colony</Text>
@@ -342,6 +394,8 @@ export function HouseholdModule({
             </View>
           ))}
         </ScrollView>
+          </>
+        )}
       </View>
 
       <HouseholdSlideout
@@ -1021,6 +1075,46 @@ const styles = StyleSheet.create({
   },
   rows: {
     maxHeight: 280
+  },
+  compactHouseholdRows: {
+    maxHeight: 360
+  },
+  compactHouseholdRow: {
+    minHeight: 58,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: "#eef2f5",
+    backgroundColor: "#ffffff"
+  },
+  compactHouseholdMain: {
+    flex: 1,
+    minWidth: 0
+  },
+  compactHouseholdId: {
+    fontSize: 14,
+    color: "#1f6feb",
+    fontWeight: "800"
+  },
+  compactHouseholdMeta: {
+    marginTop: 2,
+    fontSize: 12,
+    color: "#475467",
+    fontWeight: "700"
+  },
+  compactHouseholdDetails: {
+    marginTop: 2,
+    fontSize: 12,
+    color: "#667085"
+  },
+  compactHouseholdOpen: {
+    fontSize: 12,
+    color: "#1f6feb",
+    fontWeight: "800"
   },
   row: {
     flexDirection: "row",

@@ -3,7 +3,7 @@
  */
 import { Platform } from "react-native";
 
-import { getOfflineDatabase } from "../storage/offlineDatabase.js";
+import { getOfflineDatabase } from "../storage/offlineDatabase";
 import {
   assertUniqueMembers,
   buildHouseholdIdFromHhqData,
@@ -469,6 +469,7 @@ export async function listHouseholds(filters = {}) {
     localityCodes,
     search,
     localitySearch,
+    householdIds,
     householdNumber,
     address,
     limit = 50,
@@ -481,6 +482,11 @@ export async function listHouseholds(filters = {}) {
   const normalizedLocalityCodes = Array.isArray(localityCodes)
     ? localityCodes.map((code) => String(code)).filter(Boolean)
     : [];
+  const hasHouseholdIdFilter = Array.isArray(householdIds);
+  const normalizedHouseholdIds = hasHouseholdIdFilter
+    ? householdIds.map((id) => String(id)).filter(Boolean)
+    : [];
+  if (hasHouseholdIdFilter && normalizedHouseholdIds.length === 0) return [];
   const db = await getDatabase();
   if (db) {
     await initializeSqlite(db);
@@ -493,6 +499,10 @@ export async function listHouseholds(filters = {}) {
     if (normalizedLocalityCodes.length) {
       conditions.push(`locality_code IN (${normalizedLocalityCodes.map(() => "?").join(", ")})`);
       params.push(...normalizedLocalityCodes);
+    }
+    if (hasHouseholdIdFilter) {
+      conditions.push(`household_id IN (${normalizedHouseholdIds.map(() => "?").join(", ")})`);
+      params.push(...normalizedHouseholdIds);
     }
     if (normalizedLocalitySearch) {
       conditions.push("LOWER(COALESCE(locality_code, '') || ' ' || COALESCE(locality_name, '')) LIKE ?");
@@ -541,6 +551,7 @@ export async function listHouseholds(filters = {}) {
   return readStorageArray(storage, HOUSEHOLD_STORAGE_KEY)
     .filter((row) => !localityCode || row.locality_code === localityCode)
     .filter((row) => !normalizedLocalityCodes.length || normalizedLocalityCodes.includes(String(row.locality_code)))
+    .filter((row) => !hasHouseholdIdFilter || normalizedHouseholdIds.includes(String(row.household_id)))
     .filter((household) => {
       if (!normalizedLocalitySearch) return true;
       return [household.locality_code, household.locality_name]
@@ -656,6 +667,7 @@ export async function searchHouseholdMembers(filters = {}) {
   const {
     localityCode,
     localityCodes,
+    householdIds,
     name,
     householdNumber,
     address,
@@ -670,6 +682,11 @@ export async function searchHouseholdMembers(filters = {}) {
   const normalizedLocalityCodes = Array.isArray(localityCodes)
     ? localityCodes.map((code) => String(code)).filter(Boolean)
     : [];
+  const hasHouseholdIdFilter = Array.isArray(householdIds);
+  const normalizedHouseholdIds = hasHouseholdIdFilter
+    ? householdIds.map((id) => String(id)).filter(Boolean)
+    : [];
+  if (hasHouseholdIdFilter && normalizedHouseholdIds.length === 0) return [];
 
   const db = await getDatabase();
   if (db) {
@@ -692,6 +709,10 @@ export async function searchHouseholdMembers(filters = {}) {
     if (normalizedLocalityCodes.length) {
       sql += ` AND h.locality_code IN (${normalizedLocalityCodes.map(() => "?").join(", ")})`;
       params.push(...normalizedLocalityCodes);
+    }
+    if (hasHouseholdIdFilter) {
+      sql += ` AND m.household_id IN (${normalizedHouseholdIds.map(() => "?").join(", ")})`;
+      params.push(...normalizedHouseholdIds);
     }
     if (normalizedHouseholdNumber) {
       sql += " AND h.household_number = ?";
@@ -721,8 +742,10 @@ export async function searchHouseholdMembers(filters = {}) {
   const households = await listHouseholds({
     localityCode,
     localityCodes: normalizedLocalityCodes,
+    householdIds: hasHouseholdIdFilter ? normalizedHouseholdIds : undefined,
     householdNumber: normalizedHouseholdNumber,
-    address: normalizedAddress
+    address: normalizedAddress,
+    limit: hasHouseholdIdFilter ? Math.max(normalizedHouseholdIds.length, limit) : limit
   });
   const householdById = new Map(households.map((household) => [household.household_id, household]));
   const members = storage ? readStorageArray(storage, MEMBER_STORAGE_KEY) : [];
