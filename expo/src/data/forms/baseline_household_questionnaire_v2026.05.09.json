@@ -408,6 +408,29 @@
           "inputType": "date"
         },
         {
+          "type": "text",
+          "name": "hhq_visit_no",
+          "title": {
+            "default": "This your Visit No:",
+            "hi": "",
+            "kn": "",
+            "mr": "",
+            "ta": "",
+            "te": "",
+            "ur": ""
+          },
+          "order": 8.1,
+          "section_order": 1,
+          "sourceType": "app_calculated",
+          "renderingHint": {
+            "render_as": "readonly_summary"
+          },
+          "rawText": "This your Visit No:",
+          "readOnly": true,
+          "visibleIf": "{hhq_interview_date} notempty",
+          "inputType": "number"
+        },
+        {
           "type": "radiogroup",
           "name": "hhq_consent_study_provide_pis_explain_study_adult_member",
           "title": {

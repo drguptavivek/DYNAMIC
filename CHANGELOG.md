@@ -16,6 +16,7 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 
 ### Added
 
+- Added a read-only HHQ Visit No field after Interviewer visit date, derived from the current task attempt count and capped at 3.
 - Added field app Worklist search and locality filtering so synced tasks can be narrowed on device.
 - Added a Mapping Frame CSV import workflow for the study-site Excel format, including upload preview, HHID generation, duplicate/error reporting, and Add Data commit into mapping frame and household records.
 - Added a guarded Delete action for pending CSV-imported Add Households rows, with API protection against deleting records that already have study data.
@@ -52,6 +53,7 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 
 ### Changed
 
+- Capped Expo HHQ and WQ task attempt limits at 3 for the finalized baseline questionnaire flows.
 - Renamed the baseline HHQ interview date prompt to "Interviewer visit date".
 - Updated the development seed for study site ID 1 to use the Bareilly site code and name.
 - Updated the development seed locality for site ID 1 and locality code 01 to use Sunped.

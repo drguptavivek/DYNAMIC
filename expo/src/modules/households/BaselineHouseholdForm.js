@@ -37,12 +37,34 @@ import {
 } from "./householdRepository.js";
 
 const AUTOSAVE_INTERVAL_MS = 30000;
+const MAX_HHQ_VISIT_NO = 3;
 const HOUSEHOLD_SCHEDULE_PAGE_NAME = "page_02_household_schedule";
 const HOUSEHOLD_CHARACTERISTICS_PAGE_NAME = "page_03_household_characteristics";
 const HOUSEHOLD_CONSENT_FIELD = "hhq_consent_study_provide_pis_explain_study_adult_member";
+const HHQ_INTERVIEW_DATE_FIELD = "hhq_interview_date";
+const HHQ_VISIT_NO_FIELD = "hhq_visit_no";
 
 function hasDeclinedHouseholdConsent(model) {
   return Number(model.getValue(HOUSEHOLD_CONSENT_FIELD)) === 2;
+}
+
+function clampHhqVisitNo(value) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) return 1;
+  return Math.min(MAX_HHQ_VISIT_NO, Math.max(1, Math.trunc(numericValue)));
+}
+
+function deriveHhqVisitNo(taskContext) {
+  const failedAttemptCount = Number(taskContext?.failed_attempt_count);
+  if (!Number.isFinite(failedAttemptCount)) return 1;
+  return clampHhqVisitNo(failedAttemptCount + 1);
+}
+
+function applyHhqVisitNo(model, taskContext) {
+  const question = model?.getQuestionByName?.(HHQ_VISIT_NO_FIELD);
+  if (!question) return;
+  model.setValue(HHQ_VISIT_NO_FIELD, deriveHhqVisitNo(taskContext));
+  question.readOnly = true;
 }
 
 export function BaselineHouseholdForm({
@@ -52,6 +74,7 @@ export function BaselineHouseholdForm({
   user,
   localities,
   selectedLocalityCode,
+  taskContext,
   onClose,
   onScrollOffsetChange,
   onSaved,
@@ -117,6 +140,7 @@ export function BaselineHouseholdForm({
     else if (availableLocalities.length === 1) {
       survey.setValue("hhq_locality_code", availableLocalities[0].value);
     }
+    applyHhqVisitNo(survey, taskContext);
 
     attachHouseholdSurveyBehaviors(survey, form, undefined, {
       findExistingHousehold: findExistingHouseholdForHhqData,
@@ -153,6 +177,9 @@ export function BaselineHouseholdForm({
         memberSummaryConfirmedRef.current = false;
         setMemberSummaryConfirmed(false);
       }
+      if (options.name === HHQ_INTERVIEW_DATE_FIELD) {
+        applyHhqVisitNo(sender, taskContext);
+      }
       setRevision((value) => value + 1);
       setTimeout(() => setRevision((value) => value + 1), 250);
     });
@@ -170,7 +197,7 @@ export function BaselineHouseholdForm({
     });
     survey.onCurrentPageChanged.add(() => setRevision((value) => value + 1));
     return survey;
-  }, [form, user, localities, selectedLocalityCode]);
+  }, [form, user, localities, selectedLocalityCode, taskContext]);
 
   useEffect(() => {
     model.locale = locale;
@@ -179,6 +206,7 @@ export function BaselineHouseholdForm({
 
   const saveDraft = useCallback(async ({ silent = false } = {}) => {
     try {
+      applyHhqVisitNo(model, taskContext);
       refreshHouseholdSurveyBehaviors(model, form);
       const draft = await saveQuestionnaireDraft({
         ...draftContext,
@@ -197,7 +225,7 @@ export function BaselineHouseholdForm({
       setMessage(`Could not save draft: ${error.message}`);
       return null;
     }
-  }, [draftContext, form, model, showTransientMessage]);
+  }, [draftContext, form, model, showTransientMessage, taskContext]);
 
   useEffect(() => {
     let cancelled = false;
@@ -208,6 +236,7 @@ export function BaselineHouseholdForm({
         if (cancelled || !draft) return;
         draftIdRef.current = draft.draft_id;
         model.data = { ...(model.data || {}), ...(draft.json_payload || {}) };
+        applyHhqVisitNo(model, taskContext);
         refreshHouseholdSurveyBehaviors(model, form);
         const consentDeclined = hasDeclinedHouseholdConsent(model);
         if (consentDeclined) {
@@ -238,7 +267,7 @@ export function BaselineHouseholdForm({
     return () => {
       cancelled = true;
     };
-  }, [draftContext, form, model, showTransientMessage]);
+  }, [draftContext, form, model, showTransientMessage, taskContext]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -269,6 +298,7 @@ export function BaselineHouseholdForm({
   });
   const memberRows = buildHouseholdMemberSummaryRows(model.data || {}, form, locale);
   async function openPreview({ final = false } = {}) {
+    applyHhqVisitNo(model, taskContext);
     refreshHouseholdSurveyBehaviors(model, form);
     if (!(await saveDraft({ silent: true }))) return;
     setPreviewSignature(JSON.stringify(model.data || {}));
@@ -279,6 +309,7 @@ export function BaselineHouseholdForm({
 
   async function openMemberSummary() {
     if (hasDeclinedHouseholdConsent(model)) return;
+    applyHhqVisitNo(model, taskContext);
     refreshHouseholdSurveyBehaviors(model, form);
     await saveDraft({ silent: true });
     setFinalReview(false);
@@ -287,6 +318,7 @@ export function BaselineHouseholdForm({
   }
 
   function validateSchedule() {
+    applyHhqVisitNo(model, taskContext);
     refreshHouseholdSurveyBehaviors(model, form);
     const page = model.getPageByName(HOUSEHOLD_SCHEDULE_PAGE_NAME);
     const questions = page?.getAllQuestions?.().filter(
@@ -346,6 +378,7 @@ export function BaselineHouseholdForm({
   }
 
   async function requestFinalReview() {
+    applyHhqVisitNo(model, taskContext);
     refreshHouseholdSurveyBehaviors(model, form);
     if (!hasDeclinedHouseholdConsent(model) && !memberSummaryConfirmedRef.current) {
       await openMemberSummary();
@@ -380,6 +413,7 @@ export function BaselineHouseholdForm({
     setSaving(true);
     try {
       if (!(await saveDraft({ silent: true }))) return;
+      applyHhqVisitNo(model, taskContext);
       if (!model.validate()) {
         setView("form");
         setMessage("Complete the highlighted required fields before final save.");

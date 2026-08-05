@@ -53,6 +53,7 @@ export function QuestionnaireRouteScreen({ formCode, mode }) {
           user={app.user}
           localities={app.localities}
           selectedLocalityCode={app.selectedLocalityCode}
+          taskContext={app.currentTaskContext}
           onFormScrollOffsetChange={handleFormScrollOffsetChange}
           onDataSynced={app.refreshLocalities}
         />

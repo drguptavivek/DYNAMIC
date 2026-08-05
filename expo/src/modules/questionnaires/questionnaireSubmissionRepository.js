@@ -4,6 +4,7 @@ import {
   extractHouseholdRegistryFields,
   normalizeIdPart,
 } from "../households/householdIds.js";
+import { normalizeTaskAttemptLimits } from "../worklist/taskWorklist.js";
 
 const STORAGE_KEY = "dynamic_questionnaire_submissions_v1";
 const WEB_SQLITE_STORAGE_KEY = "dynamic_web_sqlite_v2";
@@ -219,7 +220,7 @@ function isWqEligible(member) {
 }
 
 function toLocalTask(descriptor, { submittedAt, subjectName, localityCode, sourceFormResponseId }) {
-  return {
+  return normalizeTaskAttemptLimits({
     id: createLocalUuid("local-task"),
     task_key: descriptor.task_key,
     household_id: descriptor.household_id,
@@ -249,7 +250,7 @@ function toLocalTask(descriptor, { submittedAt, subjectName, localityCode, sourc
     sync_status: "pending",
     created_at: submittedAt,
     updated_at: submittedAt,
-  };
+  });
 }
 
 function buildEligibleWoman({ householdId, household, member, interviewDate, submittedAt }) {

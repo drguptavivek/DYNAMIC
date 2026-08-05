@@ -9,6 +9,8 @@ const TERMINAL_STATUSES = new Set([
   "closed",
   "closed_final_reason",
 ]);
+const BASELINE_ATTEMPT_TASK_TYPES = new Set(["HHQ", "WQ"]);
+const BASELINE_MAX_FAILED_ATTEMPTS = 3;
 
 function taskIdentity(task) {
   return task?.task_key || task?.id || null;
@@ -44,6 +46,16 @@ function sortByProtocolDate(left, right) {
   const rightDate = right.target_date || "";
   if (leftDate !== rightDate) return leftDate.localeCompare(rightDate);
   return (left.task_key || left.id || "").localeCompare(right.task_key || right.id || "");
+}
+
+export function normalizeTaskAttemptLimits(task) {
+  if (!task || !BASELINE_ATTEMPT_TASK_TYPES.has(String(task.task_type || "").toUpperCase())) {
+    return task;
+  }
+  return {
+    ...task,
+    max_failed_attempts: BASELINE_MAX_FAILED_ATTEMPTS,
+  };
 }
 
 export function mergeTaskWorklist({ existingTasks = [], incomingTasks = [] } = {}) {
@@ -319,10 +331,12 @@ export function reconcilePulledTasks(tasks = [], repository) {
   }
 
   const existingTasks = repository.listTasks({});
-  const incomingTasks = tasks.map((task) => ({
-    ...task,
-    sync_status: task.sync_status || "synced",
-  }));
+  const incomingTasks = tasks.map((task) =>
+    normalizeTaskAttemptLimits({
+      ...task,
+      sync_status: task.sync_status || "synced",
+    })
+  );
   const existingByIdentity = new Map(
     existingTasks
       .map((task) => [taskIdentity(task), task])
@@ -351,10 +365,12 @@ export function saveProvisionalTasks(tasks = [], repository) {
   }
 
   for (const task of tasks) {
-    repository.saveTask({
-      ...task,
-      sync_status: task.sync_status || "pending",
-    });
+    repository.saveTask(
+      normalizeTaskAttemptLimits({
+        ...task,
+        sync_status: task.sync_status || "pending",
+      })
+    );
   }
 
   return { saved: tasks.length };
@@ -376,10 +392,12 @@ export function saveEligibleWomanWorkflow(derivedRows = [], repository) {
   for (const row of derivedRows) {
     repository.saveEligibleWoman(row.eligibleWoman);
     if (row.wqTask) {
-      repository.saveTask({
-        ...row.wqTask,
-        sync_status: row.wqTask.sync_status || "pending",
-      });
+      repository.saveTask(
+        normalizeTaskAttemptLimits({
+          ...row.wqTask,
+          sync_status: row.wqTask.sync_status || "pending",
+        })
+      );
       taskCount += 1;
     }
   }

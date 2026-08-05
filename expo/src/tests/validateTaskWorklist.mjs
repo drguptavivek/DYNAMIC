@@ -13,6 +13,7 @@ const {
   saveProvisionalTasks,
   buildTaskLocalityOptions,
   filterTaskWorklist,
+  normalizeTaskAttemptLimits,
   selectActionableTasks,
 } = await import("../modules/worklist/taskWorklist.js");
 
@@ -181,6 +182,14 @@ assert.deepEqual(
 
 assert.deepEqual(saveProvisionalTasks([provisionalTask], repository), { saved: 1 });
 assert.equal(savedTasks[0].sync_status, "local");
+assert.equal(
+  normalizeTaskAttemptLimits({ task_type: "HHQ", max_failed_attempts: 5 }).max_failed_attempts,
+  3,
+);
+assert.equal(
+  normalizeTaskAttemptLimits({ task_type: "WQ", max_failed_attempts: 5 }).max_failed_attempts,
+  3,
+);
 
 assert.deepEqual(
   saveEligibleWomanWorkflow(
@@ -191,6 +200,7 @@ assert.deepEqual(
 );
 assert.equal(savedEligibleWomen[0].woman_id, "woman-1");
 assert.equal(savedTasks[1].sync_status, "pending");
+assert.equal(savedTasks[1].max_failed_attempts, 3);
 
 assert.deepEqual(
   saveProvisionalPregnancyWorkflow(

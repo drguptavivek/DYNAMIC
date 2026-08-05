@@ -47,6 +47,7 @@ export function HouseholdModule({
   user,
   localities = [],
   selectedLocalityCode,
+  taskContext,
   onDataSynced,
   onFormScrollOffsetChange,
 }) {
@@ -218,6 +219,7 @@ export function HouseholdModule({
         user={user}
         localities={localities}
         selectedLocalityCode={selectedLocalityCode}
+        taskContext={taskContext}
         onScrollOffsetChange={onFormScrollOffsetChange}
         onClose={() => navigateTo(ROUTES.households)}
         onSaved={async () => {

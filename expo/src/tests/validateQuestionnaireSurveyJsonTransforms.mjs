@@ -33,6 +33,8 @@ const singleMobile = findElementByName(surveyJson, "hhq_contact_mobile");
 const memberMaritalStatus = findElementByName(surveyJson, "member_marital_status");
 const householdTotal = findElementByName(surveyJson, "hhq_total_household_members");
 const householdNumber = findElementByName(surveyJson, "hhq_household_number");
+const interviewDate = findElementByName(surveyJson, "hhq_interview_date");
+const visitNo = findElementByName(surveyJson, "hhq_visit_no");
 
 assert.equal(singleMobile, null);
 assert.equal(mobilePanel.type, "paneldynamic");
@@ -65,6 +67,14 @@ assert.deepEqual(mobilePanel.templateElements[0].validators, [
 assert.equal(memberMaritalStatus.visibleIf, "{panel.member_age_years} >= 13");
 assert.equal(householdTotal.renderAs, "readonly_calculated_numeric");
 assert.equal(householdNumber.renderAs, "db_check");
+assert.equal(visitNo.renderAs, "readonly_summary");
+assert.equal(visitNo.readOnly, true);
+assert.equal(visitNo.visibleIf, "{hhq_interview_date} notempty");
+assert.equal(visitNo.isRequired, undefined);
+assert.equal(
+  surveyJson.pages[0].elements.findIndex((element) => element.name === "hhq_visit_no"),
+  surveyJson.pages[0].elements.findIndex((element) => element.name === "hhq_interview_date") + 1,
+);
 assert.equal(surveyJson.clearInvisibleValues, "onHiddenContainer");
 assert.equal(
   surveyJson.pages[1].visibleIf,
@@ -72,6 +82,10 @@ assert.equal(
 );
 
 const consentModel = new Model(surveyJson);
+assert.equal(consentModel.getQuestionByName("hhq_visit_no").isVisible, false);
+consentModel.setValue("hhq_interview_date", "2026-09-01");
+assert.equal(consentModel.getQuestionByName("hhq_visit_no").isVisible, true);
+assert.equal(interviewDate.inputType, "date");
 consentModel.setValue("hhq_consent_study_provide_pis_explain_study_adult_member", 1);
 consentModel.setValue("hhq_result_interview", 1);
 consentModel.setValue("hhq_language_questionnaire", 1);
