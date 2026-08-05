@@ -16,6 +16,11 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 
 ### Added
 
+- Added mobile Worklist draft badges, household head/address display, and an eye action for household detail review.
+- Showed the household head name beside the Worklist task-type badge for quick HHQ identification.
+- Removed the duplicate household ID from the Worklist card detail line, leaving address below the primary household ID.
+- Labeled the Worklist card date as Target Date for clearer field-worker context.
+- Added the Household ID above the dedicated mobile HHQ final review screen so field workers can verify which household they are submitting.
 - Added automatic Expo field-device registration after login and a Registered Device column in the admin Users table.
 - Filled blank restored HHQ drafts in the dedicated mobile HHQ flow with the current automatic household head, address, and interviewer visit date while preserving user edits.
 - Added the HHQ competent-respondent availability gate below Visit No, including revisit/exclusion messages and Visit 3 removal of the Postponed option.

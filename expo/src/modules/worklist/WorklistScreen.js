@@ -11,11 +11,15 @@ import {
   RefreshControl,
   Alert,
   TextInput,
+  Modal,
 } from "react-native";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import * as syncService from "../sync/syncService.js";
 import { listTaskWorklist } from "./taskWorklistRepository.js";
 import { buildTaskLocalityOptions, filterTaskWorklist } from "./taskWorklist.js";
 import { getTaskOpenBlockReason } from "./taskOpenPolicy.js";
+import { getHouseholdSync } from "../../lib/householdSync.js";
+import { listActiveQuestionnaireDrafts } from "../questionnaires/questionnaireDraftRepository.js";
 
 const BADGE_COLORS = {
   HHQ: "#e74c3c",
@@ -133,9 +137,97 @@ function WorklistFilters({
   );
 }
 
-function TaskRow({ task, onPress, onLongPress }) {
+function hasDraftForTask(task, drafts = []) {
+  return drafts.some((draft) => {
+    if (draft.task_id && task.id && draft.task_id === task.id) return true;
+    if (String(draft.form_code || "").toUpperCase() !== String(task.task_type || "").toUpperCase()) {
+      return false;
+    }
+    return (
+      draft.subject_id === task.subject_id ||
+      draft.subject_id === task.household_id ||
+      draft.subject_id === task.task_key
+    );
+  });
+}
+
+function enrichTaskForWorklist(task, drafts = []) {
+  const household = task.household_id ? getHouseholdSync(task.household_id) : null;
+  return {
+    ...task,
+    household_head_name: household?.household_head_name || task.household_head_name || "",
+    household_address: household?.address || task.household_address || task.address || "",
+    household_locality_name: household?.locality_name || "",
+    household_site_id: household?.site_id ?? task.assigned_site_id ?? task.site_id ?? "",
+    household_locality_code: household?.locality_code || task.assigned_locality_code || "",
+    household_structure_number: household?.structure_number || "",
+    household_number: household?.household_number || "",
+    household_mobile_number: household?.mobile_number || "",
+    household_consent_status: household?.consent_status || "",
+    household_interview_date: household?.interview_date || "",
+    household_sync_status: household?.sync_status || "",
+    has_active_draft: hasDraftForTask(task, drafts),
+  };
+}
+
+function DetailRow({ label, value, fullWidth }) {
+  return (
+    <View style={[styles.detailRow, fullWidth && styles.detailRowFull]}>
+      <Text style={styles.detailLabel}>{label}</Text>
+      <Text selectable style={styles.detailValue}>
+        {value === undefined || value === null || value === "" ? "-" : String(value)}
+      </Text>
+    </View>
+  );
+}
+
+function HouseholdDetailsModal({ household, visible, onClose }) {
+  if (!household) return null;
+  const rows = [
+    ["Household ID", household.household_id],
+    ["Head Name", household.household_head_name],
+    ["Address", household.household_address, true],
+    ["Site", household.household_site_id],
+    [
+      "Locality",
+      [household.household_locality_name, household.household_locality_code].filter(Boolean).join(" "),
+    ],
+    ["Structure No", household.household_structure_number],
+    ["Household No", household.household_number],
+    ["Mobile", household.household_mobile_number],
+    ["Consent", household.household_consent_status],
+    ["Interview Date", household.household_interview_date],
+    ["Sync Status", household.household_sync_status],
+    ["Task Type", household.task_type],
+    ["Task Date", household.target_date],
+  ];
+
+  return (
+    <Modal animationType="fade" transparent visible={visible} onRequestClose={onClose}>
+      <View style={styles.detailsLayer}>
+        <Pressable accessibilityLabel="Close household details" style={styles.detailsScrim} onPress={onClose} />
+        <View style={styles.detailsPanel}>
+          <View style={styles.detailsHeader}>
+            <Text style={styles.detailsTitle}>Household Details</Text>
+            <Pressable accessibilityLabel="Close household details" onPress={onClose} style={styles.iconButton}>
+              <MaterialCommunityIcons color="#344054" name="close" size={22} />
+            </Pressable>
+          </View>
+          <ScrollView contentContainerStyle={styles.detailsGrid}>
+            {rows.map(([label, value, fullWidth]) => (
+              <DetailRow key={label} label={label} value={value} fullWidth={fullWidth} />
+            ))}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function TaskRow({ task, onPress, onLongPress, onViewHousehold }) {
   const isDisabled = Boolean(getTaskOpenBlockReason(task));
   const badgeColor = BADGE_COLORS[task.task_type] || "#95a5a6";
+  const detailLine = task.household_address || "";
 
   return (
     <Pressable
@@ -152,12 +244,38 @@ function TaskRow({ task, onPress, onLongPress }) {
           <View style={[styles.taskTypeBadge, { backgroundColor: badgeColor }]}>
             <Text style={styles.taskTypeBadgeText}>{task.task_type}</Text>
           </View>
+          {task.household_head_name ? (
+            <Text style={styles.taskHeaderHeadName} numberOfLines={1}>
+              {task.household_head_name}
+            </Text>
+          ) : null}
+          {task.has_active_draft ? (
+            <View style={styles.draftBadge}>
+              <MaterialCommunityIcons color="#92400e" name="content-save-edit-outline" size={15} />
+              <Text style={styles.draftBadgeText}>Draft</Text>
+            </View>
+          ) : null}
+          <Pressable
+            accessibilityLabel={`View household ${task.household_id}`}
+            onPress={(event) => {
+              event.stopPropagation?.();
+              onViewHousehold?.(task);
+            }}
+            style={styles.eyeButton}
+          >
+            <MaterialCommunityIcons color="#344054" name="eye-outline" size={21} />
+          </Pressable>
           {isDisabled && <Text style={styles.lockIcon}>🔒</Text>}
         </View>
         <Text style={styles.taskSubjectName} numberOfLines={1}>
-          {task.subject_name || task.household_id}
+          {task.household_id || task.subject_name}
         </Text>
-        <Text style={styles.taskDate}>{task.target_date}</Text>
+        {detailLine ? (
+          <Text style={styles.taskHouseholdDetails} numberOfLines={2}>
+            {detailLine}
+          </Text>
+        ) : null}
+        <Text style={styles.taskDate}>{`Target Date: ${task.target_date || "-"}`}</Text>
         {task.status === "completed" && (
           <View style={styles.completedBadge}>
             <Text style={styles.completedBadgeText}>Completed</Text>
@@ -181,6 +299,7 @@ export function WorklistScreen({
   const [syncError, setSyncError] = useState(null);
   const [searchText, setSearchText] = useState("");
   const [localityFilter, setLocalityFilter] = useState(selectedLocalityCode || "");
+  const [selectedHouseholdTask, setSelectedHouseholdTask] = useState(null);
 
   useEffect(() => {
     loadTasks();
@@ -190,12 +309,13 @@ export function WorklistScreen({
     setLocalityFilter(selectedLocalityCode || "");
   }, [selectedLocalityCode]);
 
-  function loadTasks() {
+  async function loadTasks() {
     setLoading(true);
     try {
+      const activeDrafts = await listActiveQuestionnaireDrafts();
       const allTasks = listTaskWorklist({
         locality_code: selectedLocalityCode || undefined,
-      });
+      }).map((task) => enrichTaskForWorklist(task, activeDrafts));
       setTasks(allTasks);
       setSyncError(null);
     } catch (error) {
@@ -211,7 +331,7 @@ export function WorklistScreen({
     try {
       const syncSvc = syncServiceProp || syncService;
       await syncSvc.syncAll();
-      loadTasks();
+      await loadTasks();
     } catch (error) {
       console.error("Sync error:", error);
       setSyncError(`Sync failed: ${error.message}`);
@@ -336,7 +456,13 @@ export function WorklistScreen({
         </View>
       );
     }
-    return <TaskRow task={item.task} onPress={handleTaskPress} />;
+    return (
+      <TaskRow
+        task={item.task}
+        onPress={handleTaskPress}
+        onViewHousehold={setSelectedHouseholdTask}
+      />
+    );
   }
 
   if (Platform.OS === "web") {
@@ -355,6 +481,11 @@ export function WorklistScreen({
             <Text style={styles.errorText}>{syncError}</Text>
           </View>
         )}
+        <HouseholdDetailsModal
+          visible={Boolean(selectedHouseholdTask)}
+          household={selectedHouseholdTask}
+          onClose={() => setSelectedHouseholdTask(null)}
+        />
       </ScrollView>
     );
   }
@@ -376,6 +507,11 @@ export function WorklistScreen({
           ) : null
         }
         contentContainerStyle={styles.taskListContent}
+      />
+      <HouseholdDetailsModal
+        visible={Boolean(selectedHouseholdTask)}
+        household={selectedHouseholdTask}
+        onClose={() => setSelectedHouseholdTask(null)}
       />
     </View>
   );
@@ -561,14 +697,50 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#ffffff",
   },
+  taskHeaderHeadName: {
+    flex: 1,
+    color: "#0b5bd3",
+    fontSize: 15,
+    fontWeight: "900",
+  },
+  draftBadge: {
+    minHeight: 25,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    borderRadius: 4,
+    backgroundColor: "#fef3c7",
+  },
+  draftBadgeText: {
+    color: "#92400e",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  eyeButton: {
+    width: 34,
+    height: 34,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: "auto",
+    borderWidth: 1,
+    borderColor: "#cfd7e3",
+    borderRadius: 8,
+    backgroundColor: "#ffffff",
+  },
   lockIcon: {
     fontSize: 14,
-    marginLeft: "auto",
   },
   taskSubjectName: {
     fontSize: 15,
     fontWeight: "600",
     color: "#18202a",
+    marginBottom: 4,
+  },
+  taskHouseholdDetails: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#475467",
     marginBottom: 4,
   },
   taskDate: {
@@ -587,6 +759,72 @@ const styles = StyleSheet.create({
   completedBadgeText: {
     fontSize: 12,
     color: "#155724",
+    fontWeight: "600",
+  },
+  detailsLayer: {
+    flex: 1,
+    justifyContent: "center",
+    padding: 16,
+  },
+  detailsScrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(16, 24, 40, 0.45)",
+  },
+  detailsPanel: {
+    maxHeight: "82%",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#d8dee4",
+    backgroundColor: "#ffffff",
+    overflow: "hidden",
+  },
+  detailsHeader: {
+    minHeight: 56,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eef2f5",
+  },
+  detailsTitle: {
+    color: "#18202a",
+    fontSize: 18,
+    fontWeight: "800",
+  },
+  iconButton: {
+    width: 38,
+    height: 38,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 8,
+    backgroundColor: "#f8fafc",
+  },
+  detailsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    padding: 14,
+  },
+  detailRow: {
+    width: "48%",
+    gap: 3,
+    padding: 10,
+    borderRadius: 8,
+    backgroundColor: "#f8fafc",
+  },
+  detailRowFull: {
+    width: "100%",
+  },
+  detailLabel: {
+    color: "#667085",
+    fontSize: 12,
+    fontWeight: "800",
+    textTransform: "uppercase",
+  },
+  detailValue: {
+    color: "#18202a",
+    fontSize: 15,
     fontWeight: "600",
   },
 });

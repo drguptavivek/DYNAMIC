@@ -18,6 +18,7 @@ globalThis.window = {
 const {
   buildDraftKey,
   getActiveQuestionnaireDraft,
+  listActiveQuestionnaireDrafts,
   saveQuestionnaireDraft,
   markQuestionnaireDraftSubmitted,
 } = await import("../modules/questionnaires/questionnaireDraftRepository.js");
@@ -64,6 +65,9 @@ const activeDraft = await getActiveQuestionnaireDraft(context);
 assert.equal(activeDraft.draft_id, firstDraft.draft_id);
 assert.equal(activeDraft.draft_status, "active");
 assert.deepEqual(activeDraft.completion_state, { currentPageName: "page_02_household" });
+assert.deepEqual((await listActiveQuestionnaireDrafts()).map((draft) => draft.draft_id), [
+  firstDraft.draft_id,
+]);
 
 const submittedDraft = await markQuestionnaireDraftSubmitted({
   draftId: firstDraft.draft_id,
@@ -73,5 +77,6 @@ const submittedDraft = await markQuestionnaireDraftSubmitted({
 assert.equal(submittedDraft.draft_status, "submitted");
 assert.equal(submittedDraft.submitted_form_response_id, "HHQ-2026-06-07T00:00:00.000Z");
 assert.equal(await getActiveQuestionnaireDraft(context), null);
+assert.deepEqual(await listActiveQuestionnaireDrafts(), []);
 
 console.log("Validated questionnaire draft workflow helpers.");

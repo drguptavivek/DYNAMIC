@@ -34,6 +34,7 @@ import { prepareQuestionnaireSurveyJson } from "../questionnaires/questionnaireS
 import { buildHhqPrefill, mergePrefillIntoBlankValues } from "../../lib/prefillMapper.js";
 import { getHouseholdSync } from "../../lib/householdSync.js";
 import { applyHhqTaskHouseholdPrefill } from "./hhqTaskPrefill.js";
+import { buildHouseholdIdFromHhqData } from "./householdIds.js";
 import {
   extractHouseholdRegistryFields,
   findExistingHouseholdForHhqData,
@@ -360,6 +361,9 @@ export function BaselineHouseholdForm({
     compactPreviewConfirmed: previewSignature === signature,
   });
   const memberRows = buildHouseholdMemberSummaryRows(model.data || {}, form, locale);
+  const previewHouseholdId =
+    taskContext?.household_id || buildHouseholdIdFromHhqData(model.data || {});
+
   async function openPreview({ final = false } = {}) {
     applyHhqVisitNo(model, taskContext);
     refreshHouseholdSurveyBehaviors(model, form);
@@ -604,6 +608,12 @@ export function BaselineHouseholdForm({
               </View>
             ) : (
               <View style={styles.specialView}>
+                {finalReview && previewHouseholdId ? (
+                  <View style={styles.reviewHouseholdBanner}>
+                    <Text style={styles.reviewHouseholdLabel}>Household ID</Text>
+                    <Text style={styles.reviewHouseholdValue}>{previewHouseholdId}</Text>
+                  </View>
+                ) : null}
                 <PreviewRenderer model={model} />
                 <View style={styles.footerActions}>
                   <Pressable onPress={closePreview} style={styles.secondaryButton}>
@@ -636,6 +646,9 @@ const styles = StyleSheet.create({
   languageOverlay: { position: "absolute", top: 2, right: 12, zIndex: 5, elevation: 5 },
   message: { padding: 9, borderRadius: 7, color: "#1f4d7a", backgroundColor: "#eef6ff", fontSize: 13, fontWeight: "700" },
   specialView: { flex: 1, gap: 10, minHeight: 0 },
+  reviewHouseholdBanner: { gap: 2, padding: 12, borderWidth: 1, borderColor: "#b9d6f2", borderRadius: 8, backgroundColor: "#f4f9ff" },
+  reviewHouseholdLabel: { color: "#475467", fontSize: 12, fontWeight: "800", textTransform: "uppercase" },
+  reviewHouseholdValue: { color: "#18202a", fontSize: 20, fontWeight: "800" },
   footerActions: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 10, paddingTop: 8 },
   primaryButton: { minHeight: 44, alignItems: "center", justifyContent: "center", paddingHorizontal: 16, borderRadius: 8, backgroundColor: "#1f6feb" },
   primaryButtonText: { color: "#ffffff", fontWeight: "800" },

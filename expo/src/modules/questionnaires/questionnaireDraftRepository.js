@@ -122,6 +122,12 @@ export async function getActiveQuestionnaireDraft(context) {
   return rows[0] || null;
 }
 
+export async function listActiveQuestionnaireDrafts() {
+  return (await readRows())
+    .filter((row) => row.draft_status === "active")
+    .sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)));
+}
+
 export async function saveQuestionnaireDraft({
   draftId,
   formCode,

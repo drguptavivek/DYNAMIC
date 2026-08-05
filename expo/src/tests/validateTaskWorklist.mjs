@@ -133,7 +133,9 @@ const searchableTasks = [
     id: "alpha-task",
     task_key: "alpha-key",
     household_id: "2-02-0002-02",
-    subject_name: "Existing Duplicate Head",
+    subject_name: "",
+    household_head_name: "Existing Duplicate Head",
+    household_address: "Existing duplicate address",
     assigned_locality_code: "02",
   },
   {
@@ -147,6 +149,10 @@ const searchableTasks = [
 ];
 assert.deepEqual(
   filterTaskWorklist(searchableTasks, { search: "duplicate" }).map((task) => task.id),
+  ["alpha-task"],
+);
+assert.deepEqual(
+  filterTaskWorklist(searchableTasks, { search: "address" }).map((task) => task.id),
   ["alpha-task"],
 );
 assert.deepEqual(
