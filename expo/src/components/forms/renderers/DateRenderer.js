@@ -1,5 +1,5 @@
 /** Renders a native calendar control while preserving ISO dates in Survey Core. */
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import DateTimePicker from "@expo/ui/community/datetime-picker";
@@ -14,6 +14,7 @@ import { QuestionFrame } from "./QuestionFrame.js";
 
 export function DateRenderer({ question, onChange }) {
   const [pickerOpen, setPickerOpen] = useState(false);
+  const webInputRef = useRef(null);
   const selectedDate = parseSurveyDate(question.value) || new Date();
   const displayValue = formatSurveyDateDisplay(question.value);
 
@@ -23,14 +24,25 @@ export function DateRenderer({ question, onChange }) {
     onChange?.();
   }
 
+  function openPicker() {
+    if (question.isReadOnly) return;
+    if (Platform.OS === "web") {
+      const input = webInputRef.current;
+      if (input?.showPicker) input.showPicker();
+      else input?.focus?.();
+      return;
+    }
+    setPickerOpen(true);
+  }
+
   return (
     <QuestionFrame question={question}>
       <View style={styles.pickerWrap}>
         <Pressable
           accessibilityLabel={question.name}
           accessibilityRole="button"
-          disabled={question.isReadOnly || Platform.OS === "web"}
-          onPress={() => setPickerOpen(true)}
+          disabled={question.isReadOnly}
+          onPress={openPicker}
           style={[styles.dateButton, question.isReadOnly && styles.readOnly]}
         >
           <Text style={[styles.dateText, !displayValue && styles.placeholder]}>
@@ -43,10 +55,14 @@ export function DateRenderer({ question, onChange }) {
               "aria-label": question.name,
               max: question.maxValue || undefined,
               min: question.minValue || undefined,
+              onClick: (event) => {
+                if (event.currentTarget?.showPicker) event.currentTarget.showPicker();
+              },
               onChange: (event) => {
                 const nextDate = parseSurveyDate(event.target.value);
                 if (nextDate) setDateValue(nextDate);
               },
+              ref: webInputRef,
               style: styles.webDateInput,
               type: "date",
               value: question.value || "",
@@ -77,5 +93,16 @@ const styles = StyleSheet.create({
   readOnly: { backgroundColor: "#f3f4f6" },
   dateText: { flex: 1, color: "#18202a", fontSize: 16 },
   placeholder: { color: "#667085" },
-  webDateInput: { position: "absolute", inset: 0, width: "100%", height: "100%", cursor: "pointer", opacity: 0.01 },
+  webDateInput: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    zIndex: 2,
+    width: "100%",
+    height: "100%",
+    cursor: "pointer",
+    opacity: 0.01,
+  },
 });

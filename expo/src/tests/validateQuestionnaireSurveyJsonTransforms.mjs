@@ -35,6 +35,11 @@ const householdTotal = findElementByName(surveyJson, "hhq_total_household_member
 const householdNumber = findElementByName(surveyJson, "hhq_household_number");
 const interviewDate = findElementByName(surveyJson, "hhq_interview_date");
 const visitNo = findElementByName(surveyJson, "hhq_visit_no");
+const competentRespondent = findElementByName(surveyJson, "hhq_competent_respondent_available");
+const consent = findElementByName(
+  surveyJson,
+  "hhq_consent_study_provide_pis_explain_study_adult_member",
+);
 
 assert.equal(singleMobile, null);
 assert.equal(mobilePanel.type, "paneldynamic");
@@ -75,6 +80,11 @@ assert.equal(
   surveyJson.pages[0].elements.findIndex((element) => element.name === "hhq_visit_no"),
   surveyJson.pages[0].elements.findIndex((element) => element.name === "hhq_interview_date") + 1,
 );
+assert.equal(competentRespondent.renderAs, "radio");
+assert.equal(competentRespondent.visibleIf, "{hhq_interview_date} notempty");
+assert.equal(competentRespondent.choices.length, 3);
+assert.equal(competentRespondent.choices[2].visibleIf, "{hhq_visit_no} < 3");
+assert.equal(consent.visibleIf, "{hhq_competent_respondent_available} = 1");
 assert.equal(surveyJson.clearInvisibleValues, "onHiddenContainer");
 assert.equal(
   surveyJson.pages[1].visibleIf,
@@ -83,8 +93,35 @@ assert.equal(
 
 const consentModel = new Model(surveyJson);
 assert.equal(consentModel.getQuestionByName("hhq_visit_no").isVisible, false);
+assert.equal(consentModel.getQuestionByName("hhq_competent_respondent_available").isVisible, false);
 consentModel.setValue("hhq_interview_date", "2026-09-01");
 assert.equal(consentModel.getQuestionByName("hhq_visit_no").isVisible, true);
+assert.equal(consentModel.getQuestionByName("hhq_competent_respondent_available").isVisible, true);
+consentModel.setValue("hhq_visit_no", 1);
+assert.deepEqual(
+  consentModel
+    .getQuestionByName("hhq_competent_respondent_available")
+    .visibleChoices.map((choice) => choice.value),
+  [1, 2, 3],
+);
+consentModel.setValue("hhq_visit_no", 3);
+assert.deepEqual(
+  consentModel
+    .getQuestionByName("hhq_competent_respondent_available")
+    .visibleChoices.map((choice) => choice.value),
+  [1, 2],
+);
+consentModel.setValue("hhq_competent_respondent_available", 2);
+assert.equal(
+  consentModel.getQuestionByName("hhq_consent_study_provide_pis_explain_study_adult_member").isVisible,
+  false,
+);
+assert.equal(consentModel.visiblePages.length, 1);
+consentModel.setValue("hhq_competent_respondent_available", 1);
+assert.equal(
+  consentModel.getQuestionByName("hhq_consent_study_provide_pis_explain_study_adult_member").isVisible,
+  true,
+);
 assert.equal(interviewDate.inputType, "date");
 consentModel.setValue("hhq_consent_study_provide_pis_explain_study_adult_member", 1);
 consentModel.setValue("hhq_result_interview", 1);

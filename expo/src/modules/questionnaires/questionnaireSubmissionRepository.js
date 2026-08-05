@@ -10,6 +10,7 @@ const STORAGE_KEY = "dynamic_questionnaire_submissions_v1";
 const WEB_SQLITE_STORAGE_KEY = "dynamic_web_sqlite_v2";
 const HOUSEHOLD_STORAGE_KEY = "dynamic_households_v4";
 const MEMBER_STORAGE_KEY = "dynamic_household_members_v4";
+const HHQ_COMPETENT_RESPONDENT_FIELD = "hhq_competent_respondent_available";
 
 function getStorage() {
   if (typeof window === "undefined" || !window.localStorage) return null;
@@ -89,7 +90,7 @@ function buildQuestionnaireResponse({
 }) {
   const householdId =
     formCode === "HHQ"
-      ? buildHouseholdIdFromHhqData(payload || "")
+      ? buildHouseholdIdFromHhqData(payload || "") || taskContext?.household_id || taskContext?.subject_id || ""
       : taskContext?.household_id || taskContext?.subject_id || payload?.household_id || "";
   const householdScope = parseHouseholdScope(householdId);
   const siteId =
@@ -251,6 +252,12 @@ function toLocalTask(descriptor, { submittedAt, subjectName, localityCode, sourc
     created_at: submittedAt,
     updated_at: submittedAt,
   });
+}
+
+function isHhqEarlyStopResponse(response) {
+  if (response.form_code !== "HHQ") return false;
+  const respondentAvailable = Number(response.answers_json?.[HHQ_COMPETENT_RESPONDENT_FIELD]);
+  return respondentAvailable === 2 || respondentAvailable === 3;
 }
 
 function buildEligibleWoman({ householdId, household, member, interviewDate, submittedAt }) {
@@ -429,6 +436,7 @@ async function savePefDerivedWorkflow(pregnancy, tasks) {
 
 async function promoteHhqLocally(response) {
   if (response.form_code !== "HHQ" || !response.household_id) return;
+  if (isHhqEarlyStopResponse(response)) return;
   const sourceFields = {
     sync_status: "pending",
     source_form_response_id: response.id,

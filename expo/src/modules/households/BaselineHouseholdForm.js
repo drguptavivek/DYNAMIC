@@ -31,6 +31,7 @@ import {
 } from "../questionnaires/questionnaireDraftRepository.js";
 import { saveQuestionnaireSubmission } from "../questionnaires/questionnaireSubmissionRepository.js";
 import { prepareQuestionnaireSurveyJson } from "../questionnaires/questionnaireSurveyJsonTransforms.js";
+import { applyHhqTaskHouseholdPrefill } from "./hhqTaskPrefill.js";
 import {
   extractHouseholdRegistryFields,
   findExistingHouseholdForHhqData,
@@ -43,6 +44,9 @@ const HOUSEHOLD_CHARACTERISTICS_PAGE_NAME = "page_03_household_characteristics";
 const HOUSEHOLD_CONSENT_FIELD = "hhq_consent_study_provide_pis_explain_study_adult_member";
 const HHQ_INTERVIEW_DATE_FIELD = "hhq_interview_date";
 const HHQ_VISIT_NO_FIELD = "hhq_visit_no";
+const HHQ_COMPETENT_RESPONDENT_FIELD = "hhq_competent_respondent_available";
+const HHQ_REVISIT_NEEDED_MESSAGE = "Revisit Needed - fill the form again.";
+const HHQ_EXCLUDED_MESSAGE = "This household is excluded.";
 
 function hasDeclinedHouseholdConsent(model) {
   return Number(model.getValue(HOUSEHOLD_CONSENT_FIELD)) === 2;
@@ -63,8 +67,26 @@ function deriveHhqVisitNo(taskContext) {
 function applyHhqVisitNo(model, taskContext) {
   const question = model?.getQuestionByName?.(HHQ_VISIT_NO_FIELD);
   if (!question) return;
-  model.setValue(HHQ_VISIT_NO_FIELD, deriveHhqVisitNo(taskContext));
+  const visitNo = deriveHhqVisitNo(taskContext);
+  model.setValue(HHQ_VISIT_NO_FIELD, visitNo);
   question.readOnly = true;
+  if (visitNo >= MAX_HHQ_VISIT_NO && Number(model.getValue(HHQ_COMPETENT_RESPONDENT_FIELD)) === 3) {
+    model.setValue(HHQ_COMPETENT_RESPONDENT_FIELD, undefined);
+  }
+}
+
+function isHhqAvailabilityStop(model) {
+  const value = Number(model?.getValue?.(HHQ_COMPETENT_RESPONDENT_FIELD));
+  return value === 2 || value === 3;
+}
+
+function getHhqAvailabilityStopMessage(model) {
+  if (!isHhqAvailabilityStop(model)) return "";
+  const visitNo = Number(model.getValue(HHQ_VISIT_NO_FIELD));
+  const value = Number(model.getValue(HHQ_COMPETENT_RESPONDENT_FIELD));
+  return visitNo >= MAX_HHQ_VISIT_NO && value === 2
+    ? HHQ_EXCLUDED_MESSAGE
+    : HHQ_REVISIT_NEEDED_MESSAGE;
 }
 
 export function BaselineHouseholdForm({
@@ -97,12 +119,12 @@ export function BaselineHouseholdForm({
   const draftContext = useMemo(() => ({
     formCode: form.form_code,
     formVersion: form.version,
-    taskId: null,
-    subjectType: "locality",
-    subjectId: selectedLocalityCode || "unselected",
+    taskId: taskContext?.id || null,
+    subjectType: taskContext?.subject_type || "locality",
+    subjectId: taskContext?.subject_id || taskContext?.household_id || selectedLocalityCode || "unselected",
     deviceId: user?.device_id || "dev-device",
     userId: user?.user_id || user?.id || user?.username || "dev-user",
-  }), [form, selectedLocalityCode, user]);
+  }), [form, selectedLocalityCode, taskContext, user]);
 
   const showTransientMessage = useCallback((text) => {
     if (messageTimerRef.current) clearTimeout(messageTimerRef.current);
@@ -140,6 +162,7 @@ export function BaselineHouseholdForm({
     else if (availableLocalities.length === 1) {
       survey.setValue("hhq_locality_code", availableLocalities[0].value);
     }
+    applyHhqTaskHouseholdPrefill(survey, taskContext);
     applyHhqVisitNo(survey, taskContext);
 
     attachHouseholdSurveyBehaviors(survey, form, undefined, {
@@ -179,6 +202,16 @@ export function BaselineHouseholdForm({
       }
       if (options.name === HHQ_INTERVIEW_DATE_FIELD) {
         applyHhqVisitNo(sender, taskContext);
+      }
+      if (options.name === HHQ_COMPETENT_RESPONDENT_FIELD) {
+        setMessage(getHhqAvailabilityStopMessage(sender));
+        if (isHhqAvailabilityStop(sender)) {
+          memberSummaryConfirmedRef.current = false;
+          setMemberSummaryConfirmed(false);
+          setFinalReview(false);
+          setView("form");
+          setSectionDrawerOpen(false);
+        }
       }
       setRevision((value) => value + 1);
       setTimeout(() => setRevision((value) => value + 1), 250);
@@ -236,6 +269,7 @@ export function BaselineHouseholdForm({
         if (cancelled || !draft) return;
         draftIdRef.current = draft.draft_id;
         model.data = { ...(model.data || {}), ...(draft.json_payload || {}) };
+        applyHhqTaskHouseholdPrefill(model, taskContext);
         applyHhqVisitNo(model, taskContext);
         refreshHouseholdSurveyBehaviors(model, form);
         const consentDeclined = hasDeclinedHouseholdConsent(model);
@@ -380,7 +414,8 @@ export function BaselineHouseholdForm({
   async function requestFinalReview() {
     applyHhqVisitNo(model, taskContext);
     refreshHouseholdSurveyBehaviors(model, form);
-    if (!hasDeclinedHouseholdConsent(model) && !memberSummaryConfirmedRef.current) {
+    const availabilityStop = isHhqAvailabilityStop(model);
+    if (!availabilityStop && !hasDeclinedHouseholdConsent(model) && !memberSummaryConfirmedRef.current) {
       await openMemberSummary();
       return;
     }
@@ -392,14 +427,16 @@ export function BaselineHouseholdForm({
       setRevision((value) => value + 1);
       return;
     }
-    const householdValidation = await validateHouseholdSurveyForFinalization(model, {
-      findExistingHousehold: findExistingHouseholdForHhqData,
-    });
-    if (!householdValidation.valid) {
-      setView("form");
-      setMessage(householdValidation.message);
-      setRevision((value) => value + 1);
-      return;
+    if (!availabilityStop) {
+      const householdValidation = await validateHouseholdSurveyForFinalization(model, {
+        findExistingHousehold: findExistingHouseholdForHhqData,
+      });
+      if (!householdValidation.valid) {
+        setView("form");
+        setMessage(householdValidation.message);
+        setRevision((value) => value + 1);
+        return;
+      }
     }
     await openPreview({ final: true });
   }
@@ -419,20 +456,24 @@ export function BaselineHouseholdForm({
         setMessage("Complete the highlighted required fields before final save.");
         return;
       }
-      const householdValidation = await validateHouseholdSurveyForFinalization(model, {
-        findExistingHousehold: findExistingHouseholdForHhqData,
-      });
-      if (!householdValidation.valid) {
-        setView("form");
-        setMessage(householdValidation.message);
-        setRevision((value) => value + 1);
-        return;
+      const availabilityStop = isHhqAvailabilityStop(model);
+      if (!availabilityStop) {
+        const householdValidation = await validateHouseholdSurveyForFinalization(model, {
+          findExistingHousehold: findExistingHouseholdForHhqData,
+        });
+        if (!householdValidation.valid) {
+          setView("form");
+          setMessage(householdValidation.message);
+          setRevision((value) => value + 1);
+          return;
+        }
       }
       const registryRecord = extractHouseholdRegistryFields(model.data);
       const submission = await saveQuestionnaireSubmission({
         formCode: form.form_code,
         formVersion: form.version,
         payload: model.data,
+        taskContext,
         deviceId: user?.device_id || "dev-device",
       });
       if (draftIdRef.current) {
@@ -441,7 +482,7 @@ export function BaselineHouseholdForm({
           submittedFormResponseId: submission.submission_id,
         });
       }
-      setMessage(`Saved household ${registryRecord.household_id}`);
+      setMessage(availabilityStop ? getHhqAvailabilityStopMessage(model) : `Saved household ${registryRecord.household_id}`);
       await onSaved?.(registryRecord);
     } catch (error) {
       setMessage(`Could not save household: ${error.message}`);

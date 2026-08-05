@@ -432,7 +432,71 @@
         },
         {
           "type": "radiogroup",
+          "name": "hhq_competent_respondent_available",
+          "title": {
+            "default": "Is a competent household member available to answer questions?",
+            "hi": "",
+            "kn": "",
+            "mr": "",
+            "ta": "",
+            "te": "",
+            "ur": ""
+          },
+          "order": 8.2,
+          "section_order": 1,
+          "sourceType": "app_flow_gate",
+          "renderingHint": {
+            "render_as": "radio"
+          },
+          "rawText": "Is a competent household member available to answer questions?",
+          "visibleIf": "{hhq_interview_date} notempty",
+          "choices": [
+            {
+              "value": 1,
+              "text": {
+                "default": "Yes",
+                "hi": "",
+                "kn": "",
+                "mr": "",
+                "ta": "",
+                "te": "",
+                "ur": ""
+              }
+            },
+            {
+              "value": 2,
+              "text": {
+                "default": "No household member at home or no competent respondent at home at the time of visit",
+                "hi": "",
+                "kn": "",
+                "mr": "",
+                "ta": "",
+                "te": "",
+                "ur": ""
+              }
+            },
+            {
+              "value": 3,
+              "visibleIf": "{hhq_visit_no} < 3",
+              "text": {
+                "default": "Postponed",
+                "hi": "",
+                "kn": "",
+                "mr": "",
+                "ta": "",
+                "te": "",
+                "ur": ""
+              }
+            }
+          ],
+          "validationRulesSource": [
+            "single coded option"
+          ]
+        },
+        {
+          "type": "radiogroup",
           "name": "hhq_consent_study_provide_pis_explain_study_adult_member",
+          "visibleIf": "{hhq_competent_respondent_available} = 1",
           "title": {
             "default": "Consent for study",
             "hi": "",

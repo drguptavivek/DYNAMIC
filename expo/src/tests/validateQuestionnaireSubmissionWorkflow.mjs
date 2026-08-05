@@ -34,6 +34,8 @@ const hhqPayload = {
   hhq_household_head_name: "Head Name",
   hhq_consent_study_provide_pis_explain_study_adult_member: 1,
   hhq_interview_date: "2026-09-01",
+  hhq_visit_no: 1,
+  hhq_competent_respondent_available: 1,
   hhq_result_interview: 1,
   hhq_language_questionnaire: 1,
   hhq_contact_mobile_numbers: [{ mobile_number: "9999999999" }],
@@ -138,6 +140,57 @@ const promotedMembers = JSON.parse(
   window.localStorage.getItem("dynamic_household_members_v4") || "[]",
 );
 assert.equal(promotedMembers.length, 2);
+
+const stateBeforeEarlyStop = JSON.parse(window.localStorage.getItem("dynamic_web_sqlite_v2") || "{}");
+stateBeforeEarlyStop.follow_up_tasks = [
+  ...(stateBeforeEarlyStop.follow_up_tasks || []),
+  {
+    id: "hhq-task-revisit-1",
+    task_key: "1-02-0042-04|household|1-02-0042-04|HHQ|baseline|2026-09-01|v1",
+    household_id: "1-02-0042-04",
+    subject_type: "household",
+    subject_id: "1-02-0042-04",
+    task_type: "HHQ",
+    protocol_visit_label: "baseline",
+    status: "open",
+    lifecycle_status: "open",
+    failed_attempt_count: 1,
+    max_failed_attempts: 3,
+  },
+];
+window.localStorage.setItem("dynamic_web_sqlite_v2", JSON.stringify(stateBeforeEarlyStop));
+
+const earlyStopSubmission = await saveQuestionnaireSubmission({
+  formCode: "HHQ",
+  formVersion: "9 MAY 2026",
+  payload: {
+    hhq_site_id: 1,
+    hhq_locality_code: 2,
+    hhq_interview_date: "2026-09-02",
+    hhq_visit_no: 2,
+    hhq_competent_respondent_available: 2,
+  },
+  taskContext: {
+    id: "hhq-task-revisit-1",
+    household_id: "1-02-0042-04",
+    subject_type: "household",
+    subject_id: "1-02-0042-04",
+  },
+  deviceId: "device-1",
+});
+assert.equal(earlyStopSubmission.household_id, "1-02-0042-04");
+const stateAfterEarlyStop = JSON.parse(window.localStorage.getItem("dynamic_web_sqlite_v2") || "{}");
+assert.equal(stateAfterEarlyStop.form_responses.length, 2);
+assert.equal(
+  stateAfterEarlyStop.form_responses.find((row) => row.id === earlyStopSubmission.submission_id)
+    .household_id,
+  "1-02-0042-04",
+);
+assert.equal(
+  stateAfterEarlyStop.follow_up_tasks.find((task) => task.id === "hhq-task-revisit-1").status,
+  "completed",
+);
+assert.equal(stateAfterEarlyStop.domain_events_outbox.length, 1);
 assert.equal(promotedMembers[1].individual_id, "1-02-0042-03-02");
 assert.equal(promotedMembers[1].source_form_response_id, submission.submission_id);
 
@@ -174,7 +227,7 @@ assert.equal(pefSubmission.subject_type, "woman");
 assert.equal(pefSubmission.subject_id, "1-02-0042-03-02");
 
 const webSqliteAfterPef = JSON.parse(window.localStorage.getItem("dynamic_web_sqlite_v2") || "{}");
-assert.equal(webSqliteAfterPef.form_responses.length, 2);
+assert.equal(webSqliteAfterPef.form_responses.length, 3);
 assert.equal(webSqliteAfterPef.pregnancies.length, 1);
 assert.equal(webSqliteAfterPef.pregnancies[0].pregnancy_id, "local-pregnancy:1-02-0042-03-02:1");
 assert.equal(webSqliteAfterPef.pregnancies[0].pregnancy_status, "enrolled");
