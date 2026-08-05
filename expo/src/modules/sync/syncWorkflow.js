@@ -139,6 +139,24 @@ export function selectNextPullCursor(syncPayload = {}, fallbackCursor = null) {
   return Number.isNaN(parsed.getTime()) ? null : nextCursor;
 }
 
+const TERMINAL_TASK_STATUSES = new Set([
+  "completed",
+  "missed",
+  "cancelled",
+  "superseded",
+  "closed",
+  "closed_final_reason",
+]);
+
+export function countOpenPulledTasks(tasks = []) {
+  if (!Array.isArray(tasks)) return 0;
+  return tasks.filter((task) => {
+    const status = task?.status || task?.lifecycle_status || "open";
+    const lifecycleStatus = task?.lifecycle_status || status;
+    return !TERMINAL_TASK_STATUSES.has(status) && !TERMINAL_TASK_STATUSES.has(lifecycleStatus);
+  }).length;
+}
+
 export function formatClockDelta(deltaMs) {
   const totalSeconds = Math.round(Math.abs(Number(deltaMs) || 0) / 1000);
   const minutes = Math.floor(totalSeconds / 60);
@@ -191,8 +209,10 @@ export function formatSyncCompletionMessage(result = {}) {
   const pluralize = (count, singular, plural = `${singular}s`) =>
     `${count} ${count === 1 ? singular : plural}`;
 
-  if (typeof result.pulled === "number") {
-    parts.push(`${pluralize(result.pulled, "task")} pulled`);
+  if (typeof result.pulledOpenTasks === "number") {
+    parts.push(`${pluralize(result.pulledOpenTasks, "open task")} available`);
+  } else if (typeof result.pulled === "number") {
+    parts.push(`${pluralize(result.pulled, "task update")} pulled`);
   }
 
   if (typeof result.pulledHouseholds === "number") {
@@ -216,7 +236,7 @@ export function formatSyncCompletionMessage(result = {}) {
   }
 
   if (Object.prototype.hasOwnProperty.call(result, "formsUpdated")) {
-    parts.push(`${pluralize(result.formsUpdated, "form")} updated`);
+    parts.push(`${pluralize(result.formsUpdated, "questionnaire")} refreshed`);
   }
 
   return `Sync complete: ${parts.join(", ")}`;

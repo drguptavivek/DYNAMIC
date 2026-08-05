@@ -19,6 +19,8 @@ interface MappingFrame {
   household_id: string;
   structure_map_id: string;
   household_number: string;
+  address?: string | null;
+  household_head_name?: string | null;
   structure_id?: string;
   mapping_status: string;
   baseline_enrollment_status: string;
@@ -931,6 +933,8 @@ function MappingTab({
                   <th>Locality</th>
                   <th>Structure</th>
                   <th>Household</th>
+                  <th>Address</th>
+                  <th>Head</th>
                   <th>Household consent given</th>
                   <th>Baseline Enrollment</th>
                   <th>Actions</th>
@@ -944,6 +948,8 @@ function MappingTab({
                     <td>{frame.locality_code || "—"}</td>
                     <td>{frame.structure_map_id}</td>
                     <td>{frame.household_number}</td>
+                    <td>{frame.address || "—"}</td>
+                    <td>{frame.household_head_name || "—"}</td>
                     <td>{formatConsent(frame.consent_status)}</td>
                     <td>{frame.baseline_enrollment_status}</td>
                     <td>

@@ -1027,6 +1027,8 @@ router.get("/mapping-frame", async (req: Request, res: Response) => {
         locality_code: schema.mappingFrame.locality_code,
         structure_map_id: schema.mappingFrame.structure_map_id,
         household_number: schema.mappingFrame.household_number,
+        address: schema.households.address,
+        household_head_name: schema.households.household_head_name,
         structure_id: schema.mappingFrame.structure_id,
         mapping_status: schema.mappingFrame.mapping_status,
         baseline_enrollment_status: schema.mappingFrame.baseline_enrollment_status,

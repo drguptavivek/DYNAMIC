@@ -3,19 +3,32 @@
  * Maps household and member context to SurveyJS field values
  */
 
+function formatLocalIsoDate(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 /**
  * Build prefill for Household Questionnaire (HHQ)
  * Read-only: site_id, locality_code
  */
-export function buildHhqPrefill(household) {
+export function buildHhqPrefill(household, today = new Date()) {
+  const prefill = {
+    hhq_interview_date: formatLocalIsoDate(today),
+  };
+
   if (!household) {
-    return { prefill: {}, readOnlyFields: [] };
+    return { prefill, readOnlyFields: [] };
   }
 
-  const prefill = {
+  Object.assign(prefill, {
     hhq_site_id: household.site_id,
     hhq_locality_code: household.locality_code,
-  };
+    hhq_household_head_name: household.household_head_name || household.head_name || "",
+    hhq_household_address: household.address || "",
+  });
 
   const readOnlyFields = ["hhq_site_id", "hhq_locality_code"];
 
@@ -230,4 +243,23 @@ export function buildPrefillForTask(task, household, member) {
     default:
       return { prefill: {}, readOnlyFields: [] };
   }
+}
+
+function isBlankDraftValue(value) {
+  return value === undefined || value === null || value === "";
+}
+
+export function mergePrefillIntoBlankValues(existingData, prefillData) {
+  const merged = { ...(existingData || {}) };
+  if (!prefillData || typeof prefillData !== "object") {
+    return merged;
+  }
+
+  for (const [key, value] of Object.entries(prefillData)) {
+    if (!isBlankDraftValue(value) && isBlankDraftValue(merged[key])) {
+      merged[key] = value;
+    }
+  }
+
+  return merged;
 }

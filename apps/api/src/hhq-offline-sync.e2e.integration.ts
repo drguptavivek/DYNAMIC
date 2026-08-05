@@ -12,6 +12,174 @@ const WEB_SQLITE_STORAGE_KEY = "dynamic_web_sqlite_v2";
 const HOUSEHOLD_STORAGE_KEY = "dynamic_households_v4";
 const MEMBER_STORAGE_KEY = "dynamic_household_members_v4";
 
+test("HHQ early-stop submission schedules HHQ revisit and does not create HRF tasks", async () => {
+  process.env.DATABASE_URL = testDatabaseUrl;
+  process.env.JWT_SECRET = "test_jwt_secret";
+  process.env.JWT_REFRESH_SECRET = "test_refresh_secret";
+
+  const { createApp } = await import("./app");
+  const { db, schema } = await import("./db");
+  const { smokeUser, upsertDevSeed } = await import("./dev/dev-seed");
+
+  await upsertDevSeed();
+  await db
+    .insert(schema.devices)
+    .values({
+      device_id: "e2e-early-stop-device",
+      device_name: "E2E early stop device",
+      user_id: smokeUser.user_id,
+      registered_at: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: schema.devices.device_id,
+      set: {
+        user_id: smokeUser.user_id,
+        registered_at: new Date(),
+      },
+    });
+
+  const structureMapId = String(randomInt(1000, 9999));
+  const householdId = `1-01-${structureMapId}-02`;
+  const baselineTaskId = randomUUID();
+  const submittedAt = "2026-09-01T09:00:00.000Z";
+  const responseId = `HHQ-${householdId}-${submittedAt}`;
+
+  await db
+    .insert(schema.followUpTasks)
+    .values({
+      task_id: baselineTaskId,
+      task_key: `${householdId}:household:${householdId}:HHQ:baseline:2026-09-01:v1`,
+      site_id: 1,
+      locality_code: "01",
+      household_id: householdId,
+      subject_type: "household",
+      subject_id: householdId,
+      task_type: "HHQ",
+      form_code: "HHQ",
+      expected_forms: ["HHQ"],
+      protocol_visit_label: "baseline",
+      generation_source: "e2e_hhq_early_stop",
+      target_date: "2026-09-01",
+      deadline_date: "2026-09-30",
+      status: "planned",
+      rules_version: "1.0.0",
+      form_availability: "available",
+      action_state: "enabled",
+      created_at: new Date(),
+      updated_at: new Date(),
+    })
+    .onConflictDoNothing();
+
+  const server = createServer(createApp());
+  await new Promise<void>((resolve) => server.listen(0, resolve));
+
+  try {
+    const address = server.address();
+    assert.ok(address && typeof address === "object");
+    const baseUrl = `http://127.0.0.1:${address.port}/api/v1`;
+    const login = await fetchData(`${baseUrl}/auth/login`, {
+      method: "POST",
+      body: JSON.stringify({ username: smokeUser.username, password: smokeUser.password }),
+    });
+    const authorization = `Bearer ${login.access_token}`;
+    const sinceBeforePush = new Date(Date.now() - 1000).toISOString();
+
+    const pushed = await fetchData(`${baseUrl}/sync/push`, {
+      method: "POST",
+      headers: { Authorization: authorization },
+      body: JSON.stringify({
+        device_id: "e2e-early-stop-device",
+        records: [
+          {
+            type: "form_response",
+            data: {
+              id: responseId,
+              task_id: baselineTaskId,
+              form_code: "HHQ",
+              form_version: "2026.05.17",
+              household_id: householdId,
+              site_id: 1,
+              locality_code: "01",
+              subject_type: "household",
+              subject_id: householdId,
+              answers_json: {
+                hhq_site_id: 1,
+                hhq_locality_code: "01",
+                hhq_structure_map_id: structureMapId,
+                hhq_household_number: "02",
+                hhq_household_address: "E2E revisit address",
+                hhq_household_head_name: "E2E Revisit Head",
+                hhq_interview_date: "2026-09-01",
+                hhq_visit_no: 1,
+                hhq_competent_respondent_available: 2,
+              },
+              submitted_at: submittedAt,
+            },
+          },
+        ],
+      }),
+    });
+
+    assert.equal(pushed.accepted, 1);
+    assert.deepEqual(pushed.errors, []);
+
+    const storedResponse = await db
+      .select()
+      .from(schema.formResponses)
+      .where(eq(schema.formResponses.form_response_id, responseId));
+    assert.equal(storedResponse[0].response_status, "revisit_needed");
+
+    const events = await db
+      .select()
+      .from(schema.domainEvents)
+      .where(eq(schema.domainEvents.household_id, householdId));
+    assert.equal(
+      events.filter((event) => event.event_type === "household_baseline_confirmed").length,
+      0,
+    );
+    assert.equal(
+      events.filter((event) => event.event_type === "household_baseline_revisit_needed").length,
+      1,
+    );
+
+    const tasks = await db
+      .select()
+      .from(schema.followUpTasks)
+      .where(eq(schema.followUpTasks.household_id, householdId));
+    assert.equal(tasks.filter((task) => task.task_type === "HRF").length, 0);
+    const revisitTasks = tasks.filter(
+      (task) => task.task_type === "HHQ" && task.task_id !== baselineTaskId,
+    );
+    assert.equal(revisitTasks.length, 1);
+    assert.equal(revisitTasks[0].protocol_visit_label, "baseline-visit-2");
+    assert.equal(revisitTasks[0].target_date, "2026-09-02");
+    assert.equal(revisitTasks[0].failed_attempt_count, 1);
+    assert.equal(revisitTasks[0].max_failed_attempts, 3);
+
+    const pulled = await fetchData(
+      `${baseUrl}/sync/pull?locality_codes=01&include_members=false&page_size=100&since=${encodeURIComponent(sinceBeforePush)}`,
+      { headers: { Authorization: authorization } },
+    );
+    assert.ok(
+      pulled.tasks.some(
+        (task: { task_type: string; protocol_visit_label: string }) =>
+          task.task_type === "HHQ" && task.protocol_visit_label === "baseline-visit-2",
+      ),
+    );
+    assert.equal(
+      pulled.tasks.filter(
+        (task: { household_id: string; task_type: string }) =>
+          task.household_id === householdId && task.task_type === "HRF",
+      ).length,
+      0,
+    );
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => (error ? reject(error) : resolve()));
+    });
+  }
+});
+
 test("HHQ offline submission creates local WQ workflow, syncs backend, and pulls canonical state", async () => {
   process.env.DATABASE_URL = testDatabaseUrl;
   process.env.JWT_SECRET = "test_jwt_secret";

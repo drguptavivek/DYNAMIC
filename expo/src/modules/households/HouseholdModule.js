@@ -620,6 +620,20 @@ function HouseholdSlideout({ household, selectedMember, members, onClose }) {
     setTimeout(() => setCopiedMemberId(null), 1200);
   }
 
+  const summaryRows = [
+    ["Household ID", household.household_id],
+    ["Head Name", household.household_head_name],
+    ["Site", household.site_id],
+    ["Locality", [household.locality_name, household.locality_code].filter(Boolean).join(" ")],
+    ["Structure Serial No", household.structure_number],
+    ["Household Number", household.household_number],
+    ["Address", household.address, true],
+    ["HOH mobile", household.mobile_number],
+    ["Consent", household.consent_status],
+    ["Interview Date", household.interview_date],
+    ["Sync Status", household.sync_status],
+  ];
+
   return (
     <View style={styles.slideoutLayer}>
       <Pressable accessibilityLabel="Close household panel" style={styles.slideoutScrim} onPress={onClose} />
@@ -634,12 +648,19 @@ function HouseholdSlideout({ household, selectedMember, members, onClose }) {
         </View>
 
         <View style={styles.summaryPanel}>
-          <Text style={styles.summaryLabel}>Household ID</Text>
-          <Text selectable style={styles.summaryValue}>{household.household_id}</Text>
-          <Text style={styles.summaryLabel}>Address</Text>
-          <Text selectable style={styles.summaryValue}>{household.address || "-"}</Text>
-          <Text style={styles.summaryLabel}>HOH mobile</Text>
-          <Text selectable style={styles.summaryValue}>{household.mobile_number || "-"}</Text>
+          <View style={styles.summaryGrid}>
+            {summaryRows.map(([label, value, fullWidth]) => (
+              <View
+                key={label}
+                style={[styles.summaryItem, fullWidth && styles.summaryItemFull]}
+              >
+                <Text style={styles.summaryLabel}>{label}</Text>
+                <Text selectable style={styles.summaryValue}>
+                  {value === undefined || value === null || value === "" ? "-" : String(value)}
+                </Text>
+              </View>
+            ))}
+          </View>
         </View>
 
         {selectedMember ? (
@@ -1293,15 +1314,26 @@ const styles = StyleSheet.create({
     color: "#18202a"
   },
   summaryPanel: {
-    gap: 4,
     padding: 12,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: "#d8dee4",
     backgroundColor: "#f8fafc"
   },
+  summaryGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10
+  },
+  summaryItem: {
+    flexGrow: 1,
+    flexBasis: "46%",
+    minWidth: 130
+  },
+  summaryItemFull: {
+    flexBasis: "100%"
+  },
   summaryLabel: {
-    marginTop: 4,
     fontSize: 11,
     color: "#667085",
     fontWeight: "800",

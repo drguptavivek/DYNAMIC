@@ -2,7 +2,7 @@
  * Composes the native baseline household interview, confirmation gate, and final preview flow.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AppState, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { Alert, AppState, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { Model } from "survey-core";
 
@@ -31,6 +31,8 @@ import {
 } from "../questionnaires/questionnaireDraftRepository.js";
 import { saveQuestionnaireSubmission } from "../questionnaires/questionnaireSubmissionRepository.js";
 import { prepareQuestionnaireSurveyJson } from "../questionnaires/questionnaireSurveyJsonTransforms.js";
+import { buildHhqPrefill, mergePrefillIntoBlankValues } from "../../lib/prefillMapper.js";
+import { getHouseholdSync } from "../../lib/householdSync.js";
 import { applyHhqTaskHouseholdPrefill } from "./hhqTaskPrefill.js";
 import {
   extractHouseholdRegistryFields,
@@ -45,8 +47,8 @@ const HOUSEHOLD_CONSENT_FIELD = "hhq_consent_study_provide_pis_explain_study_adu
 const HHQ_INTERVIEW_DATE_FIELD = "hhq_interview_date";
 const HHQ_VISIT_NO_FIELD = "hhq_visit_no";
 const HHQ_COMPETENT_RESPONDENT_FIELD = "hhq_competent_respondent_available";
-const HHQ_REVISIT_NEEDED_MESSAGE = "Revisit Needed - fill the form again.";
-const HHQ_EXCLUDED_MESSAGE = "This household is excluded.";
+const HHQ_REVISIT_NEEDED_MESSAGE = "Revisit Needed-fill the form again";
+const HHQ_EXCLUDED_MESSAGE = "This household is excluded from the study";
 
 function hasDeclinedHouseholdConsent(model) {
   return Number(model.getValue(HOUSEHOLD_CONSENT_FIELD)) === 2;
@@ -75,6 +77,22 @@ function applyHhqVisitNo(model, taskContext) {
   }
 }
 
+function getHhqTaskHousehold(taskContext) {
+  const householdId = taskContext?.household_id || taskContext?.subject_id;
+  if (!householdId) return null;
+  return getHouseholdSync(householdId);
+}
+
+function applyHhqContextPrefill(model, taskContext) {
+  const { prefill } = buildHhqPrefill(getHhqTaskHousehold(taskContext));
+  for (const [fieldName, value] of Object.entries(prefill)) {
+    if (value !== undefined && value !== null && value !== "") {
+      model.setValue(fieldName, value);
+    }
+  }
+  return prefill;
+}
+
 function isHhqAvailabilityStop(model) {
   const value = Number(model?.getValue?.(HHQ_COMPETENT_RESPONDENT_FIELD));
   return value === 2 || value === 3;
@@ -87,6 +105,11 @@ function getHhqAvailabilityStopMessage(model) {
   return visitNo >= MAX_HHQ_VISIT_NO && value === 2
     ? HHQ_EXCLUDED_MESSAGE
     : HHQ_REVISIT_NEEDED_MESSAGE;
+}
+
+function showHhqAvailabilityStopPopup(message) {
+  if (!message) return;
+  Alert.alert(message);
 }
 
 export function BaselineHouseholdForm({
@@ -162,6 +185,7 @@ export function BaselineHouseholdForm({
     else if (availableLocalities.length === 1) {
       survey.setValue("hhq_locality_code", availableLocalities[0].value);
     }
+    applyHhqContextPrefill(survey, taskContext);
     applyHhqTaskHouseholdPrefill(survey, taskContext);
     applyHhqVisitNo(survey, taskContext);
 
@@ -204,7 +228,9 @@ export function BaselineHouseholdForm({
         applyHhqVisitNo(sender, taskContext);
       }
       if (options.name === HHQ_COMPETENT_RESPONDENT_FIELD) {
-        setMessage(getHhqAvailabilityStopMessage(sender));
+        const stopMessage = getHhqAvailabilityStopMessage(sender);
+        setMessage(stopMessage);
+        showHhqAvailabilityStopPopup(stopMessage);
         if (isHhqAvailabilityStop(sender)) {
           memberSummaryConfirmedRef.current = false;
           setMemberSummaryConfirmed(false);
@@ -268,7 +294,10 @@ export function BaselineHouseholdForm({
         const draft = await getActiveQuestionnaireDraft(draftContext);
         if (cancelled || !draft) return;
         draftIdRef.current = draft.draft_id;
-        model.data = { ...(model.data || {}), ...(draft.json_payload || {}) };
+        model.data = mergePrefillIntoBlankValues(
+          { ...(model.data || {}), ...(draft.json_payload || {}) },
+          buildHhqPrefill(getHhqTaskHousehold(taskContext)).prefill,
+        );
         applyHhqTaskHouseholdPrefill(model, taskContext);
         applyHhqVisitNo(model, taskContext);
         refreshHouseholdSurveyBehaviors(model, form);

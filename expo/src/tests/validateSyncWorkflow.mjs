@@ -5,6 +5,7 @@ const {
   buildPushRecords,
   buildClockDriftAlert,
   collectAcceptedSyncIds,
+  countOpenPulledTasks,
   formatClockDelta,
   selectChangedFormCodes,
   selectNextPullCursor,
@@ -102,8 +103,18 @@ assert.equal(selectNextPullCursor({}, "2026-06-03T00:00:00.000Z"), "2026-06-03T0
 assert.equal(selectNextPullCursor({ sync_cursor: "server-cursor" }, "2026-06-03T00:00:00.000Z"), null);
 
 assert.equal(
+  countOpenPulledTasks([
+    { status: "open", lifecycle_status: "planned" },
+    { status: "completed", lifecycle_status: "cancelled" },
+    { status: "open", lifecycle_status: "cancelled" },
+  ]),
+  1,
+);
+
+assert.equal(
   formatSyncCompletionMessage({
     pulled: 4,
+    pulledOpenTasks: 1,
     pulledHouseholds: 500,
     pulledMembers: 500,
     pulledEligibleWomen: 12,
@@ -111,7 +122,7 @@ assert.equal(
     events: 1,
     formsUpdated: 3,
   }),
-  "Sync complete: 4 tasks pulled, 500 households pulled, 500 members pulled, 12 eligible women pulled, 2 responses pushed, 1 event pushed, 3 forms updated",
+  "Sync complete: 1 open task available, 500 households pulled, 500 members pulled, 12 eligible women pulled, 2 responses pushed, 1 event pushed, 3 questionnaires refreshed",
 );
 
 assert.deepEqual(

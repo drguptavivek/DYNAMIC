@@ -16,6 +16,8 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 
 ### Added
 
+- Added automatic Expo field-device registration after login and a Registered Device column in the admin Users table.
+- Filled blank restored HHQ drafts in the dedicated mobile HHQ flow with the current automatic household head, address, and interviewer visit date while preserving user edits.
 - Added the HHQ competent-respondent availability gate below Visit No, including revisit/exclusion messages and Visit 3 removal of the Postponed option.
 - Added a read-only HHQ Visit No field after Interviewer visit date, derived from the current task attempt count and capped at 3.
 - Added field app Worklist search and locality filtering so synced tasks can be narrowed on device.
@@ -52,8 +54,18 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 
 - Updated field-worker household scope coverage to verify only explicitly assigned households are visible to that worker.
 
+### Fixed
+
+- Changed the Expo sync completion message from "forms updated" to "questionnaires refreshed" for server questionnaire-definition refreshes.
+- Added native HHQ alerts when competent-respondent options require revisit or final household exclusion.
+- Clarified the Expo sync completion message so cancelled/closed task updates are not presented as open Worklist tasks.
+- Prevented HHQ early-stop submissions from promoting a household into baseline HRF follow-up tasks; the API now records revisit-needed or excluded status and schedules only the next HHQ visit when applicable.
+
 ### Changed
 
+- Prefilled HHQ household head name, address, and today's interviewer visit date while keeping those HHQ fields editable.
+- Expanded the mobile household detail card to show synced head name, site/locality, structure, household number, address, mobile, consent, interview, and sync status.
+- Showed household address and head name in the admin Study Masters Add Households table.
 - Prefilled and locked HHQ site, locality, structure map number, and household number from the assigned task household ID.
 - Capped Expo HHQ and WQ task attempt limits at 3 for the finalized baseline questionnaire flows.
 - Renamed the baseline HHQ interview date prompt to "Interviewer visit date".

@@ -11,7 +11,15 @@ interface User {
   role: UserRole;
   site_id?: number | null;
   active: boolean;
+  registered_devices?: RegisteredDevice[];
   created_at?: string;
+}
+
+interface RegisteredDevice {
+  device_id: string;
+  device_name?: string | null;
+  registered_at?: string | null;
+  last_sync_at?: string | null;
 }
 
 interface AreaAssignment {
@@ -290,7 +298,7 @@ export default function UsersPage() {
           <table className={styles.table}>
             <thead><tr>
               <th>Username</th><th>Display Name</th><th>Role</th><th>Site</th>
-              <th>Assigned Localities</th><th>Status</th><th>Actions</th>
+              <th>Assigned Localities</th><th>Registered Device</th><th>Status</th><th>Actions</th>
             </tr></thead>
             <tbody>
               {users.map((listedUser) => {
@@ -302,6 +310,7 @@ export default function UsersPage() {
                     <td>{listedUser.role.replace(/_/g, " ")}</td>
                     <td><SiteName site={listedUser.site_id ? sitesById.get(listedUser.site_id) : undefined} siteId={listedUser.site_id} /></td>
                     <td><AssignmentBadges assignments={assignmentsByUser[listedUser.user_id] ?? []} localitiesByKey={localitiesByKey} /></td>
+                    <td><RegisteredDeviceCell devices={listedUser.registered_devices ?? []} /></td>
                     <td>
                       <StatusSwitch
                         active={listedUser.active}
@@ -338,6 +347,20 @@ export default function UsersPage() {
           onSubmit={handleEditUser}
         />
       )}
+    </div>
+  );
+}
+
+function RegisteredDeviceCell({ devices }: { devices: RegisteredDevice[] }) {
+  if (!devices.length) return <span className={styles.muted}>Not registered</span>;
+  return (
+    <div className={styles.deviceList}>
+      {devices.map((device) => (
+        <div key={device.device_id} className={styles.deviceItem}>
+          <code>{device.device_id}</code>
+          {device.device_name ? <span className={styles.deviceName}>{device.device_name}</span> : null}
+        </div>
+      ))}
     </div>
   );
 }

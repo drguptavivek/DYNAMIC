@@ -329,7 +329,35 @@ router.get(
         .from(schema.users)
         .where(conditions.length > 0 ? and(...conditions) : undefined);
 
-      sendSuccess(res, users, 200, { total: users.length });
+      const userIds = users.map((user) => user.user_id);
+      const devices =
+        userIds.length > 0
+          ? await db
+              .select({
+                device_id: schema.devices.device_id,
+                device_name: schema.devices.device_name,
+                user_id: schema.devices.user_id,
+                registered_at: schema.devices.registered_at,
+                last_sync_at: schema.devices.last_sync_at,
+              })
+              .from(schema.devices)
+              .where(inArray(schema.devices.user_id, userIds))
+          : [];
+      const devicesByUser = new Map<string, typeof devices>();
+      for (const device of devices) {
+        if (!device.user_id) continue;
+        devicesByUser.set(device.user_id, [...(devicesByUser.get(device.user_id) || []), device]);
+      }
+
+      sendSuccess(
+        res,
+        users.map((user) => ({
+          ...user,
+          registered_devices: devicesByUser.get(user.user_id) || [],
+        })),
+        200,
+        { total: users.length },
+      );
     } catch (error) {
       console.error("List users error:", error);
       sendError(res, 500, "INTERNAL_ERROR", "An error occurred");

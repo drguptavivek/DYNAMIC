@@ -118,6 +118,29 @@
   color: #777;
 }
 
+.deviceList {
+  display: grid;
+  gap: 0.375rem;
+  max-width: 18rem;
+}
+
+.deviceItem {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.deviceItem code {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  color: #1e40af;
+  font-size: 0.8125rem;
+}
+
+.deviceName {
+  color: #667085;
+  font-size: 0.75rem;
+}
+
 .primaryBtn,
 .secondaryBtn,
 .actionBtn,

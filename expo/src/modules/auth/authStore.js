@@ -4,6 +4,7 @@ import { clearHouseholdCacheForSync } from "../households/householdRepository.js
 import { API_BASE_URL } from "../sync/apiConfig.js";
 
 let currentUser = null;
+const DEVICE_ID_PREFIX = "dynamic-field-device";
 
 function unwrapApiData(payload) {
   return payload && Object.prototype.hasOwnProperty.call(payload, "data") ? payload.data : payload;
@@ -43,6 +44,53 @@ function resetSyncedCacheForLogin() {
   setMeta("sync_clock_status", "");
 }
 
+function createLocalUuid() {
+  const randomUuid =
+    typeof crypto !== "undefined" && crypto.randomUUID
+      ? crypto.randomUUID()
+      : "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (char) =>
+          (
+            Number(char) ^
+            ((Math.random() * 16) >> (Number(char) / 4))
+          ).toString(16),
+        );
+  return `${DEVICE_ID_PREFIX}-${randomUuid}`;
+}
+
+function getOrCreateDeviceId() {
+  const existing = getMeta("device_id");
+  if (existing) return existing;
+  const deviceId = createLocalUuid();
+  setMeta("device_id", deviceId);
+  return deviceId;
+}
+
+async function registerCurrentDevice(accessToken, user) {
+  const deviceId = getOrCreateDeviceId();
+  const deviceName = [
+    "DYNAMIC Field App",
+    user?.username ? `(${user.username})` : "",
+  ].filter(Boolean).join(" ");
+
+  const response = await fetch(`${API_BASE_URL}/devices/register`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      device_id: deviceId,
+      device_name: deviceName,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Device registration failed: ${response.statusText}`);
+  }
+
+  return { deviceId, registration: unwrapApiData(await response.json()) };
+}
+
 export async function login(username, password) {
   try {
     const response = await fetch(`${API_BASE_URL}/auth/login`, {
@@ -62,8 +110,11 @@ export async function login(username, password) {
     if (refresh_token) {
       setMeta("refresh_token", refresh_token);
     }
-    const enrichedUser = await fetchCurrentUser(access_token, user);
+    const fetchedUser = await fetchCurrentUser(access_token, user);
+    const { deviceId } = await registerCurrentDevice(access_token, fetchedUser);
     resetSyncedCacheForLogin();
+    setMeta("device_id", deviceId);
+    const enrichedUser = { ...fetchedUser, device_id: deviceId };
     storeUser(enrichedUser);
     return { ok: true, user: enrichedUser };
   } catch (error) {

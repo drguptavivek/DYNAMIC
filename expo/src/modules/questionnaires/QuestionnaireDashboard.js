@@ -33,6 +33,7 @@ import {
   prepareQuestionnaireSurveyJson,
 } from "./questionnaireSurveyJsonTransforms";
 import { applyReadOnlyFields } from "./questionnaireReadOnlyFields.js";
+import { mergePrefillIntoBlankValues } from "../../lib/prefillMapper.js";
 
 const AUTOSAVE_INTERVAL_MS = 30000;
 const HOUSEHOLD_SCHEDULE_PAGE_NAME = "page_02_household_schedule";
@@ -298,10 +299,14 @@ export function QuestionnaireDashboard({
       if (draft) {
         draftIdRef.current = draft.draft_id;
         setDraftId(draft.draft_id);
-        survey.data = normalizeQuestionnaireSurveyData(form, {
+        const restoredData = {
           ...(survey.data || {}),
           ...(draft.json_payload || {}),
-        });
+        };
+        survey.data = normalizeQuestionnaireSurveyData(
+          form,
+          mergePrefillIntoBlankValues(restoredData, survey.data || {}),
+        );
         refreshHouseholdSurveyBehaviors(survey, form);
         hasPreviewedRef.current = false;
         setPreviewConfirmed(false);

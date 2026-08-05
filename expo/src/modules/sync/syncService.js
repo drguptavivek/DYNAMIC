@@ -12,6 +12,7 @@ import {
   buildPushRecords,
   collectAcceptedSyncIds,
   collectAssignedLocalityCodes,
+  countOpenPulledTasks,
   selectChangedFormCodes,
   selectNextPullCursor,
   summarizeClockStatus,
@@ -286,6 +287,7 @@ export async function pullSync(options = {}) {
   try {
     let nextPageToken = null;
     let pulledTasks = 0;
+    let pulledOpenTasks = 0;
     let pulledHouseholds = 0;
     let pulledMembers = 0;
     let pulledEligibleWomen = 0;
@@ -393,6 +395,7 @@ export async function pullSync(options = {}) {
       if (tasks.length > 0) {
         reconcilePulledTasks(tasks);
         pulledTasks += tasks.length;
+        pulledOpenTasks += countOpenPulledTasks(tasks);
       }
 
       if (eligibleWomen.length > 0) {
@@ -439,6 +442,7 @@ export async function pullSync(options = {}) {
 
     return {
       pulled: pulledTasks,
+      pulledOpenTasks,
       pulledHouseholds,
       pulledMembers,
       pulledEligibleWomen,
@@ -588,6 +592,7 @@ export async function syncAll(options = {}) {
       pushed: pushResult.pushed,
       events: pushResult.events,
       pulled: pullResult.pulled,
+      pulledOpenTasks: pullResult.pulledOpenTasks,
       pulledHouseholds: pullResult.pulledHouseholds,
       pulledMembers: pullResult.pulledMembers,
       formsUpdated: pullResult.formsUpdated,
@@ -598,6 +603,7 @@ export async function syncAll(options = {}) {
       clockStatus: getClockStatus(),
       localities: assignmentResult.localityCodes.length,
       pulled: pullResult.pulled,
+      pulledOpenTasks: pullResult.pulledOpenTasks,
       pulledHouseholds: pullResult.pulledHouseholds,
       pulledMembers: pullResult.pulledMembers,
       pushed: pushResult.pushed,
