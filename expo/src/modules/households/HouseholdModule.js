@@ -624,7 +624,7 @@ function HouseholdSlideout({ household, selectedMember, members, onClose }) {
     ["Household ID", household.household_id],
     ["Head Name", household.household_head_name],
     ["Site", household.site_id],
-    ["Locality", [household.locality_name, household.locality_code].filter(Boolean).join(" ")],
+    ["Locality", formatLocalityLabel(household.locality_name, household.locality_code)],
     ["Structure Serial No", household.structure_number],
     ["Household Number", household.household_number],
     ["Address", household.address, true],
@@ -711,6 +711,14 @@ function HouseholdSlideout({ household, selectedMember, members, onClose }) {
       </View>
     </View>
   );
+}
+
+function formatLocalityLabel(name, code) {
+  const localityName = String(name || "").trim();
+  const localityCode = String(code || "").trim();
+  if (!localityName) return localityCode;
+  if (!localityCode || localityName === localityCode) return localityName;
+  return `${localityName} ${localityCode}`;
 }
 
 function formatSex(sex) {

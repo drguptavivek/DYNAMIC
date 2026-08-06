@@ -8,13 +8,17 @@ export function setNavigationHandler(handler) {
   navigationHandler = typeof handler === "function" ? handler : null;
 }
 
-export function navigateTo(route) {
+export function navigateTo(route, options = {}) {
   if (!route) return;
   if (navigationHandler) {
-    navigationHandler(route);
+    navigationHandler(route, options);
     return;
   }
   if (typeof window !== "undefined") {
+    if (options.replace) {
+      window.location.replace(route);
+      return;
+    }
     window.location.assign(route);
   }
 }

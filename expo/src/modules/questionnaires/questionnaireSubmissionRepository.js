@@ -550,6 +550,22 @@ export async function listQuestionnaireSubmissions(formCode) {
   return rows.filter((row) => row.form_code === formCode);
 }
 
+export function markQuestionnaireSubmissionSynced(submissionId) {
+  const storage = getStorage();
+  if (!storage || !submissionId) return;
+  const rows = JSON.parse(storage.getItem(STORAGE_KEY) || "[]");
+  storage.setItem(
+    STORAGE_KEY,
+    JSON.stringify(
+      rows.map((row) =>
+        row.submission_id === submissionId || row.id === submissionId
+          ? { ...row, sync_status: "synced", updated_at: new Date().toISOString() }
+          : row,
+      ),
+    ),
+  );
+}
+
 export async function saveQuestionnaireSubmission({
   formCode,
   formVersion,

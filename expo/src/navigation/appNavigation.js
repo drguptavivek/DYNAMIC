@@ -2,6 +2,8 @@ export const FIELD_APP_ROUTES = {
   home: "/",
   worklist: "/worklist",
   sync: "/sync",
+  completedForms: "/completed-forms",
+  uploadedForms: "/uploaded-forms",
   households: "/households",
   householdNew: "/households/new",
   householdMembers: "/household-members",
@@ -20,6 +22,8 @@ export const FORM_OPEN_POLICY = {
 export const SHELL_NAV_ITEMS = [
   { id: "worklist", label: "Worklist", route: FIELD_APP_ROUTES.worklist },
   { id: "sync", label: "Sync", route: FIELD_APP_ROUTES.sync },
+  { id: "completedForms", label: "Completed Forms", route: FIELD_APP_ROUTES.completedForms },
+  { id: "uploadedForms", label: "Uploaded Forms", route: FIELD_APP_ROUTES.uploadedForms },
   { id: "households", label: "Households", route: FIELD_APP_ROUTES.households },
   {
     id: "householdMembers",

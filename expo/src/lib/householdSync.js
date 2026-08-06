@@ -46,6 +46,28 @@ export function getHouseholdMemberSync(memberId) {
 }
 
 /**
+ * Count registered members for a household using the sync SQLite cache.
+ * @param {string} householdId - The household ID
+ * @returns {number|null} Member count, or null if the cache is unavailable
+ */
+export function getHouseholdMemberCountSync(householdId) {
+  if (!householdId) return null;
+  const db = getDb();
+  if (!db) return null;
+
+  try {
+    const row = db.getFirstSync(
+      "SELECT COUNT(*) AS member_count FROM household_members WHERE household_id = ?",
+      [householdId]
+    );
+    return Number(row?.member_count || 0);
+  } catch (error) {
+    console.error("Error counting household members:", error);
+    return null;
+  }
+}
+
+/**
  * Fetch household and member data together
  * @param {string} householdId - The household ID
  * @param {string} memberId - Optional household member ID

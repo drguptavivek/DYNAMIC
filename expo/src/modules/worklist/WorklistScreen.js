@@ -18,7 +18,7 @@ import * as syncService from "../sync/syncService.js";
 import { listTaskWorklist } from "./taskWorklistRepository.js";
 import { buildTaskLocalityOptions, filterTaskWorklist } from "./taskWorklist.js";
 import { getTaskOpenBlockReason } from "./taskOpenPolicy.js";
-import { getHouseholdSync } from "../../lib/householdSync.js";
+import { getHouseholdMemberCountSync, getHouseholdSync } from "../../lib/householdSync.js";
 import { listActiveQuestionnaireDrafts } from "../questionnaires/questionnaireDraftRepository.js";
 
 const BADGE_COLORS = {
@@ -170,12 +170,31 @@ function enrichTaskForWorklist(task, drafts = []) {
   };
 }
 
-function DetailRow({ label, value, fullWidth }) {
+function formatLocalityLabel(name, code) {
+  const localityName = String(name || "").trim();
+  const localityCode = String(code || "").trim();
+  if (!localityName) return localityCode;
+  if (!localityCode || localityName === localityCode) return localityName;
+  return `${localityName} ${localityCode}`;
+}
+
+function getTaskVisitNo(task) {
+  const labelMatch = String(task?.protocol_visit_label || "").match(/visit-(\d+)/i);
+  if (labelMatch) return Math.min(3, Math.max(1, Number(labelMatch[1])));
+  const failedAttempts = Number(task?.failed_attempt_count);
+  if (Number.isFinite(failedAttempts)) {
+    return Math.min(3, Math.max(1, Math.trunc(failedAttempts) + 1));
+  }
+  return 1;
+}
+
+function DetailRow({ label, value, fullWidth, blankWhenEmpty }) {
+  const isBlank = value === undefined || value === null || value === "";
   return (
     <View style={[styles.detailRow, fullWidth && styles.detailRowFull]}>
       <Text style={styles.detailLabel}>{label}</Text>
       <Text selectable style={styles.detailValue}>
-        {value === undefined || value === null || value === "" ? "-" : String(value)}
+        {isBlank ? (blankWhenEmpty ? "" : "-") : String(value)}
       </Text>
     </View>
   );
@@ -183,17 +202,17 @@ function DetailRow({ label, value, fullWidth }) {
 
 function HouseholdDetailsModal({ household, visible, onClose }) {
   if (!household) return null;
+  const memberCount = getHouseholdMemberCountSync(household.household_id);
+  const memberCountValue = Number(memberCount) > 0 ? memberCount : "";
   const rows = [
     ["Household ID", household.household_id],
     ["Head Name", household.household_head_name],
     ["Address", household.household_address, true],
     ["Site", household.household_site_id],
-    [
-      "Locality",
-      [household.household_locality_name, household.household_locality_code].filter(Boolean).join(" "),
-    ],
+    ["Locality", formatLocalityLabel(household.household_locality_name, household.household_locality_code)],
     ["Structure No", household.household_structure_number],
     ["Household No", household.household_number],
+    ["Members Count", memberCountValue, false, true],
     ["Mobile", household.household_mobile_number],
     ["Consent", household.household_consent_status],
     ["Interview Date", household.household_interview_date],
@@ -214,8 +233,14 @@ function HouseholdDetailsModal({ household, visible, onClose }) {
             </Pressable>
           </View>
           <ScrollView contentContainerStyle={styles.detailsGrid}>
-            {rows.map(([label, value, fullWidth]) => (
-              <DetailRow key={label} label={label} value={value} fullWidth={fullWidth} />
+            {rows.map(([label, value, fullWidth, blankWhenEmpty]) => (
+              <DetailRow
+                key={label}
+                label={label}
+                value={value}
+                fullWidth={fullWidth}
+                blankWhenEmpty={blankWhenEmpty}
+              />
             ))}
           </ScrollView>
         </View>
@@ -228,50 +253,49 @@ function TaskRow({ task, onPress, onLongPress, onViewHousehold }) {
   const isDisabled = Boolean(getTaskOpenBlockReason(task));
   const badgeColor = BADGE_COLORS[task.task_type] || "#95a5a6";
   const detailLine = task.household_address || "";
+  const visitNo = getTaskVisitNo(task);
+  const showVisitBadge = String(task.task_type || "").toUpperCase() === "HHQ";
 
   return (
-    <Pressable
-      onPress={() => onPress(task)}
-      onLongPress={() => onLongPress && onLongPress(task)}
-      style={({ pressed }) => [
-        styles.taskRow,
-        pressed && styles.taskRowPressed,
-        isDisabled && styles.taskRowDisabled,
-      ]}
-    >
-      <View style={styles.taskContent}>
+    <View style={[styles.taskRow, isDisabled && styles.taskRowDisabled]}>
+      <Pressable
+        onPress={() => onPress(task)}
+        onLongPress={() => onLongPress && onLongPress(task)}
+        style={({ pressed }) => [styles.taskBodyPressable, pressed && styles.taskRowPressed]}
+      >
+        <View style={styles.taskContent}>
         <View style={styles.taskHeader}>
-          <View style={[styles.taskTypeBadge, { backgroundColor: badgeColor }]}>
-            <Text style={styles.taskTypeBadgeText}>{task.task_type}</Text>
-          </View>
-          {task.household_head_name ? (
-            <Text style={styles.taskHeaderHeadName} numberOfLines={1}>
-              {task.household_head_name}
-            </Text>
-          ) : null}
-          {task.has_active_draft ? (
-            <View style={styles.draftBadge}>
-              <MaterialCommunityIcons color="#92400e" name="content-save-edit-outline" size={15} />
-              <Text style={styles.draftBadgeText}>Draft</Text>
+          <View style={styles.taskTitleLine}>
+            <View style={[styles.taskTypeBadge, { backgroundColor: badgeColor }]}>
+              <Text style={styles.taskTypeBadgeText}>{task.task_type}</Text>
             </View>
-          ) : null}
-          <Pressable
-            accessibilityLabel={`View household ${task.household_id}`}
-            onPress={(event) => {
-              event.stopPropagation?.();
-              onViewHousehold?.(task);
-            }}
-            style={styles.eyeButton}
-          >
-            <MaterialCommunityIcons color="#344054" name="eye-outline" size={21} />
-          </Pressable>
-          {isDisabled && <Text style={styles.lockIcon}>🔒</Text>}
+            {task.household_head_name ? (
+              <Text style={styles.taskHeaderHeadName}>
+                {task.household_head_name}
+              </Text>
+            ) : null}
+          </View>
+          <View style={styles.taskStatusBadges}>
+            {task.has_active_draft ? (
+              <View style={styles.draftBadge}>
+                <MaterialCommunityIcons color="#92400e" name="content-save-edit-outline" size={15} />
+                <Text style={styles.draftBadgeText}>Draft</Text>
+              </View>
+            ) : null}
+            {showVisitBadge ? (
+              <View style={styles.visitBadge}>
+                <Text style={styles.visitBadgeLabel}>Visit</Text>
+                <Text style={styles.visitBadgeNumber}>{visitNo}</Text>
+              </View>
+            ) : null}
+            {isDisabled && <Text style={styles.lockIcon}>🔒</Text>}
+            </View>
         </View>
         <Text style={styles.taskSubjectName} numberOfLines={1}>
           {task.household_id || task.subject_name}
         </Text>
         {detailLine ? (
-          <Text style={styles.taskHouseholdDetails} numberOfLines={2}>
+          <Text style={styles.taskHouseholdDetails}>
             {detailLine}
           </Text>
         ) : null}
@@ -281,8 +305,16 @@ function TaskRow({ task, onPress, onLongPress, onViewHousehold }) {
             <Text style={styles.completedBadgeText}>Completed</Text>
           </View>
         )}
-      </View>
-    </Pressable>
+        </View>
+      </Pressable>
+      <Pressable
+        accessibilityLabel={`View household ${task.household_id}`}
+        onPress={() => onViewHousehold?.(task)}
+        style={styles.eyeButton}
+      >
+        <MaterialCommunityIcons color="#344054" name="eye-outline" size={21} />
+      </Pressable>
+    </View>
   );
 }
 
@@ -669,22 +701,38 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 8,
     flexDirection: "row",
+    gap: 10,
+  },
+  taskBodyPressable: {
+    flex: 1,
+    minWidth: 0,
   },
   taskRowPressed: {
     backgroundColor: "#f5f5f5",
-    borderColor: "#3498db",
   },
   taskRowDisabled: {
     opacity: 0.7,
   },
   taskContent: {
     flex: 1,
+    minWidth: 0,
   },
   taskHeader: {
+    marginBottom: 6,
+  },
+  taskTitleLine: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    marginBottom: 8,
+  },
+  taskStatusBadges: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "flex-end",
     gap: 8,
-    marginBottom: 6,
+    alignSelf: "flex-end",
+    flexWrap: "wrap",
   },
   taskTypeBadge: {
     paddingHorizontal: 8,
@@ -699,8 +747,10 @@ const styles = StyleSheet.create({
   },
   taskHeaderHeadName: {
     flex: 1,
+    minWidth: 0,
     color: "#0b5bd3",
     fontSize: 15,
+    lineHeight: 20,
     fontWeight: "900",
   },
   draftBadge: {
@@ -717,12 +767,36 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "800",
   },
+  visitBadge: {
+    minHeight: 34,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    flexShrink: 0,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#0284c7",
+    backgroundColor: "#e0f2fe",
+  },
+  visitBadgeLabel: {
+    color: "#0369a1",
+    fontSize: 12,
+    fontWeight: "900",
+    textTransform: "uppercase",
+  },
+  visitBadgeNumber: {
+    color: "#0c4a6e",
+    fontSize: 18,
+    fontWeight: "900",
+    lineHeight: 22,
+  },
   eyeButton: {
     width: 34,
     height: 34,
     alignItems: "center",
     justifyContent: "center",
-    marginLeft: "auto",
+    flexShrink: 0,
     borderWidth: 1,
     borderColor: "#cfd7e3",
     borderRadius: 8,

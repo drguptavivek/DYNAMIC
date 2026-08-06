@@ -520,6 +520,10 @@ export async function pushSync() {
     for (const item of pending) {
       if (acceptedIds.has(item.id)) {
         await taskRepository.markResponseSynced(item.id);
+        const { markQuestionnaireSubmissionSynced } = await import(
+          "../questionnaires/questionnaireSubmissionRepository.js"
+        );
+        markQuestionnaireSubmissionSynced(item.id);
       }
     }
 

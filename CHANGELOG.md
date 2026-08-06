@@ -16,11 +16,24 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 
 ### Added
 
+- Added mobile Completed Forms and Uploaded Forms drawer pages for pending and synced submitted CRFs.
+- Added search plus Site ID, Form ID, and Locality filters to the mobile Completed Forms and Uploaded Forms pages.
 - Added mobile Worklist draft badges, household head/address display, and an eye action for household detail review.
 - Showed the household head name beside the Worklist task-type badge for quick HHQ identification.
+- Added a prominent HHQ Visit No badge on mobile Worklist household cards.
+- Added member count display to the mobile Worklist household eye-details popup.
+- Aligned the mobile Worklist HHQ Visit badge with the current visit number shown inside the HHQ form.
 - Removed the duplicate household ID from the Worklist card detail line, leaving address below the primary household ID.
 - Labeled the Worklist card date as Target Date for clearer field-worker context.
 - Added the Household ID above the dedicated mobile HHQ final review screen so field workers can verify which household they are submitting.
+
+### Fixed
+
+- Changed field-app shell navigation to replace drawer pages instead of stacking them, preventing Android Back from replaying old app pages or submitted forms.
+- Separated the Worklist card tap target from the household eye action so opening household details does not also open the task modal.
+- Tightened the mobile Completed Forms and Uploaded Forms layouts so Refresh stays inside the header and filters remain in a compact horizontal row.
+- Preserved blank household consent from synced/imported households until HHQ consent is actually collected.
+- Avoided duplicate locality labels when locality name and code are identical in mobile household detail views.
 - Added automatic Expo field-device registration after login and a Registered Device column in the admin Users table.
 - Filled blank restored HHQ drafts in the dedicated mobile HHQ flow with the current automatic household head, address, and interviewer visit date while preserving user edits.
 - Added the HHQ competent-respondent availability gate below Visit No, including revisit/exclusion messages and Visit 3 removal of the Postponed option.

@@ -333,6 +333,14 @@ class WebDatabase {
       return sortBy(this.state.form_responses.filter((row) => row.sync_status === "pending"), "created_at");
     }
 
+    if (/SELECT \* FROM form_responses WHERE 1=1/i.test(normalized)) {
+      let rows = [...this.state.form_responses];
+      if (/sync_status = \?/i.test(normalized)) {
+        rows = rows.filter((row) => row.sync_status === params[0]);
+      }
+      return sortBy(rows, "submitted_at", "DESC");
+    }
+
     if (/SELECT \* FROM task_attempts WHERE task_id = \?/i.test(normalized)) {
       return sortBy(
         this.state.task_attempts.filter((row) => row.task_id === params[0]),

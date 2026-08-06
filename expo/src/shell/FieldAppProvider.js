@@ -36,7 +36,13 @@ export function FieldAppProvider({ children }) {
   const [appLockBiometricEnabled, setAppLockBiometricEnabled] = useState(false);
 
   useEffect(() => {
-    setNavigationHandler((route) => router.push(route));
+    setNavigationHandler((route, options = {}) => {
+      if (options.replace !== false) {
+        router.replace(route);
+        return;
+      }
+      router.push(route);
+    });
     return () => setNavigationHandler(null);
   }, [router]);
 

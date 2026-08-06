@@ -14,7 +14,15 @@ assert.equal(
 );
 
 const navRouteIds = SHELL_NAV_ITEMS.map((item) => item.id);
-assert.deepEqual(navRouteIds, ["worklist", "sync", "households", "householdMembers", "profile"]);
+assert.deepEqual(navRouteIds, [
+  "worklist",
+  "sync",
+  "completedForms",
+  "uploadedForms",
+  "households",
+  "householdMembers",
+  "profile",
+]);
 
 assert.equal(
   SHELL_NAV_ITEMS.some((item) => item.id === "questionnaires" || item.kind === "formCatalog"),
@@ -23,6 +31,8 @@ assert.equal(
 );
 
 assert.equal(FIELD_APP_ROUTES.worklist, "/worklist");
+assert.equal(FIELD_APP_ROUTES.completedForms, "/completed-forms");
+assert.equal(FIELD_APP_ROUTES.uploadedForms, "/uploaded-forms");
 assert.equal(getRouteForTaskForm({ task_type: "PFF" }), "/questionnaires/PFF/new");
 
 assert.throws(

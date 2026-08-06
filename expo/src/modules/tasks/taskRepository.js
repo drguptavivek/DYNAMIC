@@ -554,6 +554,27 @@ export function getPendingResponses() {
   }
 }
 
+export function listFormResponses(filters = {}) {
+  const db = getDb();
+  const { sync_status } = filters;
+  const params = [];
+  let sql = "SELECT * FROM form_responses WHERE 1=1";
+
+  if (sync_status) {
+    sql += " AND sync_status = ?";
+    params.push(sync_status);
+  }
+
+  sql += " ORDER BY submitted_at DESC, created_at DESC";
+
+  try {
+    return db.getAllSync(sql, params) || [];
+  } catch (error) {
+    console.error("Error listing form responses:", error);
+    return [];
+  }
+}
+
 export function markResponseSynced(id) {
   const db = getDb();
   try {

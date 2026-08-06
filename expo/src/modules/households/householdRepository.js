@@ -786,7 +786,7 @@ export async function saveSyncedHouseholdsAndMembers(households = [], members = 
     household_number: household.household_number,
     address: household.address,
     household_head_name: household.household_head_name,
-    consent_status: household.consent_status || "Yes",
+    consent_status: household.consent_status || "",
     interview_date: household.baseline_completed_date,
     result_interview: household.result_interview,
     language_questionnaire: household.language_questionnaire,
