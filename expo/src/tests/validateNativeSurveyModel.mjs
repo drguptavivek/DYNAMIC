@@ -41,7 +41,7 @@ attachHouseholdSurveyBehaviors(model, hhq);
 
 assert.deepEqual(assertNativeSurveySupport(model), []);
 assert.doesNotThrow(() => model.getAllQuestions().map(getNativeRendererKind));
-assert.equal(model.pages.length, 3);
+assert.equal(model.pages.length, 4);
 assert.ok(getVisiblePageQuestions(model.pages[0]).length > 0);
 
 const structure = model.getQuestionByName("hhq_structure_map_id");
@@ -70,6 +70,9 @@ setNativeQuestionValue(consent, 1);
 assert.equal(model.visiblePages.length, 3);
 
 const roster = model.getQuestionByName("hhq_household_members");
+assert.equal(roster.dynamicAutoOpenFirstEntry, true);
+assert.equal(roster.dynamicHideAddButton, true);
+assert.equal(roster.addPanelText, "Add household member");
 roster.value = [
   {
     member_name: "Asha",
@@ -110,6 +113,60 @@ roster.addPanel();
 assert.equal(roster.panelCount, 2);
 roster.removePanel(1);
 assert.equal(roster.panelCount, 1);
+
+const liveEditorModel = new Model(prepareQuestionnaireSurveyJson(hhq));
+attachHouseholdSurveyBehaviors(liveEditorModel, hhq);
+liveEditorModel.setValue("hhq_site_id", 1);
+liveEditorModel.setValue("hhq_locality_code", "01");
+liveEditorModel.setValue("hhq_structure_map_id", "0001");
+liveEditorModel.setValue("hhq_household_number", "01");
+liveEditorModel.setValue("hhq_interview_date", "2026-09-01");
+liveEditorModel.setValue("hhq_competent_respondent_available", 1);
+liveEditorModel.setValue("hhq_consent_study_provide_pis_explain_study_adult_member", 1);
+const liveRoster = liveEditorModel.getQuestionByName("hhq_household_members");
+liveRoster.addPanel();
+const livePanel = liveRoster.panels[0];
+setNativeQuestionValue(livePanel.getQuestionByName("member_name"), "Jeetu");
+setNativeQuestionValue(livePanel.getQuestionByName("member_age_years"), "25");
+setNativeQuestionValue(livePanel.getQuestionByName("member_sex"), 1);
+setNativeQuestionValue(livePanel.getQuestionByName("member_marital_status"), 7);
+assert.equal(
+  livePanel.getQuestionByName("member_woman_questionnaire_eligible").value,
+  2
+);
+assert.equal(
+  liveEditorModel.getValue("hhq_household_members")[0].member_woman_questionnaire_eligible,
+  2
+);
+assert.equal(
+  livePanel.getQuestionByName("member_individual_id").value,
+  "1-01-0001-01-01"
+);
+
+const drinkingWaterSource = model.getQuestionByName(
+  "hhq_main_source_drinking_water_members_household_piped_water"
+);
+assert.equal(getNativeRendererKind(drinkingWaterSource), "grouped-coded-single-select");
+setNativeQuestionValue(drinkingWaterSource, 31);
+assert.equal(drinkingWaterSource.value, 31);
+const toiletFacilityType = model.getQuestionByName(
+  "hhq_kind_toilet_facility_members_household_usually_use_flush"
+);
+assert.equal(getNativeRendererKind(toiletFacilityType), "grouped-coded-single-select");
+setNativeQuestionValue(toiletFacilityType, 22);
+assert.equal(toiletFacilityType.value, 22);
+const floorMaterialType = model.getQuestionByName("hhq_main_material_floor_natural_floor");
+assert.equal(getNativeRendererKind(floorMaterialType), "grouped-coded-single-select");
+setNativeQuestionValue(floorMaterialType, 31);
+assert.equal(floorMaterialType.value, 31);
+const roofMaterialType = model.getQuestionByName("hhq_main_material_roof_natural_roofing");
+assert.equal(getNativeRendererKind(roofMaterialType), "grouped-coded-single-select");
+setNativeQuestionValue(roofMaterialType, 35);
+assert.equal(roofMaterialType.value, 35);
+const wallMaterialType = model.getQuestionByName("hhq_main_material_external_walls_natural_walls");
+assert.equal(getNativeRendererKind(wallMaterialType), "grouped-coded-single-select");
+setNativeQuestionValue(wallMaterialType, 26);
+assert.equal(wallMaterialType.value, 26);
 
 for (const formMeta of formCatalog) {
   const catalogForm = formsByCode[formMeta.form_code];

@@ -131,6 +131,7 @@ export function BaselineHouseholdForm({
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
   const [memberSummaryConfirmed, setMemberSummaryConfirmed] = useState(false);
+  const [memberChecklistStep, setMemberChecklistStep] = useState("a");
   const [previewSignature, setPreviewSignature] = useState("");
   const [finalReview, setFinalReview] = useState(false);
   const [sectionDrawerOpen, setSectionDrawerOpen] = useState(false);
@@ -204,6 +205,7 @@ export function BaselineHouseholdForm({
           setFinalReview(false);
           setView("form");
           setSectionDrawerOpen(false);
+          setMemberChecklistStep("a");
           setMessage("Consent declined. The interview ends after this section.");
           setTimeout(() => {
             const firstVisiblePageName = sender.firstVisiblePage?.name;
@@ -224,6 +226,7 @@ export function BaselineHouseholdForm({
       ) {
         memberSummaryConfirmedRef.current = false;
         setMemberSummaryConfirmed(false);
+        setMemberChecklistStep("a");
       }
       if (options.name === HHQ_INTERVIEW_DATE_FIELD) {
         applyHhqVisitNo(sender, taskContext);
@@ -381,6 +384,7 @@ export function BaselineHouseholdForm({
     await saveDraft({ silent: true });
     setFinalReview(false);
     setView("member-summary");
+    setMemberChecklistStep("a");
     setMessage("Confirm the household roster before Section 03.");
   }
 
@@ -411,6 +415,26 @@ export function BaselineHouseholdForm({
     setMessage("Household roster confirmed.");
     setRevision((value) => value + 1);
     await saveDraft({ silent: true });
+  }
+
+  async function requestAdditionalHouseholdMember(reason) {
+    const roster = model.getQuestionByName?.("hhq_household_members");
+    if (roster) {
+      roster.dynamicAddRequestToken = Date.now();
+    }
+    memberSummaryConfirmedRef.current = false;
+    setMemberSummaryConfirmed(false);
+    setMemberChecklistStep("a");
+    goToSurveySection(model, HOUSEHOLD_SCHEDULE_PAGE_NAME);
+    setView("form");
+    setMessage(reason);
+    setRevision((value) => value + 1);
+    await saveDraft({ silent: true });
+  }
+
+  function continueToChecklistB() {
+    setMemberChecklistStep("b");
+    setMessage("");
   }
 
   async function handleSectionSelect(section) {
@@ -585,24 +609,65 @@ export function BaselineHouseholdForm({
               <View style={styles.specialView}>
                 <DisplayRenderer
                   title="02B-Household Member Summary"
-                  subtitle="Confirm names, generated member IDs, age, sex, relationship, and WQ eligibility."
+                  subtitle={`${memberRows.length} ${memberRows.length === 1 ? "member" : "members"} added. Confirm name, age, and sex before check listing.`}
                   rows={memberRows}
                   columns={[
-                    { key: "sr", title: "Sr", width: 55 },
-                    { key: "memberId", title: "Member ID", width: 210 },
-                    { key: "memberName", title: "Name", width: 150 },
+                    { key: "sr", title: "Count", width: 70 },
+                    { key: "memberName", title: "Name", width: 190 },
                     { key: "age", title: "Age", width: 65 },
-                    { key: "sex", title: "Sex", width: 90 },
-                    { key: "relation", title: "Relation", width: 150 },
-                    { key: "wqEligible", title: "WQ eligible", width: 100 },
+                    { key: "sex", title: "Sex", width: 110 },
                   ]}
                 />
+                {memberRows.length ? (
+                  <View style={styles.checkListingCard}>
+                    <Text style={styles.checkListingCode}>CHECK LISTING</Text>
+                    <Text style={styles.checkListingTitle}>
+                      Just to make sure that I have a complete household listing.
+                    </Text>
+                    {memberChecklistStep === "a" ? (
+                      <>
+                        <Text style={styles.checkListingQuestion}>
+                          A) Are there any other persons such as small children or infants that we have not listed?
+                        </Text>
+                        <View style={styles.checkListingActions}>
+                          <Pressable
+                            onPress={() => requestAdditionalHouseholdMember("Add the missing small child or infant, then review the listing again.")}
+                            style={styles.secondaryButton}
+                          >
+                            <Text style={styles.secondaryButtonText}>Yes, add member</Text>
+                          </Pressable>
+                          <Pressable onPress={continueToChecklistB} style={styles.primaryButton}>
+                            <Text style={styles.primaryButtonText}>No</Text>
+                          </Pressable>
+                        </View>
+                      </>
+                    ) : (
+                      <>
+                        <Text style={styles.checkListingQuestion}>
+                          B) Are there other people who may not be members of your family such as domestic servants, lodgers or friends who usually live here?
+                        </Text>
+                        <View style={styles.checkListingActions}>
+                          <Pressable
+                            onPress={() => requestAdditionalHouseholdMember("Add the other usual resident, then review the listing again.")}
+                            style={styles.secondaryButton}
+                          >
+                            <Text style={styles.secondaryButtonText}>Yes, add member</Text>
+                          </Pressable>
+                          <Pressable onPress={confirmMemberSummary} style={styles.primaryButton}>
+                            <Text style={styles.primaryButtonText}>No, go to Section 3</Text>
+                          </Pressable>
+                        </View>
+                      </>
+                    )}
+                  </View>
+                ) : (
+                  <View style={styles.checkListingCard}>
+                    <Text style={styles.checkListingTitle}>Add at least one household member before continuing.</Text>
+                  </View>
+                )}
                 <View style={styles.footerActions}>
                   <Pressable onPress={() => { goToSurveySection(model, HOUSEHOLD_SCHEDULE_PAGE_NAME); setView("form"); }} style={styles.secondaryButton}>
                     <Text style={styles.secondaryButtonText}>Edit roster</Text>
-                  </Pressable>
-                  <Pressable onPress={confirmMemberSummary} style={styles.primaryButton}>
-                    <Text style={styles.primaryButtonText}>Confirm roster</Text>
                   </Pressable>
                 </View>
               </View>
@@ -650,6 +715,11 @@ const styles = StyleSheet.create({
   reviewHouseholdLabel: { color: "#475467", fontSize: 12, fontWeight: "800", textTransform: "uppercase" },
   reviewHouseholdValue: { color: "#18202a", fontSize: 20, fontWeight: "800" },
   footerActions: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 10, paddingTop: 8 },
+  checkListingCard: { gap: 10, padding: 12, borderWidth: 1, borderColor: "#c7d7ea", borderRadius: 8, backgroundColor: "#ffffff" },
+  checkListingCode: { color: "#1f4d7a", fontSize: 12, fontWeight: "900", letterSpacing: 0, textTransform: "uppercase" },
+  checkListingTitle: { color: "#18202a", fontSize: 15, fontWeight: "800" },
+  checkListingQuestion: { color: "#344054", fontSize: 14, fontWeight: "700", lineHeight: 20 },
+  checkListingActions: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "flex-end", gap: 8 },
   primaryButton: { minHeight: 44, alignItems: "center", justifyContent: "center", paddingHorizontal: 16, borderRadius: 8, backgroundColor: "#1f6feb" },
   primaryButtonText: { color: "#ffffff", fontWeight: "800" },
   secondaryButton: { minHeight: 44, alignItems: "center", justifyContent: "center", paddingHorizontal: 12, borderWidth: 1, borderColor: "#d0d5dd", borderRadius: 8, backgroundColor: "#ffffff" },

@@ -35,7 +35,7 @@ export function buildHouseholdMemberSummaryRows(data = {}, form, locale = "defau
 
   const householdId = buildHouseholdIdFromHhqData(data);
   return members.map((member, index) => {
-    const sr = Number(member.member_line_number || index + 1);
+    const sr = String(member.member_line_number || index + 1).padStart(2, "0");
     return {
       sr,
       memberId: householdId ? buildIndividualId(householdId, sr) : "Pending household ID",

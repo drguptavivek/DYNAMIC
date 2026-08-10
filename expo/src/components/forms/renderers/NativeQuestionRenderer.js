@@ -11,6 +11,7 @@ import { DisplayRenderer } from "./DisplayRenderer.js";
 import { DynamicPanelRenderer } from "./DynamicPanelRenderer.js";
 import { FilePickerRenderer } from "./FilePickerRenderer.js";
 import { GpsRenderer } from "./GpsRenderer.js";
+import { GroupedCodedSingleSelectRenderer } from "./GroupedCodedSingleSelectRenderer.js";
 import { InstructionRenderer } from "./InstructionRenderer.js";
 import { MultipleTextRenderer } from "./MultipleTextRenderer.js";
 import { NoteRenderer } from "./NoteRenderer.js";
@@ -31,6 +32,7 @@ export function NativeQuestionRenderer({ question, onChange, renderQuestion }) {
     case "dynamic-panel": return <DynamicPanelRenderer {...props} renderQuestion={renderQuestion} />;
     case "file-picker": return <FilePickerRenderer {...props} />;
     case "gps": return <GpsRenderer {...props} />;
+    case "grouped-coded-single-select": return <GroupedCodedSingleSelectRenderer {...props} />;
     case "instruction": return <InstructionRenderer {...props} />;
     case "multiple-text": return <MultipleTextRenderer {...props} />;
     case "note": return <NoteRenderer {...props} />;

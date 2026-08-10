@@ -5,14 +5,14 @@ const HHQ_CODE = "HHQ";
 const HH_MEMBER_PANEL = "hhq_household_members";
 const HH_MEMBER_GENERATED_FIELDS = new Set([
   "member_line_number",
+  "member_individual_id",
   "member_woman_questionnaire_eligible"
 ]);
 const HH_MEMBER_TOTAL_FIELDS = [
   "hhq_total_household_members",
-  "hhq_total_household_members_end_summary",
   "hhq_total_eligible_women",
-  "hhq_total_eligible_women_end_summary"
 ];
+const HOUSEHOLD_ID_DISPLAY_FIELD = "hhq_household_id";
 const HOUSEHOLD_ID_FIELDS = new Set([
   "hhq_site_id",
   "hhq_locality_code",
@@ -20,11 +20,6 @@ const HOUSEHOLD_ID_FIELDS = new Set([
   "hhq_household_number"
 ]);
 const HOUSEHOLD_NUMBER_FIELD = "hhq_household_number";
-const GPS_FIELD_NAMES = new Set([
-  "hhq_gps_latitude",
-  "hhq_gps_longitude",
-  "hhq_gps_altitude_m"
-]);
 const MEMBER_NAME_LABEL_FIELDS = new Set([
   "member_relationship_to_head",
   "member_sex",
@@ -48,11 +43,16 @@ const renderedAgeQuestions = new Set();
 const duplicateHouseholdMessages = new WeakMap();
 
 function isWomanQuestionnaireEligible(member) {
+  const sex = parseFiniteNumber(member?.member_sex);
+  const ageYears = parseFiniteNumber(member?.member_age_years);
+  const maritalStatus = parseFiniteNumber(member?.member_marital_status);
   return (
-    Number(member?.member_sex) === 2 &&
-    Number(member?.member_age_years) >= 18 &&
-    Number(member?.member_age_years) <= 49 &&
-    Number(member?.member_marital_status) !== 7
+    sex === 2 &&
+    ageYears !== null &&
+    ageYears >= 18 &&
+    ageYears <= 49 &&
+    maritalStatus !== null &&
+    maritalStatus !== 7
   );
 }
 
@@ -83,6 +83,35 @@ function clearHouseholdListingCalculations(model) {
   HH_MEMBER_TOTAL_FIELDS.forEach((field) => clearModelValue(model, field));
 }
 
+function normalizeHouseholdIdPart(value, width) {
+  const text = String(value || "").trim();
+  return width ? text.padStart(width, "0") : text;
+}
+
+function buildDisplayHouseholdId(model) {
+  const siteId = normalizeHouseholdIdPart(model.getValue("hhq_site_id"));
+  const localityCode = normalizeHouseholdIdPart(model.getValue("hhq_locality_code"), 2);
+  const structureNumber = normalizeHouseholdIdPart(model.getValue("hhq_structure_map_id"), 4);
+  const householdNumber = normalizeHouseholdIdPart(model.getValue("hhq_household_number"), 2);
+  if (!siteId || !localityCode || !structureNumber || !householdNumber) return "";
+  return [siteId, localityCode, structureNumber, householdNumber].join("-");
+}
+
+function buildDisplayMemberId(model, lineNumber) {
+  const householdId = buildDisplayHouseholdId(model);
+  if (!householdId || !lineNumber) return "";
+  return `${householdId}-${normalizeHouseholdIdPart(lineNumber, 2)}`;
+}
+
+function updateHouseholdIdCalculation(model) {
+  const question = model.getQuestionByName?.(HOUSEHOLD_ID_DISPLAY_FIELD);
+  if (!question) return;
+  const householdId = buildDisplayHouseholdId(model);
+  if (householdId) model.setValue(HOUSEHOLD_ID_DISPLAY_FIELD, householdId);
+  else clearModelValue(model, HOUSEHOLD_ID_DISPLAY_FIELD);
+  question.readOnly = true;
+}
+
 function isHouseholdMemberPanelApplicable(model) {
   const question = model.getQuestionByName?.(HH_MEMBER_PANEL);
   if (!question) return false;
@@ -90,6 +119,7 @@ function isHouseholdMemberPanelApplicable(model) {
 }
 
 function updateHouseholdListingCalculations(model) {
+  const rosterQuestion = model.getQuestionByName?.(HH_MEMBER_PANEL);
   if (!isHouseholdMemberPanelApplicable(model)) {
     clearHouseholdListingCalculations(model);
     return;
@@ -101,7 +131,8 @@ function updateHouseholdListingCalculations(model) {
   const enteredMembers = members.filter(hasEnteredHouseholdMemberValue);
   const normalizedMembers = enteredMembers.map((member, index) => ({
     ...member,
-    member_line_number: index + 1,
+    member_line_number: normalizeHouseholdIdPart(index + 1, 2),
+    member_individual_id: buildDisplayMemberId(model, index + 1),
     member_woman_questionnaire_eligible: isWomanQuestionnaireEligible(member) ? 1 : 2
   }));
 
@@ -110,20 +141,31 @@ function updateHouseholdListingCalculations(model) {
     return;
   }
 
+  syncGeneratedMemberFieldsToLivePanels(rosterQuestion, normalizedMembers);
+
   if (JSON.stringify(members) !== JSON.stringify(normalizedMembers)) {
     model.setValue(HH_MEMBER_PANEL, normalizedMembers);
+    syncGeneratedMemberFieldsToLivePanels(rosterQuestion, normalizedMembers);
   }
 
   model.setValue("hhq_total_household_members", normalizedMembers.length || undefined);
-  model.setValue("hhq_total_household_members_end_summary", normalizedMembers.length || undefined);
   model.setValue(
     "hhq_total_eligible_women",
     normalizedMembers.filter(isWomanQuestionnaireEligible).length
   );
-  model.setValue(
-    "hhq_total_eligible_women_end_summary",
-    normalizedMembers.filter(isWomanQuestionnaireEligible).length
-  );
+}
+
+function syncGeneratedMemberFieldsToLivePanels(rosterQuestion, normalizedMembers) {
+  (rosterQuestion?.panels || []).forEach((panel, index) => {
+    const member = normalizedMembers[index];
+    if (!member) return;
+    HH_MEMBER_GENERATED_FIELDS.forEach((fieldName) => {
+      const question = panel.getQuestionByName?.(fieldName);
+      if (!question) return;
+      const value = member[fieldName];
+      if (question.value !== value) question.value = value;
+    });
+  });
 }
 
 function refreshQuestionTitles(model) {
@@ -419,9 +461,20 @@ function applyMandatoryHhqQuestions(model) {
   });
 }
 
+function configureHouseholdRosterQuestion(model) {
+  const roster = model.getQuestionByName?.(HH_MEMBER_PANEL);
+  if (!roster) return;
+  roster.dynamicAutoOpenFirstEntry = true;
+  roster.dynamicHideAddButton = true;
+  roster.addPanelText = "Add household member";
+  roster.panelAddText = "Add household member";
+}
+
 export function refreshHouseholdSurveyBehaviors(model, selectedForm) {
   if (selectedForm?.form_code !== HHQ_CODE) return;
   applyMandatoryHhqQuestions(model);
+  configureHouseholdRosterQuestion(model);
+  updateHouseholdIdCalculation(model);
   updateHouseholdListingCalculations(model);
   validateSingleHouseholdHead(model);
   validateAgeAgainstResidenceDuration(model);
@@ -458,6 +511,7 @@ export function attachHouseholdSurveyBehaviors(
   if (selectedForm?.form_code !== HHQ_CODE) return;
 
   applyMandatoryHhqQuestions(model);
+  configureHouseholdRosterQuestion(model);
   model.checkErrorsMode = "onValueChanged";
 
   let duplicateCheckSequence = 0;
@@ -516,52 +570,6 @@ export function attachHouseholdSurveyBehaviors(
       renderAgeResidenceError(options.question);
     }
     italicizeMemberNameInTitle(options);
-    if (options.question.name !== "hhq_gps_latitude") return;
-    if (options.htmlElement.querySelector("[data-dynamic-gps-capture]")) return;
-
-    const button = document.createElement("button");
-    button.type = "button";
-    button.dataset.dynamicGpsCapture = "true";
-    button.textContent = "Capture GPS";
-    button.style.marginTop = "12px";
-    button.style.padding = "10px 14px";
-    button.style.border = "0";
-    button.style.borderRadius = "6px";
-    button.style.background = "#1f6feb";
-    button.style.color = "#ffffff";
-    button.style.fontWeight = "700";
-    button.style.cursor = "pointer";
-
-    const status = document.createElement("div");
-    status.style.marginTop = "8px";
-    status.style.color = "#667085";
-    status.style.fontSize = "13px";
-
-    button.addEventListener("click", () => {
-      if (!navigator?.geolocation) {
-        status.textContent = "GPS is not available on this device/browser.";
-        return;
-      }
-      status.textContent = "Capturing GPS...";
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const { latitude, longitude, altitude } = position.coords;
-          sender.setValue("hhq_gps_latitude", Number(latitude.toFixed(7)));
-          sender.setValue("hhq_gps_longitude", Number(longitude.toFixed(7)));
-          if (altitude !== null && altitude !== undefined) {
-            sender.setValue("hhq_gps_altitude_m", Number(altitude.toFixed(1)));
-          }
-          status.textContent = "GPS captured from device.";
-        },
-        (error) => {
-          status.textContent = `GPS capture failed: ${error.message}`;
-        },
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-      );
-    });
-
-    options.htmlElement.appendChild(button);
-    options.htmlElement.appendChild(status);
   });
   model.onDynamicPanelAdded.add((sender, options) => {
     if (options?.question?.name === HH_MEMBER_PANEL) {
@@ -574,8 +582,9 @@ export function attachHouseholdSurveyBehaviors(
     }
   });
   model.onValueChanged.add((sender, options) => {
-    if (GPS_FIELD_NAMES.has(options.name) && !options.value) return;
     if (HOUSEHOLD_ID_FIELDS.has(options.name)) {
+      updateHouseholdIdCalculation(sender);
+      updateHouseholdListingCalculations(sender);
       checkDuplicateHousehold(sender);
     }
     if (options.name === "member_name" || options.name === HH_MEMBER_PANEL) {

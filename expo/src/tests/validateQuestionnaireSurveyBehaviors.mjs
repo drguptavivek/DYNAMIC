@@ -78,7 +78,7 @@ model.onAfterRenderSurvey.handlers[0](model);
 
 assert.deepEqual(
   model.getValue("hhq_household_members").map((member) => member.member_line_number),
-  [1, 2]
+  ["01", "02"]
 );
 assert.equal(model.getValue("hhq_total_household_members"), 2);
 
@@ -87,6 +87,10 @@ const restoredDraftModel = createModel({}, {
 });
 attachHouseholdSurveyBehaviors(restoredDraftModel, { form_code: "HHQ" });
 restoredDraftModel.data = {
+  hhq_site_id: 1,
+  hhq_locality_code: "02",
+  hhq_structure_map_id: "0042",
+  hhq_household_number: "03",
   hhq_household_members: [
     { member_name: "Asha", member_sex: 2, member_age_years: 25, member_marital_status: 1 },
     { member_name: "Bala", member_sex: 1, member_age_years: 30, member_marital_status: 1 }
@@ -97,7 +101,11 @@ refreshHouseholdSurveyBehaviors(restoredDraftModel, { form_code: "HHQ" });
 
 assert.deepEqual(
   restoredDraftModel.getValue("hhq_household_members").map((member) => member.member_line_number),
-  [1, 2]
+  ["01", "02"]
+);
+assert.deepEqual(
+  restoredDraftModel.getValue("hhq_household_members").map((member) => member.member_individual_id),
+  ["1-02-0042-03-01", "1-02-0042-03-02"]
 );
 assert.equal(restoredDraftModel.getValue("hhq_total_household_members"), 2);
 assert.equal(restoredDraftModel.getValue("hhq_total_eligible_women"), 1);

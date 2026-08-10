@@ -48,7 +48,7 @@ const rows = buildHouseholdMemberSummaryRows(
     hhq_household_number: "03",
     hhq_household_members: [
       {
-        member_line_number: 1,
+        member_line_number: "01",
         member_name: "Asha",
         member_age_years: 25,
         member_sex: 2,
@@ -56,7 +56,7 @@ const rows = buildHouseholdMemberSummaryRows(
         member_woman_questionnaire_eligible: 1,
       },
       {
-        member_line_number: 2,
+        member_line_number: "02",
         member_name: "Bala",
         member_age_years: 30,
         member_sex: 1,
@@ -70,7 +70,7 @@ const rows = buildHouseholdMemberSummaryRows(
 
 assert.deepEqual(rows, [
   {
-    sr: 1,
+    sr: "01",
     memberId: "1-02-0042-03-01",
     memberName: "Asha",
     age: "25",
@@ -79,7 +79,7 @@ assert.deepEqual(rows, [
     wqEligible: "Yes",
   },
   {
-    sr: 2,
+    sr: "02",
     memberId: "1-02-0042-03-02",
     memberName: "Bala",
     age: "30",

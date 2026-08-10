@@ -129,6 +129,10 @@ attachHouseholdSurveyBehaviors(
   }
 );
 
+assert.equal(newModel.getQuestionByName("hhq_household_members").dynamicAutoOpenFirstEntry, true);
+assert.equal(newModel.getQuestionByName("hhq_household_members").dynamicHideAddButton, true);
+assert.equal(newModel.getQuestionByName("hhq_household_members").addPanelText, "Add household member");
+
 await newModel.onValueChanged.handlers[0](newModel, {
   name: "hhq_household_number",
   value: "01"
@@ -273,6 +277,60 @@ assert.deepEqual(ageQuestion.errors, [
   "Age in completed years cannot be less than years continuously living here."
 ]);
 assert.deepEqual(residenceDurationQuestion.errors, []);
+
+const eligibilityMembers = [
+  {
+    member_name: "Male Adult",
+    member_sex: 1,
+    member_age_years: 30,
+    member_marital_status: 1
+  },
+  {
+    member_name: "Never Married Woman",
+    member_sex: 2,
+    member_age_years: 25,
+    member_marital_status: 7
+  },
+  {
+    member_name: "Young Married Woman",
+    member_sex: 2,
+    member_age_years: 17,
+    member_marital_status: 1
+  },
+  {
+    member_name: "Twelve Year Old Female",
+    member_sex: 2,
+    member_age_years: 12
+  },
+  {
+    member_name: "Eligible Woman",
+    member_sex: 2,
+    member_age_years: 35,
+    member_marital_status: 1
+  }
+];
+const eligibilityModel = createModel({ hhq_household_members: eligibilityMembers });
+attachHouseholdSurveyBehaviors(
+  eligibilityModel,
+  { form_code: "HHQ" },
+  () => {},
+  {
+    findExistingHousehold: async () => null
+  }
+);
+
+eligibilityModel.onValueChanged.handlers[0](eligibilityModel, {
+  name: "member_marital_status",
+  value: 1
+});
+
+assert.deepEqual(
+  eligibilityModel.getValue("hhq_household_members").map(
+    (member) => member.member_woman_questionnaire_eligible
+  ),
+  [2, 2, 2, 2, 1]
+);
+assert.equal(eligibilityModel.getValue("hhq_total_eligible_women"), 1);
 
 const ageValidateOptions = {
   name: "member_age_years",

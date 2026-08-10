@@ -11,6 +11,7 @@ import { controlStyles } from "./QuestionFrame.js";
 export function DynamicPanelRenderer({ question, onChange, renderQuestion }) {
   const [editingIndex, setEditingIndex] = useState(null);
   const [editorMode, setEditorMode] = useState(null);
+  const [initialAddOpened, setInitialAddOpened] = useState(false);
   const errors = getNativeQuestionErrors(question);
   const panels = question.panels || [];
   const committedPanels = panels
@@ -25,6 +26,20 @@ export function DynamicPanelRenderer({ question, onChange, renderQuestion }) {
       setEditorMode(null);
     }
   }, [editingIndex, panels.length]);
+
+  useEffect(() => {
+    if (question.dynamicAddRequestToken === undefined) return;
+    if (editorMode !== null) return;
+    startAdding();
+  }, [question.dynamicAddRequestToken]);
+
+  useEffect(() => {
+    if (!question.dynamicAutoOpenFirstEntry) return;
+    if (initialAddOpened) return;
+    if (committedPanels.length || editorMode !== null) return;
+    setInitialAddOpened(true);
+    startAdding();
+  }, [committedPanels.length, editorMode, initialAddOpened, question.dynamicAutoOpenFirstEntry]);
 
   function entryLabel(panel, index) {
     const memberName = panel.getQuestionByName?.("member_name")?.value;
@@ -66,6 +81,7 @@ export function DynamicPanelRenderer({ question, onChange, renderQuestion }) {
   }
 
   function closeEditor() {
+    const hasCommittedEntry = committedPanels.length > 0;
     if (editorMode === "add" && editingIndex !== null) {
       if (question.panelCount > Number(question.minPanelCount || 0)) {
         question.removePanel(editingIndex);
@@ -73,6 +89,9 @@ export function DynamicPanelRenderer({ question, onChange, renderQuestion }) {
         clearPanelValues(panels[editingIndex]);
       }
       onChange?.();
+    }
+    if (question.dynamicAutoOpenFirstEntry && question.dynamicHideAddButton && !hasCommittedEntry) {
+      setInitialAddOpened(false);
     }
     setEditingIndex(null);
     setEditorMode(null);
@@ -142,7 +161,7 @@ export function DynamicPanelRenderer({ question, onChange, renderQuestion }) {
         </View>
       ) : null}
       {errors.map((error, index) => <Text key={`${error}-${index}`} style={styles.error}>{error}</Text>)}
-      {question.allowAddPanel !== false && editorMode === null ? (
+      {question.allowAddPanel !== false && !question.dynamicHideAddButton && editorMode === null ? (
         <Pressable
           onPress={startAdding}
           style={styles.addButton}
@@ -177,6 +196,7 @@ const styles = StyleSheet.create({
 
 function panelHasAnswer(panel) {
   return (panel?.questions || []).some((child) => {
+    if (child.isReadOnly || child.readOnly) return false;
     const value = child.value;
     if (Array.isArray(value)) return value.length > 0;
     if (value && typeof value === "object") return Object.keys(value).length > 0;

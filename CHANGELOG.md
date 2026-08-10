@@ -26,6 +26,10 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 - Removed the duplicate household ID from the Worklist card detail line, leaving address below the primary household ID.
 - Labeled the Worklist card date as Target Date for clearer field-worker context.
 - Added the Household ID above the dedicated mobile HHQ final review screen so field workers can verify which household they are submitting.
+- Added HHQ Section 2 CHECK LISTING roster flow so completed member entries are reviewed by count/name/age/sex before continuing or adding another member.
+- Added a grouped HHQ Section 3 drinking-water source control where label-only categories reveal coded child options while saving only the final source code.
+- Added the same grouped coded-option control for HHQ Section 3 toilet facility type, keeping label-only toilet categories out of saved answers.
+- Added grouped coded-option controls for HHQ Section 3 floor, roof, and external wall material questions so Natural, Rudimentary, and Finished category labels reveal coded child options without being saved.
 
 ### Fixed
 
@@ -78,9 +82,16 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 - Added native HHQ alerts when competent-respondent options require revisit or final household exclusion.
 - Clarified the Expo sync completion message so cancelled/closed task updates are not presented as open Worklist tasks.
 - Prevented HHQ early-stop submissions from promoting a household into baseline HRF follow-up tasks; the API now records revisit-needed or excluded status and schedules only the next HHQ visit when applicable.
+- Hid the initial HHQ Section 2 add-member launcher and opened the first member-entry form directly, with additional member entry driven by CHECK LISTING.
+- Corrected HHQ women-questionnaire eligibility auto-calculation so only female household members aged 18-49 who are not never married are marked eligible.
+- Padded HHQ member line numbers to two digits and generated member IDs as household ID plus line number, such as `1-01-0001-01-01`.
+- Tightened HHQ Section 2 age skip logic for marital status, birth registration, school attendance, and highest grade questions.
+- Synced HHQ generated member fields into the live member editor so women's questionnaire eligibility visibly ticks Yes/No immediately.
 
 ### Changed
 
+- Aligned the baseline household questionnaire with the 28 July 2026 Excel workbook sections, including generated HHID/INDVID display fields, a separate Outcome section, exact coded options such as 95/98, and removal of non-Excel GPS fields.
+- Moved the HHQ CHECK LISTING A/B prompts out of the member repeat row into the post-roster summary flow, showing member count/name/age/sex before deciding whether to add more members or continue to Section 3.
 - Prefilled HHQ household head name, address, and today's interviewer visit date while keeping those HHQ fields editable.
 - Expanded the mobile household detail card to show synced head name, site/locality, structure, household number, address, mobile, consent, interview, and sync status.
 - Showed household address and head name in the admin Study Masters Add Households table.

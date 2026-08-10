@@ -89,6 +89,7 @@ export function getNativeRendererKind(question) {
   if (renderAs === "camera") return "camera";
   if (renderAs === "file_picker") return "file-picker";
   if (renderAs === "gps_decimal" || renderAs === "gps_altitude") return "gps";
+  if (renderAs.startsWith("grouped_")) return "grouped-coded-single-select";
   if (type === "radiogroup") return "select-one";
   if (type === "checkbox") return "select-many";
   if (type === "multipletext") return "multiple-text";

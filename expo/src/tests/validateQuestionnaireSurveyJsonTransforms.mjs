@@ -31,6 +31,30 @@ const surveyJson = prepareQuestionnaireSurveyJson(hhq);
 const mobilePanel = findElementByName(surveyJson, "hhq_contact_mobile_numbers");
 const singleMobile = findElementByName(surveyJson, "hhq_contact_mobile");
 const memberMaritalStatus = findElementByName(surveyJson, "member_marital_status");
+const memberEligibility = findElementByName(surveyJson, "member_woman_questionnaire_eligible");
+const memberBirthRegistration = findElementByName(surveyJson, "member_birth_registration_status");
+const memberEverAttendedSchool = findElementByName(surveyJson, "member_ever_attended_school");
+const memberHighestGrade = findElementByName(surveyJson, "member_highest_grade_completed");
+const drinkingWaterSource = findElementByName(
+  surveyJson,
+  "hhq_main_source_drinking_water_members_household_piped_water"
+);
+const toiletFacilityType = findElementByName(
+  surveyJson,
+  "hhq_kind_toilet_facility_members_household_usually_use_flush"
+);
+const floorMaterialType = findElementByName(
+  surveyJson,
+  "hhq_main_material_floor_natural_floor"
+);
+const roofMaterialType = findElementByName(
+  surveyJson,
+  "hhq_main_material_roof_natural_roofing"
+);
+const wallMaterialType = findElementByName(
+  surveyJson,
+  "hhq_main_material_external_walls_natural_walls"
+);
 const householdTotal = findElementByName(surveyJson, "hhq_total_household_members");
 const householdNumber = findElementByName(surveyJson, "hhq_household_number");
 const interviewDate = findElementByName(surveyJson, "hhq_interview_date");
@@ -70,6 +94,35 @@ assert.deepEqual(mobilePanel.templateElements[0].validators, [
   }
 ]);
 assert.equal(memberMaritalStatus.visibleIf, "{panel.member_age_years} >= 13");
+assert.equal(memberBirthRegistration.visibleIf, "{panel.member_age_years} >= 0 and {panel.member_age_years} <= 4");
+assert.equal(memberEverAttendedSchool.visibleIf, "{panel.member_age_years} >= 5");
+assert.equal(memberHighestGrade.visibleIf, "{panel.member_ever_attended_school} = 1");
+assert.equal(memberEligibility.readOnly, true);
+assert.equal(drinkingWaterSource.renderAs, "grouped_drinking_water_source");
+assert.deepEqual(
+  drinkingWaterSource.choices.map((choice) => choice.value),
+  [11, 12, 13, 14, 21, 31, 32, 41, 42, 51, 61, 71, 81, 91, 92, 96]
+);
+assert.equal(toiletFacilityType.renderAs, "grouped_toilet_facility_type");
+assert.deepEqual(
+  toiletFacilityType.choices.map((choice) => choice.value),
+  [11, 12, 13, 14, 15, 21, 22, 23, 31, 41, 51, 96]
+);
+assert.equal(floorMaterialType.renderAs, "grouped_floor_material_type");
+assert.deepEqual(
+  floorMaterialType.choices.map((choice) => choice.value),
+  [11, 12, 13, 21, 22, 23, 24, 31, 32, 33, 34, 35, 36, 96]
+);
+assert.equal(roofMaterialType.renderAs, "grouped_roof_material_type");
+assert.deepEqual(
+  roofMaterialType.choices.map((choice) => choice.value),
+  [11, 12, 13, 14, 15, 21, 22, 23, 24, 25, 31, 32, 33, 34, 35, 36, 37, 38, 39, 96]
+);
+assert.equal(wallMaterialType.renderAs, "grouped_external_wall_material_type");
+assert.deepEqual(
+  wallMaterialType.choices.map((choice) => choice.value),
+  [11, 12, 13, 14, 21, 22, 23, 24, 25, 26, 31, 32, 33, 34, 35, 36, 96]
+);
 assert.equal(householdTotal.renderAs, "readonly_calculated_numeric");
 assert.equal(householdNumber.renderAs, "db_check");
 assert.equal(visitNo.renderAs, "readonly_summary");
@@ -118,6 +171,60 @@ assert.equal(
 );
 assert.equal(consentModel.visiblePages.length, 1);
 consentModel.setValue("hhq_competent_respondent_available", 1);
+
+const scheduleModel = new Model(surveyJson);
+scheduleModel.setValue("hhq_site_id", 1);
+scheduleModel.setValue("hhq_locality_code", "01");
+scheduleModel.setValue("hhq_structure_map_id", "0001");
+scheduleModel.setValue("hhq_household_number", "01");
+scheduleModel.setValue("hhq_interview_date", "2026-09-01");
+scheduleModel.setValue("hhq_competent_respondent_available", 1);
+scheduleModel.setValue("hhq_consent_study_provide_pis_explain_study_adult_member", 1);
+const scheduleRoster = scheduleModel.getQuestionByName("hhq_household_members");
+scheduleRoster.value = [
+  {
+    member_name: "Age Twelve",
+    member_age_years: 12,
+    member_sex: 2,
+    member_marital_status: 7,
+  },
+];
+let schedulePanel = scheduleRoster.panels[0];
+assert.equal(schedulePanel.getQuestionByName("member_marital_status").isVisible, false);
+assert.equal(schedulePanel.getQuestionByName("member_birth_registration_status").isVisible, false);
+assert.equal(schedulePanel.getQuestionByName("member_ever_attended_school").isVisible, true);
+assert.equal(schedulePanel.getQuestionByName("member_highest_grade_completed").isVisible, false);
+
+scheduleRoster.value = [
+  {
+    member_name: "Age Four",
+    member_age_years: 4,
+  },
+];
+schedulePanel = scheduleRoster.panels[0];
+assert.equal(schedulePanel.getQuestionByName("member_birth_registration_status").isVisible, true);
+assert.equal(schedulePanel.getQuestionByName("member_ever_attended_school").isVisible, false);
+
+scheduleRoster.value = [
+  {
+    member_name: "Age Five",
+    member_age_years: 5,
+    member_ever_attended_school: 2,
+  },
+];
+schedulePanel = scheduleRoster.panels[0];
+assert.equal(schedulePanel.getQuestionByName("member_birth_registration_status").isVisible, false);
+assert.equal(schedulePanel.getQuestionByName("member_ever_attended_school").isVisible, true);
+assert.equal(schedulePanel.getQuestionByName("member_highest_grade_completed").isVisible, false);
+scheduleRoster.value = [
+  {
+    member_name: "Age Five",
+    member_age_years: 5,
+    member_ever_attended_school: 1,
+  },
+];
+schedulePanel = scheduleRoster.panels[0];
+assert.equal(schedulePanel.getQuestionByName("member_highest_grade_completed").isVisible, true);
 assert.equal(
   consentModel.getQuestionByName("hhq_consent_study_provide_pis_explain_study_adult_member").isVisible,
   true,
