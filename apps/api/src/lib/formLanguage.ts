@@ -34,6 +34,11 @@ export type FlattenedFormElement = {
   type?: string;
   title: string;
   description: string;
+  page_name?: string;
+  page_title?: string;
+  source_code?: string;
+  order?: number;
+  section_order?: number;
   choices: Array<{ value: string; text: string }>;
 };
 
@@ -183,30 +188,43 @@ export function flattenFormElements(
   const elements: FlattenedFormElement[] = [];
   const pages = Array.isArray(formJson.pages) ? formJson.pages : [];
 
-  iterateElements(pages, (element) => {
-    const name = typeof element.name === "string" ? element.name : "";
-    if (!name) return;
-    const choices = Array.isArray(element.choices)
-      ? element.choices.map((choice) => {
-          if (choice && typeof choice === "object") {
-            const choiceObj = choice as Record<string, unknown>;
-            return {
-              value: String(choiceObj.value ?? ""),
-              text: localizedText(choiceObj.text ?? choiceObj.value),
-            };
-          }
-          return { value: String(choice ?? ""), text: String(choice ?? "") };
-        })
-      : [];
+  for (const page of pages) {
+    if (!page || typeof page !== "object" || Array.isArray(page)) continue;
+    const pageObj = page as Record<string, unknown>;
+    const pageName = typeof pageObj.name === "string" ? pageObj.name : undefined;
+    const pageTitle = localizedText(pageObj.title);
+    const pageElements = Array.isArray(pageObj.elements) ? pageObj.elements : [];
 
-    elements.push({
-      name,
-      type: typeof element.type === "string" ? element.type : undefined,
-      title: localizedText(element.title ?? name),
-      description: localizedText(element.description),
-      choices,
+    iterateElements(pageElements, (element) => {
+      const name = typeof element.name === "string" ? element.name : "";
+      if (!name) return;
+      const choices = Array.isArray(element.choices)
+        ? element.choices.map((choice) => {
+            if (choice && typeof choice === "object") {
+              const choiceObj = choice as Record<string, unknown>;
+              return {
+                value: String(choiceObj.value ?? ""),
+                text: localizedText(choiceObj.text ?? choiceObj.value),
+              };
+            }
+            return { value: String(choice ?? ""), text: String(choice ?? "") };
+          })
+        : [];
+
+      elements.push({
+        name,
+        type: typeof element.type === "string" ? element.type : undefined,
+        title: localizedText(element.title ?? name),
+        description: localizedText(element.description),
+        page_name: pageName,
+        page_title: pageTitle,
+        source_code: typeof element.sourceCode === "string" ? element.sourceCode : undefined,
+        order: typeof element.order === "number" ? element.order : undefined,
+        section_order: typeof element.section_order === "number" ? element.section_order : undefined,
+        choices,
+      });
     });
-  });
+  }
 
   return elements;
 }

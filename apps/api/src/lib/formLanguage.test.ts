@@ -47,11 +47,16 @@ test("flattens form elements with option values for the admin editor", () => {
   const elements = flattenFormElements({
     pages: [
       {
+        name: "page_1",
+        title: "Section 1",
         elements: [
           {
             type: "dropdown",
             name: "q1",
             title: { default: "Question one" },
+            sourceCode: "1",
+            order: 1,
+            section_order: 1,
             choices: [{ value: 98, text: "Don't know" }],
           },
         ],
@@ -65,9 +70,46 @@ test("flattens form elements with option values for the admin editor", () => {
       type: "dropdown",
       title: "Question one",
       description: "",
+      page_name: "page_1",
+      page_title: "Section 1",
+      source_code: "1",
+      order: 1,
+      section_order: 1,
       choices: [{ value: "98", text: "Don't know" }],
     },
   ]);
+});
+
+test("flattens nested form elements without exporting pages as questions", () => {
+  const elements = flattenFormElements({
+    pages: [
+      {
+        name: "page_household",
+        title: "Household Schedule",
+        elements: [
+          {
+            type: "panel",
+            name: "member_panel",
+            title: "Member panel",
+            elements: [
+              {
+                type: "text",
+                name: "member_name",
+                title: "Member name",
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  });
+
+  assert.deepEqual(
+    elements.map((element) => element.name),
+    ["member_panel", "member_name"],
+  );
+  assert.equal(elements[0].page_title, "Household Schedule");
+  assert.equal(elements[1].page_name, "page_household");
 });
 
 test("merges bundled translations into database translations without overwriting edits", () => {

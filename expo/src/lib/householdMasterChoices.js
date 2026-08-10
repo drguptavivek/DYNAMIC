@@ -89,7 +89,30 @@ export function getAssignedLocalities(
 function updateElementChoices(element, choicesByName) {
   const next = { ...element };
   if (choicesByName[next.name]) {
-    next.choices = choicesByName[next.name];
+    const existingChoicesByValue = new Map(
+      (Array.isArray(next.choices) ? next.choices : []).map((choice) => [
+        String(choice?.value ?? choice),
+        choice
+      ])
+    );
+    next.choices = choicesByName[next.name].map((choice) => {
+      const existingChoice = existingChoicesByValue.get(String(choice.value));
+      const existingText =
+        existingChoice && typeof existingChoice === "object" && !Array.isArray(existingChoice)
+          ? existingChoice.text
+          : undefined;
+      const existingLocalizedText =
+        existingText && typeof existingText === "object" && !Array.isArray(existingText)
+          ? existingText
+          : {};
+      return {
+        ...choice,
+        text: {
+          ...existingLocalizedText,
+          ...(choice.text || {})
+        }
+      };
+    });
   }
   if (Array.isArray(next.elements)) {
     next.elements = next.elements.map((child) => updateElementChoices(child, choicesByName));

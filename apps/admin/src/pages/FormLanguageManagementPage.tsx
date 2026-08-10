@@ -32,6 +32,11 @@ interface FormElement {
   type?: string;
   title: string;
   description: string;
+  page_name?: string;
+  page_title?: string;
+  source_code?: string;
+  order?: number;
+  section_order?: number;
   choices: Array<{ value: string; text: string }>;
 }
 
@@ -163,6 +168,18 @@ function parseCsv(text: string): string[][] {
 
 function normalizeHeader(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, "_");
+}
+
+function canonicalChoiceValue(element: FormElement, rawValue: string): string | null {
+  const trimmedValue = String(rawValue || "").trim();
+  const exactChoice = element.choices.find((choice) => String(choice.value) === trimmedValue);
+  if (exactChoice) return String(exactChoice.value);
+
+  const numericValue = Number(trimmedValue);
+  if (!Number.isFinite(numericValue)) return null;
+
+  const numericChoice = element.choices.find((choice) => Number(choice.value) === numericValue);
+  return numericChoice ? String(numericChoice.value) : null;
 }
 
 function downloadTextFile(filename: string, content: string) {
@@ -554,19 +571,22 @@ export default function FormLanguageManagementPage() {
           status = "matched";
           rowMessage = "Help text translation will update";
         } else if (rowType === "option") {
-          const choiceExists = element.choices.some((choice) => String(choice.value) === optionValue);
-          if (!choiceExists) {
+          const matchedOptionValue = canonicalChoiceValue(element, optionValue);
+          if (!matchedOptionValue) {
             rowMessage = "Unknown option value, ignored";
           } else {
             nextTranslations[variableName] = {
               ...nextTranslations[variableName],
               choices: {
                 ...(nextTranslations[variableName]?.choices || {}),
-                [optionValue]: translatedText,
+                [matchedOptionValue]: translatedText,
               },
             };
             status = "matched";
-            rowMessage = "Option translation will update";
+            rowMessage =
+              matchedOptionValue === optionValue
+                ? "Option translation will update"
+                : `Option translation will update as ${matchedOptionValue}`;
           }
         } else {
           rowMessage = "Unknown row_type, ignored";

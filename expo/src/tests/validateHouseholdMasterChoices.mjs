@@ -43,7 +43,7 @@ const surveyJson = {
           name: "hhq_site_id",
           choices: [
             { value: 1, text: { default: "Bareilley" } },
-            { value: 2, text: { default: "Ballabgarh" } },
+            { value: 2, text: { default: "Ballabgarh", hi: "बल्लभगढ़" } },
             { value: 3, text: { default: "Belgavi" } }
           ]
         },
@@ -61,7 +61,7 @@ const surveyJson = {
 
 const scopedJson = applyHouseholdMasterChoices(surveyJson, { user, localities });
 assert.deepEqual(scopedJson.pages[0].elements[0].choices, [
-  { value: 2, text: { default: "Ballabgarh" } }
+  { value: 2, text: { default: "Ballabgarh", hi: "बल्लभगढ़" } }
 ]);
 assert.deepEqual(scopedJson.pages[0].elements[1].choices, [
   { value: "01", text: { default: "Ajronda" } },

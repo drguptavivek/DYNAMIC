@@ -46,10 +46,13 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 - Tightened the mobile Completed Forms and Uploaded Forms layouts so Refresh stays inside the header and filters remain in a compact horizontal row.
 - Preserved blank household consent from synced/imported households until HHQ consent is actually collected.
 - Fixed mobile questionnaire language fallback so untranslated option labels show English/default text instead of raw coded values when another language is selected.
+- Fixed assigned HHQ site/locality master-choice filtering so existing localized option labels are preserved instead of falling back to English after sync.
 - Fixed compact mobile questionnaire scrolling so section progress dots inside the form are display-only, preventing accidental section/preview navigation while scrolling.
 - Fixed HHQ mobile form section stability by keeping the outer questionnaire shell height fixed during scrolling, updating language in-place instead of rebuilding the survey model, restoring drafts only once per opened task, and navigating only across visible SurveyJS pages.
 - Tightened the Form Language Management editor layout by removing repeated language labels inside translation boxes, aligning edit actions in each row, and editing question/option translations inline in the existing value box.
 - Added an import confirmation prompt before saving previewed CSV translations in Form Language Management.
+- Fixed Form Language Management CSV export so every real questionnaire field is exported in the simple translator-friendly CSV format and fixed questionnaire order.
+- Fixed Form Language Management CSV import so option values that lose leading zeroes in spreadsheet tools still match the questionnaire's canonical option codes.
 - Avoided duplicate locality labels when locality name and code are identical in mobile household detail views.
 - Added automatic Expo field-device registration after login and a Registered Device column in the admin Users table.
 - Filled blank restored HHQ drafts in the dedicated mobile HHQ flow with the current automatic household head, address, and interviewer visit date while preserving user edits.
