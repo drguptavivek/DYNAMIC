@@ -148,6 +148,7 @@ export function NativeSurveyRenderer({
               drawerOpen={sectionDrawerOpen}
               onDrawerOpenChange={onSectionDrawerOpenChange}
               onSelect={onSectionSelect}
+              progressDotsPressable={false}
               sections={sections}
               showCompactTrigger={false}
             />

@@ -33,6 +33,7 @@ export function SectionNavigator({
   onDrawerOpenChange,
   onSelect,
   sections,
+  progressDotsPressable = true,
   showCompactTrigger = true,
 }) {
   const { width } = useWindowDimensions();
@@ -72,14 +73,8 @@ export function SectionNavigator({
         accessibilityLabel="Section progress"
         style={[styles.dots, !showCompactTrigger && styles.dotsOnly]}
       >
-        {progressSections.map((section, index) => (
-          <Pressable
-            key={section.name}
-            accessibilityLabel={`${index + 1}. ${section.title}. ${STATUS_LABELS[section.status] || section.status}`}
-            hitSlop={8}
-            onPress={() => setDrawerOpen(true)}
-            style={styles.dotTarget}
-          >
+        {progressSections.map((section, index) => {
+          const dot = (
             <View
               style={[
                 styles.dot,
@@ -88,8 +83,28 @@ export function SectionNavigator({
                 section.isCurrent && styles.dotCurrent,
               ]}
             />
-          </Pressable>
-        ))}
+          );
+
+          return progressDotsPressable ? (
+            <Pressable
+              key={section.name}
+              accessibilityLabel={`${index + 1}. ${section.title}. ${STATUS_LABELS[section.status] || section.status}`}
+              hitSlop={8}
+              onPress={() => setDrawerOpen(true)}
+              style={styles.dotTarget}
+            >
+              {dot}
+            </Pressable>
+          ) : (
+            <View
+              key={section.name}
+              accessibilityLabel={`${index + 1}. ${section.title}. ${STATUS_LABELS[section.status] || section.status}`}
+              style={styles.dotTarget}
+            >
+              {dot}
+            </View>
+          );
+        })}
       </View>
 
       <Modal

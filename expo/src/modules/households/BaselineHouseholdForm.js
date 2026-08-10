@@ -138,6 +138,7 @@ export function BaselineHouseholdForm({
   const [, setRevision] = useState(0);
   const memberSummaryConfirmedRef = useRef(false);
   const draftIdRef = useRef(null);
+  const restoredDraftKeyRef = useRef(null);
   const dirtyRef = useRef(false);
   const messageTimerRef = useRef(null);
 
@@ -292,6 +293,22 @@ export function BaselineHouseholdForm({
 
   useEffect(() => {
     let cancelled = false;
+    const restoreKey = [
+      draftContext.formCode,
+      draftContext.formVersion,
+      draftContext.taskId,
+      draftContext.subjectType,
+      draftContext.subjectId,
+      draftContext.deviceId,
+      draftContext.userId,
+    ].join("|");
+
+    if (restoredDraftKeyRef.current === restoreKey) {
+      return () => {
+        cancelled = true;
+      };
+    }
+    restoredDraftKeyRef.current = restoreKey;
 
     async function restoreDraft() {
       try {

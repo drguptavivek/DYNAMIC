@@ -68,9 +68,10 @@ export function getCurrentPageName(model) {
 
 export function goToSurveySection(model, pageName) {
   if (!model || !pageName) return false;
-  const pageIndex = model.pages.findIndex((page) => page.name === pageName);
-  if (pageIndex < 0 || model.pages[pageIndex]?.isVisible === false) return false;
-  model.currentPageNo = pageIndex;
+  const visiblePages = model.visiblePages || [];
+  const visiblePageIndex = visiblePages.findIndex((page) => page.name === pageName);
+  if (visiblePageIndex < 0) return false;
+  model.currentPage = visiblePages[visiblePageIndex];
   return true;
 }
 

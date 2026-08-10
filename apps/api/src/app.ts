@@ -17,6 +17,7 @@ import protocolRouter from "./routes/protocol";
 import correctionsRouter from "./routes/corrections";
 import formResponsesRouter from "./routes/form-responses";
 import fieldWorkerHouseholdAssignmentsRouter from "./routes/field-worker-household-assignments";
+import formLanguageManagementRouter from "./routes/form-language-management";
 import { requireAuth } from "./middleware/auth";
 
 export function createApp() {
@@ -37,7 +38,7 @@ export function createApp() {
       res.setHeader("Access-Control-Allow-Origin", origin);
       res.setHeader("Access-Control-Allow-Credentials", "true");
       res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
-      res.setHeader("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
+      res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
     }
 
     if (req.method === "OPTIONS") {
@@ -71,6 +72,7 @@ export function createApp() {
   app.use("/api/v1/protocol", requireAuth, protocolRouter);
   app.use("/api/v1", requireAuth, correctionsRouter);
   app.use("/api/v1/form-responses", requireAuth, formResponsesRouter);
+  app.use("/api/v1/form-language-management", requireAuth, formLanguageManagementRouter);
   app.use(
     "/api/v1/field-worker-household-assignments",
     requireAuth,

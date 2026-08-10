@@ -17,11 +17,18 @@ export default function Layout() {
   const location = useLocation();
 
   const isAdmin = user?.role === "central_admin" || user?.role === "site_research_scientist";
+  const canManageFormLanguage =
+    user?.role === "central_admin" ||
+    user?.role === "site_research_scientist" ||
+    user?.role === "site_data_manager";
   const links = [
     { path: "/", label: "Dashboard" },
     { path: "/tasks", label: "Tasks" },
     { path: "/data-quality", label: "Data Quality" },
     { path: "/sync-logs", label: "Sync Logs" },
+    ...(canManageFormLanguage
+      ? [{ path: "/form-language-management", label: "Form Language Management" }]
+      : []),
     { path: "/households", label: "Households" },
     { path: "/household-members", label: "Household Members" },
     { path: "/eligible-women", label: "Eligible Women" },

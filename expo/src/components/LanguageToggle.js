@@ -1,15 +1,12 @@
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
-const LANGUAGES = [
-  { code: "default", label: "English" },
-  { code: "hi", label: "Hindi" }
-];
+import { QUESTIONNAIRE_LANGUAGES } from "./forms/questionnaireLanguages.js";
 
 export function LanguageToggle({ locale, onChange }) {
   return (
     <View style={styles.wrap}>
-      {LANGUAGES.map((language) => {
+      {QUESTIONNAIRE_LANGUAGES.map((language) => {
         const active = language.code === locale;
         return (
           <Pressable
@@ -30,14 +27,17 @@ export function LanguageToggle({ locale, onChange }) {
 const styles = StyleSheet.create({
   wrap: {
     flexDirection: "row",
+    flexWrap: "wrap",
     borderRadius: 8,
     borderWidth: 1,
     borderColor: "#d8dee4",
     overflow: "hidden"
   },
   button: {
-    flex: 1,
+    flexGrow: 1,
+    minWidth: 96,
     paddingVertical: 10,
+    paddingHorizontal: 10,
     alignItems: "center",
     backgroundColor: "#ffffff"
   },

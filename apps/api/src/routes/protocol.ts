@@ -3,11 +3,11 @@ import { DEFAULT_PROTOCOL_CONFIG } from "@dynamic/shared-workflow";
 import { requireAuth } from "../middleware/auth";
 import { sendError, sendSuccess } from "../lib/errors";
 import {
-  getAllFormMetadata,
-  getFormJson,
-  getLatestFormMetadata,
-  getRequestedFormsWithJson,
-} from "../lib/formCatalog";
+  getAllEffectiveFormMetadata,
+  getEffectiveFormMetadata,
+  getEffectiveFormJson,
+  getRequestedEffectiveFormsWithJson,
+} from "../lib/formLanguage";
 
 const router = Router();
 
@@ -30,7 +30,7 @@ router.get("/config", requireAuth, async (_req: Request, res: Response) => {
  */
 router.get("/forms", requireAuth, async (_req: Request, res: Response) => {
   try {
-    sendSuccess(res, { forms: getAllFormMetadata() });
+    sendSuccess(res, { forms: await getAllEffectiveFormMetadata(_req.user?.site_id ?? undefined) });
   } catch (error) {
     console.error("Forms metadata error:", error);
     sendError(res, 500, "FORMS_METADATA_ERROR", "Error fetching forms metadata");
@@ -49,7 +49,9 @@ router.get("/forms/batch", requireAuth, async (req: Request, res: Response) => {
       .map((code) => code.trim())
       .filter(Boolean);
 
-    sendSuccess(res, { forms: getRequestedFormsWithJson(codes) });
+    sendSuccess(res, {
+      forms: await getRequestedEffectiveFormsWithJson(codes, req.user?.site_id ?? undefined),
+    });
   } catch (error) {
     console.error("Forms batch error:", error);
     sendError(res, 500, "FORMS_BATCH_ERROR", "Error fetching form batch");
@@ -62,7 +64,7 @@ router.get("/forms/batch", requireAuth, async (req: Request, res: Response) => {
  */
 router.get("/forms/:code/latest", requireAuth, async (req: Request, res: Response) => {
   try {
-    const metadata = getLatestFormMetadata(req.params.code);
+    const metadata = await getEffectiveFormMetadata(req.params.code, req.user?.site_id ?? undefined);
 
     if (!metadata) {
       return sendError(res, 404, "FORM_NOT_FOUND", `Form code ${req.params.code} not found`);
@@ -81,7 +83,7 @@ router.get("/forms/:code/latest", requireAuth, async (req: Request, res: Respons
  */
 router.get("/forms/:code/latest/json", requireAuth, async (req: Request, res: Response) => {
   try {
-    const formJson = getFormJson(req.params.code);
+    const formJson = await getEffectiveFormJson(req.params.code, req.user?.site_id ?? undefined);
 
     if (!formJson) {
       return sendError(res, 404, "FORM_NOT_FOUND", `Form code ${req.params.code} not found`);
@@ -100,7 +102,7 @@ router.get("/forms/:code/latest/json", requireAuth, async (req: Request, res: Re
  */
 router.get("/forms/:code", requireAuth, async (req: Request, res: Response) => {
   try {
-    const formJson = getFormJson(req.params.code);
+    const formJson = await getEffectiveFormJson(req.params.code, req.user?.site_id ?? undefined);
 
     if (!formJson) {
       return sendError(res, 404, "FORM_NOT_FOUND", `Form code ${req.params.code} not found`);

@@ -49,10 +49,35 @@ function prefixedTitle(title, sourceCode) {
   return typeof title === "string" && title ? `${prefix}${title}` : title;
 }
 
+function cleanLocalizedValue(value) {
+  if (!hasLocaleObject(value)) return value;
+  return Object.fromEntries(
+    Object.entries(value).filter(([, localeText]) => {
+      return typeof localeText !== "string" || localeText.trim() !== "";
+    })
+  );
+}
+
+function cleanChoice(choice) {
+  if (!hasLocaleObject(choice)) return choice;
+  const next = { ...choice };
+  if ("text" in next) next.text = cleanLocalizedValue(next.text);
+  return next;
+}
+
 function cleanElement(element) {
   const next = {};
   for (const [key, value] of Object.entries(element)) {
     if (SUPPORTED_SURVEY_KEYS.has(key)) next[key] = value;
+  }
+  if ("title" in next) next.title = cleanLocalizedValue(next.title);
+  if ("description" in next) next.description = cleanLocalizedValue(next.description);
+  if ("html" in next) next.html = cleanLocalizedValue(next.html);
+  if (Array.isArray(next.choices)) {
+    next.choices = next.choices.map(cleanChoice);
+  }
+  if (Array.isArray(next.items)) {
+    next.items = next.items.map(cleanChoice);
   }
   if (element.sourceCode && element.sourceType !== "text_other_specify") {
     next.title = prefixedTitle(next.title, element.sourceCode);

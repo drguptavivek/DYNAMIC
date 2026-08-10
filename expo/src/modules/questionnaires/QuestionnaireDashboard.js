@@ -5,7 +5,7 @@ import { Model } from "survey-core";
 import { NativeSurveyRenderer } from "../../components/forms/NativeSurveyRenderer.js";
 import { RendererLanguageSwitcher } from "../../components/forms/RendererLanguageSwitcher.js";
 import { PreviewRenderer } from "../../components/forms/renderers/PreviewRenderer.js";
-import { formsByCode } from "../../data/formCatalog";
+import { getRuntimeFormByCode } from "../../data/runtimeFormCatalog";
 import { ROUTES, navigateTo } from "../../navigation/routes";
 import {
   listQuestionnaireSubmissions,
@@ -68,9 +68,10 @@ export function QuestionnaireDashboard({
   const [sectionDrawerOpen, setSectionDrawerOpen] = useState(false);
   const { width } = useWindowDimensions();
   const compact = width < 700;
-  const form = formsByCode[formCode];
+  const form = getRuntimeFormByCode(formCode);
   const showForm = mode === "new";
   const draftIdRef = useRef(null);
+  const restoredDraftKeyRef = useRef(null);
   const dirtyRef = useRef(false);
   const hasPreviewedRef = useRef(false);
   const previewSignatureRef = useRef("");
@@ -211,7 +212,6 @@ export function QuestionnaireDashboard({
     if (!showForm || !form) return null;
     const surveyJson = prepareQuestionnaireSurveyJson(form);
     const model = new Model(surveyJson);
-    model.locale = locale;
     model.showCompletedPage = false;
     model.showPreviewBeforeComplete = "noPreview";
     model.completeText = "Submit";
@@ -286,11 +286,33 @@ export function QuestionnaireDashboard({
       navigateTo(ROUTES.questionnaire(formCode));
     });
     return model;
-  }, [showForm, form, locale, formCode, prefillData, readOnlyFields, taskContext, draftContext]);
+  }, [showForm, form, formCode, prefillData, readOnlyFields, taskContext, draftContext]);
+
+  useEffect(() => {
+    if (!showForm || !survey) return;
+    survey.locale = locale;
+    updateSurveyStatus(survey);
+  }, [showForm, survey, locale]);
 
   useEffect(() => {
     if (!showForm || !survey || !draftContext) return undefined;
     let cancelled = false;
+    const restoreKey = [
+      draftContext.formCode,
+      draftContext.formVersion,
+      draftContext.taskId,
+      draftContext.subjectType,
+      draftContext.subjectId,
+      draftContext.deviceId,
+      draftContext.userId,
+    ].join("|");
+
+    if (restoredDraftKeyRef.current === restoreKey) {
+      return () => {
+        cancelled = true;
+      };
+    }
+    restoredDraftKeyRef.current = restoreKey;
 
     async function restoreDraft() {
       const draft = await getActiveQuestionnaireDraft(draftContext);

@@ -15,6 +15,7 @@ import SyncLogsPage from "./pages/SyncLogsPage";
 import EligibleWomenPage from "./pages/EligibleWomenPage";
 import PregnantWomenPage from "./pages/PregnantWomenPage";
 import ChildrenPage from "./pages/ChildrenPage";
+import FormLanguageManagementPage from "./pages/FormLanguageManagementPage";
 
 export default function App() {
   return (
@@ -34,6 +35,7 @@ export default function App() {
               <Route path="/tasks" element={<TasksPage />} />
               <Route path="/data-quality" element={<DataQualityPage />} />
               <Route path="/sync-logs" element={<SyncLogsPage />} />
+              <Route path="/form-language-management" element={<FormLanguageManagementPage />} />
               <Route path="/eligible-women" element={<EligibleWomenPage />} />
               <Route
                 path="/eligible-pregnancy-tracking"

@@ -16,6 +16,13 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 
 ### Added
 
+- Added admin Form Language Management for site-specific questionnaire translations, including form/site/language selectors, English source text, saved selected-language review text, per-question Edit/Save controls for question and option translations, and central-admin permission ON/OFF for all non-field-worker users of a selected site.
+- Added CSV export/import to Form Language Management so selected site-language questionnaires can be exported in fixed questionnaire order, filled offline, previewed on import, and saved only after confirming the matched rows.
+- Added option-level Edit buttons in Form Language Management so each option opens only its own translation editor.
+- Added backend form-language translation and user-level permission storage, with site-specific translated SurveyJS JSON returned through protocol form endpoints and sync form-version checksums.
+- Added database seeding of bundled HHQ translations so existing Hindi question text in the questionnaire JSON is copied into site-specific language records and then shown from the database.
+- Added mobile runtime form loading from synced protocol form JSON so field devices can use refreshed questionnaire language after Sync Now.
+- Added Kannada, Marathi, Tamil, and Telugu to the mobile questionnaire language switcher while keeping Urdu available only as questionnaire content.
 - Added mobile Completed Forms and Uploaded Forms drawer pages for pending and synced submitted CRFs.
 - Added search plus Site ID, Form ID, and Locality filters to the mobile Completed Forms and Uploaded Forms pages.
 - Added mobile Worklist draft badges, household head/address display, and an eye action for household detail review.
@@ -33,10 +40,16 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 
 ### Fixed
 
+- Fixed API startup dotenv ordering so DB-backed endpoints use the configured local database connection when the dev server starts.
 - Changed field-app shell navigation to replace drawer pages instead of stacking them, preventing Android Back from replaying old app pages or submitted forms.
 - Separated the Worklist card tap target from the household eye action so opening household details does not also open the task modal.
 - Tightened the mobile Completed Forms and Uploaded Forms layouts so Refresh stays inside the header and filters remain in a compact horizontal row.
 - Preserved blank household consent from synced/imported households until HHQ consent is actually collected.
+- Fixed mobile questionnaire language fallback so untranslated option labels show English/default text instead of raw coded values when another language is selected.
+- Fixed compact mobile questionnaire scrolling so section progress dots inside the form are display-only, preventing accidental section/preview navigation while scrolling.
+- Fixed HHQ mobile form section stability by keeping the outer questionnaire shell height fixed during scrolling, updating language in-place instead of rebuilding the survey model, restoring drafts only once per opened task, and navigating only across visible SurveyJS pages.
+- Tightened the Form Language Management editor layout by removing repeated language labels inside translation boxes, aligning edit actions in each row, and editing question/option translations inline in the existing value box.
+- Added an import confirmation prompt before saving previewed CSV translations in Form Language Management.
 - Avoided duplicate locality labels when locality name and code are identical in mobile household detail views.
 - Added automatic Expo field-device registration after login and a Registered Device column in the admin Users table.
 - Filled blank restored HHQ drafts in the dedicated mobile HHQ flow with the current automatic household head, address, and interviewer visit date while preserving user edits.

@@ -4,7 +4,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 
-import { formsByCode } from "../../data/formCatalog";
+import { getRuntimeFormByCode } from "../../data/runtimeFormCatalog";
 import { getAssignedLocalities, getAssignedSites } from "../../lib/householdMasterChoices.js";
 import { ROUTES, navigateTo } from "../../navigation/routes";
 import * as syncService from "../sync/syncService.js";
@@ -49,7 +49,6 @@ export function HouseholdModule({
   selectedLocalityCode,
   taskContext,
   onDataSynced,
-  onFormScrollOffsetChange,
 }) {
   const { width } = useWindowDimensions();
   const compact = width < 760;
@@ -70,7 +69,7 @@ export function HouseholdModule({
   const [saveMessage, setSaveMessage] = useState("");
   const [syncing, setSyncing] = useState(false);
   const [syncProgress, setSyncProgress] = useState(null);
-  const hhqForm = formsByCode[HHQ_CODE];
+  const hhqForm = getRuntimeFormByCode(HHQ_CODE);
   const showForm = mode === "new";
   const assignedLocalities = useMemo(() => {
     const assignedSites = getAssignedSites(user);
@@ -220,7 +219,6 @@ export function HouseholdModule({
         localities={localities}
         selectedLocalityCode={selectedLocalityCode}
         taskContext={taskContext}
-        onScrollOffsetChange={onFormScrollOffsetChange}
         onClose={() => navigateTo(ROUTES.households)}
         onSaved={async () => {
           await refreshHouseholds();

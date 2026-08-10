@@ -37,6 +37,15 @@ function localizedText(localizable, fallback = "") {
   return stripSurveyHtml(rendered || fallback);
 }
 
+function defaultChoiceText(choice) {
+  const text = choice?.text;
+  if (typeof text === "string") return text;
+  if (text && typeof text === "object") {
+    return text.default || text.en || text.english || "";
+  }
+  return "";
+}
+
 export function getNativeQuestionTitle(question) {
   return localizedText(question?.locTitle, question?.title || question?.name || "");
 }
@@ -58,10 +67,13 @@ export function getNativeQuestionErrors(question) {
 
 export function getNativeQuestionChoices(question) {
   const choices = question?.visibleChoices || question?.choices || [];
-  return choices.map((choice) => ({
-    value: choice.value,
-    text: localizedText(choice.locText, choice.text ?? choice.value),
-  }));
+  return choices.map((choice) => {
+    const defaultText = defaultChoiceText(choice);
+    return {
+      value: choice.value,
+      text: localizedText(choice.locText, defaultText || choice.text || choice.value) || defaultText || String(choice.value ?? ""),
+    };
+  });
 }
 
 export function getVisiblePageQuestions(page) {

@@ -4,7 +4,7 @@ import { db, schema } from "../db";
 import { JwtPayload, optionalAuth, requireAuth } from "../middleware/auth";
 import { sendError, sendSuccess } from "../lib/errors";
 import { processFormResponse } from "../services/eventProcessor";
-import { getFormVersionManifest } from "../lib/formCatalog";
+import { getEffectiveFormVersionManifest } from "../lib/formLanguage";
 import { buildSyncClockMetadata } from "../lib/syncClock";
 import { appendAreaScopeCondition, canAccessLocation } from "../lib/areaScope";
 import { runWithDb } from "../lib/dbContext";
@@ -375,7 +375,7 @@ router.get(
             .offset(offset)
         : [];
 
-    const formVersions = getFormVersionManifest();
+    const formVersions = await getEffectiveFormVersionManifest(req.user?.site_id ?? undefined);
 
     // Determine if there are more pages
     const hasMore =
