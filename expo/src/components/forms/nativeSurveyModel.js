@@ -76,6 +76,32 @@ export function getNativeQuestionChoices(question) {
   });
 }
 
+export function getNativeQuestionValue(question, answerData) {
+  if (!question) return undefined;
+  const parentType = question.parent?.getType?.() || question.parent?.type;
+  if (parentType !== "panel" && question.name && typeof question.survey?.getValue === "function") {
+    const surveyValue = question.survey.getValue(question.name);
+    if (surveyValue !== undefined) return surveyValue;
+  }
+  if (
+    parentType !== "panel" &&
+    question.name &&
+    question.survey?.data &&
+    Object.prototype.hasOwnProperty.call(question.survey.data, question.name)
+  ) {
+    return question.survey.data[question.name];
+  }
+  if (
+    parentType !== "panel" &&
+    question.name &&
+    answerData &&
+    Object.prototype.hasOwnProperty.call(answerData, question.name)
+  ) {
+    return answerData[question.name];
+  }
+  return question.value;
+}
+
 export function getVisiblePageQuestions(page) {
   return (page?.questions || page?.elements || []).filter(
     (question) => question?.isVisible !== false
@@ -84,11 +110,32 @@ export function getVisiblePageQuestions(page) {
 
 export function setNativeQuestionValue(question, value) {
   if (!question || question.isReadOnly || question.readOnly) return;
-  if (question.getType?.() === "text" && question.inputType === "number") {
-    question.value = value === "" || value === null ? undefined : Number(value);
+  const normalizedValue =
+    question.getType?.() === "text" && question.inputType === "number"
+      ? value === "" || value === null
+        ? undefined
+        : Number(value)
+      : value === ""
+        ? undefined
+        : value;
+
+  const parentType = question.parent?.getType?.() || question.parent?.type;
+  if (parentType !== "panel") {
+    if (typeof question.survey?.setValue === "function") {
+      question.survey.setValue(question.name, normalizedValue);
+    }
+    if (typeof question.data?.setValue === "function") {
+      question.data.setValue(question.name, normalizedValue);
+    }
+    question.value = normalizedValue;
     return;
   }
-  question.value = value === "" ? undefined : value;
+
+  if (question.getType?.() === "text" && question.inputType === "number") {
+    question.value = normalizedValue;
+    return;
+  }
+  question.value = normalizedValue;
 }
 
 export function getNativeRendererKind(question) {

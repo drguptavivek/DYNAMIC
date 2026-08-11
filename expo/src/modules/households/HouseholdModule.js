@@ -48,7 +48,9 @@ export function HouseholdModule({
   localities = [],
   selectedLocalityCode,
   taskContext,
+  draftId,
   onDataSynced,
+  onDraftSaved,
 }) {
   const { width } = useWindowDimensions();
   const compact = width < 760;
@@ -219,7 +221,10 @@ export function HouseholdModule({
         localities={localities}
         selectedLocalityCode={selectedLocalityCode}
         taskContext={taskContext}
+        preferredDraftId={draftId}
         onClose={() => navigateTo(ROUTES.households)}
+        onDraftSaved={onDraftSaved}
+        onManualDraftSaved={() => navigateTo(ROUTES.worklist, { replace: true })}
         onSaved={async () => {
           await refreshHouseholds();
           navigateTo(ROUTES.households);

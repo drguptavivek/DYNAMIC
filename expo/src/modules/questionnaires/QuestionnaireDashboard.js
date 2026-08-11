@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Model } from "survey-core";
 
 import { NativeSurveyRenderer } from "../../components/forms/NativeSurveyRenderer.js";
@@ -34,6 +34,7 @@ import {
 } from "./questionnaireSurveyJsonTransforms";
 import { applyReadOnlyFields } from "./questionnaireReadOnlyFields.js";
 import { mergePrefillIntoBlankValues } from "../../lib/prefillMapper.js";
+import { getDraftSavedMessage } from "./draftSaveMessages.js";
 
 const AUTOSAVE_INTERVAL_MS = 30000;
 const HOUSEHOLD_SCHEDULE_PAGE_NAME = "page_02_household_schedule";
@@ -53,6 +54,7 @@ export function QuestionnaireDashboard({
   readOnlyFields,
   user,
   allowNewResponse = false,
+  onDraftSaved,
 }) {
   const [submissions, setSubmissions] = useState([]);
   const [saveMessage, setSaveMessage] = useState("");
@@ -112,12 +114,13 @@ export function QuestionnaireDashboard({
     setMemberSummaryConfirmed(false);
   }
 
-  async function saveDraftFromModel(model, { silent = false } = {}) {
+  async function saveDraftFromModel(model, { silent = false, manual = false } = {}) {
     if (!model || !draftContext) return null;
+    const payload = { ...(model.data || {}) };
     const draft = await saveQuestionnaireDraft({
       ...draftContext,
       draftId: draftIdRef.current,
-      payload: model.data || {},
+      payload,
       completionState: {
         currentPageName: model.currentPage?.name || null,
       },
@@ -128,7 +131,17 @@ export function QuestionnaireDashboard({
     dirtyRef.current = false;
     setDirty(false);
     if (!silent) {
-      setSaveMessage(`Draft saved ${draft.updated_at}`);
+      onDraftSaved?.();
+      const savedMessage = getDraftSavedMessage(locale);
+      setSaveMessage(savedMessage);
+      if (manual) {
+        Alert.alert(savedMessage, "", [
+          {
+            text: "OK",
+            onPress: () => navigateTo(ROUTES.worklist, { replace: true }),
+          },
+        ]);
+      }
     }
     return draft;
   }
@@ -280,6 +293,7 @@ export function QuestionnaireDashboard({
           draftId: draftIdRef.current,
           submittedFormResponseId: submission.submission_id,
         });
+        onDraftSaved?.();
       }
       await refreshSubmissions();
       setSaveMessage(`Finalized ${submission.submission_id}`);
@@ -430,7 +444,7 @@ export function QuestionnaireDashboard({
             </View>
             <View style={[styles.formWindowActions, compact && styles.formWindowActionsCompact]}>
               <Pressable
-                onPress={() => saveDraftFromModel(survey)}
+                onPress={() => saveDraftFromModel(survey, { manual: true })}
                 style={styles.secondaryButton}
               >
                 <Text style={styles.secondaryButtonText}>Save Draft</Text>

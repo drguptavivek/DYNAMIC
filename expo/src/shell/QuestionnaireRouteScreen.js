@@ -1,23 +1,40 @@
 /**
  * Routes questionnaire launches to either the native HHQ flow or the generic form dashboard.
  */
-import React from "react";
+import React, { useMemo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { getRuntimeFormByCode } from "../data/runtimeFormCatalog.js";
 import { QuestionnaireDashboard } from "../modules/questionnaires/QuestionnaireDashboard.js";
 import { HouseholdModule } from "../modules/households/HouseholdModule.js";
+import { getTask } from "../modules/tasks/taskRepository.js";
 import { useFieldApp } from "./FieldAppProvider.js";
 import { FieldAppShell } from "./FieldAppShell.js";
 
-export function QuestionnaireRouteScreen({ formCode, mode }) {
+function normalizeSearchParam(value) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function resolveRouteTask(taskId) {
+  const normalizedTaskId = normalizeSearchParam(taskId);
+  if (!normalizedTaskId) return null;
+  return getTask(normalizedTaskId);
+}
+
+export function QuestionnaireRouteScreen({ draftId, formCode, mode, openKey, taskId }) {
   const app = useFieldApp();
   const normalizedFormCode = String(formCode || "").toUpperCase();
-  const form = getRuntimeFormByCode(normalizedFormCode);
+  const form = useMemo(() => getRuntimeFormByCode(normalizedFormCode), [normalizedFormCode]);
   const route = { view: "questionnaire", formCode: normalizedFormCode, mode };
   const title = normalizedFormCode || "Questionnaire";
   const isEntryRoute = mode === "new";
-  const hasValidTaskContext = Boolean(app.currentTaskContext?.id);
+  const normalizedTaskId = normalizeSearchParam(taskId);
+  const routeTaskContext = useMemo(() => resolveRouteTask(normalizedTaskId), [normalizedTaskId]);
+  const taskContext =
+    normalizedTaskId && app.currentTaskContext?.id !== normalizedTaskId
+      ? routeTaskContext || app.currentTaskContext
+      : app.currentTaskContext || routeTaskContext;
+  const hasValidTaskContext = Boolean(taskContext?.id);
   const isHhqHouseholdEntry = normalizedFormCode === "HHQ";
 
   if (!form) {
@@ -43,14 +60,17 @@ export function QuestionnaireRouteScreen({ formCode, mode }) {
     return (
       <FieldAppShell route={route} title={title} topBarCollapsed>
         <HouseholdModule
+          key={normalizeSearchParam(openKey) || `${normalizedTaskId || ""}-${normalizeSearchParam(draftId) || ""}`}
           locale={app.locale}
           mode="new"
           onLocaleChange={app.setLocale}
           user={app.user}
           localities={app.localities}
           selectedLocalityCode={app.selectedLocalityCode}
-          taskContext={app.currentTaskContext}
+          taskContext={taskContext}
+          draftId={normalizeSearchParam(draftId)}
           onDataSynced={app.refreshLocalities}
+          onDraftSaved={app.notifyTaskWorklistChanged}
         />
       </FieldAppShell>
     );
@@ -63,11 +83,12 @@ export function QuestionnaireRouteScreen({ formCode, mode }) {
         locale={app.locale}
         mode={mode}
         onLocaleChange={app.setLocale}
-        taskContext={app.currentTaskContext}
+        taskContext={taskContext}
         prefillData={app.prefillData}
         readOnlyFields={app.readOnlyFields}
         user={app.user}
         allowNewResponse={false}
+        onDraftSaved={app.notifyTaskWorklistChanged}
       />
     </FieldAppShell>
   );

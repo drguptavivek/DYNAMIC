@@ -2,15 +2,16 @@
 import React from "react";
 import { TextInput } from "react-native";
 
-import { setNativeQuestionValue } from "../nativeSurveyModel.js";
+import { getNativeQuestionValue, setNativeQuestionValue } from "../nativeSurveyModel.js";
 import { QuestionFrame, controlStyles } from "./QuestionFrame.js";
 
-export function NoteRenderer({ question, onChange }) {
+export function NoteRenderer({ answerData, question, onChange }) {
+  const value = getNativeQuestionValue(question, answerData);
   return (
     <QuestionFrame question={question}>
       <TextInput
         accessibilityLabel={question.name}
-        value={question.value || ""}
+        value={value || ""}
         editable={!question.isReadOnly}
         multiline
         numberOfLines={5}

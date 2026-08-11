@@ -2,9 +2,10 @@
 import React from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 
+import { getNativeQuestionValue } from "../nativeSurveyModel.js";
 import { QuestionFrame } from "./QuestionFrame.js";
 
-export function DisplayRenderer({ question, title, subtitle, columns = [], rows = [] }) {
+export function DisplayRenderer({ answerData, question, title, subtitle, columns = [], rows = [] }) {
   if (!question) {
     return (
       <View style={styles.panel}>
@@ -25,9 +26,10 @@ export function DisplayRenderer({ question, title, subtitle, columns = [], rows 
       </View>
     );
   }
-  const value = question.value === undefined || question.value === null || question.value === ""
+  const rawValue = getNativeQuestionValue(question, answerData);
+  const value = rawValue === undefined || rawValue === null || rawValue === ""
     ? "-"
-    : String(question.value);
+    : String(rawValue);
   return <QuestionFrame question={question} tone="display"><Text style={styles.value}>{value}</Text></QuestionFrame>;
 }
 

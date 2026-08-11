@@ -2,16 +2,17 @@
 import React from "react";
 import { TextInput } from "react-native";
 
-import { setNativeQuestionValue } from "../nativeSurveyModel.js";
+import { getNativeQuestionValue, setNativeQuestionValue } from "../nativeSurveyModel.js";
 import { QuestionFrame, controlStyles } from "./QuestionFrame.js";
 import { validateRegexQuestion } from "../validators/RegexValidator.js";
 
-export function TextRenderer({ question, onChange }) {
+export function TextRenderer({ answerData, question, onChange }) {
+  const value = getNativeQuestionValue(question, answerData);
   return (
     <QuestionFrame question={question}>
       <TextInput
         accessibilityLabel={question.name}
-        value={question.value === undefined || question.value === null ? "" : String(question.value)}
+        value={value === undefined || value === null ? "" : String(value)}
         editable={!question.isReadOnly}
         autoCapitalize="sentences"
         onChangeText={(value) => {

@@ -2,6 +2,7 @@ import { getDb } from "../tasks/taskSchema.js";
 import { clearSyncedTaskCache } from "../tasks/taskRepository.js";
 import { clearHouseholdCacheForSync } from "../households/householdRepository.js";
 import { API_BASE_URL } from "../sync/apiConfig.js";
+import { clearLocalDeviceData } from "../storage/localDeviceDataReset.js";
 
 let currentUser = null;
 const DEVICE_ID_PREFIX = "dynamic-field-device";
@@ -148,14 +149,20 @@ export async function fetchCurrentUser(token = getToken(), fallbackUser = null) 
   }
 }
 
-export function logout() {
+export async function logout() {
   try {
-    setMeta("access_token", "");
-    setMeta("refresh_token", "");
-    setMeta("auth_user", "");
+    await clearLocalDeviceData();
     currentUser = null;
   } catch (error) {
     console.error("Logout error:", error);
+    try {
+      setMeta("access_token", "");
+      setMeta("refresh_token", "");
+      setMeta("auth_user", "");
+      currentUser = null;
+    } catch (fallbackError) {
+      console.error("Logout fallback error:", fallbackError);
+    }
   }
 }
 
@@ -203,9 +210,9 @@ export async function restoreSession() {
 
   const freshUser = await fetchCurrentUser(getToken(), restoredUser);
   if (freshUser) {
-    storeUser(freshUser);
+    storeUser({ ...freshUser, device_id: restoredUser?.device_id || getOrCreateDeviceId() });
   }
-  return freshUser;
+  return freshUser ? { ...freshUser, device_id: restoredUser?.device_id || getOrCreateDeviceId() } : freshUser;
 }
 
 export function isAuthenticated() {

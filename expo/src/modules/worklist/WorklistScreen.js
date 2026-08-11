@@ -20,6 +20,7 @@ import { buildTaskLocalityOptions, filterTaskWorklist } from "./taskWorklist.js"
 import { getTaskOpenBlockReason } from "./taskOpenPolicy.js";
 import { getHouseholdMemberCountSync, getHouseholdSync } from "../../lib/householdSync.js";
 import { listActiveQuestionnaireDrafts } from "../questionnaires/questionnaireDraftRepository.js";
+import { getDraftHouseholdId } from "../questionnaires/draftPendingForms.js";
 
 const BADGE_COLORS = {
   HHQ: "#e74c3c",
@@ -137,13 +138,16 @@ function WorklistFilters({
   );
 }
 
-function hasDraftForTask(task, drafts = []) {
-  return drafts.some((draft) => {
+function findDraftForTask(task, drafts = []) {
+  return drafts.find((draft) => {
     if (draft.task_id && task.id && draft.task_id === task.id) return true;
     if (String(draft.form_code || "").toUpperCase() !== String(task.task_type || "").toUpperCase()) {
       return false;
     }
+    const draftHouseholdId = getDraftHouseholdId(draft);
     return (
+      draftHouseholdId === task.household_id ||
+      draftHouseholdId === task.subject_id ||
       draft.subject_id === task.subject_id ||
       draft.subject_id === task.household_id ||
       draft.subject_id === task.task_key
@@ -153,6 +157,7 @@ function hasDraftForTask(task, drafts = []) {
 
 function enrichTaskForWorklist(task, drafts = []) {
   const household = task.household_id ? getHouseholdSync(task.household_id) : null;
+  const activeDraft = findDraftForTask(task, drafts);
   return {
     ...task,
     household_head_name: household?.household_head_name || task.household_head_name || "",
@@ -166,7 +171,8 @@ function enrichTaskForWorklist(task, drafts = []) {
     household_consent_status: household?.consent_status || "",
     household_interview_date: household?.interview_date || "",
     household_sync_status: household?.sync_status || "",
-    has_active_draft: hasDraftForTask(task, drafts),
+    active_draft_id: activeDraft?.draft_id || null,
+    has_active_draft: Boolean(activeDraft),
   };
 }
 
@@ -257,7 +263,7 @@ function TaskRow({ task, onPress, onLongPress, onViewHousehold }) {
   const showVisitBadge = String(task.task_type || "").toUpperCase() === "HHQ";
 
   return (
-    <View style={[styles.taskRow, isDisabled && styles.taskRowDisabled]}>
+    <View style={[styles.taskRow, task.has_active_draft && styles.taskRowDraft, isDisabled && styles.taskRowDisabled]}>
       <Pressable
         onPress={() => onPress(task)}
         onLongPress={() => onLongPress && onLongPress(task)}
@@ -702,6 +708,10 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     flexDirection: "row",
     gap: 10,
+  },
+  taskRowDraft: {
+    borderColor: "#f59e0b",
+    backgroundColor: "#fffbeb",
   },
   taskBodyPressable: {
     flex: 1,

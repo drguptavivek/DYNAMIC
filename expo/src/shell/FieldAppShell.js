@@ -4,6 +4,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -18,12 +19,38 @@ import { SHELL_NAV_ITEMS } from "../navigation/appNavigation.js";
 import { navigateTo } from "../navigation/routes.js";
 import { getAssignedLocalities } from "../lib/householdMasterChoices.js";
 import { buildClockDriftAlert } from "../modules/sync/syncWorkflow.js";
+import * as syncService from "../modules/sync/syncService.js";
 import { useFieldApp } from "./FieldAppProvider.js";
 
 export function FieldAppShell({ route, title, children, topBarCollapsed = false }) {
   const app = useFieldApp();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const clockAlert = buildClockDriftAlert(app.clockStatus);
+
+  async function handleLogout() {
+    if (loggingOut) return;
+    Alert.alert(
+      "Logout and delete device data?",
+      "All data stored on this device for the current logged-in user will be deleted. Server data will not be deleted.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Logout",
+          style: "destructive",
+          onPress: async () => {
+            setLoggingOut(true);
+            try {
+              await app.logout();
+              setMenuOpen(false);
+            } finally {
+              setLoggingOut(false);
+            }
+          },
+        },
+      ],
+    );
+  }
 
   useEffect(() => {
     const isTaskForm = route?.view === "questionnaire" && route?.mode === "new";
@@ -92,13 +119,11 @@ export function FieldAppShell({ route, title, children, topBarCollapsed = false 
               </Text>
             </Pressable>
             <Pressable
-              onPress={() => {
-                app.logout();
-                setMenuOpen(false);
-              }}
+              onPress={handleLogout}
+              disabled={loggingOut}
               style={styles.logoutButton}
             >
-              <Text style={styles.logoutButtonText}>Logout</Text>
+              <Text style={styles.logoutButtonText}>{loggingOut ? "Logging out..." : "Logout"}</Text>
             </Pressable>
           </View>
 
@@ -427,14 +452,28 @@ function ClockDriftAlert({ alert }) {
 
 function LocalitySwitcher({ inDrawer = false }) {
   const app = useFieldApp();
-  const localityOptions = useMemo(
-    () =>
-      getAssignedLocalities(app.user, app.localities, app.user?.site_id).map((choice) => ({
+  const localityOptions = useMemo(() => {
+    const assignedChoices = getAssignedLocalities(app.user, app.localities, app.user?.site_id);
+    const fallbackCodes = assignedChoices.length ? [] : syncService.getAssignedLocalities();
+    const choices = assignedChoices.length
+      ? assignedChoices
+      : fallbackCodes.map((code) => {
+          const locality = app.localities.find(
+            (item) => String(item.locality_code) === String(code),
+          );
+          return {
+            value: String(code),
+            text: {
+              default: locality?.locality_name || String(code),
+            },
+          };
+        });
+
+    return choices.map((choice) => ({
         locality_code: String(choice.value),
         locality_name: choice.text?.default || String(choice.value),
-      })),
-    [app.localities, app.user],
-  );
+      }));
+  }, [app.localities, app.user]);
 
   useEffect(() => {
     if (
@@ -486,6 +525,9 @@ function LocalitySwitcher({ inDrawer = false }) {
             </Pressable>
           );
         })}
+        {!localityOptions.length ? (
+          <Text style={styles.localityEmptyText}>No assigned localities synced</Text>
+        ) : null}
       </ScrollView>
     </View>
   );
@@ -686,6 +728,12 @@ const styles = StyleSheet.create({
   },
   localityOptionTextActive: {
     color: "#0369a1",
+  },
+  localityEmptyText: {
+    alignSelf: "center",
+    color: "#667085",
+    fontSize: 12,
+    fontWeight: "700",
   },
   clockAlert: {
     marginHorizontal: 20,

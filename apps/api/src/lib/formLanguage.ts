@@ -10,6 +10,8 @@ import {
   getLatestFormMetadata,
 } from "./formCatalog";
 
+export const GLOBAL_FORM_LANGUAGE_SITE_ID = 0;
+
 export const SUPPORTED_FORM_LANGUAGES = [
   { code: "en", label: "English" },
   { code: "hi", label: "Hindi" },
@@ -308,24 +310,49 @@ export function mergeMissingFormTranslations(
 }
 
 export async function getStoredTranslations(
-  siteId: number | undefined,
+  _siteId: number | undefined,
   formCode: string,
   languageCode: string,
 ): Promise<FormTranslations> {
-  if (!siteId) return {};
+  const normalizedFormCode = normalizeFormCode(formCode);
+  const normalizedLanguageCode = normalizeLanguageCode(languageCode);
 
-  const [row] = await db
-    .select({ translations_json: schema.formLanguageTranslations.translations_json })
+  const rows = await db
+    .select({
+      site_id: schema.formLanguageTranslations.site_id,
+      translations_json: schema.formLanguageTranslations.translations_json,
+    })
     .from(schema.formLanguageTranslations)
     .where(
       and(
-        eq(schema.formLanguageTranslations.site_id, siteId),
-        eq(schema.formLanguageTranslations.form_code, normalizeFormCode(formCode)),
-        eq(schema.formLanguageTranslations.language_code, normalizeLanguageCode(languageCode)),
+        eq(schema.formLanguageTranslations.form_code, normalizedFormCode),
+        eq(schema.formLanguageTranslations.language_code, normalizedLanguageCode),
       ),
     );
 
-  return normalizeTranslations(row?.translations_json);
+  const merged: FormTranslations = {};
+  for (const row of rows.sort((a, b) => {
+    if (a.site_id === GLOBAL_FORM_LANGUAGE_SITE_ID) return 1;
+    if (b.site_id === GLOBAL_FORM_LANGUAGE_SITE_ID) return -1;
+    return a.site_id - b.site_id;
+  })) {
+    const rowTranslations = normalizeTranslations(row.translations_json);
+    for (const [name, translation] of Object.entries(rowTranslations)) {
+      merged[name] = {
+        ...merged[name],
+        ...translation,
+        choices: {
+          ...(merged[name]?.choices || {}),
+          ...(translation.choices || {}),
+        },
+      };
+      if (Object.keys(merged[name].choices || {}).length === 0) {
+        delete merged[name].choices;
+      }
+    }
+  }
+
+  return merged;
 }
 
 export async function canEditFormLanguage(
@@ -368,7 +395,7 @@ export async function saveFormTranslations(params: {
   await db
     .insert(schema.formLanguageTranslations)
     .values({
-      site_id: params.siteId,
+      site_id: GLOBAL_FORM_LANGUAGE_SITE_ID,
       form_code: formCode,
       language_code: languageCode,
       translations_json: translations,
@@ -435,8 +462,6 @@ export async function getEffectiveFormJson(
 ): Promise<Record<string, unknown> | null> {
   const formJson = getFormJson(code);
   if (!formJson) return null;
-
-  if (!siteId) return formJson;
 
   let effectiveJson = cloneJson(formJson);
   for (const language of SUPPORTED_FORM_LANGUAGES) {

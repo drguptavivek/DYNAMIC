@@ -11,6 +11,7 @@ import { RendererLanguageSwitcher } from "../../components/forms/RendererLanguag
 import { SectionNavigator } from "../../components/forms/SectionNavigator.js";
 import { DisplayRenderer } from "../../components/forms/renderers/DisplayRenderer.js";
 import { PreviewRenderer } from "../../components/forms/renderers/PreviewRenderer.js";
+import { getNativeQuestionValue } from "../../components/forms/nativeSurveyModel.js";
 import { applyHouseholdMasterChoices } from "../../lib/householdMasterChoices.js";
 import {
   attachHouseholdSurveyBehaviors,
@@ -26,9 +27,11 @@ import {
 import { buildHouseholdMemberSummaryRows } from "../questionnaires/householdMemberSummary.js";
 import {
   getActiveQuestionnaireDraft,
+  getQuestionnaireDraftById,
   markQuestionnaireDraftSubmitted,
   saveQuestionnaireDraft,
 } from "../questionnaires/questionnaireDraftRepository.js";
+import { getDraftSavedMessage } from "../questionnaires/draftSaveMessages.js";
 import { saveQuestionnaireSubmission } from "../questionnaires/questionnaireSubmissionRepository.js";
 import { prepareQuestionnaireSurveyJson } from "../questionnaires/questionnaireSurveyJsonTransforms.js";
 import { buildHhqPrefill, mergePrefillIntoBlankValues } from "../../lib/prefillMapper.js";
@@ -50,6 +53,95 @@ const HHQ_VISIT_NO_FIELD = "hhq_visit_no";
 const HHQ_COMPETENT_RESPONDENT_FIELD = "hhq_competent_respondent_available";
 const HHQ_REVISIT_NEEDED_MESSAGE = "Revisit Needed-fill the form again";
 const HHQ_EXCLUDED_MESSAGE = "This household is excluded from the study";
+
+function isEmptyDraftValue(value) {
+  return value === undefined || value === null || value === "";
+}
+
+function cloneSurveyData(data) {
+  return JSON.parse(JSON.stringify(data || {}));
+}
+
+function isMeaningfulDraftValue(value) {
+  if (value === undefined || value === null || value === "") return false;
+  if (Array.isArray(value)) return value.some(isMeaningfulDraftValue);
+  if (typeof value === "object") return Object.values(value).some(isMeaningfulDraftValue);
+  return true;
+}
+
+function countDraftAnswers(data) {
+  return Object.values(data || {}).filter(isMeaningfulDraftValue).length;
+}
+
+function collectTopLevelSurveyData(model) {
+  const data = {};
+  const pages = model?.pages || [];
+  for (const page of pages) {
+    for (const question of page.questions || page.elements || []) {
+      if (!question?.name || question.getType?.() === "html") continue;
+      const value = getNativeQuestionValue(question);
+      if (isMeaningfulDraftValue(value)) {
+        data[question.name] = cloneSurveyData(value);
+      }
+    }
+  }
+  return data;
+}
+
+function hasQuestionOnPage(page, questionName) {
+  if (!page || !questionName) return false;
+  return (page.questions || page.elements || []).some((question) => {
+    if (question?.name === questionName) return true;
+    if (question?.getType?.() === "paneldynamic") {
+      return (question.templateElements || question.template?.questions || []).some(
+        (child) => child?.name === questionName,
+      );
+    }
+    return false;
+  });
+}
+
+function mergeModelDataIntoDraftSnapshot(snapshot, modelData, model, changedQuestionName, changedValue) {
+  const next = {
+    ...(snapshot || {}),
+    ...(cloneSurveyData(modelData) || {}),
+  };
+
+  if (
+    changedQuestionName &&
+    isEmptyDraftValue(changedValue) &&
+    hasQuestionOnPage(model?.currentPage, changedQuestionName)
+  ) {
+    delete next[changedQuestionName];
+  }
+
+  return next;
+}
+
+function applySurveyDataValues(model, data) {
+  if (!model || !data || typeof data !== "object") return;
+  const clonedData = cloneSurveyData(data);
+  for (const [fieldName, value] of Object.entries(clonedData)) {
+    if (fieldName && value !== undefined) {
+      model.setValue(fieldName, value);
+      const question = model.getQuestionByName?.(fieldName);
+      if (question) {
+        if (typeof question.data?.setValue === "function") {
+          question.data.setValue(fieldName, value);
+        }
+        question.value = cloneSurveyData(value);
+      }
+    }
+  }
+  model.data = {
+    ...(cloneSurveyData(model.data || {}) || {}),
+    ...clonedData,
+  };
+  for (const [fieldName, value] of Object.entries(clonedData)) {
+    const question = model.getQuestionByName?.(fieldName);
+    if (question) question.value = cloneSurveyData(value);
+  }
+}
 
 function hasDeclinedHouseholdConsent(model) {
   return Number(model.getValue(HOUSEHOLD_CONSENT_FIELD)) === 2;
@@ -82,6 +174,10 @@ function getHhqTaskHousehold(taskContext) {
   const householdId = taskContext?.household_id || taskContext?.subject_id;
   if (!householdId) return null;
   return getHouseholdSync(householdId);
+}
+
+function getHhqDraftSubjectId(taskContext, selectedLocalityCode) {
+  return taskContext?.household_id || taskContext?.subject_id || selectedLocalityCode || "unselected";
 }
 
 function applyHhqContextPrefill(model, taskContext) {
@@ -121,9 +217,12 @@ export function BaselineHouseholdForm({
   localities,
   selectedLocalityCode,
   taskContext,
+  preferredDraftId,
   onClose,
   onScrollOffsetChange,
   onSaved,
+  onDraftSaved,
+  onManualDraftSaved,
 }) {
   const { width } = useWindowDimensions();
   const compact = width < 700;
@@ -135,22 +234,39 @@ export function BaselineHouseholdForm({
   const [previewSignature, setPreviewSignature] = useState("");
   const [finalReview, setFinalReview] = useState(false);
   const [sectionDrawerOpen, setSectionDrawerOpen] = useState(false);
+  const [renderAnswerData, setRenderAnswerData] = useState({});
+  const [draftLookup, setDraftLookup] = useState({ key: "", loading: true, draft: null });
   const [, setRevision] = useState(0);
   const memberSummaryConfirmedRef = useRef(false);
   const draftIdRef = useRef(null);
-  const restoredDraftKeyRef = useRef(null);
+  const answerSnapshotRef = useRef({});
   const dirtyRef = useRef(false);
+  const isRestoringDraftRef = useRef(false);
+  const draftMutationVersionRef = useRef(0);
+  const postRestoreDraftKeyRef = useRef(null);
   const messageTimerRef = useRef(null);
 
   const draftContext = useMemo(() => ({
     formCode: form.form_code,
     formVersion: form.version,
     taskId: taskContext?.id || null,
-    subjectType: taskContext?.subject_type || "locality",
-    subjectId: taskContext?.subject_id || taskContext?.household_id || selectedLocalityCode || "unselected",
+    keyTaskId: null,
+    subjectType: taskContext?.subject_type || (taskContext?.household_id ? "household" : "locality"),
+    subjectId: getHhqDraftSubjectId(taskContext, selectedLocalityCode),
     deviceId: user?.device_id || "dev-device",
     userId: user?.user_id || user?.id || user?.username || "dev-user",
-  }), [form, selectedLocalityCode, taskContext, user]);
+    preferredDraftId,
+  }), [form, preferredDraftId, selectedLocalityCode, taskContext, user]);
+  const draftLookupKey = useMemo(() => JSON.stringify({
+    formCode: draftContext.formCode,
+    formVersion: draftContext.formVersion,
+    taskId: draftContext.taskId,
+    subjectType: draftContext.subjectType,
+    subjectId: draftContext.subjectId,
+    deviceId: draftContext.deviceId,
+    userId: draftContext.userId,
+    preferredDraftId: draftContext.preferredDraftId || null,
+  }), [draftContext]);
 
   const showTransientMessage = useCallback((text) => {
     if (messageTimerRef.current) clearTimeout(messageTimerRef.current);
@@ -164,6 +280,34 @@ export function BaselineHouseholdForm({
   useEffect(() => () => {
     if (messageTimerRef.current) clearTimeout(messageTimerRef.current);
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setDraftLookup({ key: draftLookupKey, loading: true, draft: null });
+
+    async function loadInitialDraft() {
+      try {
+        const draft =
+          (draftContext.preferredDraftId
+            ? await getQuestionnaireDraftById(draftContext.preferredDraftId)
+            : null) ||
+          await getActiveQuestionnaireDraft(draftContext);
+        if (!cancelled) {
+          setDraftLookup({ key: draftLookupKey, loading: false, draft: draft || null });
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setDraftLookup({ key: draftLookupKey, loading: false, draft: null });
+          setMessage(`Could not restore draft: ${error.message}`);
+        }
+      }
+    }
+
+    loadInitialDraft();
+    return () => {
+      cancelled = true;
+    };
+  }, [draftContext, draftLookupKey]);
 
   const model = useMemo(() => {
     const surveyJson = applyHouseholdMasterChoices(prepareQuestionnaireSurveyJson(form), {
@@ -192,11 +336,47 @@ export function BaselineHouseholdForm({
     applyHhqTaskHouseholdPrefill(survey, taskContext);
     applyHhqVisitNo(survey, taskContext);
 
+    const initialDraft = draftLookup.key === draftLookupKey && !draftLookup.loading
+      ? draftLookup.draft
+      : null;
+    if (initialDraft) {
+      draftIdRef.current = initialDraft.draft_id;
+      isRestoringDraftRef.current = true;
+      const restoredData = mergePrefillIntoBlankValues(
+        { ...(survey.data || {}), ...(initialDraft.json_payload || {}) },
+        buildHhqPrefill(getHhqTaskHousehold(taskContext)).prefill,
+      );
+      applySurveyDataValues(survey, restoredData);
+      applyHhqTaskHouseholdPrefill(survey, taskContext);
+      applyHhqVisitNo(survey, taskContext);
+      answerSnapshotRef.current = cloneSurveyData(restoredData);
+    } else {
+      answerSnapshotRef.current = cloneSurveyData(survey.data || {});
+    }
+
     attachHouseholdSurveyBehaviors(survey, form, undefined, {
       findExistingHousehold: findExistingHouseholdForHhqData,
     });
+    refreshHouseholdSurveyBehaviors(survey, form);
+    answerSnapshotRef.current = mergeModelDataIntoDraftSnapshot(
+      answerSnapshotRef.current,
+      survey.data || {},
+      survey,
+    );
+    dirtyRef.current = false;
+    isRestoringDraftRef.current = false;
     survey.onValueChanged.add((sender, options) => {
+      if (isRestoringDraftRef.current) return;
       dirtyRef.current = true;
+      const nextSnapshot = mergeModelDataIntoDraftSnapshot(
+        answerSnapshotRef.current,
+        sender.data || {},
+        sender,
+        options.name,
+        options.value,
+      );
+      answerSnapshotRef.current = nextSnapshot;
+      setRenderAnswerData(cloneSurveyData(nextSnapshot) || {});
       setPreviewSignature("");
       if (options.name === HOUSEHOLD_CONSENT_FIELD) {
         const consentDeclined = Number(options.value) === 2;
@@ -261,97 +441,99 @@ export function BaselineHouseholdForm({
     });
     survey.onCurrentPageChanged.add(() => setRevision((value) => value + 1));
     return survey;
-  }, [form, user, localities, selectedLocalityCode, taskContext]);
+  }, [draftLookup, draftLookupKey, form, user, localities, selectedLocalityCode, taskContext]);
 
   useEffect(() => {
     model.locale = locale;
+    setRenderAnswerData(cloneSurveyData(answerSnapshotRef.current || model.data || {}) || {});
     setRevision((value) => value + 1);
   }, [model, locale]);
 
-  const saveDraft = useCallback(async ({ silent = false } = {}) => {
+  useEffect(() => {
+    if (draftLookup.key !== draftLookupKey || draftLookup.loading || !draftLookup.draft) return;
+    const restoreKey = `${draftLookupKey}:${draftLookup.draft.draft_id}`;
+    const firstRestorePass = postRestoreDraftKeyRef.current !== restoreKey;
+
+    if (firstRestorePass) {
+      postRestoreDraftKeyRef.current = restoreKey;
+      const draftLocale = draftLookup.draft.completion_state?.locale;
+      if (draftLocale && draftLocale !== locale) {
+        onLocaleChange?.(draftLocale);
+      }
+
+      const consentDeclined = hasDeclinedHouseholdConsent(model);
+      if (consentDeclined) {
+        const firstVisiblePageName = model.firstVisiblePage?.name;
+        if (firstVisiblePageName) goToSurveySection(model, firstVisiblePageName);
+        setView("form");
+        setFinalReview(false);
+        setMessage("Consent declined. The interview ends after this section.");
+      } else {
+        if (draftLookup.draft.completion_state?.currentPageName) {
+          goToSurveySection(model, draftLookup.draft.completion_state.currentPageName);
+        }
+        showTransientMessage(`Draft restored from this device (${countDraftAnswers(answerSnapshotRef.current)} answers).`);
+      }
+
+      memberSummaryConfirmedRef.current = consentDeclined
+        ? false
+        : Boolean(draftLookup.draft.completion_state?.memberSummaryConfirmed);
+      setMemberSummaryConfirmed(memberSummaryConfirmedRef.current);
+    }
+    dirtyRef.current = false;
+    setRenderAnswerData(cloneSurveyData(answerSnapshotRef.current || model.data || {}) || {});
+    setRevision((value) => value + 1);
+  }, [draftLookup, draftLookupKey, locale, model, onLocaleChange, showTransientMessage]);
+
+  const saveDraft = useCallback(async ({ silent = false, manual = false } = {}) => {
     try {
+      if (isRestoringDraftRef.current) return null;
+      draftMutationVersionRef.current += 1;
       applyHhqVisitNo(model, taskContext);
       refreshHouseholdSurveyBehaviors(model, form);
+      const liveData = {
+        ...(model.data || {}),
+        ...collectTopLevelSurveyData(model),
+      };
+      const payload = mergeModelDataIntoDraftSnapshot(answerSnapshotRef.current, liveData, model);
+      const householdId = buildHouseholdIdFromHhqData(payload);
+      if (householdId) {
+        payload.hhq_household_id = householdId;
+      }
+      answerSnapshotRef.current = cloneSurveyData(payload);
+      setRenderAnswerData(cloneSurveyData(payload) || {});
+      const savedAnswerCount = countDraftAnswers(payload);
       const draft = await saveQuestionnaireDraft({
         ...draftContext,
         draftId: draftIdRef.current,
-        payload: model.data || {},
+        payload,
         completionState: {
           currentPageName: model.currentPage?.name || null,
           memberSummaryConfirmed: memberSummaryConfirmedRef.current,
+          locale,
         },
       });
       draftIdRef.current = draft.draft_id;
       dirtyRef.current = false;
-      if (!silent) showTransientMessage("Draft saved on this device.");
+      if (!silent) {
+        onDraftSaved?.();
+        const savedMessage = getDraftSavedMessage(locale);
+        showTransientMessage(savedMessage);
+        if (manual) {
+          Alert.alert(savedMessage, `${savedAnswerCount} answer fields saved on this device.`, [
+            {
+              text: "OK",
+              onPress: () => onManualDraftSaved?.(),
+            },
+          ]);
+        }
+      }
       return draft;
     } catch (error) {
       setMessage(`Could not save draft: ${error.message}`);
       return null;
     }
-  }, [draftContext, form, model, showTransientMessage, taskContext]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const restoreKey = [
-      draftContext.formCode,
-      draftContext.formVersion,
-      draftContext.taskId,
-      draftContext.subjectType,
-      draftContext.subjectId,
-      draftContext.deviceId,
-      draftContext.userId,
-    ].join("|");
-
-    if (restoredDraftKeyRef.current === restoreKey) {
-      return () => {
-        cancelled = true;
-      };
-    }
-    restoredDraftKeyRef.current = restoreKey;
-
-    async function restoreDraft() {
-      try {
-        const draft = await getActiveQuestionnaireDraft(draftContext);
-        if (cancelled || !draft) return;
-        draftIdRef.current = draft.draft_id;
-        model.data = mergePrefillIntoBlankValues(
-          { ...(model.data || {}), ...(draft.json_payload || {}) },
-          buildHhqPrefill(getHhqTaskHousehold(taskContext)).prefill,
-        );
-        applyHhqTaskHouseholdPrefill(model, taskContext);
-        applyHhqVisitNo(model, taskContext);
-        refreshHouseholdSurveyBehaviors(model, form);
-        const consentDeclined = hasDeclinedHouseholdConsent(model);
-        if (consentDeclined) {
-          const firstVisiblePageName = model.firstVisiblePage?.name;
-          if (firstVisiblePageName) goToSurveySection(model, firstVisiblePageName);
-        } else if (draft.completion_state?.currentPageName) {
-          goToSurveySection(model, draft.completion_state.currentPageName);
-        }
-        memberSummaryConfirmedRef.current = consentDeclined
-          ? false
-          : Boolean(draft.completion_state?.memberSummaryConfirmed);
-        setMemberSummaryConfirmed(memberSummaryConfirmedRef.current);
-        dirtyRef.current = false;
-        if (consentDeclined) {
-          setView("form");
-          setFinalReview(false);
-          setMessage("Consent declined. The interview ends after this section.");
-        } else {
-          showTransientMessage("Draft restored from this device.");
-        }
-        setRevision((value) => value + 1);
-      } catch (error) {
-        if (!cancelled) setMessage(`Could not restore draft: ${error.message}`);
-      }
-    }
-
-    restoreDraft();
-    return () => {
-      cancelled = true;
-    };
-  }, [draftContext, form, model, showTransientMessage, taskContext]);
+  }, [draftContext, form, locale, model, onDraftSaved, onManualDraftSaved, showTransientMessage, taskContext]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -366,6 +548,21 @@ export function BaselineHouseholdForm({
       if (dirtyRef.current) saveDraft({ silent: true });
     };
   }, [saveDraft]);
+
+  if (draftLookup.key !== draftLookupKey || draftLookup.loading) {
+    return (
+      <View style={styles.window}>
+        <View style={[styles.header, compact && styles.headerCompact]}>
+          <Text numberOfLines={1} style={[styles.title, compact && styles.titleCompact]}>
+            Baseline Household Questionnaire
+          </Text>
+        </View>
+        <View style={styles.body}>
+          <Text style={styles.message}>Loading saved draft from this device...</Text>
+        </View>
+      </View>
+    );
+  }
 
   const signature = JSON.stringify(model.data || {});
   const sections = buildSurveySections(model, {
@@ -555,6 +752,7 @@ export function BaselineHouseholdForm({
           draftId: draftIdRef.current,
           submittedFormResponseId: submission.submission_id,
         });
+        onDraftSaved?.();
       }
       setMessage(availabilityStop ? getHhqAvailabilityStopMessage(model) : `Saved household ${registryRecord.household_id}`);
       await onSaved?.(registryRecord);
@@ -570,6 +768,11 @@ export function BaselineHouseholdForm({
     if (dirtyRef.current && !(await saveDraft({ silent: true }))) return;
     onClose?.();
   }
+
+  const rendererAnswerData = {
+    ...(renderAnswerData || {}),
+    ...(answerSnapshotRef.current || {}),
+  };
 
   return (
     <View style={styles.window}>
@@ -601,6 +804,7 @@ export function BaselineHouseholdForm({
         ) : null}
         {view === "form" ? (
           <NativeSurveyRenderer
+            answerData={rendererAnswerData}
             model={model}
             notice={message}
             onPreviewRequested={() => openPreview()}

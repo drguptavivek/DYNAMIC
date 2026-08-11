@@ -7,8 +7,15 @@ import { buildPrefillForTask } from "../lib/prefillMapper.js";
 import * as appLockStore from "../modules/auth/appLockStore.js";
 import * as authStore from "../modules/auth/authStore.js";
 import { initializeHouseholdRepository, listLocalities } from "../modules/households/householdRepository.js";
+import {
+  getActiveQuestionnaireDraft,
+  getQuestionnaireDraftById,
+  listActiveQuestionnaireDrafts,
+} from "../modules/questionnaires/questionnaireDraftRepository.js";
+import { getDraftHouseholdId } from "../modules/questionnaires/draftPendingForms.js";
 import * as syncService from "../modules/sync/syncService.js";
 import { initTaskDb } from "../modules/tasks/taskSchema.js";
+import { getTask } from "../modules/tasks/taskRepository.js";
 import { getRouteForTaskForm } from "../navigation/appNavigation.js";
 import { setNavigationHandler } from "../navigation/routes.js";
 
@@ -93,13 +100,25 @@ export function FieldAppProvider({ children }) {
     return result;
   }
 
-  function logout() {
-    authStore.logout();
+  async function logout() {
+    const logoutUser = user;
+    try {
+      await appLockStore.clearLockForUser(logoutUser);
+    } catch (error) {
+      console.warn("Could not clear app lock during logout:", error);
+    }
+    await authStore.logout();
     setUser(null);
     setAppLocked(false);
     setAppLockConfigured(false);
     setAppLockBiometricEnabled(false);
     setAppLockReady(true);
+    setSelectedTask(null);
+    setShowTaskModal(false);
+    openTaskIdRef.current = null;
+    setTaskWorklistRevision((revision) => revision + 1);
+    setSelectedLocalityCode("");
+    setLocalities([]);
     clearFormContext();
   }
 
@@ -254,33 +273,67 @@ export function FieldAppProvider({ children }) {
     setTaskWorklistRevision((revision) => revision + 1);
   }
 
-  function openFormFromTask(task) {
+  async function resolveActiveDraftForTask(task) {
+    if (!task) return null;
+    const existingDraft = await getQuestionnaireDraftById(task.active_draft_id);
+    if (existingDraft) return existingDraft;
+    const householdId = String(task.household_id || task.subject_id || "");
+    const formCode = String(task.task_type || "").toUpperCase();
+    const matchingDraft = (await listActiveQuestionnaireDrafts()).find(
+      (draft) =>
+        String(draft.form_code || "").toUpperCase() === formCode &&
+        getDraftHouseholdId(draft) === householdId &&
+        String(draft.user_id || "") === String(user?.user_id || user?.id || user?.username || "dev-user"),
+    );
+    if (matchingDraft) return matchingDraft;
+    return getActiveQuestionnaireDraft({
+      formCode: task.task_type,
+      formVersion: task.form_version || task.questionnaire_version || "9 MAY 2026",
+      taskId: task.id || task.task_id || task.task_key || null,
+      keyTaskId: null,
+      subjectType: task.subject_type || (task.household_id ? "household" : "locality"),
+      subjectId: task.household_id || task.subject_id || task.task_key || "unselected",
+      deviceId: user?.device_id || "dev-device",
+      userId: user?.user_id || user?.id || user?.username || "dev-user",
+    });
+  }
+
+  async function openFormFromTask(task) {
     if (!task) return;
-    if (task.household_id) {
+    const freshTask = getTask(task.id || task.task_id || task.task_key) || task;
+    const activeDraft = await resolveActiveDraftForTask({
+      ...freshTask,
+      active_draft_id: task.active_draft_id,
+    });
+    const taskForOpen = {
+      ...freshTask,
+      active_draft_id: activeDraft?.draft_id || task.active_draft_id || null,
+    };
+    if (taskForOpen.household_id) {
       try {
-        const context = getHouseholdContextSync(task.household_id, task.subject_id);
+        const context = getHouseholdContextSync(taskForOpen.household_id, taskForOpen.subject_id);
         const { prefill, readOnlyFields: roFields } = buildPrefillForTask(
-          task,
+          taskForOpen,
           context.household,
           context.member,
         );
 
-        setCurrentTaskContext(task);
+        setCurrentTaskContext(taskForOpen);
         setPrefillData(prefill);
         setReadOnlyFields(roFields);
       } catch (error) {
         console.error("Error fetching task context:", error);
-        setCurrentTaskContext(task);
+        setCurrentTaskContext(taskForOpen);
         setPrefillData(null);
         setReadOnlyFields(null);
       }
     } else {
-      setCurrentTaskContext(task);
+      setCurrentTaskContext(taskForOpen);
       setPrefillData(null);
       setReadOnlyFields(null);
     }
 
-    router.push(getRouteForTaskForm(task));
+    router.push(getRouteForTaskForm(taskForOpen));
   }
 
   const value = useMemo(

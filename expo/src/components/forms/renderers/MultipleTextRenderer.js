@@ -4,7 +4,16 @@ import { StyleSheet, Text, TextInput, View } from "react-native";
 
 import { QuestionFrame, controlStyles } from "./QuestionFrame.js";
 
-export function MultipleTextRenderer({ question, onChange }) {
+export function MultipleTextRenderer({ answerData, question, onChange }) {
+  const modelValue =
+    question.survey?.getValue?.(question.name) ??
+    question.survey?.data?.[question.name] ??
+    question.value;
+  const answerValue = modelValue && typeof modelValue === "object"
+    ? modelValue
+    : answerData && Object.prototype.hasOwnProperty.call(answerData, question.name)
+      ? answerData[question.name]
+      : null;
   return (
     <QuestionFrame question={question}>
       <View style={styles.items}>
@@ -13,7 +22,13 @@ export function MultipleTextRenderer({ question, onChange }) {
             <Text style={styles.label}>{item.title || item.name}</Text>
             <TextInput
               accessibilityLabel={`${question.name}.${item.name}`}
-              value={item.value === undefined || item.value === null ? "" : String(item.value)}
+              value={
+                answerValue && Object.prototype.hasOwnProperty.call(answerValue, item.name)
+                  ? String(answerValue[item.name] ?? "")
+                  : item.value === undefined || item.value === null
+                    ? ""
+                    : String(item.value)
+              }
               editable={!question.isReadOnly}
               keyboardType={item.inputType === "number" ? "numeric" : "default"}
               onChangeText={(value) => {

@@ -2,11 +2,12 @@
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { getNativeQuestionChoices, setNativeQuestionValue } from "../nativeSurveyModel.js";
+import { getNativeQuestionChoices, getNativeQuestionValue, setNativeQuestionValue } from "../nativeSurveyModel.js";
 import { QuestionFrame, controlStyles } from "./QuestionFrame.js";
 
-export function SelectManyRenderer({ question, onChange }) {
-  const selectedValues = Array.isArray(question.value) ? question.value : [];
+export function SelectManyRenderer({ answerData, question, onChange }) {
+  const value = getNativeQuestionValue(question, answerData);
+  const selectedValues = Array.isArray(value) ? value : [];
   return (
     <QuestionFrame question={question}>
       <View style={controlStyles.options}>

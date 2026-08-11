@@ -3,7 +3,7 @@ import React, { useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
-import { getNativeQuestionChoices, setNativeQuestionValue } from "../nativeSurveyModel.js";
+import { getNativeQuestionChoices, getNativeQuestionValue, setNativeQuestionValue } from "../nativeSurveyModel.js";
 import { QuestionFrame, controlStyles } from "./QuestionFrame.js";
 
 const GROUP_CONFIGS = {
@@ -48,7 +48,7 @@ const GROUP_CONFIGS = {
   ],
 };
 
-export function GroupedCodedSingleSelectRenderer({ question, onChange }) {
+export function GroupedCodedSingleSelectRenderer({ answerData, question, onChange }) {
   const groups = GROUP_CONFIGS[question.name] || [];
   const [expandedGroup, setExpandedGroup] = useState(null);
   const choices = getNativeQuestionChoices(question);
@@ -56,9 +56,10 @@ export function GroupedCodedSingleSelectRenderer({ question, onChange }) {
     () => new Map(choices.map((choice) => [String(choice.value), choice])),
     [choices]
   );
-  const selectedValue = question.value === undefined || question.value === null
+  const value = getNativeQuestionValue(question, answerData);
+  const selectedValue = value === undefined || value === null
     ? ""
-    : String(question.value);
+    : String(value);
   const selectedGroup = groups.find((group) => {
     if (group.value !== undefined) return String(group.value) === selectedValue;
     return group.childValues?.some((value) => String(value) === selectedValue);

@@ -9,14 +9,15 @@ import {
   formatSurveyDateDisplay,
   parseSurveyDate,
 } from "../dateValue.js";
-import { setNativeQuestionValue } from "../nativeSurveyModel.js";
+import { getNativeQuestionValue, setNativeQuestionValue } from "../nativeSurveyModel.js";
 import { QuestionFrame } from "./QuestionFrame.js";
 
-export function DateRenderer({ question, onChange }) {
+export function DateRenderer({ answerData, question, onChange }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const webInputRef = useRef(null);
-  const selectedDate = parseSurveyDate(question.value) || new Date();
-  const displayValue = formatSurveyDateDisplay(question.value);
+  const value = getNativeQuestionValue(question, answerData);
+  const selectedDate = parseSurveyDate(value) || new Date();
+  const displayValue = formatSurveyDateDisplay(value);
 
   function setDateValue(date) {
     setNativeQuestionValue(question, formatSurveyDate(date));
@@ -65,7 +66,7 @@ export function DateRenderer({ question, onChange }) {
               ref: webInputRef,
               style: styles.webDateInput,
               type: "date",
-              value: question.value || "",
+              value: value || "",
             })
           : null}
       </View>

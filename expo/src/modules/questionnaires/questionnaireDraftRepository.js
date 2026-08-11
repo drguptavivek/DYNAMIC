@@ -94,19 +94,129 @@ function normalizePart(value) {
   return value === undefined || value === null || value === "" ? "none" : String(value);
 }
 
+function normalizeHouseholdIdPart(value, width) {
+  const text = String(value || "").trim();
+  return text && width ? text.padStart(width, "0") : text;
+}
+
+function getPayloadHouseholdId(payload, subjectId) {
+  if (payload?.hhq_household_id) return payload.hhq_household_id;
+  const siteId = normalizeHouseholdIdPart(payload?.hhq_site_id);
+  const localityCode = normalizeHouseholdIdPart(payload?.hhq_locality_code, 2);
+  const structureNumber = normalizeHouseholdIdPart(payload?.hhq_structure_map_id, 4);
+  const householdNumber = normalizeHouseholdIdPart(payload?.hhq_household_number, 2);
+  if (siteId && localityCode && structureNumber && householdNumber) {
+    return [siteId, localityCode, structureNumber, householdNumber].join("-");
+  }
+  return subjectId;
+}
+
+function buildDraftIdentityKey({
+  formCode,
+  formVersion,
+  subjectId,
+  deviceId,
+  userId,
+  payload,
+}) {
+  const householdId = getPayloadHouseholdId(payload, subjectId);
+  return [
+    formCode,
+    formVersion,
+    householdId,
+    deviceId,
+    userId,
+  ].map(normalizePart).join("|");
+}
+
+function buildDraftHouseholdUserKey({
+  formCode,
+  formVersion,
+  subjectId,
+  userId,
+  payload,
+}) {
+  const householdId = getPayloadHouseholdId(payload, subjectId);
+  return [
+    formCode,
+    formVersion,
+    householdId,
+    userId,
+  ].map(normalizePart).join("|");
+}
+
+function getDraftIdentityKey(draft) {
+  return buildDraftIdentityKey({
+    formCode: draft?.form_code,
+    formVersion: draft?.form_version,
+    subjectId: draft?.subject_id,
+    deviceId: draft?.device_id,
+    userId: draft?.user_id,
+    payload: draft?.json_payload || {},
+  });
+}
+
+function getDraftHouseholdUserKey(draft) {
+  return buildDraftHouseholdUserKey({
+    formCode: draft?.form_code,
+    formVersion: draft?.form_version,
+    subjectId: draft?.subject_id,
+    userId: draft?.user_id,
+    payload: draft?.json_payload || {},
+  });
+}
+
+function sortNewestFirst(rows) {
+  return [...rows].sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)));
+}
+
+function dedupeActiveDrafts(rows) {
+  const seen = new Set();
+  const drafts = [];
+  for (const row of sortNewestFirst(rows)) {
+    if (row.draft_status !== "active") continue;
+    const identityKey = getDraftHouseholdUserKey(row);
+    if (seen.has(identityKey)) continue;
+    seen.add(identityKey);
+    drafts.push(row);
+  }
+  return drafts;
+}
+
+async function supersedeDuplicateActiveDrafts(draft) {
+  const rows = await readRows();
+  const identityKey = getDraftIdentityKey(draft);
+  const householdUserKey = getDraftHouseholdUserKey(draft);
+  const duplicates = rows.filter(
+    (row) =>
+      row.draft_status === "active" &&
+      row.draft_id !== draft.draft_id &&
+      (getDraftIdentityKey(row) === identityKey || getDraftHouseholdUserKey(row) === householdUserKey),
+  );
+  for (const row of duplicates) {
+    await persistDraft({
+      ...row,
+      draft_status: "superseded",
+      updated_at: draft.updated_at,
+    });
+  }
+}
+
 export function buildDraftKey({
   formCode,
   formVersion,
   taskId,
+  keyTaskId,
   subjectType,
   subjectId,
   deviceId,
   userId,
 }) {
+  const taskKeyPart = keyTaskId === undefined ? taskId : keyTaskId;
   return [
     formCode,
     formVersion,
-    taskId,
+    taskKeyPart,
     subjectType,
     subjectId,
     deviceId,
@@ -115,17 +225,50 @@ export function buildDraftKey({
 }
 
 export async function getActiveQuestionnaireDraft(context) {
+  const preferredDraftId = context?.preferredDraftId || context?.draftId;
+  const rows = await readRows();
+  const preferredDraft = preferredDraftId
+    ? rows.find((row) => row.draft_id === preferredDraftId && row.draft_status === "active")
+    : null;
   const draftKey = buildDraftKey(context);
-  const rows = (await readRows())
-    .filter((row) => row.draft_key === draftKey && row.draft_status === "active")
-    .sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)));
-  return rows[0] || null;
+  let matches = rows.filter((row) => row.draft_key === draftKey && row.draft_status === "active");
+
+  if (matches.length === 0 && context?.keyTaskId !== undefined) {
+    const legacyTaskDraftKey = buildDraftKey({
+      ...context,
+      keyTaskId: undefined,
+    });
+    matches = rows.filter(
+      (row) => row.draft_key === legacyTaskDraftKey && row.draft_status === "active",
+    );
+  }
+
+  if (matches.length === 0) {
+    const identityKey = buildDraftIdentityKey(context);
+    matches = rows.filter(
+      (row) => row.draft_status === "active" && getDraftIdentityKey(row) === identityKey,
+    );
+  }
+
+  if (matches.length === 0) {
+    const householdUserKey = buildDraftHouseholdUserKey(context);
+    matches = rows.filter(
+      (row) => row.draft_status === "active" && getDraftHouseholdUserKey(row) === householdUserKey,
+    );
+  }
+
+  const sortedMatches = sortNewestFirst(matches.length ? matches : preferredDraft ? [preferredDraft] : []);
+  return sortedMatches[0] || null;
+}
+
+export async function getQuestionnaireDraftById(draftId) {
+  if (!draftId) return null;
+  const rows = await readRows();
+  return rows.find((row) => row.draft_id === draftId && row.draft_status === "active") || null;
 }
 
 export async function listActiveQuestionnaireDrafts() {
-  return (await readRows())
-    .filter((row) => row.draft_status === "active")
-    .sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)));
+  return dedupeActiveDrafts(await readRows());
 }
 
 export async function saveQuestionnaireDraft({
@@ -135,6 +278,7 @@ export async function saveQuestionnaireDraft({
   payload = {},
   completionState = {},
   taskId,
+  keyTaskId,
   subjectType,
   subjectId,
   deviceId = "unknown",
@@ -146,15 +290,40 @@ export async function saveQuestionnaireDraft({
     formCode,
     formVersion,
     taskId,
+    keyTaskId,
     subjectType,
     subjectId,
     deviceId,
     userId,
   });
-  const existingIndex = rows.findIndex(
-    (row) => row.draft_id === draftId || (row.draft_key === draftKey && row.draft_status === "active"),
-  );
-  const existing = existingIndex >= 0 ? rows[existingIndex] : null;
+  const draftIdentityKey = buildDraftIdentityKey({
+    formCode,
+    formVersion,
+    subjectId,
+    deviceId,
+    userId,
+    payload,
+  });
+  const draftHouseholdUserKey = buildDraftHouseholdUserKey({
+    formCode,
+    formVersion,
+    subjectId,
+    userId,
+    payload,
+  });
+  const newestRows = sortNewestFirst(rows);
+  const existing =
+    newestRows.find((row) => row.draft_id === draftId) ||
+    newestRows.find(
+      (row) =>
+        row.draft_status === "active" &&
+        (
+          row.draft_key === draftKey ||
+          getDraftIdentityKey(row) === draftIdentityKey ||
+          getDraftHouseholdUserKey(row) === draftHouseholdUserKey
+        ),
+    ) ||
+    null;
   const draft = {
     draft_id: existing?.draft_id || draftId || createDraftId(formCode),
     draft_key: draftKey,
@@ -173,6 +342,7 @@ export async function saveQuestionnaireDraft({
   };
 
   await persistDraft(draft);
+  await supersedeDuplicateActiveDrafts(draft);
   return draft;
 }
 

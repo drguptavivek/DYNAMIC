@@ -15,6 +15,7 @@ import { SectionNavigator } from "./SectionNavigator.js";
 
 export function NativeSurveyRenderer({
   model,
+  answerData,
   notice,
   onCompleteRequested,
   onPreviewRequested,
@@ -57,6 +58,7 @@ export function NativeSurveyRenderer({
   const renderQuestion = (question, key = question.id || question.name) => (
     <NativeQuestionRenderer
       key={key}
+      answerData={answerData}
       question={question}
       onChange={refresh}
       renderQuestion={renderQuestion}
@@ -192,7 +194,7 @@ export function NativeSurveyRenderer({
             <Pressable
               accessibilityLabel="Save draft"
               hitSlop={6}
-              onPress={() => onSaveDraft()}
+              onPress={() => onSaveDraft({ manual: true })}
               style={styles.iconButton}
             >
               <MaterialCommunityIcons color="#344054" name="content-save-outline" size={23} />

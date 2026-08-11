@@ -10,6 +10,7 @@ const {
   buildNativeSurveyPreview,
   getNativeQuestionErrors,
   getNativeQuestionTitle,
+  getNativeQuestionValue,
   getNativeRendererKind,
   getVisiblePageQuestions,
   setNativeQuestionValue,
@@ -50,6 +51,9 @@ assert.deepEqual(getRegexValidationErrors(structure), ["Enter exactly 4 digits."
 setNativeQuestionValue(structure, "0042");
 assert.deepEqual(getRegexValidationErrors(structure), []);
 assert.equal(structure.value, "0042");
+assert.equal(model.data.hhq_structure_map_id, "0042");
+model.setValue("hhq_household_head_name", "Restored Draft Head");
+assert.equal(getNativeQuestionValue(model.getQuestionByName("hhq_household_head_name")), "Restored Draft Head");
 
 assert.equal(formatSurveyDateDisplay("2026-07-28"), "28-Jul-2026");
 assert.equal(formatSurveyDate(parseSurveyDate("2026-07-28")), "2026-07-28");
@@ -66,7 +70,9 @@ assert.notEqual(getNativeQuestionTitle(localizedQuestion), defaultLocalizedTitle
 model.locale = "default";
 setNativeQuestionValue(site, 1);
 assert.equal(site.value, 1);
+assert.equal(model.data.hhq_site_id, 1);
 setNativeQuestionValue(consent, 1);
+assert.equal(model.data.hhq_consent_study_provide_pis_explain_study_adult_member, 1);
 assert.equal(model.visiblePages.length, 3);
 
 const roster = model.getQuestionByName("hhq_household_members");

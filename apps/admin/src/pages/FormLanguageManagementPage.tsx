@@ -503,10 +503,8 @@ export default function FormLanguageManagementPage() {
 
   function exportTranslationCsv() {
     if (!selectedForm || !selectedSite || !selectedLanguage || elements.length === 0) return;
-    const site = sites.find((candidate) => candidate.site_id === selectedSite);
-    const safeSite = String(site?.site_name || selectedSite).replace(/[^a-z0-9_-]+/gi, "-");
     const csv = `\uFEFF${buildExportRows().map((row) => row.map(csvEscape).join(",")).join("\r\n")}`;
-    downloadTextFile(`${selectedForm}-${safeSite}-${selectedLanguage}-translations.csv`, csv);
+    downloadTextFile(`${selectedForm}-${selectedLanguage}-translations.csv`, csv);
   }
 
   async function previewTranslationCsv(file: File | null) {
@@ -616,7 +614,7 @@ export default function FormLanguageManagementPage() {
     if (!importTranslations) return;
     const matchedRows = importPreviewRows.filter((row) => row.status === "matched").length;
     const confirmed = window.confirm(
-      `Are you sure you want to save ${matchedRows} imported translation rows for this selected site and language?`,
+      `Are you sure you want to save ${matchedRows} imported translation rows for this questionnaire language?`,
     );
     if (!confirmed) return;
     setTranslations(importTranslations);
@@ -646,7 +644,7 @@ export default function FormLanguageManagementPage() {
     <div className={styles.container}>
       <h1>Form Language Management</h1>
       <p className={styles.subtitle}>
-        Manage site-specific questionnaire translations. English is shown as the source text.
+        Manage global questionnaire translations. Site selection only controls who can edit the selected language.
       </p>
 
       {error ? <div className={`${styles.message} ${styles.error}`}>{error}</div> : null}
@@ -664,7 +662,7 @@ export default function FormLanguageManagementPage() {
           </select>
         </div>
         <div className={styles.field}>
-          <label>Site</label>
+          <label>Permission Site</label>
           <select
             className={styles.select}
             value={selectedSite}
@@ -706,7 +704,7 @@ export default function FormLanguageManagementPage() {
             <div className={styles.permissionTitle}>Permission ON/OFF for selected site</div>
             <p className={styles.permissionHelp}>
               ON allows all active non-field-worker users of this site to edit this form language.
-              OFF makes it view-only. Field workers only receive saved site language during mobile sync.
+              OFF makes it view-only. Field workers receive the saved global questionnaire language during mobile sync.
             </p>
             <div className={styles.permissionControls}>
               <input

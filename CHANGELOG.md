@@ -16,11 +16,12 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 
 ### Added
 
-- Added admin Form Language Management for site-specific questionnaire translations, including form/site/language selectors, English source text, saved selected-language review text, per-question Edit/Save controls for question and option translations, and central-admin permission ON/OFF for all non-field-worker users of a selected site.
-- Added CSV export/import to Form Language Management so selected site-language questionnaires can be exported in fixed questionnaire order, filled offline, previewed on import, and saved only after confirming the matched rows.
+- Added a mobile Draft/Pending Forms drawer page for read-only review of local draft forms saved on the device.
+- Added admin Form Language Management for global questionnaire translations, including form/permission-site/language selectors, English source text, saved selected-language review text, per-question Edit/Save controls for question and option translations, and central-admin permission ON/OFF for all non-field-worker users of a selected site.
+- Added CSV export/import to Form Language Management so global questionnaire language files can be exported in fixed questionnaire order, filled offline, previewed on import, and saved only after confirming the matched rows.
 - Added option-level Edit buttons in Form Language Management so each option opens only its own translation editor.
-- Added backend form-language translation and user-level permission storage, with site-specific translated SurveyJS JSON returned through protocol form endpoints and sync form-version checksums.
-- Added database seeding of bundled HHQ translations so existing Hindi question text in the questionnaire JSON is copied into site-specific language records and then shown from the database.
+- Added backend form-language translation and user-level permission storage, with global translated SurveyJS JSON returned through protocol form endpoints and sync form-version checksums.
+- Added database seeding of bundled HHQ translations so existing Hindi question text in the questionnaire JSON is copied into database-backed global language records and then shown from the database.
 - Added mobile runtime form loading from synced protocol form JSON so field devices can use refreshed questionnaire language after Sync Now.
 - Added Kannada, Marathi, Tamil, and Telugu to the mobile questionnaire language switcher while keeping Urdu available only as questionnaire content.
 - Added mobile Completed Forms and Uploaded Forms drawer pages for pending and synced submitted CRFs.
@@ -40,6 +41,32 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 
 ### Fixed
 
+- Cleared mobile offline tasks, households, drafts, submitted forms, protocol form cache, sync metadata, and app-lock PIN/biometric setup on explicit Logout while preserving cached data during normal PIN/biometric unlock.
+- Added a mobile Logout confirmation warning before deleting current-user data stored on the device.
+- Highlighted mobile Worklist task cards in yellow after a local manual draft save and refreshed Worklist draft status after saving.
+- Added localized mobile Save Draft confirmation and returned field workers to Worklist after manually saving a draft.
+- Kept HHQ manual draft saves stable across section changes and language switching, preserving earlier section answers and restoring the draft language on reopen.
+- Stabilized HHQ draft reopening from the Worklist by carrying the task id in the questionnaire route and recovering the task context from the local task cache before looking up saved drafts.
+- Kept recovered HHQ task context memoized so SurveyJS does not rebuild the active draft form during route renders or language changes.
+- Memoized runtime questionnaire JSON on the route screen so synced form translations do not recreate the HHQ SurveyJS model and clear restored draft answers during reopen.
+- Updated native SurveyJS value writes to use the model-backed setter for top-level questions so filled HHQ answers reliably enter `model.data` before draft save.
+- Made HHQ draft saves collect top-level SurveyJS question values directly and show saved/restored answer counts for device-side draft verification.
+- Reapplied saved HHQ draft answers after restoring the saved form language so reopening Hindi or other-language drafts does not leave the rebuilt form blank.
+- Passed the exact active draft id from Worklist into HHQ reopen routes so saved draft answers restore deterministically instead of relying only on task/subject matching.
+- Refreshed the Worklist task modal's Open Form action against the latest local task and active draft before routing, preventing stale modal task data from opening a blank HHQ draft.
+- Synced native HHQ renderers with SurveyJS model-backed values so restored draft answers display in text, date, radio, checkbox, grouped-select, and read-only controls.
+- Made HHQ draft collection read the native question value source used by the mobile controls so visually selected radio answers are included in the saved draft payload.
+- Prevented older asynchronous HHQ draft restores from repainting the form after a newer Save Draft action, and made draft restore prefer the newest household/form match over stale route draft ids.
+- Restored assigned-locality visibility in the mobile navigation drawer by falling back to synced assignment codes when locality master names are not yet loaded.
+- Preserved manually saved questionnaire draft payloads for reopening from Worklist.
+- Prevented HHQ draft restore from marking the form dirty and overwriting saved local answers during reopen, and mirrored restored answer snapshots into native controls so saved radio/text/date values remain visible after route refreshes.
+- Made HHQ draft restore happen before the SurveyJS model is shown, removed the duplicate post-render restore path, and stopped render-time model mutation so saved draft answers are not cleared immediately after reopening.
+- Allowed HHQ questionnaire language switching after draft restore by applying the saved draft language only once when the draft is opened.
+- Matched HHQ draft restore by household/form/user/device instead of the changing task id, while still keeping task id on the draft record for context.
+- Prevented repeated Save Draft taps from creating duplicate active Draft/Pending entries for the same household form.
+- Preserved the field device id when restoring a mobile login session and allowed local draft lookup to recover older rows saved under a different device-key fallback.
+- Refreshed mobile draft state after final submission so submitted drafts leave Draft/Pending Forms and appear as pending completed forms for offline sync.
+- Scoped mobile Draft/Pending Forms to the logged-in user's site so site users do not see local drafts from other sites.
 - Fixed API startup dotenv ordering so DB-backed endpoints use the configured local database connection when the dev server starts.
 - Changed field-app shell navigation to replace drawer pages instead of stacking them, preventing Android Back from replaying old app pages or submitted forms.
 - Separated the Worklist card tap target from the household eye action so opening household details does not also open the task modal.

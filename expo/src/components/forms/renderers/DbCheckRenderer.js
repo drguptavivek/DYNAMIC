@@ -2,18 +2,19 @@
 import React from "react";
 import { TextInput } from "react-native";
 
-import { getNativeQuestionErrors, setNativeQuestionValue } from "../nativeSurveyModel.js";
+import { getNativeQuestionValue, setNativeQuestionValue } from "../nativeSurveyModel.js";
 import { QuestionFrame, controlStyles } from "./QuestionFrame.js";
 import { validateRegexQuestion } from "../validators/RegexValidator.js";
 
-export function DbCheckRenderer({ question, onChange }) {
+export function DbCheckRenderer({ answerData, question, onChange }) {
   const readOnly = Boolean(question.isReadOnly || question.readOnly);
+  const value = getNativeQuestionValue(question, answerData);
 
   return (
     <QuestionFrame question={question}>
       <TextInput
         accessibilityLabel={question.name}
-        value={question.value === undefined || question.value === null ? "" : String(question.value)}
+        value={value === undefined || value === null ? "" : String(value)}
         editable={!readOnly}
         keyboardType="number-pad"
         onChangeText={(value) => {
