@@ -2,7 +2,7 @@
  * Renders the active Survey Core page using only native controls and explicit section navigation.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { InteractionManager, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
 import {
@@ -12,9 +12,6 @@ import {
 } from "./nativeSurveyModel.js";
 import { NativeQuestionRenderer } from "./renderers/NativeQuestionRenderer.js";
 import { SectionNavigator } from "./SectionNavigator.js";
-
-const COMPACT_INITIAL_QUESTION_COUNT = 8;
-const COMPACT_QUESTION_BATCH_SIZE = 8;
 
 export function NativeSurveyRenderer({
   model,
@@ -34,7 +31,6 @@ export function NativeSurveyRenderer({
   const compact = Platform.OS !== "web" || width < 700;
   const [revision, setRevision] = useState(0);
   const [questionIndex, setQuestionIndex] = useState(0);
-  const [compactQuestionLimit, setCompactQuestionLimit] = useState(COMPACT_INITIAL_QUESTION_COUNT);
   const compactScrollRef = useRef(null);
   const desktopScrollRef = useRef(null);
   const questionsOffsetRef = useRef(0);
@@ -75,37 +71,17 @@ export function NativeSurveyRenderer({
 
   const page = model.currentPage || model.firstVisiblePage;
   const pageIndex = model.visiblePages.indexOf(page);
-  const visibleQuestions = useMemo(() => getVisiblePageQuestions(page), [page, revision, locale]);
+  const visibleQuestions = useMemo(() => getVisiblePageQuestions(page), [page, revision]);
   const useCompactPager = compact && compactPager && visibleQuestions.length > 1;
   const activeQuestionIndex = Math.min(questionIndex, Math.max(visibleQuestions.length - 1, 0));
   const visibleQuestionWindow = useCompactPager
     ? visibleQuestions.slice(activeQuestionIndex, activeQuestionIndex + 1)
-    : compact
-      ? visibleQuestions.slice(0, compactQuestionLimit)
-      : visibleQuestions;
+    : visibleQuestions;
 
   useEffect(() => {
     questionOffsetsRef.current = new Map();
     setQuestionIndex(0);
-    setCompactQuestionLimit(COMPACT_INITIAL_QUESTION_COUNT);
   }, [page?.name]);
-
-  useEffect(() => {
-    if (!compact || useCompactPager || compactQuestionLimit >= visibleQuestions.length) return undefined;
-    let cancelled = false;
-    const task = InteractionManager.runAfterInteractions(() => {
-      requestAnimationFrame(() => {
-        if (cancelled) return;
-        setCompactQuestionLimit((value) =>
-          Math.min(visibleQuestions.length, value + COMPACT_QUESTION_BATCH_SIZE)
-        );
-      });
-    });
-    return () => {
-      cancelled = true;
-      task?.cancel?.();
-    };
-  }, [compact, compactQuestionLimit, useCompactPager, visibleQuestions.length]);
 
   useEffect(() => {
     if (questionIndex >= visibleQuestions.length) {
@@ -113,7 +89,7 @@ export function NativeSurveyRenderer({
     }
   }, [questionIndex, visibleQuestions.length]);
 
-  const renderQuestion = (question, key = question.id || question.name) => (
+  const renderQuestion = useCallback((question, key = question.id || question.name) => (
     <NativeQuestionRenderer
       key={key}
       answerData={answerData}
@@ -121,9 +97,10 @@ export function NativeSurveyRenderer({
       question={question}
       onChange={refresh}
       renderQuestion={renderQuestion}
+      renderRevision={revision}
     />
-  );
-  const renderTopLevelQuestion = (question) => (
+  ), [answerData, locale, refresh, revision]);
+  const renderTopLevelQuestion = useCallback((question) => (
     <View
       key={question.id || question.name}
       onLayout={(event) => {
@@ -133,7 +110,7 @@ export function NativeSurveyRenderer({
     >
       {renderQuestion(question)}
     </View>
-  );
+  ), [renderQuestion]);
 
   function scrollToQuestion(question) {
     if (!question) return;
@@ -259,10 +236,6 @@ export function NativeSurveyRenderer({
       {useCompactPager ? (
         <Text style={styles.questionCounter}>
           {`Question ${activeQuestionIndex + 1} of ${visibleQuestions.length}`}
-        </Text>
-      ) : compact && compactQuestionLimit < visibleQuestions.length ? (
-        <Text style={styles.questionCounter}>
-          {`Loading section fields... ${Math.min(compactQuestionLimit, visibleQuestions.length)} of ${visibleQuestions.length}`}
         </Text>
       ) : null}
     </View>

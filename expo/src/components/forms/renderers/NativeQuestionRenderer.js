@@ -20,7 +20,7 @@ import { SelectManyRenderer } from "./SelectManyRenderer.js";
 import { SelectOneRenderer } from "./SelectOneRenderer.js";
 import { TextRenderer } from "./TextRenderer.js";
 
-export function NativeQuestionRenderer({ answerData, locale, question, onChange, renderQuestion }) {
+function NativeQuestionRendererBase({ answerData, locale, question, onChange, renderQuestion }) {
   const renderer = getNativeRendererKind(question);
   const props = { answerData, locale, question, onChange };
   switch (renderer) {
@@ -42,4 +42,17 @@ export function NativeQuestionRenderer({ answerData, locale, question, onChange,
     case "text": return <TextRenderer {...props} />;
     default: throw new Error(`Native renderer registry returned unknown renderer: ${renderer}`);
   }
+}
+
+export const NativeQuestionRenderer = React.memo(NativeQuestionRendererBase, areQuestionRendererPropsEqual);
+
+function areQuestionRendererPropsEqual(previous, next) {
+  return (
+    previous.answerData === next.answerData &&
+    previous.locale === next.locale &&
+    previous.question === next.question &&
+    previous.onChange === next.onChange &&
+    previous.renderQuestion === next.renderQuestion &&
+    previous.renderRevision === next.renderRevision
+  );
 }

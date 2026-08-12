@@ -1,8 +1,8 @@
 /**
  * Provides the Survey Core locale selector as a compact secondary dropdown on mobile.
  */
-import React, { useRef, useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import React, { useMemo, useRef, useState } from "react";
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
 import { LanguageToggle } from "../LanguageToggle.js";
@@ -10,13 +10,22 @@ import { QUESTIONNAIRE_LANGUAGES } from "./questionnaireLanguages.js";
 
 export function RendererLanguageSwitcher({ iconOnly = false, locale, onChange }) {
   const { width } = useWindowDimensions();
-  const compact = width < 700;
+  const compact = Platform.OS !== "web" || width < 700;
   const triggerRef = useRef(null);
   const [open, setOpen] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0, width: 140 });
+  const nativeMenuPosition = useMemo(() => ({
+    top: iconOnly ? 76 : 60,
+    left: Math.max(12, width - 172),
+    width: 160,
+  }), [iconOnly, width]);
   const activeLanguage = QUESTIONNAIRE_LANGUAGES.find((language) => language.code === locale) || QUESTIONNAIRE_LANGUAGES[0];
 
   function openMenu() {
+    if (Platform.OS !== "web") {
+      setOpen(true);
+      return;
+    }
     triggerRef.current?.measureInWindow?.((x, y, measuredWidth, height) => {
       setMenuPosition({
         top: y + height + 4,
@@ -53,15 +62,15 @@ export function RendererLanguageSwitcher({ iconOnly = false, locale, onChange })
           <Text numberOfLines={1} style={styles.triggerText}>{activeLanguage.label}</Text>
         )}
       </Pressable>
-      <Modal animationType="fade" onRequestClose={() => setOpen(false)} transparent visible={open}>
+      <Modal animationType="none" hardwareAccelerated onRequestClose={() => setOpen(false)} transparent visible={open}>
         <View style={styles.modalRoot}>
           <Pressable
             accessibilityLabel="Close language menu"
             onPress={() => setOpen(false)}
             style={StyleSheet.absoluteFill}
           />
-          <View style={[styles.menu, menuPosition]}>
-            <ScrollView keyboardShouldPersistTaps="handled">
+          <View style={[styles.menu, Platform.OS === "web" ? menuPosition : nativeMenuPosition]}>
+            <ScrollView keyboardShouldPersistTaps="handled" removeClippedSubviews>
               {QUESTIONNAIRE_LANGUAGES.map((language) => {
                 const active = language.code === locale;
                 return (

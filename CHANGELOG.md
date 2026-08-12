@@ -60,6 +60,8 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 - Reduced typing lag in native text and number questions by deferring full renderer refreshes until blur-time validation instead of every character entry.
 - Made generic mobile questionnaire language switching local to the open form first, avoiding broad app-context repaint work before the selected language appears.
 - Made native questionnaire language switching read selected-language text directly from the active question and option, keeping large WQ forms responsive and falling back to English when a translation is missing.
+- Made the compact native questionnaire language menu open immediately on phones and reduced question-row re-render work during language changes without changing the section-wise mobile layout.
+- Kept compact questionnaire sections fully visible while making the native language menu open without layout measurement or animation delays.
 - Reduced compact questionnaire background render batch size so WQ controls become usable sooner while large sections continue loading in smaller chunks.
 - Kept large generic mobile questionnaires such as WQ in section-wise mobile layout while progressively mounting the section to avoid freezing the screen.
 - Opened non-HHQ task questionnaire entry routes in the same collapsed mobile shell as HHQ so WQ uses the full-screen form surface instead of the dashboard/submissions layout.
