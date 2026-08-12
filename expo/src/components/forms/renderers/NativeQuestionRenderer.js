@@ -20,9 +20,9 @@ import { SelectManyRenderer } from "./SelectManyRenderer.js";
 import { SelectOneRenderer } from "./SelectOneRenderer.js";
 import { TextRenderer } from "./TextRenderer.js";
 
-export function NativeQuestionRenderer({ answerData, question, onChange, renderQuestion }) {
+export function NativeQuestionRenderer({ answerData, locale, question, onChange, renderQuestion }) {
   const renderer = getNativeRendererKind(question);
-  const props = { answerData, question, onChange };
+  const props = { answerData, locale, question, onChange };
   switch (renderer) {
     case "calculate": return <CalculateRenderer {...props} />;
     case "camera": return <CameraRenderer {...props} />;

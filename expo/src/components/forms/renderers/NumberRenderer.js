@@ -6,10 +6,10 @@ import { getNativeQuestionValue, setNativeQuestionValue } from "../nativeSurveyM
 import { QuestionFrame, controlStyles } from "./QuestionFrame.js";
 import { validateRegexQuestion } from "../validators/RegexValidator.js";
 
-export function NumberRenderer({ answerData, question, onChange }) {
+export function NumberRenderer({ answerData, locale, question, onChange }) {
   const value = getNativeQuestionValue(question, answerData);
   return (
-    <QuestionFrame question={question}>
+    <QuestionFrame locale={locale} question={question}>
       <TextInput
         accessibilityLabel={question.name}
         value={value === undefined || value === null ? "" : String(value)}
@@ -18,7 +18,6 @@ export function NumberRenderer({ answerData, question, onChange }) {
         onChangeText={(value) => {
           const sanitized = value.replace(/[^0-9.-]/g, "");
           setNativeQuestionValue(question, sanitized);
-          onChange?.();
         }}
         onBlur={() => {
           validateRegexQuestion(question);

@@ -481,6 +481,32 @@ export function refreshHouseholdSurveyBehaviors(model, selectedForm) {
   setTimeout(refreshVisibleAgeResidenceErrors, 0);
 }
 
+function normalizeHouseholdIdForComparison(value) {
+  return String(value || "").trim();
+}
+
+function isAllowedExistingHousehold(existingHousehold, options = {}) {
+  if (!existingHousehold?.household_id) return false;
+  const existingHouseholdId = normalizeHouseholdIdForComparison(existingHousehold.household_id);
+  const allowedHouseholdIds = [
+    options.allowedExistingHouseholdId,
+    ...(Array.isArray(options.allowedExistingHouseholdIds)
+      ? options.allowedExistingHouseholdIds
+      : [])
+  ]
+    .map(normalizeHouseholdIdForComparison)
+    .filter(Boolean);
+
+  return allowedHouseholdIds.includes(existingHouseholdId);
+}
+
+async function findBlockingExistingHousehold(data, options = {}) {
+  const existingHousehold = options.findExistingHousehold
+    ? await options.findExistingHousehold(data)
+    : null;
+  return isAllowedExistingHousehold(existingHousehold, options) ? null : existingHousehold;
+}
+
 export async function validateHouseholdSurveyForFinalization(model, options = {}) {
   if (validateSingleHouseholdHead(model)) {
     return { valid: false, message: DUPLICATE_HEAD_MESSAGE };
@@ -488,9 +514,7 @@ export async function validateHouseholdSurveyForFinalization(model, options = {}
   if (validateAgeAgainstResidenceDuration(model)) {
     return { valid: false, message: AGE_LESS_THAN_RESIDENCE_MESSAGE };
   }
-  const existingHousehold = options.findExistingHousehold
-    ? await options.findExistingHousehold(model.data)
-    : null;
+  const existingHousehold = await findBlockingExistingHousehold(model.data, options);
   setDuplicateHouseholdError(model, existingHousehold);
   if (existingHousehold) {
     return {
@@ -522,7 +546,7 @@ export function attachHouseholdSurveyBehaviors(
     if (!findExistingHousehold) return null;
 
     const sequence = ++duplicateCheckSequence;
-    const existing = await findExistingHousehold(sender.data);
+    const existing = await findBlockingExistingHousehold(sender.data, options);
     if (sequence !== duplicateCheckSequence) return duplicateHousehold;
 
     duplicateHousehold = existing || null;

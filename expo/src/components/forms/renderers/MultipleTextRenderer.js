@@ -4,7 +4,7 @@ import { StyleSheet, Text, TextInput, View } from "react-native";
 
 import { QuestionFrame, controlStyles } from "./QuestionFrame.js";
 
-export function MultipleTextRenderer({ answerData, question, onChange }) {
+export function MultipleTextRenderer({ answerData, locale, question, onChange }) {
   const modelValue =
     question.survey?.getValue?.(question.name) ??
     question.survey?.data?.[question.name] ??
@@ -15,7 +15,7 @@ export function MultipleTextRenderer({ answerData, question, onChange }) {
       ? answerData[question.name]
       : null;
   return (
-    <QuestionFrame question={question}>
+    <QuestionFrame locale={locale} question={question}>
       <View style={styles.items}>
         {(question.items || []).map((item) => (
           <View key={item.name} style={styles.item}>

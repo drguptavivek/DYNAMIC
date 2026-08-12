@@ -2,7 +2,7 @@
  * Renders the active Survey Core page using only native controls and explicit section navigation.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { InteractionManager, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
 import {
@@ -13,27 +13,40 @@ import {
 import { NativeQuestionRenderer } from "./renderers/NativeQuestionRenderer.js";
 import { SectionNavigator } from "./SectionNavigator.js";
 
+const COMPACT_INITIAL_QUESTION_COUNT = 8;
+const COMPACT_QUESTION_BATCH_SIZE = 8;
+
 export function NativeSurveyRenderer({
   model,
   answerData,
+  locale,
   notice,
   onCompleteRequested,
   onPreviewRequested,
   onSaveDraft,
-  onScrollOffsetChange,
   sectionDrawerOpen,
   onSectionDrawerOpenChange,
   sections = [],
   onSectionSelect,
+  compactPager = false,
 }) {
   const { width } = useWindowDimensions();
-  const compact = width < 700;
-  const [, setRevision] = useState(0);
+  const compact = Platform.OS !== "web" || width < 700;
+  const [revision, setRevision] = useState(0);
+  const [questionIndex, setQuestionIndex] = useState(0);
+  const [compactQuestionLimit, setCompactQuestionLimit] = useState(COMPACT_INITIAL_QUESTION_COUNT);
   const compactScrollRef = useRef(null);
-  const compactScrollOffsetRef = useRef(0);
+  const desktopScrollRef = useRef(null);
   const questionsOffsetRef = useRef(0);
   const questionOffsetsRef = useRef(new Map());
-  const refresh = useCallback(() => setRevision((value) => value + 1), []);
+  const refreshFrameRef = useRef(null);
+  const refresh = useCallback(() => {
+    if (refreshFrameRef.current !== null) return;
+    refreshFrameRef.current = requestAnimationFrame(() => {
+      refreshFrameRef.current = null;
+      setRevision((value) => value + 1);
+    });
+  }, []);
   const unsupported = useMemo(() => assertNativeSurveySupport(model), [model]);
 
   useEffect(() => {
@@ -47,18 +60,64 @@ export function NativeSurveyRenderer({
     return () => events.forEach((event) => event.remove?.(refresh));
   }, [model, refresh]);
 
+  useEffect(() => () => {
+    if (refreshFrameRef.current !== null) {
+      cancelAnimationFrame(refreshFrameRef.current);
+      refreshFrameRef.current = null;
+    }
+  }, []);
+
   if (unsupported.length) {
     throw new Error(
-      `HHQ has unsupported native fields: ${unsupported.map((item) => `${item.name}:${item.type}`).join(", ")}`
+      `Questionnaire has unsupported native fields: ${unsupported.map((item) => `${item.name}:${item.type}`).join(", ")}`
     );
   }
 
   const page = model.currentPage || model.firstVisiblePage;
   const pageIndex = model.visiblePages.indexOf(page);
+  const visibleQuestions = useMemo(() => getVisiblePageQuestions(page), [page, revision, locale]);
+  const useCompactPager = compact && compactPager && visibleQuestions.length > 1;
+  const activeQuestionIndex = Math.min(questionIndex, Math.max(visibleQuestions.length - 1, 0));
+  const visibleQuestionWindow = useCompactPager
+    ? visibleQuestions.slice(activeQuestionIndex, activeQuestionIndex + 1)
+    : compact
+      ? visibleQuestions.slice(0, compactQuestionLimit)
+      : visibleQuestions;
+
+  useEffect(() => {
+    questionOffsetsRef.current = new Map();
+    setQuestionIndex(0);
+    setCompactQuestionLimit(COMPACT_INITIAL_QUESTION_COUNT);
+  }, [page?.name]);
+
+  useEffect(() => {
+    if (!compact || useCompactPager || compactQuestionLimit >= visibleQuestions.length) return undefined;
+    let cancelled = false;
+    const task = InteractionManager.runAfterInteractions(() => {
+      requestAnimationFrame(() => {
+        if (cancelled) return;
+        setCompactQuestionLimit((value) =>
+          Math.min(visibleQuestions.length, value + COMPACT_QUESTION_BATCH_SIZE)
+        );
+      });
+    });
+    return () => {
+      cancelled = true;
+      task?.cancel?.();
+    };
+  }, [compact, compactQuestionLimit, useCompactPager, visibleQuestions.length]);
+
+  useEffect(() => {
+    if (questionIndex >= visibleQuestions.length) {
+      setQuestionIndex(Math.max(visibleQuestions.length - 1, 0));
+    }
+  }, [questionIndex, visibleQuestions.length]);
+
   const renderQuestion = (question, key = question.id || question.name) => (
     <NativeQuestionRenderer
       key={key}
       answerData={answerData}
+      locale={locale}
       question={question}
       onChange={refresh}
       renderQuestion={renderQuestion}
@@ -70,30 +129,74 @@ export function NativeSurveyRenderer({
       onLayout={(event) => {
         questionOffsetsRef.current.set(question.name, event.nativeEvent.layout.y);
       }}
+      style={styles.questionRow}
     >
       {renderQuestion(question)}
     </View>
   );
 
   function scrollToQuestion(question) {
-    const questionOffset = questionOffsetsRef.current.get(question?.name);
-    if (!Number.isFinite(questionOffset) || !compactScrollRef.current) return;
+    if (!question) return;
+    const index = visibleQuestions.findIndex((item) => item.name === question.name);
+    if (index < 0) return;
+    if (useCompactPager) {
+      setQuestionIndex(index);
+      scrollToTop();
+      return;
+    }
     requestAnimationFrame(() => {
-      compactScrollRef.current?.scrollTo({
-        animated: true,
-        y: Math.max(0, questionsOffsetRef.current + questionOffset - 8),
-      });
+      if (compact) {
+        const questionOffset = questionOffsetsRef.current.get(question.name);
+        compactScrollRef.current?.scrollTo({
+          animated: true,
+          y: Math.max(0, questionsOffsetRef.current + (Number.isFinite(questionOffset) ? questionOffset : 0) - 8),
+        });
+      } else {
+        desktopScrollRef.current?.scrollTo?.({ animated: true, y: 0 });
+      }
     });
   }
 
+  function scrollToTop() {
+    compactScrollRef.current?.scrollTo?.({ animated: false, y: 0 });
+    desktopScrollRef.current?.scrollTo?.({ animated: false, y: 0 });
+  }
+
+  function canMoveToPreviousQuestion() {
+    return useCompactPager && activeQuestionIndex > 0;
+  }
+
+  function canMoveToNextQuestion() {
+    return useCompactPager && activeQuestionIndex < visibleQuestions.length - 1;
+  }
+
   async function previous() {
+    if (canMoveToPreviousQuestion()) {
+      setQuestionIndex((value) => Math.max(0, value - 1));
+      scrollToTop();
+      await onSaveDraft?.({ silent: true, reason: "previous-question" });
+      return;
+    }
     model.prevPage();
     refresh();
-    compactScrollRef.current?.scrollTo({ animated: false, y: 0 });
+    scrollToTop();
     await onSaveDraft?.({ silent: true, reason: "previous" });
   }
 
   async function next() {
+    if (canMoveToNextQuestion()) {
+      const activeQuestion = visibleQuestions[activeQuestionIndex];
+      const valid = activeQuestion?.validate?.() !== false;
+      refresh();
+      if (!valid || activeQuestion?.errors?.length) {
+        scrollToQuestion(activeQuestion);
+        return;
+      }
+      setQuestionIndex((value) => Math.min(visibleQuestions.length - 1, value + 1));
+      scrollToTop();
+      await onSaveDraft?.({ silent: true, reason: "next-question" });
+      return;
+    }
     const currentPage = model.currentPage;
     model.nextPage();
     refresh();
@@ -101,7 +204,7 @@ export function NativeSurveyRenderer({
       const firstQuestionWithError = getVisiblePageQuestions(currentPage).find(hasQuestionValidationProblem);
       scrollToQuestion(firstQuestionWithError);
     } else {
-      compactScrollRef.current?.scrollTo({ animated: false, y: 0 });
+      scrollToTop();
     }
     await onSaveDraft?.({ silent: true, reason: "next" });
   }
@@ -117,7 +220,15 @@ export function NativeSurveyRenderer({
 
   const pageHeader = (
     <View style={[styles.pageHeader, compact && styles.pageHeaderCompact]}>
-        <Text style={styles.pageTitle}>{stripSurveyHtml(page?.locTitle?.renderedHtml || page?.title || "Questionnaire")}</Text>
+        <Text style={styles.pageTitle}>
+          {stripSurveyHtml(
+            (locale && locale !== "default" && page?.locTitle?.getLocaleText?.(locale)) ||
+              page?.locTitle?.getLocaleText?.("default") ||
+              page?.locTitle?.renderedHtml ||
+              page?.title ||
+              "Questionnaire"
+          )}
+        </Text>
         <Text style={styles.pageCount}>{`Section ${pageIndex + 1} of ${model.visiblePages.length}`}</Text>
     </View>
   );
@@ -128,7 +239,32 @@ export function NativeSurveyRenderer({
       }}
       style={styles.questions}
     >
-        {getVisiblePageQuestions(page).map((question) => renderTopLevelQuestion(question))}
+        {visibleQuestionWindow.map((question) => renderTopLevelQuestion(question))}
+    </View>
+  );
+  const compactListHeader = (
+    <View style={styles.compactHeaderContent}>
+      {sections.length ? (
+        <SectionNavigator
+          drawerOpen={sectionDrawerOpen}
+          onDrawerOpenChange={onSectionDrawerOpenChange}
+          onSelect={onSectionSelect}
+          progressDotsPressable={false}
+          sections={sections}
+          showCompactTrigger={false}
+        />
+      ) : null}
+      {notice ? <Text style={styles.notice}>{notice}</Text> : null}
+      {pageHeader}
+      {useCompactPager ? (
+        <Text style={styles.questionCounter}>
+          {`Question ${activeQuestionIndex + 1} of ${visibleQuestions.length}`}
+        </Text>
+      ) : compact && compactQuestionLimit < visibleQuestions.length ? (
+        <Text style={styles.questionCounter}>
+          {`Loading section fields... ${Math.min(compactQuestionLimit, visibleQuestions.length)} of ${visibleQuestions.length}`}
+        </Text>
+      ) : null}
     </View>
   );
 
@@ -137,26 +273,10 @@ export function NativeSurveyRenderer({
       {compact ? (
         <ScrollView
           ref={compactScrollRef}
-          keyboardShouldPersistTaps="handled"
           contentContainerStyle={styles.compactContent}
-          onScroll={(event) => {
-            compactScrollOffsetRef.current = event.nativeEvent.contentOffset.y;
-            onScrollOffsetChange?.(event.nativeEvent.contentOffset.y);
-          }}
-          scrollEventThrottle={16}
+          keyboardShouldPersistTaps="handled"
         >
-          {sections.length ? (
-            <SectionNavigator
-              drawerOpen={sectionDrawerOpen}
-              onDrawerOpenChange={onSectionDrawerOpenChange}
-              onSelect={onSectionSelect}
-              progressDotsPressable={false}
-              sections={sections}
-              showCompactTrigger={false}
-            />
-          ) : null}
-          {notice ? <Text style={styles.notice}>{notice}</Text> : null}
-          {pageHeader}
+          {compactListHeader}
           {questions}
         </ScrollView>
       ) : (
@@ -164,18 +284,18 @@ export function NativeSurveyRenderer({
           {sections.length ? <SectionNavigator sections={sections} onSelect={onSectionSelect} /> : null}
           {notice ? <Text style={styles.notice}>{notice}</Text> : null}
           {pageHeader}
-          <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.questions}>
-            {getVisiblePageQuestions(page).map((question) => renderTopLevelQuestion(question))}
+          <ScrollView ref={desktopScrollRef} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.questions}>
+            {visibleQuestions.map((question) => renderTopLevelQuestion(question))}
           </ScrollView>
         </>
       )}
       <View style={styles.navigation}>
         <Pressable
           accessibilityLabel="Previous section"
-          disabled={model.isFirstPage}
+          disabled={model.isFirstPage && !canMoveToPreviousQuestion()}
           hitSlop={6}
           onPress={previous}
-          style={[styles.iconButton, model.isFirstPage && styles.disabled]}
+          style={[styles.iconButton, model.isFirstPage && !canMoveToPreviousQuestion() && styles.disabled]}
         >
           <MaterialCommunityIcons color="#344054" name="chevron-left" size={28} />
         </Pressable>
@@ -204,7 +324,7 @@ export function NativeSurveyRenderer({
         <Pressable
           accessibilityLabel={model.isLastPage ? "Review and submit" : "Next section"}
           hitSlop={6}
-          onPress={model.isLastPage ? complete : next}
+          onPress={model.isLastPage && !canMoveToNextQuestion() ? complete : next}
           style={styles.primaryIconButton}
         >
           <MaterialCommunityIcons color="#ffffff" name="chevron-right" size={28} />
@@ -216,12 +336,15 @@ export function NativeSurveyRenderer({
 
 const styles = StyleSheet.create({
   wrap: { flex: 1, gap: 10 },
+  compactHeaderContent: { gap: 10 },
   pageHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: "#e4e7ec" },
   pageHeaderCompact: { paddingTop: 2, paddingBottom: 8 },
   pageTitle: { flex: 1, color: "#18202a", fontSize: 20, fontWeight: "800" },
   pageCount: { color: "#667085", fontSize: 13, fontWeight: "700" },
   compactContent: { gap: 10, paddingBottom: 22 },
   questions: { gap: 12, paddingVertical: 8, paddingBottom: 24 },
+  questionRow: { marginBottom: 12 },
+  questionCounter: { textAlign: "center", color: "#667085", fontSize: 12, fontWeight: "800" },
   notice: { padding: 9, borderRadius: 7, color: "#1f4d7a", backgroundColor: "#eef6ff", fontSize: 13, fontWeight: "700" },
   navigation: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingTop: 8, borderTopWidth: 1, borderTopColor: "#e4e7ec" },
   middleActions: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10 },

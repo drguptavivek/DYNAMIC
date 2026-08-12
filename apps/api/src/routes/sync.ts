@@ -489,6 +489,7 @@ router.post(
 
     let accepted = 0;
     const acceptedRecords: string[] = [];
+    const classifiedRecords: { id: string; status: string; error?: string }[] = [];
     const duplicates: string[] = [];
     const errors: { id: string; error: string }[] = [];
     let syncLogUserId = req.user?.sub ?? null;
@@ -572,6 +573,24 @@ router.post(
               });
 
               await processFormResponse(id);
+              const [processedResponse] = await tx
+                .select({
+                  response_status: schema.formResponses.response_status,
+                })
+                .from(schema.formResponses)
+                .where(eq(schema.formResponses.form_response_id, id))
+                .limit(1);
+              const responseStatus = processedResponse?.response_status || "primary";
+              if (responseStatus && responseStatus !== "primary") {
+                classifiedRecords.push({
+                  id,
+                  status: responseStatus,
+                  error:
+                    responseStatus === "duplicate"
+                      ? "Duplicate form response held for admin review"
+                      : `Form response classified as ${responseStatus}`,
+                });
+              }
 
               if (task_id) {
                 await tx
@@ -763,6 +782,7 @@ router.post(
       clock: buildSyncClockMetadata(clientTimeUtc),
       accepted,
       accepted_records: acceptedRecords,
+      classified_records: classifiedRecords,
       duplicates,
       errors,
     });

@@ -6,7 +6,7 @@ import * as ImagePicker from "expo-image-picker";
 import { setNativeQuestionValue } from "../nativeSurveyModel.js";
 import { QuestionFrame, controlStyles } from "./QuestionFrame.js";
 
-export function CameraRenderer({ question, onChange }) {
+export function CameraRenderer({ locale, question, onChange }) {
   const images = Array.isArray(question.value) ? question.value : [];
   async function captureImage() {
     const permission = await ImagePicker.requestCameraPermissionsAsync();
@@ -18,7 +18,7 @@ export function CameraRenderer({ question, onChange }) {
     onChange?.();
   }
   return (
-    <QuestionFrame question={question}>
+    <QuestionFrame locale={locale} question={question}>
       {images[0]?.uri ? <Image source={{ uri: images[0].uri }} style={styles.preview} /> : null}
       <Pressable onPress={captureImage} style={controlStyles.button}>
         <Text style={controlStyles.buttonText}>Take photo</Text>

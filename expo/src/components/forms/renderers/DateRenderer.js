@@ -12,7 +12,7 @@ import {
 import { getNativeQuestionValue, setNativeQuestionValue } from "../nativeSurveyModel.js";
 import { QuestionFrame } from "./QuestionFrame.js";
 
-export function DateRenderer({ answerData, question, onChange }) {
+export function DateRenderer({ answerData, locale, question, onChange }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const webInputRef = useRef(null);
   const value = getNativeQuestionValue(question, answerData);
@@ -37,7 +37,7 @@ export function DateRenderer({ answerData, question, onChange }) {
   }
 
   return (
-    <QuestionFrame question={question}>
+    <QuestionFrame locale={locale} question={question}>
       <View style={styles.pickerWrap}>
         <Pressable
           accessibilityLabel={question.name}

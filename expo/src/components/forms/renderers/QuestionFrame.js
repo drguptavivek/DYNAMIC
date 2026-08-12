@@ -8,9 +8,9 @@ import {
   getNativeQuestionTitle,
 } from "../nativeSurveyModel.js";
 
-export function QuestionFrame({ question, children, tone = "default" }) {
-  const title = getNativeQuestionTitle(question);
-  const description = getNativeQuestionDescription(question);
+export function QuestionFrame({ question, children, locale = "default", tone = "default" }) {
+  const title = getNativeQuestionTitle(question, locale);
+  const description = getNativeQuestionDescription(question, locale);
   const errors = getNativeQuestionErrors(question);
   return (
     <View style={[styles.frame, tone === "display" && styles.displayFrame]}>

@@ -77,7 +77,7 @@ export function QuestionnaireRouteScreen({ draftId, formCode, mode, openKey, tas
   }
 
   return (
-    <FieldAppShell route={route} title={title}>
+    <FieldAppShell route={route} title={title} topBarCollapsed={isEntryRoute}>
       <QuestionnaireDashboard
         formCode={normalizedFormCode}
         locale={app.locale}

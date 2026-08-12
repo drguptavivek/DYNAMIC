@@ -16,7 +16,6 @@ import { applyHouseholdMasterChoices } from "../../lib/householdMasterChoices.js
 import {
   attachHouseholdSurveyBehaviors,
   refreshHouseholdSurveyBehaviors,
-  validateHouseholdSurveyForFinalization,
 } from "../../lib/householdSurveyBehaviors.js";
 import {
   COMPACT_PREVIEW_SECTION_NAME,
@@ -38,10 +37,7 @@ import { buildHhqPrefill, mergePrefillIntoBlankValues } from "../../lib/prefillM
 import { getHouseholdSync } from "../../lib/householdSync.js";
 import { applyHhqTaskHouseholdPrefill } from "./hhqTaskPrefill.js";
 import { buildHouseholdIdFromHhqData } from "./householdIds.js";
-import {
-  extractHouseholdRegistryFields,
-  findExistingHouseholdForHhqData,
-} from "./householdRepository.js";
+import { extractHouseholdRegistryFields } from "./householdRepository.js";
 
 const AUTOSAVE_INTERVAL_MS = 30000;
 const MAX_HHQ_VISIT_NO = 3;
@@ -355,7 +351,7 @@ export function BaselineHouseholdForm({
     }
 
     attachHouseholdSurveyBehaviors(survey, form, undefined, {
-      findExistingHousehold: findExistingHouseholdForHhqData,
+      findExistingHousehold: null,
     });
     refreshHouseholdSurveyBehaviors(survey, form);
     answerSnapshotRef.current = mergeModelDataIntoDraftSnapshot(
@@ -698,17 +694,6 @@ export function BaselineHouseholdForm({
       setRevision((value) => value + 1);
       return;
     }
-    if (!availabilityStop) {
-      const householdValidation = await validateHouseholdSurveyForFinalization(model, {
-        findExistingHousehold: findExistingHouseholdForHhqData,
-      });
-      if (!householdValidation.valid) {
-        setView("form");
-        setMessage(householdValidation.message);
-        setRevision((value) => value + 1);
-        return;
-      }
-    }
     await openPreview({ final: true });
   }
 
@@ -728,17 +713,6 @@ export function BaselineHouseholdForm({
         return;
       }
       const availabilityStop = isHhqAvailabilityStop(model);
-      if (!availabilityStop) {
-        const householdValidation = await validateHouseholdSurveyForFinalization(model, {
-          findExistingHousehold: findExistingHouseholdForHhqData,
-        });
-        if (!householdValidation.valid) {
-          setView("form");
-          setMessage(householdValidation.message);
-          setRevision((value) => value + 1);
-          return;
-        }
-      }
       const registryRecord = extractHouseholdRegistryFields(model.data);
       const submission = await saveQuestionnaireSubmission({
         formCode: form.form_code,

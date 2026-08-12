@@ -5,6 +5,7 @@ export const FIELD_APP_ROUTES = {
   draftPendingForms: "/draft-pending-forms",
   completedForms: "/completed-forms",
   uploadedForms: "/uploaded-forms",
+  uploadErrors: "/upload-errors",
   households: "/households",
   householdNew: "/households/new",
   householdMembers: "/household-members",
@@ -26,6 +27,7 @@ export const SHELL_NAV_ITEMS = [
   { id: "draftPendingForms", label: "Draft/Pending Forms", route: FIELD_APP_ROUTES.draftPendingForms },
   { id: "completedForms", label: "Completed Forms", route: FIELD_APP_ROUTES.completedForms },
   { id: "uploadedForms", label: "Uploaded Forms", route: FIELD_APP_ROUTES.uploadedForms },
+  { id: "uploadErrors", label: "Upload Errors", route: FIELD_APP_ROUTES.uploadErrors },
   { id: "households", label: "Households", route: FIELD_APP_ROUTES.households },
   {
     id: "householdMembers",

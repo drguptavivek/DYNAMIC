@@ -16,6 +16,8 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 
 ### Added
 
+- Added the 28 July 2026 Excel version of the WQ Baseline Woman's Questionnaire as workbook-ordered sections, including Respondent Background, Reproduction, Other Health Issues, Work/Husband Background, Domestic Violence, Biomarkers, and Outcome.
+- Added a WQ pregnancy-history repeated panel for Excel questions 15_i through 28_i while keeping the existing `wq_pregnant` answer key for pregnancy workflow promotion.
 - Added a mobile Draft/Pending Forms drawer page for read-only review of local draft forms saved on the device.
 - Added admin Form Language Management for global questionnaire translations, including form/permission-site/language selectors, English source text, saved selected-language review text, per-question Edit/Save controls for question and option translations, and central-admin permission ON/OFF for all non-field-worker users of a selected site.
 - Added CSV export/import to Form Language Management so global questionnaire language files can be exported in fixed questionnaire order, filled offline, previewed on import, and saved only after confirming the matched rows.
@@ -25,6 +27,7 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 - Added mobile runtime form loading from synced protocol form JSON so field devices can use refreshed questionnaire language after Sync Now.
 - Added Kannada, Marathi, Tamil, and Telugu to the mobile questionnaire language switcher while keeping Urdu available only as questionnaire content.
 - Added mobile Completed Forms and Uploaded Forms drawer pages for pending and synced submitted CRFs.
+- Added a mobile Upload Errors drawer page for submitted CRFs that the server rejects or classifies as duplicates during sync.
 - Added search plus Site ID, Form ID, and Locality filters to the mobile Completed Forms and Uploaded Forms pages.
 - Added mobile Worklist draft badges, household head/address display, and an eye action for household detail review.
 - Showed the household head name beside the Worklist task-type badge for quick HHQ identification.
@@ -41,6 +44,25 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 
 ### Fixed
 
+- Allowed task-backed HHQ revisit submissions to reuse their assigned household ID without triggering duplicate household validation.
+- Changed mobile HHQ final submit to remain offline-first by saving completed submissions locally and moving duplicate/server-rejected uploads into Upload Errors during Sync Now.
+- Routed mobile final HHQ submit to Completed Forms and handled server-promoted canonical event rejections so classified uploads move out of red pending sync state.
+- Prevented non-HHQ task forms from loading HHQ-only survey behavior, keeping all taskbuilder questionnaires on the shared native renderer and routing their final submits to Completed Forms.
+- Reduced mobile final-save delay by skipping unnecessary list/household refreshes before navigating submitted forms to Completed Forms.
+- Cleaned up the mobile generic questionnaire shell so WQ and other non-HHQ forms use a tighter phone layout without the bulky progress card or duplicate top Save/Preview controls.
+- Fixed the mobile WQ/generic questionnaire screen so an open form uses a full-screen compact overlay with an HHQ-style header, floating language control, and no dashboard/submissions panel underneath.
+- Fixed offline sync on upgraded mobile databases by adding missing `updated_at` migrations for pending form responses and domain-event outbox records.
+- Improved generic questionnaire responsiveness by avoiding full progress/section recalculation on every answer change in large forms such as WQ.
+- Improved large mobile questionnaire scrolling and button responsiveness by virtualizing compact native form pages instead of mounting every question in a large section at once.
+- Stabilized large mobile questionnaire scrolling and language switching by keeping compact scroll events out of parent state updates, removing the duplicate compact language switcher, and forcing native page rows to repaint when locale changes.
+- Reworked compact mobile questionnaire rendering to progressively mount large sections in small batches, preventing variable-height list drift and keeping navigation/language controls responsive while WQ loads.
+- Forced native Android/iOS questionnaire entry screens to use the compact mobile form surface regardless of reported window pixel width, keeping WQ and other non-HHQ forms out of the dashboard/submissions layout on phones.
+- Reduced typing lag in native text and number questions by deferring full renderer refreshes until blur-time validation instead of every character entry.
+- Made generic mobile questionnaire language switching local to the open form first, avoiding broad app-context repaint work before the selected language appears.
+- Made native questionnaire language switching read selected-language text directly from the active question and option, keeping large WQ forms responsive and falling back to English when a translation is missing.
+- Reduced compact questionnaire background render batch size so WQ controls become usable sooner while large sections continue loading in smaller chunks.
+- Kept large generic mobile questionnaires such as WQ in section-wise mobile layout while progressively mounting the section to avoid freezing the screen.
+- Opened non-HHQ task questionnaire entry routes in the same collapsed mobile shell as HHQ so WQ uses the full-screen form surface instead of the dashboard/submissions layout.
 - Cleared mobile offline tasks, households, drafts, submitted forms, protocol form cache, sync metadata, and app-lock PIN/biometric setup on explicit Logout while preserving cached data during normal PIN/biometric unlock.
 - Added a mobile Logout confirmation warning before deleting current-user data stored on the device.
 - Highlighted mobile Worklist task cards in yellow after a local manual draft save and refreshed Worklist draft status after saving.

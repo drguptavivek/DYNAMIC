@@ -6,7 +6,7 @@ import * as DocumentPicker from "expo-document-picker";
 import { setNativeQuestionValue } from "../nativeSurveyModel.js";
 import { QuestionFrame, controlStyles } from "./QuestionFrame.js";
 
-export function FilePickerRenderer({ question, onChange }) {
+export function FilePickerRenderer({ locale, question, onChange }) {
   const files = Array.isArray(question.value) ? question.value : [];
   async function pickFile() {
     const result = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true, multiple: false });
@@ -16,7 +16,7 @@ export function FilePickerRenderer({ question, onChange }) {
     onChange?.();
   }
   return (
-    <QuestionFrame question={question}>
+    <QuestionFrame locale={locale} question={question}>
       <Text style={controlStyles.status}>{files[0]?.name || "No file selected"}</Text>
       <Pressable onPress={pickFile} style={controlStyles.button}>
         <Text style={controlStyles.buttonText}>Choose file</Text>

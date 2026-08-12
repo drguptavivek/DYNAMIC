@@ -48,10 +48,10 @@ const GROUP_CONFIGS = {
   ],
 };
 
-export function GroupedCodedSingleSelectRenderer({ answerData, question, onChange }) {
+export function GroupedCodedSingleSelectRenderer({ answerData, locale, question, onChange }) {
   const groups = GROUP_CONFIGS[question.name] || [];
   const [expandedGroup, setExpandedGroup] = useState(null);
-  const choices = getNativeQuestionChoices(question);
+  const choices = getNativeQuestionChoices(question, locale);
   const choiceByValue = useMemo(
     () => new Map(choices.map((choice) => [String(choice.value), choice])),
     [choices]
@@ -133,7 +133,7 @@ export function GroupedCodedSingleSelectRenderer({ answerData, question, onChang
   }
 
   return (
-    <QuestionFrame question={question}>
+    <QuestionFrame locale={locale} question={question}>
       <View style={controlStyles.options}>
         {groups.map(renderParent)}
       </View>

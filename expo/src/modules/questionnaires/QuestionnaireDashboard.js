@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Model } from "survey-core";
-
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { NativeSurveyRenderer } from "../../components/forms/NativeSurveyRenderer.js";
 import { RendererLanguageSwitcher } from "../../components/forms/RendererLanguageSwitcher.js";
 import { PreviewRenderer } from "../../components/forms/renderers/PreviewRenderer.js";
@@ -40,6 +40,10 @@ const AUTOSAVE_INTERVAL_MS = 30000;
 const HOUSEHOLD_SCHEDULE_PAGE_NAME = "page_02_household_schedule";
 const HOUSEHOLD_CHARACTERISTICS_PAGE_NAME = "page_03_household_characteristics";
 
+function isHouseholdQuestionnaire(form) {
+  return String(form?.form_code || "").toUpperCase() === "HHQ";
+}
+
 function getDataSignature(data) {
   return JSON.stringify(data || {});
 }
@@ -58,6 +62,7 @@ export function QuestionnaireDashboard({
 }) {
   const [submissions, setSubmissions] = useState([]);
   const [saveMessage, setSaveMessage] = useState("");
+  const [activeLocale, setActiveLocale] = useState(locale || "default");
   const [sections, setSections] = useState([]);
   const [progress, setProgress] = useState({ answered: 0, total: 0, percent: 0 });
   const [draftId, setDraftId] = useState(null);
@@ -69,7 +74,7 @@ export function QuestionnaireDashboard({
   const [memberSummaryConfirmed, setMemberSummaryConfirmed] = useState(false);
   const [sectionDrawerOpen, setSectionDrawerOpen] = useState(false);
   const { width } = useWindowDimensions();
-  const compact = width < 700;
+  const compact = Platform.OS !== "web" || width < 700;
   const form = getRuntimeFormByCode(formCode);
   const showForm = mode === "new";
   const draftIdRef = useRef(null);
@@ -78,6 +83,24 @@ export function QuestionnaireDashboard({
   const hasPreviewedRef = useRef(false);
   const previewSignatureRef = useRef("");
   const memberSummaryConfirmedRef = useRef(false);
+  const surveyRef = useRef(null);
+
+  useEffect(() => {
+    if (!showForm) {
+      setActiveLocale(locale || "default");
+    }
+  }, [locale, showForm]);
+
+  const changeFormLocale = useCallback(
+    (nextLocale) => {
+      const normalizedLocale = nextLocale || "default";
+      setActiveLocale(normalizedLocale);
+      requestAnimationFrame(() => {
+        onLocaleChange?.(normalizedLocale);
+      });
+    },
+    [onLocaleChange],
+  );
 
   const refreshSubmissions = async () => {
     setSubmissions(await listQuestionnaireSubmissions(formCode));
@@ -132,7 +155,7 @@ export function QuestionnaireDashboard({
     setDirty(false);
     if (!silent) {
       onDraftSaved?.();
-      const savedMessage = getDraftSavedMessage(locale);
+      const savedMessage = getDraftSavedMessage(activeLocale);
       setSaveMessage(savedMessage);
       if (manual) {
         Alert.alert(savedMessage, "", [
@@ -160,7 +183,7 @@ export function QuestionnaireDashboard({
   }
 
   function openMemberSummaryFromModel(model) {
-    if (!model || form?.form_code !== "HHQ") return;
+    if (!model || !isHouseholdQuestionnaire(form)) return;
     refreshHouseholdSurveyBehaviors(model, form);
     setPreviewOpen(false);
     setSectionDrawerOpen(false);
@@ -200,7 +223,7 @@ export function QuestionnaireDashboard({
       return;
     }
     if (
-      form?.form_code === "HHQ" &&
+      isHouseholdQuestionnaire(form) &&
       sectionName === HOUSEHOLD_CHARACTERISTICS_PAGE_NAME &&
       !memberSummaryConfirmedRef.current
     ) {
@@ -242,16 +265,17 @@ export function QuestionnaireDashboard({
       applyReadOnlyFields(model, readOnlyFields);
     }
 
-    attachHouseholdSurveyBehaviors(model, form);
+    if (isHouseholdQuestionnaire(form)) {
+      attachHouseholdSurveyBehaviors(model, form);
+    }
 
     model.onValueChanged.add((sender) => {
       markDirty();
-      updateSurveyStatus(sender);
     });
 
     model.onCurrentPageChanging.add((sender, options) => {
       if (
-        form.form_code === "HHQ" &&
+        isHouseholdQuestionnaire(form) &&
         options.oldCurrentPage?.name === HOUSEHOLD_SCHEDULE_PAGE_NAME &&
         options.newCurrentPage?.name === HOUSEHOLD_CHARACTERISTICS_PAGE_NAME &&
         !memberSummaryConfirmedRef.current
@@ -295,18 +319,25 @@ export function QuestionnaireDashboard({
         });
         onDraftSaved?.();
       }
-      await refreshSubmissions();
       setSaveMessage(`Finalized ${submission.submission_id}`);
-      navigateTo(ROUTES.questionnaire(formCode));
+      navigateTo(ROUTES.completedForms);
     });
     return model;
   }, [showForm, form, formCode, prefillData, readOnlyFields, taskContext, draftContext]);
 
   useEffect(() => {
+    surveyRef.current = survey;
+    return () => {
+      if (surveyRef.current === survey) {
+        surveyRef.current = null;
+      }
+    };
+  }, [survey]);
+
+  useEffect(() => {
     if (!showForm || !survey) return;
-    survey.locale = locale;
     updateSurveyStatus(survey);
-  }, [showForm, survey, locale]);
+  }, [showForm, survey]);
 
   useEffect(() => {
     if (!showForm || !survey || !draftContext) return undefined;
@@ -343,7 +374,9 @@ export function QuestionnaireDashboard({
           form,
           mergePrefillIntoBlankValues(restoredData, survey.data || {}),
         );
-        refreshHouseholdSurveyBehaviors(survey, form);
+        if (isHouseholdQuestionnaire(form)) {
+          refreshHouseholdSurveyBehaviors(survey, form);
+        }
         hasPreviewedRef.current = false;
         setPreviewConfirmed(false);
         memberSummaryConfirmedRef.current = false;
@@ -409,32 +442,58 @@ export function QuestionnaireDashboard({
     );
   }
 
-  const displayedSections = survey
-    ? buildSurveySections(survey, {
-        includeHouseholdMemberSummary: form.form_code === "HHQ",
-        includeCompactPreview: true,
-        currentSectionName: memberSummaryOpen
-          ? HOUSEHOLD_MEMBER_SUMMARY_SECTION_NAME
-          : previewOpen
-            ? COMPACT_PREVIEW_SECTION_NAME
-            : null,
-        householdMemberSummaryConfirmed: memberSummaryConfirmed,
-        compactPreviewConfirmed: previewConfirmed,
-      })
-    : sections;
+  const displayedSections = useMemo(
+    () =>
+      survey
+        ? buildSurveySections(survey, {
+            includeHouseholdMemberSummary: isHouseholdQuestionnaire(form),
+            includeCompactPreview: true,
+            currentSectionName: memberSummaryOpen
+              ? HOUSEHOLD_MEMBER_SUMMARY_SECTION_NAME
+              : previewOpen
+                ? COMPACT_PREVIEW_SECTION_NAME
+                : null,
+            householdMemberSummaryConfirmed: memberSummaryConfirmed,
+            compactPreviewConfirmed: previewConfirmed,
+          })
+        : sections,
+    [survey, form, memberSummaryOpen, previewOpen, memberSummaryConfirmed, previewConfirmed, sections],
+  );
   const memberSummaryRows = survey
-    ? buildHouseholdMemberSummaryRows(survey.data || {}, form, locale)
+    ? buildHouseholdMemberSummaryRows(survey.data || {}, form, activeLocale)
     : [];
+  const hideDashboardShell = showForm && compact;
 
   return (
     <View style={styles.wrap}>
       {showForm && (
-        <View style={styles.formWindow}>
-          <View style={[styles.formWindowHeader, compact && styles.formWindowHeaderCompact]}>
-            <View style={styles.titleBlock}>
+        <View style={[styles.formWindow, compact && styles.formWindowCompact]}>
+          {compact ? (
+            <View style={[styles.formWindowHeader, styles.formWindowHeaderCompact]}>
+              <Pressable
+                accessibilityLabel="Open sections"
+                onPress={() => setSectionDrawerOpen(true)}
+                style={styles.headerIconButton}
+              >
+                <MaterialCommunityIcons color="#344054" name="format-list-bulleted-square" size={23} />
+              </Pressable>
+              <Text numberOfLines={1} style={[styles.formWindowTitle, styles.formWindowTitleCompact]}>
+                {form.title?.default || form.title}
+              </Text>
+              <Pressable
+                accessibilityLabel="Close questionnaire"
+                onPress={() => handleCloseForm(survey)}
+                style={styles.headerIconButton}
+              >
+                <MaterialCommunityIcons color="#d92d20" name="close-circle" size={25} />
+              </Pressable>
+            </View>
+          ) : null}
+          <View style={[styles.formWindowHeader, compact && styles.formWindowHeaderHidden]}>
+            <View style={[styles.titleBlock, compact && styles.formHeaderTitleBlockCompact]}>
               <Text style={styles.code}>{form.form_code}</Text>
               <View>
-                <Text style={styles.formWindowTitle}>{form.title?.default || form.title}</Text>
+                <Text numberOfLines={compact ? 1 : undefined} style={[styles.formWindowTitle, compact && styles.formWindowTitleCompact]}>{form.title?.default || form.title}</Text>
                 <Text style={styles.subtle}>
                   {lastSavedAt
                     ? `Draft saved ${lastSavedAt}${dirty ? " · unsaved changes" : ""}`
@@ -445,17 +504,17 @@ export function QuestionnaireDashboard({
             <View style={[styles.formWindowActions, compact && styles.formWindowActionsCompact]}>
               <Pressable
                 onPress={() => saveDraftFromModel(survey, { manual: true })}
-                style={styles.secondaryButton}
+                style={[styles.secondaryButton, compact && styles.compactHeaderButtonHidden]}
               >
                 <Text style={styles.secondaryButtonText}>Save Draft</Text>
               </Pressable>
               <Pressable
                 onPress={() => openPreviewFromModel(survey)}
-                style={styles.secondaryButton}
+                style={[styles.secondaryButton, compact && styles.compactHeaderButtonHidden]}
               >
                 <Text style={styles.secondaryButtonText}>Preview</Text>
               </Pressable>
-              <RendererLanguageSwitcher locale={locale} onChange={onLocaleChange} />
+              {!compact ? <RendererLanguageSwitcher locale={activeLocale} onChange={changeFormLocale} /> : null}
               <Pressable
                 onPress={() => handleCloseForm(survey)}
                 style={styles.secondaryButton}
@@ -465,7 +524,12 @@ export function QuestionnaireDashboard({
             </View>
           </View>
           <View style={[styles.formWindowBody, compact && styles.formWindowBodyCompact]}>
-            <View style={styles.progressHeader}>
+            {compact ? (
+              <View style={styles.languageOverlay}>
+                <RendererLanguageSwitcher iconOnly locale={activeLocale} onChange={changeFormLocale} />
+              </View>
+            ) : null}
+            {!compact ? <View style={styles.progressHeader}>
               <View style={styles.progressTextRow}>
                 <Text style={styles.panelTitle}>Progress</Text>
                 <Text style={styles.subtle}>
@@ -475,7 +539,7 @@ export function QuestionnaireDashboard({
               <View style={styles.progressTrack}>
                 <View style={[styles.progressFill, { width: `${progress.percent}%` }]} />
               </View>
-            </View>
+            </View> : null}
 
             <View style={[styles.formWorkspace, compact && styles.formWorkspaceCompact]}>
               {!compact ? <View style={styles.sectionNav}>
@@ -587,10 +651,12 @@ export function QuestionnaireDashboard({
                         </Pressable>
                       </View>
                     </View>
-                    <PreviewRenderer model={survey} />
+                    <PreviewRenderer locale={activeLocale} model={survey} />
                   </View>
                 ) : survey ? (
                   <NativeSurveyRenderer
+                    compactPager={false}
+                    locale={activeLocale}
                     model={survey}
                     notice={saveMessage}
                     onCompleteRequested={(activeModel) => activeModel?.doComplete?.()}
@@ -608,6 +674,8 @@ export function QuestionnaireDashboard({
         </View>
       )}
 
+      {!hideDashboardShell ? (
+        <>
       <View style={styles.toolbar}>
         <View style={styles.titleBlock}>
           <Text style={styles.code}>{form.form_code}</Text>
@@ -649,6 +717,8 @@ export function QuestionnaireDashboard({
           <View style={styles.emptyPanel} />
         )}
       </View>
+        </>
+      ) : null}
     </View>
   );
 }
@@ -675,6 +745,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
+  },
+  formHeaderTitleBlockCompact: {
+    display: "none",
   },
   code: {
     minWidth: 52,
@@ -749,6 +822,15 @@ const styles = StyleSheet.create({
     zIndex: 20,
     backgroundColor: "#eef2f5",
   },
+  formWindowCompact: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    zIndex: 50,
+    elevation: 50,
+  },
   formWindowHeader: {
     minHeight: 76,
     flexDirection: "row",
@@ -761,10 +843,26 @@ const styles = StyleSheet.create({
     borderBottomColor: "#d8dee4",
   },
   formWindowHeaderCompact: {
-    minHeight: 0,
-    alignItems: "flex-start",
+    height: 56,
+    maxHeight: 56,
+    minHeight: 56,
+    flexShrink: 0,
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 6,
+    gap: 10,
+  },
+  formWindowHeaderHidden: {
+    display: "none",
+  },
+  headerIconButton: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 8,
+    backgroundColor: "#ffffff",
   },
   formWindowActions: {
     flexDirection: "row",
@@ -775,18 +873,27 @@ const styles = StyleSheet.create({
   },
   formWindowActionsCompact: {
     flex: 1,
-    justifyContent: "flex-start",
-    gap: 8,
+    width: "100%",
+    flexShrink: 0,
+    justifyContent: "flex-end",
+    gap: 6,
   },
   formWindowTitle: {
     fontSize: 20,
     fontWeight: "800",
     color: "#18202a",
+    flexShrink: 1,
+  },
+  formWindowTitleCompact: {
+    flex: 1,
+    maxWidth: undefined,
+    textAlign: "center",
+    fontSize: 15,
   },
   secondaryButton: {
-    minHeight: 38,
+    minHeight: 36,
     justifyContent: "center",
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     borderRadius: 6,
     borderWidth: 1,
     borderColor: "#d8dee4",
@@ -796,6 +903,9 @@ const styles = StyleSheet.create({
     color: "#18202a",
     fontWeight: "700",
   },
+  compactHeaderButtonHidden: {
+    display: "none",
+  },
   formWindowBody: {
     flex: 1,
     margin: 18,
@@ -803,7 +913,18 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   formWindowBodyCompact: {
-    margin: 10,
+    flex: 1,
+    minHeight: 0,
+    position: "relative",
+    margin: 0,
+    padding: 12,
+  },
+  languageOverlay: {
+    position: "absolute",
+    top: 2,
+    right: 12,
+    zIndex: 5,
+    elevation: 5,
   },
   progressHeader: {
     padding: 12,
@@ -838,6 +959,7 @@ const styles = StyleSheet.create({
   },
   formWorkspaceCompact: {
     flexDirection: "column",
+    gap: 0,
   },
   sectionNav: {
     width: 260,

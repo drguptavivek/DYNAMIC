@@ -516,9 +516,37 @@ export async function pushSync() {
     setClockMetadata(result.clock);
     const acceptedIds = collectAcceptedSyncIds(result);
     const serverErrors = Array.isArray(result.errors) ? result.errors : [];
+    const serverDuplicates = Array.isArray(result.duplicates) ? result.duplicates : [];
+    const classifiedRecords = Array.isArray(result.classified_records) ? result.classified_records : [];
+    const uploadErrorById = new Map();
+
+    for (const id of serverDuplicates) {
+      uploadErrorById.set(id, "Record already exists on the server");
+    }
+    for (const item of classifiedRecords) {
+      if (!item?.id) continue;
+      const status = item.status || "upload_error";
+      if (status === "duplicate" || status === "held_for_review" || status === "invalid_rejected") {
+        uploadErrorById.set(
+          item.id,
+          item.error || `Server classified this form as ${status}`,
+        );
+      }
+    }
+    for (const item of serverErrors) {
+      if (item?.id) {
+        uploadErrorById.set(item.id, item.error || "Server rejected this form");
+      }
+    }
 
     for (const item of pending) {
-      if (acceptedIds.has(item.id)) {
+      if (uploadErrorById.has(item.id)) {
+        await taskRepository.markResponseUploadError(item.id, uploadErrorById.get(item.id));
+        const { markQuestionnaireSubmissionUploadError } = await import(
+          "../questionnaires/questionnaireSubmissionRepository.js"
+        );
+        markQuestionnaireSubmissionUploadError(item.id, uploadErrorById.get(item.id));
+      } else if (acceptedIds.has(item.id)) {
         await taskRepository.markResponseSynced(item.id);
         const { markQuestionnaireSubmissionSynced } = await import(
           "../questionnaires/questionnaireSubmissionRepository.js"
@@ -528,21 +556,43 @@ export async function pushSync() {
     }
 
     const { markEventSynced } = await import("../events/eventOutbox.js");
+    const pendingEventIds = new Set(pendingEvents.map((event) => event.id));
+    const handledEventErrorIds = new Set();
     for (const event of pendingEvents) {
       if (acceptedIds.has(event.id)) {
         markEventSynced(event.id);
       }
     }
 
-    if (serverErrors.length > 0) {
-      const errorText = serverErrors.map((item) => `${item.id}: ${item.error}`).join("; ");
+    for (const item of serverErrors) {
+      const message = String(item?.error || "");
+      if (
+        item?.id &&
+        pendingEventIds.has(item.id) &&
+        message.includes("Domain event does not match a server-promoted canonical event")
+      ) {
+        markEventSynced(item.id);
+        handledEventErrorIds.add(item.id);
+      }
+    }
+
+    const unhandledErrors = serverErrors.filter(
+      (item) => !pending.some((response) => response.id === item.id) && !handledEventErrorIds.has(item.id),
+    );
+    if (unhandledErrors.length > 0) {
+      const errorText = unhandledErrors.map((item) => `${item.id}: ${item.error}`).join("; ");
       throw new Error(`Push sync accepted ${acceptedIds.size} records with errors: ${errorText}`);
     }
 
-    const acceptedResponses = pending.filter((item) => acceptedIds.has(item.id)).length;
-    const acceptedEvents = pendingEvents.filter((event) => acceptedIds.has(event.id)).length;
+    const acceptedResponses = pending.filter(
+      (item) => acceptedIds.has(item.id) && !uploadErrorById.has(item.id),
+    ).length;
+    const uploadErrors = pending.filter((item) => uploadErrorById.has(item.id)).length;
+    const acceptedEvents = pendingEvents.filter(
+      (event) => acceptedIds.has(event.id) || handledEventErrorIds.has(event.id),
+    ).length;
 
-    return { pushed: acceptedResponses, events: acceptedEvents };
+    return { pushed: acceptedResponses, events: acceptedEvents, uploadErrors };
   } catch (error) {
     console.error("Push sync error:", error);
     throw error;
@@ -576,6 +626,7 @@ export async function syncAll(options = {}) {
       localities: assignmentResult.localityCodes.length,
       pushed: pushResult.pushed,
       events: pushResult.events,
+      uploadErrors: pushResult.uploadErrors,
       clockStatus: getClockStatus(),
     });
     if (getHouseholdCacheInfo().isWebStorage) {
@@ -585,6 +636,7 @@ export async function syncAll(options = {}) {
         localities: assignmentResult.localityCodes.length,
         pushed: pushResult.pushed,
         events: pushResult.events,
+        uploadErrors: pushResult.uploadErrors,
       });
       clearHouseholdCacheForSync();
     }
@@ -595,6 +647,7 @@ export async function syncAll(options = {}) {
       localities: assignmentResult.localityCodes.length,
       pushed: pushResult.pushed,
       events: pushResult.events,
+      uploadErrors: pushResult.uploadErrors,
       pulled: pullResult.pulled,
       pulledOpenTasks: pullResult.pulledOpenTasks,
       pulledHouseholds: pullResult.pulledHouseholds,
@@ -612,6 +665,7 @@ export async function syncAll(options = {}) {
       pulledMembers: pullResult.pulledMembers,
       pushed: pushResult.pushed,
       events: pushResult.events,
+      uploadErrors: pushResult.uploadErrors,
       formsUpdated: pullResult.formsUpdated,
     };
   } catch (error) {

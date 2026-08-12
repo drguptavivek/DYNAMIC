@@ -6,10 +6,10 @@ import { getNativeQuestionValue, setNativeQuestionValue } from "../nativeSurveyM
 import { QuestionFrame, controlStyles } from "./QuestionFrame.js";
 import { validateRegexQuestion } from "../validators/RegexValidator.js";
 
-export function TextRenderer({ answerData, question, onChange }) {
+export function TextRenderer({ answerData, locale, question, onChange }) {
   const value = getNativeQuestionValue(question, answerData);
   return (
-    <QuestionFrame question={question}>
+    <QuestionFrame locale={locale} question={question}>
       <TextInput
         accessibilityLabel={question.name}
         value={value === undefined || value === null ? "" : String(value)}
@@ -17,7 +17,6 @@ export function TextRenderer({ answerData, question, onChange }) {
         autoCapitalize="sentences"
         onChangeText={(value) => {
           setNativeQuestionValue(question, value);
-          onChange?.();
         }}
         onBlur={() => {
           validateRegexQuestion(question);

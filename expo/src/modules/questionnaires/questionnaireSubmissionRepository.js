@@ -143,6 +143,8 @@ function saveWebFormResponse(response) {
     answers_json: JSON.stringify(response.answers_json || {}),
     submitted_at: response.submitted_at,
     sync_status: response.sync_status,
+    sync_error: response.sync_error || null,
+    sync_error_at: response.sync_error_at || null,
     device_id: response.device_id,
     created_at: response.created_at,
   };
@@ -559,7 +561,36 @@ export function markQuestionnaireSubmissionSynced(submissionId) {
     JSON.stringify(
       rows.map((row) =>
         row.submission_id === submissionId || row.id === submissionId
-          ? { ...row, sync_status: "synced", updated_at: new Date().toISOString() }
+          ? {
+              ...row,
+              sync_status: "synced",
+              sync_error: null,
+              sync_error_at: null,
+              updated_at: new Date().toISOString(),
+            }
+          : row,
+      ),
+    ),
+  );
+}
+
+export function markQuestionnaireSubmissionUploadError(submissionId, message) {
+  const storage = getStorage();
+  if (!storage || !submissionId) return;
+  const now = new Date().toISOString();
+  const rows = JSON.parse(storage.getItem(STORAGE_KEY) || "[]");
+  storage.setItem(
+    STORAGE_KEY,
+    JSON.stringify(
+      rows.map((row) =>
+        row.submission_id === submissionId || row.id === submissionId
+          ? {
+              ...row,
+              sync_status: "upload_error",
+              sync_error: message || "Upload failed",
+              sync_error_at: now,
+              updated_at: now,
+            }
           : row,
       ),
     ),

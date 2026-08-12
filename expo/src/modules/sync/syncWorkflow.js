@@ -235,6 +235,10 @@ export function formatSyncCompletionMessage(result = {}) {
     parts.push(`${pluralize(result.events, "event")} pushed`);
   }
 
+  if (typeof result.uploadErrors === "number" && result.uploadErrors > 0) {
+    parts.push(`${pluralize(result.uploadErrors, "upload error")} saved`);
+  }
+
   if (Object.prototype.hasOwnProperty.call(result, "formsUpdated")) {
     parts.push(`${pluralize(result.formsUpdated, "questionnaire")} refreshed`);
   }

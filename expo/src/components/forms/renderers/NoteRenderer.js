@@ -5,10 +5,10 @@ import { TextInput } from "react-native";
 import { getNativeQuestionValue, setNativeQuestionValue } from "../nativeSurveyModel.js";
 import { QuestionFrame, controlStyles } from "./QuestionFrame.js";
 
-export function NoteRenderer({ answerData, question, onChange }) {
+export function NoteRenderer({ answerData, locale, question, onChange }) {
   const value = getNativeQuestionValue(question, answerData);
   return (
-    <QuestionFrame question={question}>
+    <QuestionFrame locale={locale} question={question}>
       <TextInput
         accessibilityLabel={question.name}
         value={value || ""}

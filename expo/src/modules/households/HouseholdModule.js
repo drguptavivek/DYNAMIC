@@ -225,9 +225,8 @@ export function HouseholdModule({
         onClose={() => navigateTo(ROUTES.households)}
         onDraftSaved={onDraftSaved}
         onManualDraftSaved={() => navigateTo(ROUTES.worklist, { replace: true })}
-        onSaved={async () => {
-          await refreshHouseholds();
-          navigateTo(ROUTES.households);
+        onSaved={() => {
+          navigateTo(ROUTES.completedForms);
         }}
       />
     );

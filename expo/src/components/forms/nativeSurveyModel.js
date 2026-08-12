@@ -32,8 +32,22 @@ export function stripSurveyHtml(value) {
     .trim();
 }
 
-function localizedText(localizable, fallback = "") {
-  const rendered = localizable?.renderedHtml ?? localizable?.text;
+function localizedText(localizable, fallback = "", locale = "default") {
+  const activeLocale = locale && locale !== "default" ? String(locale) : "default";
+  const localized =
+    activeLocale !== "default" && typeof localizable?.getLocaleText === "function"
+      ? localizable.getLocaleText(activeLocale)
+      : "";
+  const defaultText =
+    typeof localizable?.getLocaleText === "function"
+      ? localizable.getLocaleText("default")
+      : "";
+  const rendered =
+    localized ||
+    (activeLocale === "default" ? (localizable?.renderedHtml ?? localizable?.text) : "") ||
+    defaultText ||
+    localizable?.text ||
+    fallback;
   return stripSurveyHtml(rendered || fallback);
 }
 
@@ -46,12 +60,12 @@ function defaultChoiceText(choice) {
   return "";
 }
 
-export function getNativeQuestionTitle(question) {
-  return localizedText(question?.locTitle, question?.title || question?.name || "");
+export function getNativeQuestionTitle(question, locale = "default") {
+  return localizedText(question?.locTitle, question?.title || question?.name || "", locale);
 }
 
-export function getNativeQuestionDescription(question) {
-  return localizedText(question?.locDescription, question?.description || "");
+export function getNativeQuestionDescription(question, locale = "default") {
+  return localizedText(question?.locDescription, question?.description || "", locale);
 }
 
 export function getNativeQuestionErrors(question) {
@@ -65,13 +79,13 @@ export function getNativeQuestionErrors(question) {
     .filter(Boolean);
 }
 
-export function getNativeQuestionChoices(question) {
+export function getNativeQuestionChoices(question, locale = "default") {
   const choices = question?.visibleChoices || question?.choices || [];
   return choices.map((choice) => {
     const defaultText = defaultChoiceText(choice);
     return {
       value: choice.value,
-      text: localizedText(choice.locText, defaultText || choice.text || choice.value) || defaultText || String(choice.value ?? ""),
+      text: localizedText(choice.locText, defaultText || choice.text || choice.value, locale) || defaultText || String(choice.value ?? ""),
     };
   });
 }
@@ -219,12 +233,12 @@ function displayValue(question) {
   return String(question.value);
 }
 
-function previewQuestion(question) {
+function previewQuestion(question, locale = "default") {
   const type = question.getType?.() || question.type;
   if (type === "html") {
     return {
       name: question.name,
-      title: getNativeQuestionTitle(question),
+      title: getNativeQuestionTitle(question, locale),
       type,
       value: stripSurveyHtml(question.html),
     };
@@ -232,7 +246,7 @@ function previewQuestion(question) {
   if (type === "paneldynamic") {
     return {
       name: question.name,
-      title: getNativeQuestionTitle(question),
+      title: getNativeQuestionTitle(question, locale),
       type,
       panelRows: (question.panels || []).map((panel, index) => ({
         index: index + 1,
@@ -240,7 +254,7 @@ function previewQuestion(question) {
           .filter((child) => child.isVisible !== false && child.getType?.() !== "html")
           .map((child) => ({
             name: child.name,
-            title: getNativeQuestionTitle(child),
+            title: getNativeQuestionTitle(child, locale),
             value: displayValue(child),
           })),
       })),
@@ -248,16 +262,16 @@ function previewQuestion(question) {
   }
   return {
     name: question.name,
-    title: getNativeQuestionTitle(question),
+    title: getNativeQuestionTitle(question, locale),
     type,
     value: displayValue(question),
   };
 }
 
-export function buildNativeSurveyPreview(model) {
+export function buildNativeSurveyPreview(model, locale = "default") {
   return (model?.visiblePages || model?.pages || []).map((page) => ({
     name: page.name,
-    title: localizedText(page.locTitle, page.title || page.name),
-    questions: getVisiblePageQuestions(page).map(previewQuestion),
+    title: localizedText(page.locTitle, page.title || page.name, locale),
+    questions: getVisiblePageQuestions(page).map((question) => previewQuestion(question, locale)),
   }));
 }

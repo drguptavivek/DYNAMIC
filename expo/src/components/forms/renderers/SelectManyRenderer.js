@@ -5,13 +5,13 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { getNativeQuestionChoices, getNativeQuestionValue, setNativeQuestionValue } from "../nativeSurveyModel.js";
 import { QuestionFrame, controlStyles } from "./QuestionFrame.js";
 
-export function SelectManyRenderer({ answerData, question, onChange }) {
+export function SelectManyRenderer({ answerData, locale, question, onChange }) {
   const value = getNativeQuestionValue(question, answerData);
   const selectedValues = Array.isArray(value) ? value : [];
   return (
-    <QuestionFrame question={question}>
+    <QuestionFrame locale={locale} question={question}>
       <View style={controlStyles.options}>
-        {getNativeQuestionChoices(question).map((choice) => {
+        {getNativeQuestionChoices(question, locale).map((choice) => {
           const selected = selectedValues.some((value) => String(value) === String(choice.value));
           return (
             <Pressable

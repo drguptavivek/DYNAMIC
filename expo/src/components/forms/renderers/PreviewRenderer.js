@@ -4,8 +4,8 @@ import { ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { buildNativeSurveyPreview } from "../nativeSurveyModel.js";
 
-export function PreviewRenderer({ model }) {
-  const pages = buildNativeSurveyPreview(model);
+export function PreviewRenderer({ locale, model }) {
+  const pages = buildNativeSurveyPreview(model, locale);
   return (
     <ScrollView contentContainerStyle={styles.content}>
       {pages.map((page) => (

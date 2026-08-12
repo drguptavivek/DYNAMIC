@@ -5,7 +5,7 @@ import * as Location from "expo-location";
 
 import { QuestionFrame, controlStyles } from "./QuestionFrame.js";
 
-export function GpsRenderer({ question, onChange }) {
+export function GpsRenderer({ locale, question, onChange }) {
   const [status, setStatus] = useState("");
   const isCaptureControl = question.name === "hhq_gps_latitude";
 
@@ -30,7 +30,7 @@ export function GpsRenderer({ question, onChange }) {
   }
 
   return (
-    <QuestionFrame question={question} tone="display">
+    <QuestionFrame locale={locale} question={question} tone="display">
       <Text>{question.value === undefined || question.value === null ? "Not captured" : String(question.value)}</Text>
       {isCaptureControl ? (
         <Pressable onPress={capture} style={controlStyles.button}>

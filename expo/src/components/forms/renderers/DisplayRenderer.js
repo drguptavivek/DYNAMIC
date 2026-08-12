@@ -5,7 +5,7 @@ import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { getNativeQuestionValue } from "../nativeSurveyModel.js";
 import { QuestionFrame } from "./QuestionFrame.js";
 
-export function DisplayRenderer({ answerData, question, title, subtitle, columns = [], rows = [] }) {
+export function DisplayRenderer({ answerData, locale, question, title, subtitle, columns = [], rows = [] }) {
   if (!question) {
     return (
       <View style={styles.panel}>
@@ -30,7 +30,7 @@ export function DisplayRenderer({ answerData, question, title, subtitle, columns
   const value = rawValue === undefined || rawValue === null || rawValue === ""
     ? "-"
     : String(rawValue);
-  return <QuestionFrame question={question} tone="display"><Text style={styles.value}>{value}</Text></QuestionFrame>;
+  return <QuestionFrame locale={locale} question={question} tone="display"><Text style={styles.value}>{value}</Text></QuestionFrame>;
 }
 
 const styles = StyleSheet.create({

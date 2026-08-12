@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
+import { useFocusEffect } from "expo-router";
 import {
   ActivityIndicator,
   Pressable,
@@ -25,6 +26,8 @@ function normalizeFormResponse(row) {
     locality_code: row.locality_code || "",
     submitted_at: row.submitted_at || row.created_at || "",
     sync_status: row.sync_status || "pending",
+    sync_error: row.sync_error || "",
+    sync_error_at: row.sync_error_at || "",
   };
 }
 
@@ -52,6 +55,7 @@ function responseSearchText(response) {
     response.site_id,
     response.locality_code,
     response.sync_status,
+    response.sync_error,
     response.submitted_at,
   ]
     .filter(Boolean)
@@ -113,8 +117,9 @@ function InlineFilter({ label, value, options, onChange, compact }) {
 }
 
 function FormCard({ response }) {
+  const hasUploadError = response.sync_status === "upload_error" || Boolean(response.sync_error);
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, hasUploadError && styles.errorCard]}>
       <View style={styles.cardHeader}>
         <Text style={styles.formBadge}>{response.form_code}</Text>
         <View style={styles.cardTitleBlock}>
@@ -136,6 +141,14 @@ function FormCard({ response }) {
           <Text style={styles.detailLabel}>Sync Status</Text>
           <Text style={styles.detailValue}>{response.sync_status}</Text>
         </View>
+        {hasUploadError ? (
+          <View style={[styles.detailItem, styles.detailItemWide]}>
+            <Text style={styles.detailLabel}>Upload Error</Text>
+            <Text style={[styles.detailValue, styles.errorText]}>
+              {response.sync_error || "Server rejected this upload"}
+            </Text>
+          </View>
+        ) : null}
         <View style={styles.detailItem}>
           <Text style={styles.detailLabel}>Site</Text>
           <Text style={styles.detailValue}>{response.site_id || "-"}</Text>
@@ -151,6 +164,7 @@ function FormCard({ response }) {
 
 export function FormSubmissionListScreen({ mode }) {
   const uploaded = mode === "uploaded";
+  const uploadErrors = mode === "uploadErrors";
   const { width } = useWindowDimensions();
   const compact = width < 760;
   const [responses, setResponses] = useState([]);
@@ -160,7 +174,7 @@ export function FormSubmissionListScreen({ mode }) {
   const [siteId, setSiteId] = useState("");
   const [formId, setFormId] = useState("");
   const [localityCode, setLocalityCode] = useState("");
-  const syncStatus = uploaded ? "synced" : "pending";
+  const syncStatus = uploadErrors ? "upload_error" : uploaded ? "synced" : "pending";
   const siteOptions = uniqueOptions(responses, "site_id");
   const formOptions = uniqueOptions(responses, "form_code");
   const localityOptions = uniqueOptions(responses, "locality_code");
@@ -184,6 +198,12 @@ export function FormSubmissionListScreen({ mode }) {
     }
   }, [loadResponses]);
 
+  useFocusEffect(
+    useCallback(() => {
+      loadResponses();
+    }, [loadResponses]),
+  );
+
   const handleRefresh = useCallback(() => {
     setRefreshing(true);
     try {
@@ -198,10 +218,12 @@ export function FormSubmissionListScreen({ mode }) {
       <View style={[styles.header, compact && styles.headerCompact]}>
         <View style={styles.headerTitleBlock}>
           <Text style={[styles.title, compact && styles.titleCompact]} numberOfLines={1}>
-            {uploaded ? "Uploaded Forms" : "Completed Forms"}
+            {uploadErrors ? "Upload Errors" : uploaded ? "Uploaded Forms" : "Completed Forms"}
           </Text>
           <Text style={[styles.subtitle, compact && styles.subtitleCompact]} numberOfLines={2}>
-            {uploaded
+            {uploadErrors
+              ? "Forms rejected or held by the server during sync."
+              : uploaded
               ? "Forms already uploaded to the server."
               : "Submitted forms waiting for sync upload."}
           </Text>
@@ -268,12 +290,20 @@ export function FormSubmissionListScreen({ mode }) {
           ) : (
             <View style={styles.emptyCard}>
               <Text style={styles.emptyTitle}>
-                {responses.length ? "No matching forms" : uploaded ? "No uploaded forms" : "No completed forms"}
+                {responses.length
+                  ? "No matching forms"
+                  : uploadErrors
+                    ? "No upload errors"
+                    : uploaded
+                      ? "No uploaded forms"
+                      : "No completed forms"}
               </Text>
               <Text style={styles.emptyText}>
                 {responses.length
                   ? "Change or clear filters to see more forms."
-                  : uploaded
+                  : uploadErrors
+                    ? "Duplicate or rejected submissions will appear here after Sync Now."
+                    : uploaded
                     ? "Synced submissions will appear here after a successful Sync Now."
                     : "Forms will appear here after final submit and before sync upload."}
               </Text>
@@ -459,6 +489,10 @@ const styles = StyleSheet.create({
     borderColor: "#d8dee4",
     backgroundColor: "#ffffff",
   },
+  errorCard: {
+    borderColor: "#fca5a5",
+    backgroundColor: "#fff7f7",
+  },
   cardHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -504,6 +538,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: "#f8fafc",
   },
+  detailItemWide: {
+    width: "100%",
+  },
   detailLabel: {
     fontSize: 12,
     fontWeight: "900",
@@ -514,6 +551,9 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "800",
     color: "#17202a",
+  },
+  errorText: {
+    color: "#b42318",
   },
   emptyState: {
     flex: 1,

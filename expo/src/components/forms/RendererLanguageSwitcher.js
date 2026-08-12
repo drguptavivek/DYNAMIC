@@ -28,8 +28,10 @@ export function RendererLanguageSwitcher({ iconOnly = false, locale, onChange })
   }
 
   function selectLanguage(code) {
-    onChange(code);
     setOpen(false);
+    requestAnimationFrame(() => {
+      onChange(code);
+    });
   }
 
   if (!compact) {

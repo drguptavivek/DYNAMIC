@@ -45,7 +45,7 @@ test("returns full SurveyJS JSON for a bundled form", () => {
 
   assert.ok(formJson);
   assert.equal(formJson.form_code, "WQ");
-  assert.equal(formJson.version, "9 MAY 2026");
+  assert.equal(formJson.version, "28 JULY 2026");
   assert.ok(Array.isArray(formJson.pages));
 });
 

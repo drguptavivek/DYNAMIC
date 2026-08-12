@@ -98,20 +98,53 @@ await duplicateModel.onValueChanged.handlers[0](duplicateModel, {
   value: "03"
 });
 
-assert.deepEqual(duplicateModel.householdNumberQuestion.errors, [
-  "Household ID 1-02-0042-03 already exists. Use another structure or household number."
-]);
 assert.equal(typeof duplicateModel.householdNumberQuestion.runNativeDbCheck, "function");
 assert.equal(
   await duplicateModel.householdNumberQuestion.runNativeDbCheck(),
   duplicateHousehold
 );
+assert.deepEqual(duplicateModel.householdNumberQuestion.errors, [
+  "Household ID 1-02-0042-03 already exists. Use another structure or household number."
+]);
 
 const completingOptions = { allow: true, allowComplete: true };
 await duplicateModel.onCompleting.handlers[0](duplicateModel, completingOptions);
 assert.equal(completingOptions.allow, false);
 assert.equal(completingOptions.allowComplete, false);
 assert.equal(completingOptions.message, "Household ID 1-02-0042-03 already exists.");
+
+const revisitModel = createModel({
+  hhq_site_id: 1,
+  hhq_locality_code: 2,
+  hhq_structure_map_id: "0042",
+  hhq_household_number: "03"
+});
+
+attachHouseholdSurveyBehaviors(
+  revisitModel,
+  { form_code: "HHQ" },
+  () => {},
+  {
+    findExistingHousehold: async () => duplicateHousehold,
+    allowedExistingHouseholdId: duplicateHousehold.household_id
+  }
+);
+
+await revisitModel.onValueChanged.handlers[0](revisitModel, {
+  name: "hhq_household_number",
+  value: "03"
+});
+
+assert.equal(
+  await revisitModel.householdNumberQuestion.runNativeDbCheck(),
+  null
+);
+assert.deepEqual(revisitModel.householdNumberQuestion.errors, []);
+
+const revisitCompletingOptions = { allow: true, allowComplete: true };
+await revisitModel.onCompleting.handlers[0](revisitModel, revisitCompletingOptions);
+assert.equal(revisitCompletingOptions.allow, true);
+assert.equal(revisitCompletingOptions.allowComplete, true);
 
 const newModel = createModel({
   hhq_site_id: 1,

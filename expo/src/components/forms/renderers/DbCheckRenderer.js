@@ -6,12 +6,12 @@ import { getNativeQuestionValue, setNativeQuestionValue } from "../nativeSurveyM
 import { QuestionFrame, controlStyles } from "./QuestionFrame.js";
 import { validateRegexQuestion } from "../validators/RegexValidator.js";
 
-export function DbCheckRenderer({ answerData, question, onChange }) {
+export function DbCheckRenderer({ answerData, locale, question, onChange }) {
   const readOnly = Boolean(question.isReadOnly || question.readOnly);
   const value = getNativeQuestionValue(question, answerData);
 
   return (
-    <QuestionFrame question={question}>
+    <QuestionFrame locale={locale} question={question}>
       <TextInput
         accessibilityLabel={question.name}
         value={value === undefined || value === null ? "" : String(value)}

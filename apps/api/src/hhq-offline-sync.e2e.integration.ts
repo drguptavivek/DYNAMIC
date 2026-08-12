@@ -355,6 +355,13 @@ test("HHQ offline submission creates local WQ workflow, syncs backend, and pulls
     });
     assert.equal(duplicateCompletionPush.accepted, 1);
     assert.deepEqual(duplicateCompletionPush.accepted_records, [secondResponseId]);
+    assert.deepEqual(duplicateCompletionPush.classified_records, [
+      {
+        id: secondResponseId,
+        status: "duplicate",
+        error: "Duplicate form response held for admin review",
+      },
+    ]);
     assert.deepEqual(duplicateCompletionPush.errors, []);
 
     const backendHousehold = await db

@@ -8,7 +8,7 @@ import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { getNativeQuestionErrors, getNativeQuestionTitle } from "../nativeSurveyModel.js";
 import { controlStyles } from "./QuestionFrame.js";
 
-export function DynamicPanelRenderer({ question, onChange, renderQuestion }) {
+export function DynamicPanelRenderer({ locale, question, onChange, renderQuestion }) {
   const [editingIndex, setEditingIndex] = useState(null);
   const [editorMode, setEditorMode] = useState(null);
   const [initialAddOpened, setInitialAddOpened] = useState(false);
@@ -112,7 +112,7 @@ export function DynamicPanelRenderer({ question, onChange, renderQuestion }) {
   return (
     <View style={styles.wrap}>
       <View style={styles.titleRow}>
-        <Text style={styles.title}>{getNativeQuestionTitle(question)}</Text>
+        <Text style={styles.title}>{getNativeQuestionTitle(question, locale)}</Text>
         <Text style={styles.count}>{`${committedPanels.length} ${committedPanels.length === 1 ? "entry" : "entries"} added`}</Text>
       </View>
       {committedPanels.length ? <View style={styles.entryList}>

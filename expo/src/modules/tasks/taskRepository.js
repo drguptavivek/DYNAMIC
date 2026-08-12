@@ -388,8 +388,9 @@ export function saveFormResponse(response) {
     db.runSync(
       `INSERT INTO form_responses
        (id, task_id, form_code, form_version, household_id, site_id, locality_code,
-        subject_type, subject_id, answers_json, submitted_at, sync_status, device_id, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        subject_type, subject_id, answers_json, submitted_at, sync_status, sync_error,
+        sync_error_at, device_id, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         responseId,
         response.task_id || null,
@@ -403,8 +404,11 @@ export function saveFormResponse(response) {
         answersJson,
         submittedAt,
         response.sync_status || "pending",
+        response.sync_error || null,
+        response.sync_error_at || null,
         response.device_id || "unknown",
         response.created_at || now,
+        response.updated_at || now,
       ],
     );
 
@@ -430,14 +434,15 @@ export function saveDomainEvent(event, createdAt) {
   try {
     db.runSync(
       `INSERT OR REPLACE INTO domain_events_outbox
-       (id, event_type, payload, created_at, sync_status)
-       VALUES (?, ?, ?, ?, ?)`,
+       (id, event_type, payload, created_at, sync_status, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
       [
         event.event_id,
         event.event_type,
         JSON.stringify(event),
         createdAt || event.recorded_at || new Date().toISOString(),
         "pending",
+        new Date().toISOString(),
       ],
     );
   } catch (error) {
@@ -578,9 +583,26 @@ export function listFormResponses(filters = {}) {
 export function markResponseSynced(id) {
   const db = getDb();
   try {
-    db.runSync("UPDATE form_responses SET sync_status = 'synced' WHERE id = ?", [id]);
+    db.runSync(
+      "UPDATE form_responses SET sync_status = 'synced', sync_error = NULL, sync_error_at = NULL WHERE id = ?",
+      [id],
+    );
   } catch (error) {
     console.error("Error marking response synced:", error);
+    throw error;
+  }
+}
+
+export function markResponseUploadError(id, message) {
+  const db = getDb();
+  const now = new Date().toISOString();
+  try {
+    db.runSync(
+      "UPDATE form_responses SET sync_status = 'upload_error', sync_error = ?, sync_error_at = ? WHERE id = ?",
+      [message || "Upload failed", now, id],
+    );
+  } catch (error) {
+    console.error("Error marking response upload error:", error);
     throw error;
   }
 }
