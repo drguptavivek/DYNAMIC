@@ -6,7 +6,9 @@ const { applyReadOnlyFields } = await import(
 const { applyHhqTaskHouseholdPrefill, parseHhqTaskHouseholdId } = await import(
   "../modules/households/hhqTaskPrefill.js"
 );
-const { buildHhqPrefill, mergePrefillIntoBlankValues } = await import("../lib/prefillMapper.js");
+const { buildHhqPrefill, buildWqPrefill, mergePrefillIntoBlankValues } = await import(
+  "../lib/prefillMapper.js"
+);
 
 function createModel(questionsByName = {}, pages = []) {
   return {
@@ -136,5 +138,54 @@ const editedDraft = mergePrefillIntoBlankValues(
 assert.equal(editedDraft.hhq_household_head_name, "Edited Head");
 assert.equal(editedDraft.hhq_household_address, "Edited address");
 assert.equal(editedDraft.hhq_interview_date, "2026-08-04");
+
+const wqContextPrefill = buildWqPrefill(
+  {
+    individual_id: "2-02-0003-01-02",
+    member_name: "Eligible Woman",
+  },
+  {
+    household_id: "2-02-0003-01",
+    site_id: 2,
+    locality_code: "02",
+    locality_name: "Sagarpur",
+    household_head_name: "Head Name",
+  },
+  null,
+  new Date("2026-08-14T10:00:00"),
+);
+assert.deepEqual(wqContextPrefill.prefill, {
+  wq_enter_structure_id_woman: "2-02-0003-01-02",
+  wq_name_woman: "Eligible Woman",
+  wq_household_head_name: "Head Name",
+  wq_village_study_site: "Sagarpur / 2",
+  wq_interview_date: "2026-08-14",
+  wq_visit_no: 1,
+});
+assert.deepEqual(wqContextPrefill.readOnlyFields, [
+  "wq_enter_structure_id_woman",
+  "wq_household_head_name",
+  "wq_village_study_site",
+  "wq_visit_no",
+]);
+assert.equal(wqContextPrefill.readOnlyFields.includes("wq_name_woman"), false);
+
+const wqTaskFallbackPrefill = buildWqPrefill(
+  null,
+  {
+    household_id: "2-02-0003-01",
+    site_id: 2,
+    locality_code: "02",
+    household_head_name: "Head Name",
+  },
+  {
+    subject_id: "2-02-0003-01-03",
+    subject_name: "Task Woman",
+  },
+  new Date("2026-08-14T10:00:00"),
+);
+assert.equal(wqTaskFallbackPrefill.prefill.wq_enter_structure_id_woman, "2-02-0003-01-03");
+assert.equal(wqTaskFallbackPrefill.prefill.wq_name_woman, "Task Woman");
+assert.equal(wqTaskFallbackPrefill.prefill.wq_visit_no, 1);
 
 console.log("Validated questionnaire read-only field enforcement.");

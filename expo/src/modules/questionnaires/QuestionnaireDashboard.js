@@ -34,14 +34,119 @@ import {
 } from "./questionnaireSurveyJsonTransforms";
 import { applyReadOnlyFields } from "./questionnaireReadOnlyFields.js";
 import { mergePrefillIntoBlankValues } from "../../lib/prefillMapper.js";
+import { listHouseholdMembers } from "../households/householdRepository.js";
 import { getDraftSavedMessage } from "./draftSaveMessages.js";
+import {
+  WQ_CURRENT_MARITAL_STATUS_FIELD,
+  applyWqPregnancyTrackingEligibility,
+  buildWqHusbandPartnerChoices,
+  shouldRecalculateWqPregnancyTrackingEligibility,
+} from "../../lib/womanSurveyBehaviors.js";
 
 const AUTOSAVE_INTERVAL_MS = 30000;
 const HOUSEHOLD_SCHEDULE_PAGE_NAME = "page_02_household_schedule";
 const HOUSEHOLD_CHARACTERISTICS_PAGE_NAME = "page_03_household_characteristics";
+const MAX_WQ_VISIT_NO = 3;
+const WQ_VISIT_NO_FIELD = "wq_visit_no";
+const WQ_INTERVIEW_DATE_FIELD = "wq_interview_date";
+const WQ_WOMAN_AVAILABLE_FIELD = "wq_woman_available";
+const WQ_RESULT_INTERVIEW_FIELD = "wq_result_interview";
+const WQ_OUTCOME_PAGE_NAME = "page_outcome";
+const WQ_HUSBAND_PARTNER_NAME_FIELD = "wq_husband_partner_name";
+const WQ_HUSBAND_PARTNER_LINE_NUMBER_FIELD = "wq_husband_partner_line_number";
+const WQ_RESCHEDULE_MESSAGE = "Reschedule has been setup";
+const WQ_EXCLUDED_MESSAGE = "This women is excluded from the study";
 
 function isHouseholdQuestionnaire(form) {
   return String(form?.form_code || "").toUpperCase() === "HHQ";
+}
+
+function isWomanQuestionnaire(form) {
+  return String(form?.form_code || "").toUpperCase() === "WQ";
+}
+
+function clampWqVisitNo(value) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) return 1;
+  return Math.min(MAX_WQ_VISIT_NO, Math.max(1, Math.trunc(numericValue)));
+}
+
+function deriveWqVisitNo(taskContext) {
+  const failedAttemptCount = Number(taskContext?.failed_attempt_count);
+  if (!Number.isFinite(failedAttemptCount)) return 1;
+  return clampWqVisitNo(failedAttemptCount + 1);
+}
+
+function applyWqVisitNo(model, taskContext) {
+  const question = model?.getQuestionByName?.(WQ_VISIT_NO_FIELD);
+  if (!question) return;
+  const visitNo = deriveWqVisitNo(taskContext);
+  model.setValue(WQ_VISIT_NO_FIELD, visitNo);
+  question.readOnly = true;
+  if (visitNo >= MAX_WQ_VISIT_NO && Number(model.getValue(WQ_WOMAN_AVAILABLE_FIELD)) === 3) {
+    model.setValue(WQ_WOMAN_AVAILABLE_FIELD, undefined);
+  }
+}
+
+function isWqRevisitStop(model) {
+  const value = Number(model?.getValue?.(WQ_WOMAN_AVAILABLE_FIELD));
+  return value === 3 || value === 4;
+}
+
+function getWqRevisitStopMessage(model) {
+  if (!isWqRevisitStop(model)) return "";
+  const visitNo = Number(model.getValue(WQ_VISIT_NO_FIELD));
+  return visitNo >= MAX_WQ_VISIT_NO ? WQ_EXCLUDED_MESSAGE : WQ_RESCHEDULE_MESSAGE;
+}
+
+function routeWqIncapacitatedToOutcome(model) {
+  if (!model || Number(model.getValue(WQ_WOMAN_AVAILABLE_FIELD)) !== 2) return;
+  model.setValue(WQ_RESULT_INTERVIEW_FIELD, 6);
+  const outcomePage = model.getPageByName?.(WQ_OUTCOME_PAGE_NAME);
+  if (outcomePage?.isVisible) {
+    goToSurveySection(model, WQ_OUTCOME_PAGE_NAME);
+  }
+}
+
+function routeWqNeverMarriedToOutcome(model) {
+  if (!model || Number(model.getValue(WQ_CURRENT_MARITAL_STATUS_FIELD)) !== 7) return;
+  const outcomePage = model.getPageByName?.(WQ_OUTCOME_PAGE_NAME);
+  if (outcomePage?.isVisible) {
+    goToSurveySection(model, WQ_OUTCOME_PAGE_NAME);
+  }
+}
+
+function deriveHouseholdIdFromTask(taskContext, prefillData) {
+  const directId =
+    taskContext?.household_id ||
+    taskContext?.payload?.household_id ||
+    prefillData?.household_id ||
+    prefillData?.hhq_household_id;
+  if (directId) return String(directId);
+  const subjectId = taskContext?.subject_id || taskContext?.woman_id;
+  const parts = String(subjectId || "").split("-");
+  if (parts.length >= 5) return parts.slice(0, 4).join("-");
+  return "";
+}
+
+function deriveCurrentWomanIdFromTask(taskContext, prefillData) {
+  return String(
+    taskContext?.subject_id ||
+      taskContext?.woman_id ||
+      taskContext?.payload?.woman_id ||
+      taskContext?.payload?.subject_id ||
+      prefillData?.wq_enter_structure_id_woman ||
+      ""
+  );
+}
+
+function applyWqHusbandPartnerChoices(model, members, taskContext, prefillData) {
+  const question = model?.getQuestionByName?.(WQ_HUSBAND_PARTNER_NAME_FIELD);
+  if (!question) return;
+  question.householdMemberChoices = buildWqHusbandPartnerChoices(members, {
+    currentWomanId: deriveCurrentWomanIdFromTask(taskContext, prefillData),
+  });
+  question.husbandPartnerLineNumberField = WQ_HUSBAND_PARTNER_LINE_NUMBER_FIELD;
 }
 
 function getDataSignature(data) {
@@ -65,6 +170,7 @@ export function QuestionnaireDashboard({
   const [activeLocale, setActiveLocale] = useState(locale || "default");
   const [sections, setSections] = useState([]);
   const [progress, setProgress] = useState({ answered: 0, total: 0, percent: 0 });
+  const [rendererAnswerData, setRendererAnswerData] = useState({});
   const [draftId, setDraftId] = useState(null);
   const [lastSavedAt, setLastSavedAt] = useState("");
   const [dirty, setDirty] = useState(false);
@@ -84,6 +190,7 @@ export function QuestionnaireDashboard({
   const previewSignatureRef = useRef("");
   const memberSummaryConfirmedRef = useRef(false);
   const surveyRef = useRef(null);
+  const answerSnapshotRef = useRef({});
 
   useEffect(() => {
     if (!showForm) {
@@ -124,6 +231,9 @@ export function QuestionnaireDashboard({
   }, [form, taskContext, user]);
 
   function updateSurveyStatus(model) {
+    const nextData = { ...(model?.data || {}) };
+    answerSnapshotRef.current = nextData;
+    setRendererAnswerData(nextData);
     setSections(buildSurveySections(model));
     setProgress(calculateSurveyProgress(model));
   }
@@ -139,7 +249,12 @@ export function QuestionnaireDashboard({
 
   async function saveDraftFromModel(model, { silent = false, manual = false } = {}) {
     if (!model || !draftContext) return null;
-    const payload = { ...(model.data || {}) };
+    const payload = {
+      ...(answerSnapshotRef.current || {}),
+      ...(model.data || {}),
+    };
+    answerSnapshotRef.current = payload;
+    setRendererAnswerData(payload);
     const draft = await saveQuestionnaireDraft({
       ...draftContext,
       draftId: draftIdRef.current,
@@ -259,18 +374,60 @@ export function QuestionnaireDashboard({
       }
       model.data = normalizeQuestionnaireSurveyData(form, model.data || {});
     }
+    answerSnapshotRef.current = { ...(model.data || {}) };
 
     // Apply read-only constraints if provided
     if (readOnlyFields && Array.isArray(readOnlyFields)) {
       applyReadOnlyFields(model, readOnlyFields);
     }
 
+    if (isWomanQuestionnaire(form)) {
+      applyWqVisitNo(model, taskContext);
+      applyWqPregnancyTrackingEligibility(model);
+    }
+
     if (isHouseholdQuestionnaire(form)) {
       attachHouseholdSurveyBehaviors(model, form);
     }
 
-    model.onValueChanged.add((sender) => {
+    model.onValueChanged.add((sender, options) => {
       markDirty();
+      const nextData = {
+        ...(answerSnapshotRef.current || {}),
+        ...(sender.data || {}),
+      };
+      if (options?.name) {
+        nextData[options.name] = options.value;
+      }
+      answerSnapshotRef.current = nextData;
+      setRendererAnswerData(nextData);
+      if (isWomanQuestionnaire(form)) {
+        if (options.name === WQ_INTERVIEW_DATE_FIELD) {
+          applyWqVisitNo(sender, taskContext);
+        }
+        if (options.name === WQ_WOMAN_AVAILABLE_FIELD) {
+          const value = Number(options.value);
+          const stopMessage = getWqRevisitStopMessage(sender);
+          if (stopMessage) setSaveMessage(stopMessage);
+          if (value === 2) {
+            setSaveMessage("Interview stopped. Complete the outcome before final save.");
+            requestAnimationFrame(() => {
+              routeWqIncapacitatedToOutcome(sender);
+              updateSurveyStatus(sender);
+            });
+          }
+        }
+        if (options.name === WQ_CURRENT_MARITAL_STATUS_FIELD && Number(options.value) === 7) {
+          setSaveMessage("Never married selected. Complete the outcome before final save.");
+          requestAnimationFrame(() => {
+            routeWqNeverMarriedToOutcome(sender);
+            updateSurveyStatus(sender);
+          });
+        }
+        if (shouldRecalculateWqPregnancyTrackingEligibility(options.name)) {
+          applyWqPregnancyTrackingEligibility(sender);
+        }
+      }
     });
 
     model.onCurrentPageChanging.add((sender, options) => {
@@ -294,6 +451,9 @@ export function QuestionnaireDashboard({
     });
 
     model.onCompleting.add((sender, options) => {
+      if (isWomanQuestionnaire(form) && isWqRevisitStop(sender)) {
+        return;
+      }
       const currentSignature = getDataSignature(sender.data);
       if (!hasPreviewedRef.current || previewSignatureRef.current !== currentSignature) {
         options.allow = false;
@@ -320,7 +480,17 @@ export function QuestionnaireDashboard({
         onDraftSaved?.();
       }
       setSaveMessage(`Finalized ${submission.submission_id}`);
-      navigateTo(ROUTES.completedForms);
+      if (isWomanQuestionnaire(form) && isWqRevisitStop(sender)) {
+        const message = getWqRevisitStopMessage(sender);
+        Alert.alert(message, "", [
+          {
+            text: "OK",
+            onPress: () => navigateTo(ROUTES.completedForms),
+          },
+        ]);
+      } else {
+        navigateTo(ROUTES.completedForms);
+      }
     });
     return model;
   }, [showForm, form, formCode, prefillData, readOnlyFields, taskContext, draftContext]);
@@ -338,6 +508,22 @@ export function QuestionnaireDashboard({
     if (!showForm || !survey) return;
     updateSurveyStatus(survey);
   }, [showForm, survey]);
+
+  useEffect(() => {
+    if (!showForm || !survey || !isWomanQuestionnaire(form)) return undefined;
+    let cancelled = false;
+    const householdId = deriveHouseholdIdFromTask(taskContext, prefillData);
+    async function loadChoices() {
+      const members = householdId ? await listHouseholdMembers(householdId) : [];
+      if (cancelled) return;
+      applyWqHusbandPartnerChoices(survey, members, taskContext, prefillData);
+      updateSurveyStatus(survey);
+    }
+    loadChoices();
+    return () => {
+      cancelled = true;
+    };
+  }, [showForm, survey, form, taskContext, prefillData]);
 
   useEffect(() => {
     if (!showForm || !survey || !draftContext) return undefined;
@@ -374,8 +560,13 @@ export function QuestionnaireDashboard({
           form,
           mergePrefillIntoBlankValues(restoredData, survey.data || {}),
         );
+        answerSnapshotRef.current = { ...(survey.data || {}) };
+        setRendererAnswerData(answerSnapshotRef.current);
         if (isHouseholdQuestionnaire(form)) {
           refreshHouseholdSurveyBehaviors(survey, form);
+        }
+        if (isWomanQuestionnaire(form)) {
+          applyWqPregnancyTrackingEligibility(survey);
         }
         hasPreviewedRef.current = false;
         setPreviewConfirmed(false);
@@ -389,6 +580,8 @@ export function QuestionnaireDashboard({
         setDirty(false);
       } else {
         await saveDraftFromModel(survey, { silent: true });
+        answerSnapshotRef.current = { ...(survey.data || {}) };
+        setRendererAnswerData(answerSnapshotRef.current);
       }
 
       updateSurveyStatus(survey);
@@ -463,6 +656,10 @@ export function QuestionnaireDashboard({
     ? buildHouseholdMemberSummaryRows(survey.data || {}, form, activeLocale)
     : [];
   const hideDashboardShell = showForm && compact;
+  const activeRendererAnswerData = {
+    ...(rendererAnswerData || {}),
+    ...(answerSnapshotRef.current || {}),
+  };
 
   return (
     <View style={styles.wrap}>
@@ -523,9 +720,9 @@ export function QuestionnaireDashboard({
               </Pressable>
             </View>
           </View>
-          <View style={[styles.formWindowBody, compact && styles.formWindowBodyCompact]}>
+          <View pointerEvents="box-none" style={[styles.formWindowBody, compact && styles.formWindowBodyCompact]}>
             {compact ? (
-              <View style={styles.languageOverlay}>
+              <View pointerEvents="box-none" style={styles.languageOverlay}>
                 <RendererLanguageSwitcher iconOnly locale={activeLocale} onChange={changeFormLocale} />
               </View>
             ) : null}
@@ -541,7 +738,7 @@ export function QuestionnaireDashboard({
               </View>
             </View> : null}
 
-            <View style={[styles.formWorkspace, compact && styles.formWorkspaceCompact]}>
+            <View pointerEvents="box-none" style={[styles.formWorkspace, compact && styles.formWorkspaceCompact]}>
               {!compact ? <View style={styles.sectionNav}>
                 <Text style={styles.sectionNavTitle}>Table of Contents</Text>
                 <ScrollView style={styles.sectionNavList}>
@@ -574,7 +771,7 @@ export function QuestionnaireDashboard({
                 </ScrollView>
               </View> : null}
 
-              <View style={[styles.formContentPane, compact && styles.formContentPaneCompact]}>
+              <View pointerEvents="box-none" style={[styles.formContentPane, compact && styles.formContentPaneCompact]}>
                 {memberSummaryOpen ? (
                   <View style={styles.memberSummaryPanel}>
                     <View style={styles.previewHeader}>
@@ -655,6 +852,7 @@ export function QuestionnaireDashboard({
                   </View>
                 ) : survey ? (
                   <NativeSurveyRenderer
+                    answerData={activeRendererAnswerData}
                     compactPager={false}
                     locale={activeLocale}
                     model={survey}

@@ -123,7 +123,8 @@ export function getVisiblePageQuestions(page) {
 }
 
 export function setNativeQuestionValue(question, value) {
-  if (!question || question.isReadOnly || question.readOnly) return;
+  if (!question) return false;
+  if (question.readOnly === true) return false;
   const normalizedValue =
     question.getType?.() === "text" && question.inputType === "number"
       ? value === "" || value === null
@@ -142,14 +143,15 @@ export function setNativeQuestionValue(question, value) {
       question.data.setValue(question.name, normalizedValue);
     }
     question.value = normalizedValue;
-    return;
+    return true;
   }
 
   if (question.getType?.() === "text" && question.inputType === "number") {
     question.value = normalizedValue;
-    return;
+    return true;
   }
   question.value = normalizedValue;
+  return true;
 }
 
 export function getNativeRendererKind(question) {
@@ -163,6 +165,8 @@ export function getNativeRendererKind(question) {
   if (renderAs === "file_picker") return "file-picker";
   if (renderAs === "gps_decimal" || renderAs === "gps_altitude") return "gps";
   if (renderAs.startsWith("grouped_")) return "grouped-coded-single-select";
+  if (renderAs === "household_member_dropdown") return "household-member-dropdown";
+  if (renderAs === "years_with_special_codes") return "select-one";
   if (type === "radiogroup") return "select-one";
   if (type === "checkbox") return "select-many";
   if (type === "multipletext") return "multiple-text";

@@ -12,6 +12,7 @@ import { DynamicPanelRenderer } from "./DynamicPanelRenderer.js";
 import { FilePickerRenderer } from "./FilePickerRenderer.js";
 import { GpsRenderer } from "./GpsRenderer.js";
 import { GroupedCodedSingleSelectRenderer } from "./GroupedCodedSingleSelectRenderer.js";
+import { HouseholdMemberDropdownRenderer } from "./HouseholdMemberDropdownRenderer.js";
 import { InstructionRenderer } from "./InstructionRenderer.js";
 import { MultipleTextRenderer } from "./MultipleTextRenderer.js";
 import { NoteRenderer } from "./NoteRenderer.js";
@@ -33,6 +34,7 @@ function NativeQuestionRendererBase({ answerData, locale, question, onChange, re
     case "file-picker": return <FilePickerRenderer {...props} />;
     case "gps": return <GpsRenderer {...props} />;
     case "grouped-coded-single-select": return <GroupedCodedSingleSelectRenderer {...props} />;
+    case "household-member-dropdown": return <HouseholdMemberDropdownRenderer {...props} />;
     case "instruction": return <InstructionRenderer {...props} />;
     case "multiple-text": return <MultipleTextRenderer {...props} />;
     case "note": return <NoteRenderer {...props} />;

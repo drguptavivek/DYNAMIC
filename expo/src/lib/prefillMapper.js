@@ -10,6 +10,18 @@ function formatLocalIsoDate(date = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
+function clampBaselineVisitNo(value) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) return 1;
+  return Math.min(3, Math.max(1, Math.trunc(numericValue)));
+}
+
+function deriveBaselineVisitNo(task) {
+  const failedAttemptCount = Number(task?.failed_attempt_count);
+  if (!Number.isFinite(failedAttemptCount)) return 1;
+  return clampBaselineVisitNo(failedAttemptCount + 1);
+}
+
 /**
  * Build prefill for Household Questionnaire (HHQ)
  * Read-only: site_id, locality_code
@@ -37,25 +49,36 @@ export function buildHhqPrefill(household, today = new Date()) {
 
 /**
  * Build prefill for Woman Questionnaire (WQ)
- * Read-only: site_id, locality_code, woman identifier fields
+ * Read-only: generated woman/household identity fields only
  */
-export function buildWqPrefill(member, household) {
-  if (!member || !household) {
+export function buildWqPrefill(member, household, task = null, today = new Date()) {
+  if (!household) {
     return { prefill: {}, readOnlyFields: [] };
   }
 
+  const womanId = member?.individual_id || task?.subject_id || "";
+  const womanName = member?.member_name || task?.subject_name || "";
+  const localityLabel = [
+    household.locality_name || household.locality_code,
+    household.site_name || household.site_id,
+  ]
+    .filter((value) => value !== undefined && value !== null && value !== "")
+    .join(" / ");
+
   const prefill = {
-    wq_site_id: household.site_id,
-    wq_locality_code: household.locality_code,
-    wq_enter_structure_id_woman: household.structure_number,
-    wq_name_woman: member.member_name,
+    wq_enter_structure_id_woman: womanId,
+    wq_name_woman: womanName,
+    wq_household_head_name: household.household_head_name || household.head_name || "",
+    wq_village_study_site: localityLabel,
+    wq_interview_date: formatLocalIsoDate(today),
+    wq_visit_no: deriveBaselineVisitNo(task),
   };
 
   const readOnlyFields = [
-    "wq_site_id",
-    "wq_locality_code",
     "wq_enter_structure_id_woman",
-    "wq_name_woman",
+    "wq_household_head_name",
+    "wq_village_study_site",
+    "wq_visit_no",
   ];
 
   return { prefill, readOnlyFields };
@@ -223,7 +246,7 @@ export function buildPrefillForTask(task, household, member) {
     case "HHQ":
       return buildHhqPrefill(household);
     case "WQ":
-      return buildWqPrefill(member, household);
+      return buildWqPrefill(member, household, task);
     case "HRF":
       return buildHrfPrefill(household, task);
     case "PEF":

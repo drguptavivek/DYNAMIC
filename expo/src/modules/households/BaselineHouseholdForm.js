@@ -772,7 +772,7 @@ export function BaselineHouseholdForm({
       </View>
       <View style={styles.body}>
         {compact ? (
-          <View style={styles.languageOverlay}>
+          <View pointerEvents="box-none" style={styles.languageOverlay}>
             <RendererLanguageSwitcher iconOnly locale={locale} onChange={onLocaleChange} />
           </View>
         ) : null}

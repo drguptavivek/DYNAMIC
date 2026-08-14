@@ -220,6 +220,11 @@ assert.equal(savedTasks[2].sync_status, "local");
 
 const attemptTask = {
   ...provisionalTask,
+  id: "hrf-attempt-task",
+  task_key: "hh-1|household|hh-1|HRF|round-1|2026-09-01|v1",
+  subject_type: "household",
+  subject_id: "hh-1",
+  task_type: "HRF",
   lifecycle_status: "due",
   failed_attempt_count: 1,
   max_failed_attempts: 2,
@@ -251,8 +256,8 @@ assert.deepEqual(listTaskFinalCloseReasons(attemptTask), [
   "refused",
   "moved_out",
   "deceased",
-  "not_applicable",
 ]);
+assert.deepEqual(listTaskFinalCloseReasons({ ...provisionalTask, task_type: "WQ" }), []);
 
 const closeResult = closeTaskWithFinalReason(
   { taskId: attemptTask.id, closeReason: "not_reachable" },

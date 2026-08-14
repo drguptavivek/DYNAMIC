@@ -15,6 +15,7 @@ export function NumberRenderer({ answerData, locale, question, onChange }) {
         value={value === undefined || value === null ? "" : String(value)}
         editable={!question.isReadOnly}
         keyboardType={question.inputType === "number" ? "numeric" : "number-pad"}
+        maxLength={question.maxLength > 0 ? question.maxLength : question.jsonObj?.maxLength}
         onChangeText={(value) => {
           const sanitized = value.replace(/[^0-9.-]/g, "");
           setNativeQuestionValue(question, sanitized);

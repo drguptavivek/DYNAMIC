@@ -17,7 +17,18 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 ### Added
 
 - Added the 28 July 2026 Excel version of the WQ Baseline Woman's Questionnaire as workbook-ordered sections, including Respondent Background, Reproduction, Other Health Issues, Work/Husband Background, Domestic Violence, Biomarkers, and Outcome.
+- Added WQ Q17 never-married terminal routing so option 7 opens the outcome page and sync records the response without creating follow-up tasks.
+- Added WQ Q38 pregnancy-status-tracking eligibility as a read-only calculated field and switched WQ pregnancy enrollment task promotion to use that eligibility result.
+- Added WQ Q10 month and year of birth entry boxes while preserving the 98/9998 unknown-month/year coded responses.
+- Merged WQ Q10 don't-know month/year responses into the same Q10 card instead of rendering them as a separate question.
+- Limited WQ Q11 age at last birthday to a two-digit numeric entry while preserving leading zeroes.
+- Changed WQ Q18 husband/live-in partner entry to a household-member dropdown limited to male members older than 15, with a "Husband not in household" option that fills Q19 as 00.
+- Changed the WQ Q18 household-member dropdown to open inline below the question instead of as a bottom sheet.
+- Changed WQ Q19 outside-household husband/partner line numbering to allocate 00, 99, 98, and so on by the woman's order within the household.
+- Added a two-digit WQ Q9 years entry above the Always/Visitor special responses while preserving values like 00, 02, and 09.
 - Added a WQ pregnancy-history repeated panel for Excel questions 15_i through 28_i while keeping the existing `wq_pregnant` answer key for pregnancy workflow promotion.
+- Added Excel-derived WQ skip and applicability rules for respondent background, reproduction, pregnancy-history follow-ups, eligible-only health/work/domestic-violence/biomarker sections, and related follow-up questions.
+- Added WQ visit-number handling plus Q4 woman-availability revisit, incapacitated outcome, and visit-3 exclusion flow to match the finalized task rule.
 - Added a mobile Draft/Pending Forms drawer page for read-only review of local draft forms saved on the device.
 - Added admin Form Language Management for global questionnaire translations, including form/permission-site/language selectors, English source text, saved selected-language review text, per-question Edit/Save controls for question and option translations, and central-admin permission ON/OFF for all non-field-worker users of a selected site.
 - Added CSV export/import to Form Language Management so global questionnaire language files can be exported in fixed questionnaire order, filled offline, previewed on import, and saved only after confirming the matched rows.
@@ -44,6 +55,11 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 
 ### Fixed
 
+- Closed the mobile Worklist task detail modal before opening a questionnaire so its transparent native overlay cannot block radio buttons, navigation, or form controls.
+- Fixed mobile WQ radio answers not staying selected by aligning native SurveyJS read-only checks with renderer behavior and keeping tapped radio state stable while answer snapshots refresh.
+- Fixed generic mobile questionnaire radio answers for non-HHQ forms by keeping a live ref-backed answer snapshot in the shared questionnaire dashboard.
+- Fixed mobile questionnaire language overlay touch handling so the compact language button cannot block radio/select controls underneath it.
+- Fixed WQ Q3 interviewer visit date validation so the date picker no longer shows a numeric-value error.
 - Allowed task-backed HHQ revisit submissions to reuse their assigned household ID without triggering duplicate household validation.
 - Changed mobile HHQ final submit to remain offline-first by saving completed submissions locally and moving duplicate/server-rejected uploads into Upload Errors during Sync Now.
 - Routed mobile final HHQ submit to Completed Forms and handled server-promoted canonical event rejections so classified uploads move out of red pending sync state.
@@ -65,12 +81,17 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 - Reduced compact questionnaire background render batch size so WQ controls become usable sooner while large sections continue loading in smaller chunks.
 - Kept large generic mobile questionnaires such as WQ in section-wise mobile layout while progressively mounting the section to avoid freezing the screen.
 - Opened non-HHQ task questionnaire entry routes in the same collapsed mobile shell as HHQ so WQ uses the full-screen form surface instead of the dashboard/submissions layout.
+- Made WQ task openings fillable by preloading the woman member ID, editable woman name, household head, village/site, and today's interview date while locking only generated identity fields.
+- Made native single-select/radio answers show their selected state immediately on tap while still writing through the SurveyJS model for draft and submit.
+- Fixed WQ/generic mobile questionnaire choice controls so the language menu cannot leave a touch-blocking overlay and choice controls only disable for explicit read-only fields.
+- Fixed repeated-panel visibility scoping for non-HHQ questionnaires so WQ pregnancy-history follow-up questions evaluate against the current pregnancy row.
 - Cleared mobile offline tasks, households, drafts, submitted forms, protocol form cache, sync metadata, and app-lock PIN/biometric setup on explicit Logout while preserving cached data during normal PIN/biometric unlock.
 - Added a mobile Logout confirmation warning before deleting current-user data stored on the device.
 - Highlighted mobile Worklist task cards in yellow after a local manual draft save and refreshed Worklist draft status after saving.
 - Added localized mobile Save Draft confirmation and returned field workers to Worklist after manually saving a draft.
 - Kept HHQ manual draft saves stable across section changes and language switching, preserving earlier section answers and restoring the draft language on reopen.
 - Stabilized HHQ draft reopening from the Worklist by carrying the task id in the questionnaire route and recovering the task context from the local task cache before looking up saved drafts.
+
 - Kept recovered HHQ task context memoized so SurveyJS does not rebuild the active draft form during route renders or language changes.
 - Memoized runtime questionnaire JSON on the route screen so synced form translations do not recreate the HHQ SurveyJS model and clear restored draft answers during reopen.
 - Updated native SurveyJS value writes to use the model-backed setter for top-level questions so filled HHQ answers reliably enter `model.data` before draft save.
@@ -141,6 +162,7 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 
 ### Testing
 
+- Added a WQ Survey Core skip-logic test covering key Excel-derived respondent background, reproduction, pregnancy-history, health, work, and domestic-violence branches.
 - Updated field-worker household scope coverage to verify only explicitly assigned households are visible to that worker.
 
 ### Fixed

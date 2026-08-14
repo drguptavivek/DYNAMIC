@@ -37,6 +37,11 @@ const hhqPath = path.resolve(
   "../data/forms/baseline_household_questionnaire_v2026.05.09.json"
 );
 const hhq = JSON.parse(fs.readFileSync(hhqPath, "utf8"));
+const wqPath = path.resolve(
+  root,
+  "../data/forms/baseline_woman_s_questionnaire_v2026.05.09.json"
+);
+const wq = JSON.parse(fs.readFileSync(wqPath, "utf8"));
 const model = new Model(prepareQuestionnaireSurveyJson(hhq));
 attachHouseholdSurveyBehaviors(model, hhq);
 
@@ -189,6 +194,37 @@ for (const formMeta of formCatalog) {
     () => catalogModel.getAllQuestions().map(getNativeRendererKind),
     `${formMeta.form_code} should map every question to a native renderer`
   );
+  for (const question of catalogModel.getAllQuestions()) {
+    const type = question.getType?.() || question.type;
+    const readOnly = question.readOnly === true || question.isReadOnly === true;
+    if (type !== "radiogroup" || readOnly || !question.visibleChoices?.length) continue;
+    const firstChoice = question.visibleChoices[0];
+    assert.equal(
+      setNativeQuestionValue(question, firstChoice.value),
+      true,
+      `${formMeta.form_code} ${question.name} radio should accept native writes`
+    );
+    assert.equal(
+      String(getNativeQuestionValue(question)),
+      String(firstChoice.value),
+      `${formMeta.form_code} ${question.name} radio should read back selected value`
+    );
+  }
 }
+
+const wqModel = new Model(prepareQuestionnaireSurveyJson(wq));
+const womanAvailable = wqModel.getQuestionByName("wq_woman_available");
+assert.equal(womanAvailable.readOnly || womanAvailable.isReadOnly, false);
+assert.equal(getNativeRendererKind(womanAvailable), "select-one");
+assert.equal(setNativeQuestionValue(womanAvailable, 1), true);
+assert.equal(womanAvailable.value, 1);
+assert.equal(wqModel.data.wq_woman_available, 1);
+assert.equal(setNativeQuestionValue(womanAvailable, 2), true);
+assert.equal(womanAvailable.value, 2);
+assert.equal(wqModel.data.wq_woman_available, 2);
+const readOnlyHouseholdHead = wqModel.getQuestionByName("wq_household_head_name");
+readOnlyHouseholdHead.readOnly = true;
+assert.equal(setNativeQuestionValue(readOnlyHouseholdHead, "Should not write"), false);
+assert.notEqual(readOnlyHouseholdHead.value, "Should not write");
 
 console.log("Validated native Survey Core model adapter for HHQ.");

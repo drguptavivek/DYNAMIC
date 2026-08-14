@@ -247,7 +247,7 @@ export function NativeSurveyRenderer({
         <ScrollView
           ref={compactScrollRef}
           contentContainerStyle={styles.compactContent}
-          keyboardShouldPersistTaps="handled"
+          keyboardShouldPersistTaps="always"
         >
           {compactListHeader}
           {questions}
@@ -257,7 +257,7 @@ export function NativeSurveyRenderer({
           {sections.length ? <SectionNavigator sections={sections} onSelect={onSectionSelect} /> : null}
           {notice ? <Text style={styles.notice}>{notice}</Text> : null}
           {pageHeader}
-          <ScrollView ref={desktopScrollRef} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.questions}>
+          <ScrollView ref={desktopScrollRef} keyboardShouldPersistTaps="always" contentContainerStyle={styles.questions}>
             {visibleQuestions.map((question) => renderTopLevelQuestion(question))}
           </ScrollView>
         </>

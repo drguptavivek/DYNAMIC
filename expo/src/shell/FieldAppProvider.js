@@ -300,6 +300,10 @@ export function FieldAppProvider({ children }) {
 
   async function openFormFromTask(task) {
     if (!task) return;
+    setShowTaskModal(false);
+    setSelectedTask(null);
+    openTaskIdRef.current = null;
+
     const freshTask = getTask(task.id || task.task_id || task.task_key) || task;
     const activeDraft = await resolveActiveDraftForTask({
       ...freshTask,

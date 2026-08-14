@@ -166,9 +166,9 @@ export function normalizeQuestionnaireSurveyData(form, data) {
 
 export function prepareQuestionnaireSurveyJson(form) {
   let surveyJson = prepareSurveyJson(form);
+  surveyJson = scopeDynamicPanelExpressions(surveyJson);
   if (isHhqForm(form)) {
     surveyJson = allowMultipleHhqMobileNumbers(surveyJson);
-    surveyJson = scopeDynamicPanelExpressions(surveyJson);
     surveyJson = markHhqDatabaseCheck(surveyJson);
     surveyJson = applyMandatoryHhqSurveyJson(surveyJson);
   }

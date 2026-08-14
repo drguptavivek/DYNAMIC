@@ -20,6 +20,26 @@ export function RendererLanguageSwitcher({ iconOnly = false, locale, onChange })
     width: 160,
   }), [iconOnly, width]);
   const activeLanguage = QUESTIONNAIRE_LANGUAGES.find((language) => language.code === locale) || QUESTIONNAIRE_LANGUAGES[0];
+  const menu = (
+    <View style={[styles.menu, Platform.OS === "web" ? menuPosition : nativeMenuPosition]}>
+      <ScrollView keyboardShouldPersistTaps="handled" removeClippedSubviews>
+        {QUESTIONNAIRE_LANGUAGES.map((language) => {
+          const active = language.code === locale;
+          return (
+            <Pressable
+              key={language.code}
+              onPress={() => selectLanguage(language.code)}
+              style={[styles.option, active && styles.optionActive]}
+            >
+              <Text style={[styles.optionText, active && styles.optionTextActive]}>
+                {language.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
 
   function openMenu() {
     if (Platform.OS !== "web") {
@@ -62,33 +82,18 @@ export function RendererLanguageSwitcher({ iconOnly = false, locale, onChange })
           <Text numberOfLines={1} style={styles.triggerText}>{activeLanguage.label}</Text>
         )}
       </Pressable>
-      <Modal animationType="none" hardwareAccelerated onRequestClose={() => setOpen(false)} transparent visible={open}>
-        <View style={styles.modalRoot}>
-          <Pressable
-            accessibilityLabel="Close language menu"
-            onPress={() => setOpen(false)}
-            style={StyleSheet.absoluteFill}
-          />
-          <View style={[styles.menu, Platform.OS === "web" ? menuPosition : nativeMenuPosition]}>
-            <ScrollView keyboardShouldPersistTaps="handled" removeClippedSubviews>
-              {QUESTIONNAIRE_LANGUAGES.map((language) => {
-                const active = language.code === locale;
-                return (
-                  <Pressable
-                    key={language.code}
-                    onPress={() => selectLanguage(language.code)}
-                    style={[styles.option, active && styles.optionActive]}
-                  >
-                    <Text style={[styles.optionText, active && styles.optionTextActive]}>
-                      {language.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
+      {Platform.OS === "web" ? (
+        <Modal animationType="none" hardwareAccelerated onRequestClose={() => setOpen(false)} transparent visible={open}>
+          <View style={styles.modalRoot}>
+            <Pressable
+              accessibilityLabel="Close language menu"
+              onPress={() => setOpen(false)}
+              style={StyleSheet.absoluteFill}
+            />
+            {menu}
           </View>
-        </View>
-      </Modal>
+        </Modal>
+      ) : open ? menu : null}
     </>
   );
 }

@@ -57,6 +57,7 @@ export function GroupedCodedSingleSelectRenderer({ answerData, locale, question,
     [choices]
   );
   const value = getNativeQuestionValue(question, answerData);
+  const disabled = question?.readOnly === true;
   const selectedValue = value === undefined || value === null
     ? ""
     : String(value);
@@ -66,12 +67,14 @@ export function GroupedCodedSingleSelectRenderer({ answerData, locale, question,
   });
 
   function selectFinalValue(value) {
+    if (disabled) return;
     setNativeQuestionValue(question, value);
     question.validate?.();
     onChange?.();
   }
 
   function selectGroup(group) {
+    if (disabled) return;
     if (group.value !== undefined) {
       setExpandedGroup(null);
       selectFinalValue(group.value);
@@ -89,9 +92,9 @@ export function GroupedCodedSingleSelectRenderer({ answerData, locale, question,
       <View key={group.id} style={styles.groupWrap}>
         <Pressable
           accessibilityRole="radio"
-          accessibilityState={{ selected: isSelected, disabled: question.isReadOnly }}
-          disabled={question.isReadOnly}
-          onPress={() => selectGroup(group)}
+          accessibilityState={{ selected: isSelected, disabled }}
+          disabled={disabled}
+          onPressIn={() => selectGroup(group)}
           style={[controlStyles.option, isSelected && controlStyles.optionSelected]}
         >
           <View style={[controlStyles.optionMark, isSelected && controlStyles.optionMarkSelected]} />
@@ -121,9 +124,9 @@ export function GroupedCodedSingleSelectRenderer({ answerData, locale, question,
       <Pressable
         key={String(value)}
         accessibilityRole="radio"
-        accessibilityState={{ selected, disabled: question.isReadOnly }}
-        disabled={question.isReadOnly}
-        onPress={() => selectFinalValue(value)}
+        accessibilityState={{ selected, disabled }}
+        disabled={disabled}
+        onPressIn={() => selectFinalValue(value)}
         style={[styles.childOption, selected && styles.childOptionSelected]}
       >
         <View style={[controlStyles.optionMark, selected && controlStyles.optionMarkSelected]} />

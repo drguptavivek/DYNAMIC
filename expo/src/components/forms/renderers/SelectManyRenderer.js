@@ -8,6 +8,19 @@ import { QuestionFrame, controlStyles } from "./QuestionFrame.js";
 export function SelectManyRenderer({ answerData, locale, question, onChange }) {
   const value = getNativeQuestionValue(question, answerData);
   const selectedValues = Array.isArray(value) ? value : [];
+  const disabled = question?.readOnly === true;
+
+  function toggleChoice(choice) {
+    if (disabled) return;
+    const selected = selectedValues.some((value) => String(value) === String(choice.value));
+    const next = selected
+      ? selectedValues.filter((value) => String(value) !== String(choice.value))
+      : [...selectedValues, choice.value];
+    setNativeQuestionValue(question, next);
+    question.validate?.();
+    onChange?.();
+  }
+
   return (
     <QuestionFrame locale={locale} question={question}>
       <View style={controlStyles.options}>
@@ -17,16 +30,9 @@ export function SelectManyRenderer({ answerData, locale, question, onChange }) {
             <Pressable
               key={String(choice.value)}
               accessibilityRole="checkbox"
-              accessibilityState={{ checked: selected, disabled: question.isReadOnly }}
-              disabled={question.isReadOnly}
-              onPress={() => {
-                const next = selected
-                  ? selectedValues.filter((value) => String(value) !== String(choice.value))
-                  : [...selectedValues, choice.value];
-                setNativeQuestionValue(question, next);
-                question.validate?.();
-                onChange?.();
-              }}
+              accessibilityState={{ checked: selected, disabled }}
+              disabled={disabled}
+              onPressIn={() => toggleChoice(choice)}
               style={[controlStyles.option, selected && controlStyles.optionSelected]}
             >
               <View style={[styles.checkbox, selected && styles.checkboxSelected]}>

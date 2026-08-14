@@ -189,8 +189,8 @@ export function TaskDetailModal({ visible, task, onClose, onOpenForm, onTaskChan
             {canOpenForm && (
               <Pressable
                 onPress={() => {
-                  onOpenForm(task);
                   onClose();
+                  onOpenForm(task);
                 }}
                 style={({ pressed }) => [
                   styles.button,

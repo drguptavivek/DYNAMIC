@@ -126,7 +126,7 @@ assert.equal(wqTasks[0].status, "open");
 assert.equal(wqTasks[0].lifecycle_status, "open");
 assert.equal(wqTasks[0].failed_attempt_count, 0);
 assert.equal(wqTasks[0].max_failed_attempts, 3);
-assert.equal(wqTasks[0].requires_final_close_reason, true);
+assert.equal(wqTasks[0].requires_final_close_reason, false);
 assert.equal(wqTasks[0].source_form_response_id, submission.submission_id);
 assert.equal(wqTasks[0].sync_status, "pending");
 

@@ -165,9 +165,9 @@ export const DEFAULT_PROTOCOL_CONFIG: ProtocolConfig = {
     },
     {
       task_type: "WQ",
-      max_failed_attempts: 5,
-      requires_final_close_reason: true,
-      close_reason_options: ["not_reachable", "refused", "moved_out", "deceased", "not_applicable"],
+      max_failed_attempts: 3,
+      requires_final_close_reason: false,
+      close_reason_options: [],
     },
     {
       task_type: "PEF",

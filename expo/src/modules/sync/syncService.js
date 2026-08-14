@@ -211,16 +211,24 @@ function setCachedFormVersions(formVersions) {
 
 function cacheProtocolForms(forms) {
   for (const form of forms) {
-    if (!form?.form_code || !form.json) continue;
     setMeta(`form_json_${String(form.form_code).toUpperCase()}`, JSON.stringify(form.json));
   }
 }
 
+const parsedProtocolFormCache = new Map();
+
 export function getCachedProtocolForm(formCode) {
-  const value = getMeta(`form_json_${String(formCode).toUpperCase()}`);
+  const metaKey = `form_json_${String(formCode).toUpperCase()}`;
+  const value = getMeta(metaKey);
   if (!value) return null;
+  const cached = parsedProtocolFormCache.get(metaKey);
+  if (cached && cached.raw === value) {
+    return cached.parsed;
+  }
   try {
-    return JSON.parse(value);
+    const parsed = JSON.parse(value);
+    parsedProtocolFormCache.set(metaKey, { raw: value, parsed });
+    return parsed;
   } catch (error) {
     console.error("Error parsing cached protocol form:", error);
     return null;

@@ -1,6 +1,6 @@
 import { schema } from "../db";
 import { getDb } from "../lib/dbContext";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray, ne } from "drizzle-orm";
 import {
   childDeathRecorded,
   promoteFormSubmission,
@@ -24,6 +24,50 @@ export {
 
 type FormResponseRow = typeof schema.formResponses.$inferSelect;
 type PromotionHandler = (response: FormResponseRow, answers: FormAnswers) => Promise<void>;
+const WQ_WOMAN_AVAILABLE_FIELD = "wq_woman_available";
+const WQ_CURRENT_MARITAL_STATUS_FIELD = "wq_current_marital_status";
+const WQ_PREGNANCY_TRACKING_ELIGIBLE_FIELD = "wq_pregnancy_tracking_eligible";
+const WQ_MAX_VISITS = 3;
+const WQ_REVISIT_DELAY_DAYS = 1;
+
+function addDaysIso(value: string, days: number): string {
+  const date = new Date(`${value}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return toIsoDate(date);
+}
+
+function getWqVisitNo(answers: FormAnswers): number {
+  const parsed = Number(answers?.wq_visit_no);
+  if (!Number.isFinite(parsed)) return 1;
+  return Math.min(WQ_MAX_VISITS, Math.max(1, Math.trunc(parsed)));
+}
+
+function getWqAvailability(answers: FormAnswers): number {
+  return Number(answers?.[WQ_WOMAN_AVAILABLE_FIELD]);
+}
+
+function isWqRevisitResponse(answers: FormAnswers): boolean {
+  const value = getWqAvailability(answers);
+  return value === 3 || value === 4;
+}
+
+function isWqIncapacitatedResponse(answers: FormAnswers): boolean {
+  return getWqAvailability(answers) === 2;
+}
+
+function isWqNeverMarriedResponse(answers: FormAnswers): boolean {
+  return Number(answers?.[WQ_CURRENT_MARITAL_STATUS_FIELD]) === 7;
+}
+
+async function getTaskForResponse(response: FormResponseRow) {
+  if (!response.task_id) return null;
+  const [task] = await getDb()
+    .select()
+    .from(schema.followUpTasks)
+    .where(eq(schema.followUpTasks.task_id, response.task_id))
+    .limit(1);
+  return task || null;
+}
 
 export async function processFormResponse(formResponseId: string): Promise<void> {
   try {
@@ -55,7 +99,7 @@ export async function processFormResponse(formResponseId: string): Promise<void>
 const FORM_PROMOTION_HANDLERS: Record<string, PromotionHandler> = {
   HHQ: (response, answers) => promoteHhq(response, answers),
   WQ: (response, answers) =>
-    promoteWq(response.household_id || "", response.subject_id || "", answers),
+    promoteWq(response, response.household_id || "", response.subject_id || "", answers),
   PEF: (response, answers) =>
     promotePef(response, response.household_id || "", response.subject_id || "", answers),
   PFF: (response, answers) =>
@@ -86,13 +130,16 @@ const FORM_PROMOTION_HANDLERS: Record<string, PromotionHandler> = {
 };
 
 async function promoteWq(
+  response: FormResponseRow,
   householdId: string,
   subjectId: string,
   answers: FormAnswers,
 ): Promise<void> {
   try {
-    const isPregnant =
-      answers.wq_pregnant === "1" || answers.wq_pregnant === 1 || answers.wq_pregnant === true;
+    const isPregnancyTrackingEligible =
+      answers[WQ_PREGNANCY_TRACKING_ELIGIBLE_FIELD] === "1" ||
+      answers[WQ_PREGNANCY_TRACKING_ELIGIBLE_FIELD] === 1 ||
+      answers[WQ_PREGNANCY_TRACKING_ELIGIBLE_FIELD] === true;
 
     // Get household info
     const household = await getDb()
@@ -103,6 +150,7 @@ async function promoteWq(
 
     if (household.length === 0) return;
     const hh = household[0];
+    const existingTask = await getTaskForResponse(response);
 
     // Check if eligible woman already exists
     const existingWoman = await getDb()
@@ -112,6 +160,223 @@ async function promoteWq(
       .limit(1);
 
     let womanId = existingWoman.length > 0 ? existingWoman[0].woman_id : subjectId || randomUUID();
+    const now = new Date();
+    const completedDate =
+      typeof answers.wq_interview_date === "string" && answers.wq_interview_date
+        ? answers.wq_interview_date
+        : toIsoDate(response.created_offline_at ?? now);
+
+    if (isWqIncapacitatedResponse(answers)) {
+      await getDb()
+        .update(schema.formResponses)
+        .set({ response_status: "incapacitated" })
+        .where(eq(schema.formResponses.form_response_id, response.form_response_id));
+
+      await getDb()
+        .insert(schema.eligibleWomen)
+        .values({
+          woman_id: womanId,
+          household_member_id: subjectId,
+          household_id: householdId,
+          site_id: hh.site_id,
+          locality_code: hh.locality_code,
+          eligibility_start_date: existingWoman[0]?.eligibility_start_date ?? completedDate,
+          wq_status: "incapacitated",
+          tracking_status: existingWoman[0]?.tracking_status ?? "not_tracked",
+          current_eligibility_status: "eligible",
+          eligibility_basis: existingWoman[0]?.eligibility_basis ?? "baseline_hhq",
+          sync_status: "synced",
+          created_at: existingWoman[0]?.created_at ?? now,
+          updated_at: now,
+        })
+        .onConflictDoUpdate({
+          target: [schema.eligibleWomen.woman_id],
+          set: {
+            wq_status: "incapacitated",
+            updated_at: now,
+          },
+        });
+
+      await getDb().insert(schema.domainEvents).values({
+        event_id: randomUUID(),
+        event_type: "wq_incapacitated",
+        site_id: hh.site_id,
+        locality_code: hh.locality_code,
+        household_id: householdId,
+        subject_type: "person",
+        subject_id: womanId,
+        task_id: response.task_id,
+        form_response_id: response.form_response_id,
+        event_datetime: response.created_offline_at ?? now,
+        created_offline_at: response.created_offline_at,
+        device_id: response.device_id,
+        sync_status: "synced",
+        apply_status: "applied",
+        created_at: now,
+      });
+      return;
+    }
+
+    if (isWqRevisitResponse(answers)) {
+      const visitNo = getWqVisitNo(answers);
+      const nextVisitNo = visitNo + 1;
+      const isExcluded = visitNo >= WQ_MAX_VISITS;
+      const responseStatus = isExcluded ? "excluded_after_revisits" : "revisit_needed";
+      const eventType = isExcluded ? "wq_excluded_after_revisits" : "wq_revisit_needed";
+      const eventId = randomUUID();
+
+      await getDb()
+        .update(schema.formResponses)
+        .set({ response_status: "superseded_revisit" })
+        .where(
+          and(
+            eq(schema.formResponses.form_code, "WQ"),
+            eq(schema.formResponses.subject_id, womanId),
+            ne(schema.formResponses.form_response_id, response.form_response_id),
+            inArray(schema.formResponses.response_status, ["revisit_needed", "superseded_revisit"]),
+          ),
+        );
+
+      await getDb()
+        .update(schema.formResponses)
+        .set({ response_status: responseStatus })
+        .where(eq(schema.formResponses.form_response_id, response.form_response_id));
+
+      await getDb()
+        .insert(schema.eligibleWomen)
+        .values({
+          woman_id: womanId,
+          household_member_id: subjectId,
+          household_id: householdId,
+          site_id: hh.site_id,
+          locality_code: hh.locality_code,
+          eligibility_start_date: existingWoman[0]?.eligibility_start_date ?? completedDate,
+          wq_status: isExcluded ? "excluded" : "pending",
+          tracking_status: existingWoman[0]?.tracking_status ?? "not_tracked",
+          current_eligibility_status: isExcluded ? "excluded" : "eligible",
+          eligibility_basis: existingWoman[0]?.eligibility_basis ?? "baseline_hhq",
+          sync_status: "synced",
+          created_at: existingWoman[0]?.created_at ?? now,
+          updated_at: now,
+        })
+        .onConflictDoUpdate({
+          target: [schema.eligibleWomen.woman_id],
+          set: {
+            wq_status: isExcluded ? "excluded" : "pending",
+            current_eligibility_status: isExcluded ? "excluded" : "eligible",
+            updated_at: now,
+          },
+        });
+
+      await getDb().insert(schema.domainEvents).values({
+        event_id: eventId,
+        event_type: eventType,
+        site_id: hh.site_id,
+        locality_code: hh.locality_code,
+        household_id: householdId,
+        subject_type: "person",
+        subject_id: womanId,
+        task_id: response.task_id,
+        form_response_id: response.form_response_id,
+        event_datetime: response.created_offline_at ?? now,
+        created_offline_at: response.created_offline_at,
+        device_id: response.device_id,
+        sync_status: "synced",
+        apply_status: "applied",
+        created_at: now,
+      });
+
+      if (isExcluded || nextVisitNo > WQ_MAX_VISITS) return;
+
+      const targetDate = addDaysIso(completedDate, WQ_REVISIT_DELAY_DAYS);
+      const protocolVisitLabel = `baseline-visit-${nextVisitNo}`;
+      await getDb()
+        .insert(schema.followUpTasks)
+        .values({
+          task_id: randomUUID(),
+          task_key: `${householdId}:person:${womanId}:WQ:${protocolVisitLabel}:${targetDate}:v1`,
+          site_id: hh.site_id,
+          locality_code: hh.locality_code,
+          household_id: householdId,
+          subject_type: "person",
+          subject_id: womanId,
+          woman_id: womanId,
+          task_type: "WQ",
+          form_code: "WQ",
+          expected_forms: ["WQ"],
+          protocol_visit_label: protocolVisitLabel,
+          generation_source: "wq_revisit",
+          source_event_id: eventId,
+          anchor_date: completedDate,
+          window_start: targetDate,
+          target_date: targetDate,
+          deadline_date: addDaysIso(targetDate, 30),
+          status: "planned",
+          failed_attempt_count: visitNo,
+          max_failed_attempts: WQ_MAX_VISITS,
+          requires_final_close_reason: false,
+          rules_version: "1.0.0",
+          form_availability: existingTask?.form_availability || "available",
+          action_state: existingTask?.action_state || "enabled",
+          created_at: now,
+          updated_at: now,
+        })
+        .onConflictDoNothing();
+      return;
+    }
+
+    if (isWqNeverMarriedResponse(answers)) {
+      await getDb()
+        .update(schema.formResponses)
+        .set({ response_status: "never_married_terminal" })
+        .where(eq(schema.formResponses.form_response_id, response.form_response_id));
+
+      await getDb()
+        .insert(schema.eligibleWomen)
+        .values({
+          woman_id: womanId,
+          household_member_id: subjectId,
+          household_id: householdId,
+          site_id: hh.site_id,
+          locality_code: hh.locality_code,
+          eligibility_start_date: existingWoman[0]?.eligibility_start_date ?? completedDate,
+          wq_status: "not_eligible",
+          tracking_status: "not_tracked",
+          current_eligibility_status: "not_eligible",
+          eligibility_basis: existingWoman[0]?.eligibility_basis ?? "baseline_hhq",
+          sync_status: "synced",
+          created_at: existingWoman[0]?.created_at ?? now,
+          updated_at: now,
+        })
+        .onConflictDoUpdate({
+          target: [schema.eligibleWomen.woman_id],
+          set: {
+            wq_status: "not_eligible",
+            tracking_status: "not_tracked",
+            current_eligibility_status: "not_eligible",
+            updated_at: now,
+          },
+        });
+
+      await getDb().insert(schema.domainEvents).values({
+        event_id: randomUUID(),
+        event_type: "wq_never_married_terminal",
+        site_id: hh.site_id,
+        locality_code: hh.locality_code,
+        household_id: householdId,
+        subject_type: "person",
+        subject_id: womanId,
+        task_id: response.task_id,
+        form_response_id: response.form_response_id,
+        event_datetime: response.created_offline_at ?? now,
+        created_offline_at: response.created_offline_at,
+        device_id: response.device_id,
+        sync_status: "synced",
+        apply_status: "applied",
+        created_at: now,
+      });
+      return;
+    }
 
     // Upsert eligible woman
     await getDb()
@@ -122,12 +387,12 @@ async function promoteWq(
         household_id: householdId,
         site_id: hh.site_id,
         locality_code: hh.locality_code,
-        eligibility_start_date: new Date().toISOString().split("T")[0],
+        eligibility_start_date: existingWoman[0]?.eligibility_start_date ?? completedDate,
         wq_status: "completed",
-        tracking_status: isPregnant ? "enrolled" : "not_pregnant",
+        tracking_status: isPregnancyTrackingEligible ? "enrolled" : "not_pregnant",
         current_eligibility_status: "eligible",
-        created_at: new Date(),
-        updated_at: new Date(),
+        created_at: existingWoman[0]?.created_at ?? now,
+        updated_at: now,
       })
       .onConflictDoUpdate({
         target: [schema.eligibleWomen.woman_id],
@@ -137,13 +402,13 @@ async function promoteWq(
           site_id: hh.site_id,
           locality_code: hh.locality_code,
           wq_status: "completed",
-          tracking_status: isPregnant ? "enrolled" : "not_pregnant",
+          tracking_status: isPregnancyTrackingEligible ? "enrolled" : "not_pregnant",
           current_eligibility_status: "eligible",
-          updated_at: new Date(),
+          updated_at: now,
         },
       });
 
-    if (isPregnant) {
+    if (isPregnancyTrackingEligible) {
       // Check if pregnancy already exists
       const existingPregnancy = await getDb()
         .select()
@@ -163,10 +428,10 @@ async function promoteWq(
           locality_code: hh.locality_code,
           pregnancy_sequence: 1,
           pregnancy_status: "active",
-          detected_date: new Date().toISOString().split("T")[0],
+          detected_date: completedDate,
           detection_source: "wq",
-          created_at: new Date(),
-          updated_at: new Date(),
+          created_at: now,
+          updated_at: now,
         });
       }
 
@@ -178,8 +443,11 @@ async function promoteWq(
         household_id: householdId,
         woman_id: womanId,
         wq_pregnant: true,
-        completed_date: new Date().toISOString().split("T")[0],
-        recorded_at: new Date().toISOString(),
+        completed_date: completedDate,
+        recorded_at: now.toISOString(),
+        task_id: response.task_id,
+        form_response_id: response.form_response_id,
+        device_id: response.device_id || undefined,
       });
       const tasks = wqCompleted.planWorkflow({ event: wqEvent });
       await writeTasksFromDescriptors(tasks);

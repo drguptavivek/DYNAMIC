@@ -14,6 +14,8 @@ const SUPPORTED_SURVEY_KEYS = new Set([
   "isRequired",
   "validators",
   "inputType",
+  "maxLength",
+  "preserveString",
   "readOnly",
   "renderAs",
   "minPanelCount",

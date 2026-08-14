@@ -182,17 +182,35 @@
             "ur": ""
           },
           "inputType": "date",
-          "validators": [
-            {
-              "type": "numeric"
-            }
-          ],
           "validationRulesSource": [
             "Number of visit will be automatically counted\nSecond visit\nThird visit"
           ],
           "renderingHint": {
             "render_as": "date_picker"
           }
+        },
+        {
+          "type": "text",
+          "name": "wq_visit_no",
+          "title": {
+            "default": "This your Visit No:",
+            "hi": "",
+            "kn": "",
+            "mr": "",
+            "ta": "",
+            "te": "",
+            "ur": ""
+          },
+          "order": 6,
+          "section_order": 1,
+          "sourceType": "app_calculated",
+          "renderingHint": {
+            "render_as": "readonly_summary"
+          },
+          "rawText": "This your Visit No:",
+          "readOnly": true,
+          "visibleIf": "{wq_interview_date} notempty",
+          "inputType": "number"
         },
         {
           "type": "radiogroup",
@@ -246,7 +264,8 @@
                 "ta": "",
                 "te": "",
                 "ur": ""
-              }
+              },
+              "visibleIf": "{wq_visit_no} < 3"
             },
             {
               "value": 4,
@@ -263,7 +282,8 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "skipLogicSource": "Excel 01: option 2 stops interview and routes to outcome; options 3 and 4 create revisit workflow until visit 3."
         },
         {
           "type": "radiogroup",
@@ -310,7 +330,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_woman_available} = 1",
+          "visibleIfSourceResolved": "Excel 01 rows 11,13: continue consent only when woman is available now."
         },
         {
           "type": "radiogroup",
@@ -429,7 +451,9 @@
           },
           "validationRulesSource": [
             "Check if list is OK"
-          ]
+          ],
+          "visibleIf": "{wq_woman_available} = 1 and {wq_consent_study} = 1",
+          "visibleIfSourceResolved": "Excel 01: respondent background continues only after woman available and study consent yes."
         },
         {
           "type": "text",
@@ -448,7 +472,9 @@
           "sourceCode": "7",
           "sourceType": "text",
           "rawText": "Mobile phone of woman",
-          "inputType": "text"
+          "inputType": "text",
+          "visibleIf": "{wq_woman_available} = 1 and {wq_consent_study} = 1",
+          "visibleIfSourceResolved": "Excel 01: respondent background continues only after woman available and study consent yes."
         },
         {
           "type": "radiogroup",
@@ -927,7 +953,9 @@
           },
           "validationRulesSource": [
             "Following NFHS-5 categories and labeling - update using NFHS-6 once we know - as needed per current states"
-          ]
+          ],
+          "visibleIf": "{wq_woman_available} = 1 and {wq_consent_study} = 1",
+          "visibleIfSourceResolved": "Excel 01: respondent background continues only after woman available and study consent yes."
         },
         {
           "type": "radiogroup",
@@ -944,8 +972,11 @@
           "order": 11,
           "section_order": 1,
           "sourceCode": "9",
-          "sourceType": "select_one",
+          "sourceType": "numeric_or_select_one",
           "rawText": "How long have you been living continuously in (NAME OF CURRENT CITY, TOWN, OR VILLAGE OF RESIDENCE)?\nIf less than one year, record 00 years |_|_| years",
+          "inputType": "number",
+          "maxLength": 2,
+          "preserveString": true,
           "choices": [
             {
               "value": 95,
@@ -973,11 +1004,13 @@
             }
           ],
           "renderingHint": {
-            "render_as": "radio"
-          }
+            "render_as": "years_with_special_codes"
+          },
+          "visibleIf": "{wq_woman_available} = 1 and {wq_consent_study} = 1",
+          "visibleIfSourceResolved": "Excel 01: respondent background continues only after woman available and study consent yes."
         },
         {
-          "type": "radiogroup",
+          "type": "multipletext",
           "name": "wq_01_respondent_s_backgr_in_what_month_and_year_were_you_born",
           "title": {
             "default": "In what month and year were you born?",
@@ -991,37 +1024,77 @@
           "order": 12,
           "section_order": 1,
           "sourceCode": "10",
-          "sourceType": "select_one",
-          "rawText": "In what month and year were you born? |_|_| month (01 to 12)",
-          "choices": [
+          "sourceType": "multiple_numeric",
+          "rawText": "In what month and year were you born? |_|_| month (01 to 12) |_|_|_|_| year",
+          "items": [
             {
-              "value": 98,
-              "text": {
-                "default": "don't know month",
-                "hi": "",
-                "kn": "",
-                "mr": "",
-                "ta": "",
-                "te": "",
-                "ur": ""
-              }
+              "name": "month",
+              "title": "Month",
+              "inputType": "number",
+              "placeholder": "MM",
+              "maxLength": 2,
+              "preserveString": true,
+              "unknownChoice": {
+                "value": 98,
+                "text": {
+                  "default": "don't know month",
+                  "hi": "",
+                  "kn": "",
+                  "mr": "",
+                  "ta": "",
+                  "te": "",
+                  "ur": ""
+                }
+              },
+              "validators": [
+                {
+                  "type": "numeric",
+                  "minValue": 1,
+                  "maxValue": 12
+                },
+                {
+                  "type": "regex",
+                  "regex": "^(0[1-9]|1[0-2])$",
+                  "text": "Enter month as 2 digits from 01 to 12."
+                }
+              ]
             },
             {
-              "value": 9998,
-              "text": {
-                "default": "don't know year",
-                "hi": "",
-                "kn": "",
-                "mr": "",
-                "ta": "",
-                "te": "",
-                "ur": ""
-              }
+              "name": "year",
+              "title": "Year",
+              "inputType": "number",
+              "placeholder": "YYYY",
+              "maxLength": 4,
+              "preserveString": true,
+              "unknownChoice": {
+                "value": 9998,
+                "text": {
+                  "default": "don't know year",
+                  "hi": "",
+                  "kn": "",
+                  "mr": "",
+                  "ta": "",
+                  "te": "",
+                  "ur": ""
+                }
+              },
+              "validators": [
+                {
+                  "type": "numeric"
+                },
+                {
+                  "type": "regex",
+                  "regex": "^\\d{4}$",
+                  "text": "Enter year as 4 digits."
+                }
+              ]
             }
           ],
           "renderingHint": {
-            "render_as": "radio"
-          }
+            "render_as": "multiple_numeric_textbox"
+          },
+          "visibleIf": "{wq_woman_available} = 1 and {wq_consent_study} = 1",
+          "visibleIfSourceResolved": "Excel 01: respondent background continues only after woman available and study consent yes."
         },
         {
           "type": "text",
@@ -1049,15 +1122,28 @@
             "te": "",
             "ur": ""
           },
-          "inputType": "number",
+          "inputType": "text",
+          "maxLength": 2,
           "validators": [
             {
-              "type": "numeric"
+              "type": "numeric",
+              "minValue": 0,
+              "maxValue": 99
+            },
+            {
+              "type": "regex",
+              "regex": "^\\d{2}$",
+              "text": "Enter age as exactly 2 digits."
             }
           ],
+          "renderingHint": {
+            "render_as": "numeric_textbox"
+          },
           "validationRulesSource": [
             "COMPARE AND CORRECT 10  AND/OR 11 IF INCONSISTENT"
-          ]
+          ],
+          "visibleIf": "{wq_woman_available} = 1 and {wq_consent_study} = 1",
+          "visibleIfSourceResolved": "Excel 01: respondent background continues only after woman available and study consent yes."
         },
         {
           "type": "radiogroup",
@@ -1152,7 +1238,9 @@
           },
           "validationRulesSource": [
             "Training - refer to DHS-8 Manual"
-          ]
+          ],
+          "visibleIf": "{wq_woman_available} = 1 and {wq_consent_study} = 1",
+          "visibleIfSourceResolved": "Excel 01: respondent background continues only after woman available and study consent yes."
         },
         {
           "type": "radiogroup",
@@ -1199,7 +1287,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_woman_available} = 1 and {wq_consent_study} = 1",
+          "visibleIfSourceResolved": "Excel 01: respondent background continues only after woman available and study consent yes."
         },
         {
           "type": "radiogroup",
@@ -1306,7 +1396,9 @@
           },
           "validationRulesSource": [
             "Training - refer to NFHS-6 Manual"
-          ]
+          ],
+          "visibleIf": "({wq_01_respondent_s_backgr_have_you_ever_attended_school} = 1) and ({wq_woman_available} = 1 and {wq_consent_study} = 1)",
+          "visibleIfSourceResolved": "Excel 01 row 75: Q13 no skips Q14 highest grade.; Excel 01: respondent background continues only after woman available and study consent yes."
         },
         {
           "type": "radiogroup",
@@ -1449,7 +1541,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_woman_available} = 1 and {wq_consent_study} = 1",
+          "visibleIfSourceResolved": "Excel 01: respondent background continues only after woman available and study consent yes."
         },
         {
           "type": "radiogroup",
@@ -1520,7 +1614,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_woman_available} = 1 and {wq_consent_study} = 1",
+          "visibleIfSourceResolved": "Excel 01: respondent background continues only after woman available and study consent yes."
         },
         {
           "type": "radiogroup",
@@ -1651,7 +1747,10 @@
           },
           "validationRulesSource": [
             "ANSWER 18, 19, and 20"
-          ]
+          ],
+          "skipLogicSource": "Excel 01: option 7 never married stops questionnaire. Workflow action remains outside JSON visibility.",
+          "visibleIf": "{wq_woman_available} = 1 and {wq_consent_study} = 1",
+          "visibleIfSourceResolved": "Excel 01: respondent background continues only after woman available and study consent yes."
         },
         {
           "type": "html",
@@ -1659,7 +1758,9 @@
           "html": "RECORD THE HUSBAND/PARTNER'S NAME AND LINE NAME NUMBER FROM THE HOUSEHOLD QUESTIONNAIRE.\n\nIF HE IS NOT LISTED IN THE HOUSEHOLD, RECORD '00' IN THE BOXES FOR LINE NUMBER. Display List of HOUSEHOLD MALE MEMBERS; If husband does not stay in the household in that case 00 can be imputed - but then the husband's id will not be there or, will not be unique if there are more than oen such case in the same Household",
           "order": 20,
           "section_order": 1,
-          "sourceType": "section_note"
+          "sourceType": "section_note",
+          "visibleIf": "{wq_woman_available} = 1 and {wq_consent_study} = 1",
+          "visibleIfSourceResolved": "Excel 01: respondent background continues only after woman available and study consent yes."
         },
         {
           "type": "text",
@@ -1678,7 +1779,12 @@
           "sourceCode": "18",
           "sourceType": "text",
           "rawText": "Name of husband or live-in partner",
-          "inputType": "text"
+          "inputType": "text",
+          "renderingHint": {
+            "render_as": "household_member_dropdown"
+          },
+          "visibleIf": "(({wq_current_marital_status} = 1 or {wq_current_marital_status} = 8)) and ({wq_woman_available} = 1 and {wq_consent_study} = 1)",
+          "visibleIfSourceResolved": "Excel 01 row 103: never married stops questionnaire; husband/partner details only for current partner.; Excel 01: respondent background continues only after woman available and study consent yes."
         },
         {
           "type": "text",
@@ -1714,7 +1820,9 @@
           ],
           "validationRulesSource": [
             "This line number comes from household listing of individuals and is used to provide the individual's ID"
-          ]
+          ],
+          "visibleIf": "(({wq_current_marital_status} = 1 or {wq_current_marital_status} = 8)) and ({wq_woman_available} = 1 and {wq_consent_study} = 1)",
+          "visibleIfSourceResolved": "Excel 01 row 103: never married stops questionnaire; husband/partner details only for current partner.; Excel 01: respondent background continues only after woman available and study consent yes."
         },
         {
           "type": "text",
@@ -1733,7 +1841,9 @@
           "sourceCode": "20",
           "sourceType": "text",
           "rawText": "Mobile phone of husband or partner",
-          "inputType": "text"
+          "inputType": "text",
+          "visibleIf": "(({wq_current_marital_status} = 1 or {wq_current_marital_status} = 8)) and ({wq_woman_available} = 1 and {wq_consent_study} = 1)",
+          "visibleIfSourceResolved": "Excel 01 row 103: never married stops questionnaire; husband/partner details only for current partner.; Excel 01: respondent background continues only after woman available and study consent yes."
         }
       ]
     },
@@ -1841,7 +1951,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_02_reproduction_now_i_would_like_to_ask_about_all_the_birt} = 1",
+          "visibleIfSourceResolved": "Excel 02 row 4: Q1 no skips to Q6."
         },
         {
           "type": "text",
@@ -1877,7 +1989,9 @@
           ],
           "validationRulesSource": [
             "00 if none"
-          ]
+          ],
+          "visibleIf": "{wq_02_reproduction_now_i_would_like_to_ask_about_all_the_birt} = 1 and {wq_02_reproduction_do_you_have_any_sons_or_daughters_to_whom} = 1",
+          "visibleIfSourceResolved": "Excel 02 row 6: Q2 no skips to Q4."
         },
         {
           "type": "text",
@@ -1913,7 +2027,9 @@
           ],
           "validationRulesSource": [
             "00 if none"
-          ]
+          ],
+          "visibleIf": "{wq_02_reproduction_now_i_would_like_to_ask_about_all_the_birt} = 1 and {wq_02_reproduction_do_you_have_any_sons_or_daughters_to_whom} = 1",
+          "visibleIfSourceResolved": "Excel 02 row 6: Q2 no skips to Q4."
         },
         {
           "type": "radiogroup",
@@ -1960,7 +2076,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_02_reproduction_now_i_would_like_to_ask_about_all_the_birt} = 1",
+          "visibleIfSourceResolved": "Excel 02 row 4: Q1 no skips to Q6."
         },
         {
           "type": "text",
@@ -1996,7 +2114,9 @@
           ],
           "validationRulesSource": [
             "00 if none"
-          ]
+          ],
+          "visibleIf": "{wq_02_reproduction_now_i_would_like_to_ask_about_all_the_birt} = 1 and {wq_02_reproduction_do_you_have_any_sons_or_daughters_to_whom_2} = 1",
+          "visibleIfSourceResolved": "Excel 02 row 10: Q4 no skips to Q6."
         },
         {
           "type": "text",
@@ -2032,7 +2152,9 @@
           ],
           "validationRulesSource": [
             "00 if none"
-          ]
+          ],
+          "visibleIf": "{wq_02_reproduction_now_i_would_like_to_ask_about_all_the_birt} = 1 and {wq_02_reproduction_do_you_have_any_sons_or_daughters_to_whom_2} = 1",
+          "visibleIfSourceResolved": "Excel 02 row 10: Q4 no skips to Q6."
         },
         {
           "type": "radiogroup",
@@ -2079,7 +2201,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_02_reproduction_now_i_would_like_to_ask_about_all_the_birt} = 1",
+          "visibleIfSourceResolved": "Excel 02 row 4: Q1 no skips to Q6."
         },
         {
           "type": "text",
@@ -2112,7 +2236,9 @@
             {
               "type": "numeric"
             }
-          ]
+          ],
+          "visibleIf": "{wq_02_reproduction_now_i_would_like_to_ask_about_all_the_birt} = 1 and {wq_02_reproduction_have_you_ever_given_birth_to_a_boy_or_girl} = 1",
+          "visibleIfSourceResolved": "Excel 02 row 14: Q6 no skips to Q8."
         },
         {
           "type": "text",
@@ -2145,7 +2271,9 @@
             {
               "type": "numeric"
             }
-          ]
+          ],
+          "visibleIf": "{wq_02_reproduction_now_i_would_like_to_ask_about_all_the_birt} = 1 and {wq_02_reproduction_have_you_ever_given_birth_to_a_boy_or_girl} = 1",
+          "visibleIfSourceResolved": "Excel 02 row 14: Q6 no skips to Q8."
         },
         {
           "type": "text",
@@ -2181,7 +2309,9 @@
           ],
           "validationRulesSource": [
             "Automatically filled, 00 if none(i.e. if for q1 the choice is 2 i.e. NO)"
-          ]
+          ],
+          "visibleIf": "{wq_02_reproduction_now_i_would_like_to_ask_about_all_the_birt} = 1",
+          "visibleIfSourceResolved": "Excel 02 row 4: Q1 no skips to Q6."
         },
         {
           "type": "radiogroup",
@@ -2228,7 +2358,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_02_reproduction_now_i_would_like_to_ask_about_all_the_birt} = 1",
+          "visibleIfSourceResolved": "Excel 02 row 4: Q1 no skips to Q6."
         },
         {
           "type": "radiogroup",
@@ -2308,7 +2440,9 @@
             {
               "type": "numeric"
             }
-          ]
+          ],
+          "visibleIf": "{wq_02_reproduction_women_sometimes_have_a_pregnancy_that_does} = 1",
+          "visibleIfSourceResolved": "Excel 02 row 21: Q10 no skips to Q12."
         },
         {
           "type": "text",
@@ -2636,7 +2770,9 @@
               ],
               "renderingHint": {
                 "render_as": "radio"
-              }
+              },
+              "visibleIf": "{pregnancy_02_reproduction_if_15_i_single_was_the_baby_born_alive_bor} contains 2",
+              "visibleIfSourceResolved": "Excel 02 row 37: Q17 only follows born dead/no sign-of-life path."
             },
             {
               "type": "text",
@@ -2655,7 +2791,9 @@
               "sourceCode": "18_i",
               "sourceType": "text",
               "rawText": "What name was given to the baby? RECORD NAME",
-              "inputType": "text"
+              "inputType": "text",
+              "visibleIf": "({pregnancy_02_reproduction_if_15_i_single_was_the_baby_born_alive_bor} contains 1 or {pregnancy_02_reproduction_did_the_baby_cry_move_or_breathe} = 1)",
+              "visibleIfSourceResolved": "Excel 02 rows 32,37: born alive skips to Q18; no sign-of-life skips to Q20."
             },
             {
               "type": "radiogroup",
@@ -2702,7 +2840,9 @@
               ],
               "renderingHint": {
                 "render_as": "radio"
-              }
+              },
+              "visibleIf": "({pregnancy_02_reproduction_if_15_i_single_was_the_baby_born_alive_bor} contains 1 or {pregnancy_02_reproduction_did_the_baby_cry_move_or_breathe} = 1)",
+              "visibleIfSourceResolved": "Excel 02 rows 32,37: ask sex only for born-alive outcome."
             },
             {
               "type": "text",
@@ -2945,7 +3085,9 @@
               ],
               "renderingHint": {
                 "render_as": "radio"
-              }
+              },
+              "visibleIf": "{pregnancy_02_reproduction_check_16_17_and_21_if_16_i_1_or_17_i_1_the} = 1",
+              "visibleIfSourceResolved": "Excel 02 row 52: Q23 non-live outcomes skip to next pregnancy."
             },
             {
               "type": "text",
@@ -2978,7 +3120,9 @@
                 {
                   "type": "numeric"
                 }
-              ]
+              ],
+              "visibleIf": "{pregnancy_02_reproduction_check_16_17_and_21_if_16_i_1_or_17_i_1_the} = 1 and {pregnancy_02_reproduction_is_name_still_alive} = 1",
+              "visibleIfSourceResolved": "Excel 02 row 56: Q24 no skips to Q28."
             },
             {
               "type": "radiogroup",
@@ -3025,7 +3169,9 @@
               ],
               "renderingHint": {
                 "render_as": "radio"
-              }
+              },
+              "visibleIf": "{pregnancy_02_reproduction_check_16_17_and_21_if_16_i_1_or_17_i_1_the} = 1 and {pregnancy_02_reproduction_is_name_still_alive} = 1",
+              "visibleIfSourceResolved": "Excel 02 row 56: Q24 no skips to Q28."
             },
             {
               "type": "text",
@@ -3061,7 +3207,9 @@
               ],
               "validationRulesSource": [
                 "SKIP TO 23 IN NEXT ROW (i+1)"
-              ]
+              ],
+              "visibleIf": "{pregnancy_02_reproduction_check_16_17_and_21_if_16_i_1_or_17_i_1_the} = 1 and {pregnancy_02_reproduction_is_name_still_alive} = 1",
+              "visibleIfSourceResolved": "Excel 02 row 56: Q24 no skips to Q28."
             },
             {
               "type": "text",
@@ -3097,10 +3245,14 @@
               ],
               "validationRulesSource": [
                 "SKIP TO 23 IN NEXT ROW (i+1)"
-              ]
+              ],
+              "visibleIf": "{pregnancy_02_reproduction_check_16_17_and_21_if_16_i_1_or_17_i_1_the} = 1 and {pregnancy_02_reproduction_is_name_still_alive} = 2",
+              "visibleIfSourceResolved": "Excel 02 row 56: Q28 only for born alive and now dead."
             }
           ],
-          "rawText": "Now I would like to record all your pregnancies including live births, stillbirths, miscarriages, and abortions, starting with your first pregnancy\nAnswer the questions 14 to 21, and 23 to 28 for each ith pregnancy, RECORD ALL PREGNANCIES. RECORD TWINS AND TRIPLETS ON SEPARATE LINES."
+          "rawText": "Now I would like to record all your pregnancies including live births, stillbirths, miscarriages, and abortions, starting with your first pregnancy\nAnswer the questions 14 to 21, and 23 to 28 for each ith pregnancy, RECORD ALL PREGNANCIES. RECORD TWINS AND TRIPLETS ON SEPARATE LINES.",
+          "visibleIf": "{wq_02_reproduction_check_12} = 1",
+          "visibleIfSourceResolved": "Excel 02 row 25: Q13 no past pregnancies skips to Q32."
         },
         {
           "type": "radiogroup",
@@ -3159,7 +3311,9 @@
           },
           "validationRulesSource": [
             "ADD TO TABLE"
-          ]
+          ],
+          "visibleIf": "{wq_02_reproduction_check_12} = 1",
+          "visibleIfSourceResolved": "Excel 02 row 25: no past pregnancies skips pregnancy history follow-up to Q32."
         },
         {
           "type": "text",
@@ -3178,7 +3332,9 @@
           "sourceCode": "22b",
           "sourceType": "text",
           "rawText": "READ THE LIST OF PREGNANCY OUTCOMES IN ORDER TO THE RESPONDENT AND ASK IF THEY ARE ALL THAT SHE HAS EVER HAD, AND IF THEY ARE LISTED IN ORDER STARTED FROM THE FIRST ONE.\n\nDOES THE RESPONDENT AGREE? \nIF NOT, PROBE FOR THE CORRECT INFORMATION AND REVISE THE PREGNANCY HISTORY ACCORDINGLY.",
-          "inputType": "text"
+          "inputType": "text",
+          "visibleIf": "{wq_02_reproduction_check_12} = 1",
+          "visibleIfSourceResolved": "Excel 02 row 25: no past pregnancies skips pregnancy history follow-up to Q32."
         },
         {
           "type": "radiogroup",
@@ -3225,7 +3381,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_02_reproduction_check_12} = 1",
+          "visibleIfSourceResolved": "Excel 02 row 25: no past pregnancies skips pregnancy history follow-up to Q32."
         },
         {
           "type": "radiogroup",
@@ -3284,7 +3442,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_02_reproduction_check_12} = 1",
+          "visibleIfSourceResolved": "Excel 02 row 25: no past pregnancies skips pregnancy history follow-up to Q32."
         },
         {
           "type": "radiogroup",
@@ -3343,7 +3503,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_02_reproduction_check_12} = 1",
+          "visibleIfSourceResolved": "Excel 02 row 25: no past pregnancies skips pregnancy history follow-up to Q32."
         },
         {
           "type": "checkbox",
@@ -3450,7 +3612,9 @@
           ],
           "renderingHint": {
             "render_as": "checkbox"
-          }
+          },
+          "visibleIf": "{wq_02_reproduction_check_12} = 1 and {wq_02_reproduction_did_you_ever_have_a_delivery_that_had_comp} = 1",
+          "visibleIfSourceResolved": "Excel 02 row 70: Q31a no skips to Q32."
         },
         {
           "type": "radiogroup",
@@ -3640,7 +3804,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_02_reproduction_when_did_your_last_menstrual_period_start} notempty and {wq_02_reproduction_when_did_your_last_menstrual_period_start} != 993",
+          "visibleIfSourceResolved": "Excel 02 row 87: Q33a hysterectomy skips Q33b to Q35."
         },
         {
           "type": "radiogroup",
@@ -3687,7 +3853,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_pregnant} = 2 or {wq_pregnant} = 98",
+          "visibleIfSourceResolved": "Excel 02 row 94: Q33c only if not pregnant or unsure."
         },
         {
           "type": "radiogroup",
@@ -3746,7 +3914,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "({wq_02_reproduction_when_did_your_last_menstrual_period_start} notempty and {wq_02_reproduction_when_did_your_last_menstrual_period_start} != 993) and ({wq_02_reproduction_check_32_if_not_pregnant_or_unsure} empty or {wq_02_reproduction_check_32_if_not_pregnant_or_unsure} = 1)",
+          "visibleIfSourceResolved": "Excel 02 rows 87,92,94: skip hysterectomy check when LMP says hysterectomy or check result is other."
         },
         {
           "type": "text",
@@ -3834,7 +4004,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "({wq_current_marital_status} = 1 or {wq_current_marital_status} = 2 or {wq_current_marital_status} = 8)",
+          "visibleIfSourceResolved": "Excel 02 row 106: pregnancy tracking eligibility uses marital statuses 1/2/8, so Q36-Q38 inputs are shown for those statuses."
         },
         {
           "type": "radiogroup",
@@ -3905,7 +4077,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "({wq_current_marital_status} = 1 or {wq_current_marital_status} = 2 or {wq_current_marital_status} = 8)",
+          "visibleIfSourceResolved": "Excel 02 row 106: pregnancy tracking eligibility uses marital statuses 1/2/8, so Q36-Q38 inputs are shown for those statuses."
         },
         {
           "type": "radiogroup",
@@ -3966,9 +4140,14 @@
             "IF 01.15 (age) = 18-44, AND\n01.21 (marital status) = 1,2 or 8,  AND \n02.33a (menstrual period) != (different from) 993 or 994, AND\n02.34 (hysterectomy) = 2,  AND\n02.37 (sterilization status) = 4"
           ],
           "readOnly": true,
-          "calculated": true
+          "calculated": true,
+          "visibleIf": "({wq_current_marital_status} = 1 or {wq_current_marital_status} = 2 or {wq_current_marital_status} = 8)",
+          "visibleIfSourceResolved": "Excel 02 row 106: pregnancy tracking eligibility uses marital statuses 1/2/8.",
+          "skipLogicSource": "Excel 02 row 106: eligible if age 18-44, marital status 1/2/8, LMP not 993/994, hysterectomy no, and sterilization status 4. Auto-filled read-only in app behavior."
         }
-      ]
+      ],
+      "visibleIf": "({wq_woman_available} empty or {wq_woman_available} = 1) and ({wq_consent_study} empty or {wq_consent_study} = 1) and ({wq_current_marital_status} empty or {wq_current_marital_status} != 7)",
+      "visibleIfSourceResolved": "Excel 01: unavailable/no consent/never married stops remaining questionnaire pages."
     },
     {
       "name": "page_03_other_health_issues",
@@ -4102,7 +4281,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_03_other_health_issues_do_you_currently_have_diabetes} = 1",
+          "visibleIfSourceResolved": "Excel 03 rows 6-7: Q1a no/dont know skips Q2a."
         },
         {
           "type": "radiogroup",
@@ -4208,7 +4389,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_03_other_health_issues_do_you_currently_have_hypertension} = 1",
+          "visibleIfSourceResolved": "Excel 03 rows 11-12: Q2a no/dont know skips Q3a."
         },
         {
           "type": "radiogroup",
@@ -4314,7 +4497,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_03_other_health_issues_do_you_currently_have_chronic_respiratory} = 1",
+          "visibleIfSourceResolved": "Excel 03 rows 16-17: Q3a no/dont know skips Q4a."
         },
         {
           "type": "radiogroup",
@@ -4420,7 +4605,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_03_other_health_issues_do_you_currently_have_goitre_or_any_other} = 1",
+          "visibleIfSourceResolved": "Excel 03 rows 21-22: Q4a no/dont know skips Q5a."
         },
         {
           "type": "radiogroup",
@@ -4526,7 +4713,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_03_other_health_issues_do_you_currently_have_any_heart_disease} = 1",
+          "visibleIfSourceResolved": "Excel 03 rows 26-27: Q5a no/dont know skips Q6a."
         },
         {
           "type": "radiogroup",
@@ -4632,7 +4821,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_03_other_health_issues_do_you_currently_have_cancer} = 1",
+          "visibleIfSourceResolved": "Excel 03 rows 31-32: Q6a no/dont know skips Q7a."
         },
         {
           "type": "radiogroup",
@@ -4738,7 +4929,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_03_other_health_issues_do_you_currently_have_any_chronic_kidney_d} = 1",
+          "visibleIfSourceResolved": "Excel 03 rows 36-37: Q7a no/dont know skips Q8a."
         },
         {
           "type": "radiogroup",
@@ -4844,7 +5037,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_03_other_health_issues_do_you_currently_have_anemia} = 1",
+          "visibleIfSourceResolved": "Excel 03 rows 41-42: Q8a no/dont know skips Q9a."
         },
         {
           "type": "radiogroup",
@@ -4926,7 +5121,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_03_other_health_issues_have_you_ever_had_a_blood_transfusion} = 1",
+          "visibleIfSourceResolved": "Excel 03 row 46: Q9a no skips to Q10."
         },
         {
           "type": "radiogroup",
@@ -5018,7 +5215,9 @@
             {
               "type": "numeric"
             }
-          ]
+          ],
+          "visibleIf": "{wq_03_other_health_issues_now_i_would_like_to_ask_you_some_questions} = 1",
+          "visibleIfSourceResolved": "Excel 03 rows 51-52: Q10 some days/not at all skip to Q12."
         },
         {
           "type": "radiogroup",
@@ -5110,7 +5309,9 @@
             {
               "type": "numeric"
             }
-          ]
+          ],
+          "visibleIf": "{wq_03_other_health_issues_do_you_currently_smoke_bidis_every_day_som} = 1",
+          "visibleIfSourceResolved": "Excel 03 rows 55-56: Q12 some days/not at all skip to Q14."
         },
         {
           "type": "radiogroup",
@@ -5300,7 +5501,9 @@
           ],
           "renderingHint": {
             "render_as": "checkbox"
-          }
+          },
+          "visibleIf": "{wq_03_other_health_issues_do_you_currently_smoke_or_use_any_other_ty} = 1",
+          "visibleIfSourceResolved": "Excel 03 rows 59-60: Q14 some days/not at all skip to Q16."
         },
         {
           "type": "radiogroup",
@@ -5406,7 +5609,9 @@
           },
           "validationRulesSource": [
             "SKIP TO next section"
-          ]
+          ],
+          "visibleIf": "{wq_03_other_health_issues_now_i_would_like_to_ask_you_some_questions_2} = 1",
+          "visibleIfSourceResolved": "Excel 03 row 71: Q16 no skips to next section."
         },
         {
           "type": "radiogroup",
@@ -5441,9 +5646,13 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_03_other_health_issues_during_the_last_one_month_on_how_many_days} != 0",
+          "visibleIfSourceResolved": "Excel 03 row 72: Q17 00 skips to next section."
         }
-      ]
+      ],
+      "visibleIf": "({wq_pregnancy_tracking_eligible} = 1) and (({wq_woman_available} empty or {wq_woman_available} = 1) and ({wq_consent_study} empty or {wq_consent_study} = 1) and ({wq_current_marital_status} empty or {wq_current_marital_status} != 7))",
+      "visibleIfSourceResolved": "Excel 01: unavailable/no consent/never married stops remaining questionnaire pages."
     },
     {
       "name": "page_04_husband_background_woman_work",
@@ -5558,7 +5767,9 @@
           ],
           "validationRulesSource": [
             "Only for the currently married"
-          ]
+          ],
+          "visibleIf": "{wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 1",
+          "visibleIfSourceResolved": "Excel 04: husband/current-marriage questions only for currently married."
         },
         {
           "type": "radiogroup",
@@ -5605,7 +5816,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "({wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 1 or {wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 3)",
+          "visibleIfSourceResolved": "Excel 04 rows 5-7: never married/gauna/live-in skips to Q6; formerly married skips to Q3."
         },
         {
           "type": "radiogroup",
@@ -5700,7 +5913,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} != 2 and {wq_04_husband_s_backgroun_did_your_last_husband_ever_attend_school} = 1",
+          "visibleIfSourceResolved": "Excel 04: show husband grade only if husband attended school."
         },
         {
           "type": "text",
@@ -5731,7 +5946,9 @@
           "inputType": "text",
           "validationRulesSource": [
             "Training - refer to NFHS-6 Manual"
-          ]
+          ],
+          "visibleIf": "({wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 1 or {wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 3)",
+          "visibleIfSourceResolved": "Excel 04 rows 5-7: never married/gauna/live-in skips to Q6; formerly married skips to Q3."
         },
         {
           "type": "radiogroup",
@@ -5790,7 +6007,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 1",
+          "visibleIfSourceResolved": "Excel 04: husband/current-marriage questions only for currently married."
         },
         {
           "type": "text",
@@ -5823,7 +6042,9 @@
             {
               "type": "numeric"
             }
-          ]
+          ],
+          "visibleIf": "{wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 1 and {wq_04_husband_s_backgroun_now_i_would_like_to_ask_you_some_questions} = 1",
+          "visibleIfSourceResolved": "Excel 04 rows 19-20: cigarette some days/not at all skips to Q8."
         },
         {
           "type": "radiogroup",
@@ -5882,7 +6103,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 1",
+          "visibleIfSourceResolved": "Excel 04: husband/current-marriage questions only for currently married."
         },
         {
           "type": "text",
@@ -5915,7 +6138,9 @@
             {
               "type": "numeric"
             }
-          ]
+          ],
+          "visibleIf": "{wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 1 and {wq_04_husband_s_backgroun_does_your_husband_partner_currently_smoke} = 1",
+          "visibleIfSourceResolved": "Excel 04 rows 23-24: bidi some days/not at all skips to Q10."
         },
         {
           "type": "radiogroup",
@@ -5974,7 +6199,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 1",
+          "visibleIfSourceResolved": "Excel 04: husband/current-marriage questions only for currently married."
         },
         {
           "type": "checkbox",
@@ -6105,7 +6332,9 @@
           ],
           "renderingHint": {
             "render_as": "checkbox"
-          }
+          },
+          "visibleIf": "{wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 1 and {wq_04_husband_s_backgroun_does_your_husband_partner_currently_smoke_2} = 1",
+          "visibleIfSourceResolved": "Excel 04 rows 27-28: other tobacco some days/not at all skips to Q12."
         },
         {
           "type": "radiogroup",
@@ -6152,7 +6381,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 1",
+          "visibleIfSourceResolved": "Excel 04: husband/current-marriage questions only for currently married."
         },
         {
           "type": "radiogroup",
@@ -6211,7 +6442,9 @@
           },
           "validationRulesSource": [
             "SKIP TO 15"
-          ]
+          ],
+          "visibleIf": "{wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 1 and {wq_04_husband_s_backgroun_now_i_would_like_to_ask_you_some_questions_2} = 1",
+          "visibleIfSourceResolved": "Excel 04 row 39: husband alcohol no skips to Q15."
         },
         {
           "type": "radiogroup",
@@ -6246,7 +6479,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 1 and {wq_04_husband_s_backgroun_during_the_last_one_month_on_how_many_days} != 0",
+          "visibleIfSourceResolved": "Excel 04 row 40: Q13 00 skips to Q15."
         },
         {
           "type": "radiogroup",
@@ -6364,7 +6599,9 @@
           },
           "validationRulesSource": [
             "SKIP TO 19"
-          ]
+          ],
+          "visibleIf": "{wq_04_husband_s_backgroun_aside_from_your_own_housework_have_you_don} = 2",
+          "visibleIfSourceResolved": "Excel 04 row 45: Q15 yes skips to occupation Q19."
         },
         {
           "type": "radiogroup",
@@ -6423,7 +6660,9 @@
           },
           "validationRulesSource": [
             "SKIP TO 19"
-          ]
+          ],
+          "visibleIf": "{wq_04_husband_s_backgroun_aside_from_your_own_housework_have_you_don} = 2 and {wq_04_husband_s_backgroun_as_you_know_some_women_take_up_jobs_for_wh} = 2",
+          "visibleIfSourceResolved": "Excel 04 row 47: Q16 yes skips to occupation Q19."
         },
         {
           "type": "radiogroup",
@@ -6470,7 +6709,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_04_husband_s_backgroun_aside_from_your_own_housework_have_you_don} = 2 and {wq_04_husband_s_backgroun_as_you_know_some_women_take_up_jobs_for_wh} = 2 and {wq_04_husband_s_backgroun_although_you_did_not_work_in_the_last_seve} = 2",
+          "visibleIfSourceResolved": "Excel 04 row 49: Q17 yes skips to occupation Q19."
         },
         {
           "type": "text",
@@ -6501,7 +6742,9 @@
           "inputType": "text",
           "validationRulesSource": [
             "Open ended question / training following NFHS-6 manual"
-          ]
+          ],
+          "visibleIf": "({wq_04_husband_s_backgroun_aside_from_your_own_housework_have_you_don} = 1 or {wq_04_husband_s_backgroun_as_you_know_some_women_take_up_jobs_for_wh} = 1 or {wq_04_husband_s_backgroun_although_you_did_not_work_in_the_last_seve} = 1 or {wq_04_husband_s_backgroun_have_you_done_any_work_in_the_last_12_mont} = 1)",
+          "visibleIfSourceResolved": "Excel 04 row 52: Q18 no skips to Q22."
         },
         {
           "type": "radiogroup",
@@ -6572,7 +6815,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "({wq_04_husband_s_backgroun_aside_from_your_own_housework_have_you_don} = 1 or {wq_04_husband_s_backgroun_as_you_know_some_women_take_up_jobs_for_wh} = 1 or {wq_04_husband_s_backgroun_although_you_did_not_work_in_the_last_seve} = 1 or {wq_04_husband_s_backgroun_have_you_done_any_work_in_the_last_12_mont} = 1)",
+          "visibleIfSourceResolved": "Excel 04 row 52: Q18 no skips to Q22."
         },
         {
           "type": "radiogroup",
@@ -6643,7 +6888,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "({wq_04_husband_s_backgroun_aside_from_your_own_housework_have_you_don} = 1 or {wq_04_husband_s_backgroun_as_you_know_some_women_take_up_jobs_for_wh} = 1 or {wq_04_husband_s_backgroun_although_you_did_not_work_in_the_last_seve} = 1 or {wq_04_husband_s_backgroun_have_you_done_any_work_in_the_last_12_mont} = 1) and ({wq_04_husband_s_backgroun_are_you_paid_in_cash_or_kind_for_this_work} = 1 or {wq_04_husband_s_backgroun_are_you_paid_in_cash_or_kind_for_this_work} = 2)",
+          "visibleIfSourceResolved": "Excel 04 rows 56-57: in-kind only/not paid skips Q21 to Q22."
         },
         {
           "type": "radiogroup",
@@ -6738,7 +6985,9 @@
           },
           "validationRulesSource": [
             "Only for the currently married"
-          ]
+          ],
+          "visibleIf": "{wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 1",
+          "visibleIfSourceResolved": "Excel 04: husband/current-marriage questions only for currently married."
         },
         {
           "type": "radiogroup",
@@ -7106,7 +7355,9 @@
             "render_as": "radio"
           }
         }
-      ]
+      ],
+      "visibleIf": "({wq_pregnancy_tracking_eligible} = 1) and (({wq_woman_available} empty or {wq_woman_available} = 1) and ({wq_consent_study} empty or {wq_consent_study} = 1) and ({wq_current_marital_status} empty or {wq_current_marital_status} != 7))",
+      "visibleIfSourceResolved": "Excel 01: unavailable/no consent/never married stops remaining questionnaire pages."
     },
     {
       "name": "page_05_domestic_violence",
@@ -7173,7 +7424,8 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "skipLogicSource": "Excel 05: domestic violence section is Ayapakkam/Belagavi only, but WQ currently lacks a clean site-id question for safe JSON gating."
         },
         {
           "type": "html",
@@ -7181,7 +7433,9 @@
           "html": "READ TO THE RESPONDENT:\nNow I would like to ask you questions about some other important aspects of a woman's life. You may find some of these questions very personal. However, your answers are crucial for helping to understand the condition of women in India. Let me assure you that your answers are completely confidential and will not be told to anyone and no one else in your household will know that you were asked these questions. If I ask you any question you don't want to answer, just let me know and I will go on to the next question.",
           "order": 115,
           "section_order": 5,
-          "sourceType": "section_note"
+          "sourceType": "section_note",
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1",
+          "visibleIfSourceResolved": "Excel 05 row 5: privacy not possible stops interview."
         },
         {
           "type": "radiogroup",
@@ -7240,7 +7494,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1",
+          "visibleIfSourceResolved": "Excel 05 row 5: privacy not possible stops interview."
         },
         {
           "type": "html",
@@ -7248,7 +7504,9 @@
           "html": "First, I am going to ask you about some situations which happen to some women. Please tell me if these apply to your relationship with your husband / partner.",
           "order": 117,
           "section_order": 5,
-          "sourceType": "section_note"
+          "sourceType": "section_note",
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1",
+          "visibleIfSourceResolved": "Excel 05 row 5: privacy not possible stops interview."
         },
         {
           "type": "radiogroup",
@@ -7307,7 +7565,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1",
+          "visibleIfSourceResolved": "Excel 05 row 5: privacy not possible stops interview."
         },
         {
           "type": "radiogroup",
@@ -7366,7 +7626,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1",
+          "visibleIfSourceResolved": "Excel 05 row 5: privacy not possible stops interview."
         },
         {
           "type": "radiogroup",
@@ -7425,7 +7687,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1",
+          "visibleIfSourceResolved": "Excel 05 row 5: privacy not possible stops interview."
         },
         {
           "type": "radiogroup",
@@ -7484,7 +7748,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1",
+          "visibleIfSourceResolved": "Excel 05 row 5: privacy not possible stops interview."
         },
         {
           "type": "radiogroup",
@@ -7543,7 +7809,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1",
+          "visibleIfSourceResolved": "Excel 05 row 5: privacy not possible stops interview."
         },
         {
           "type": "radiogroup",
@@ -7602,7 +7870,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1",
+          "visibleIfSourceResolved": "Excel 05 row 5: privacy not possible stops interview."
         },
         {
           "type": "html",
@@ -7610,7 +7880,9 @@
           "html": "Now if you will permit me, I need to ask some more questions about your relationship with your husband / partner. Does  your husband ever:",
           "order": 124,
           "section_order": 5,
-          "sourceType": "section_note"
+          "sourceType": "section_note",
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1",
+          "visibleIfSourceResolved": "Excel 05 row 5: privacy not possible stops interview."
         },
         {
           "type": "radiogroup",
@@ -7657,7 +7929,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1 and {wq_05_domestic_violence_check_answer_to_marital_status_on_01_respo} = 1",
+          "visibleIfSourceResolved": "Excel 05 rows 5,8-9: continue DV section only with privacy and current/live-in relationship."
         },
         {
           "type": "radiogroup",
@@ -7716,7 +7990,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1 and {wq_05_domestic_violence_check_answer_to_marital_status_on_01_respo} = 1 and {wq_05_domestic_violence_say_or_do_something_to_humiliate_you_in_fr} = 1",
+          "visibleIfSourceResolved": "Excel 05: 9a no skips 9b frequency follow-up."
         },
         {
           "type": "radiogroup",
@@ -7763,7 +8039,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1 and {wq_05_domestic_violence_check_answer_to_marital_status_on_01_respo} = 1",
+          "visibleIfSourceResolved": "Excel 05 rows 5,8-9: continue DV section only with privacy and current/live-in relationship."
         },
         {
           "type": "radiogroup",
@@ -7822,7 +8100,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1 and {wq_05_domestic_violence_check_answer_to_marital_status_on_01_respo} = 1 and {wq_05_domestic_violence_threaten_to_hurt_or_harm_you_or_someone_cl} = 1",
+          "visibleIfSourceResolved": "Excel 05: 10a no skips 10b frequency follow-up."
         },
         {
           "type": "radiogroup",
@@ -7869,7 +8149,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1 and {wq_05_domestic_violence_check_answer_to_marital_status_on_01_respo} = 1",
+          "visibleIfSourceResolved": "Excel 05 rows 5,8-9: continue DV section only with privacy and current/live-in relationship."
         },
         {
           "type": "radiogroup",
@@ -7928,7 +8210,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1 and {wq_05_domestic_violence_check_answer_to_marital_status_on_01_respo} = 1 and {wq_05_domestic_violence_insult_you_or_make_you_feel_bad_about_your} = 1",
+          "visibleIfSourceResolved": "Excel 05: 11a no skips 11b frequency follow-up."
         },
         {
           "type": "html",
@@ -7936,7 +8220,9 @@
           "html": "Does your husband / partner ever do any of the following things to you:",
           "order": 131,
           "section_order": 5,
-          "sourceType": "section_note"
+          "sourceType": "section_note",
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1 and {wq_05_domestic_violence_check_answer_to_marital_status_on_01_respo} = 1",
+          "visibleIfSourceResolved": "Excel 05 rows 5,8-9: continue DV section only with privacy and current/live-in relationship."
         },
         {
           "type": "radiogroup",
@@ -7983,7 +8269,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1 and {wq_05_domestic_violence_check_answer_to_marital_status_on_01_respo} = 1",
+          "visibleIfSourceResolved": "Excel 05 rows 5,8-9: continue DV section only with privacy and current/live-in relationship."
         },
         {
           "type": "radiogroup",
@@ -8042,7 +8330,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1 and {wq_05_domestic_violence_check_answer_to_marital_status_on_01_respo} = 1 and {wq_05_domestic_violence_push_you_shake_you_or_throw_something_at_y} = 1",
+          "visibleIfSourceResolved": "Excel 05: 12a no skips 12b frequency follow-up."
         },
         {
           "type": "radiogroup",
@@ -8089,7 +8379,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1 and {wq_05_domestic_violence_check_answer_to_marital_status_on_01_respo} = 1",
+          "visibleIfSourceResolved": "Excel 05 rows 5,8-9: continue DV section only with privacy and current/live-in relationship."
         },
         {
           "type": "radiogroup",
@@ -8148,7 +8440,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1 and {wq_05_domestic_violence_check_answer_to_marital_status_on_01_respo} = 1 and {wq_05_domestic_violence_twist_your_arm_or_pull_your_hair} = 1",
+          "visibleIfSourceResolved": "Excel 05: 13a no skips 13b frequency follow-up."
         },
         {
           "type": "radiogroup",
@@ -8195,7 +8489,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1 and {wq_05_domestic_violence_check_answer_to_marital_status_on_01_respo} = 1",
+          "visibleIfSourceResolved": "Excel 05 rows 5,8-9: continue DV section only with privacy and current/live-in relationship."
         },
         {
           "type": "radiogroup",
@@ -8254,7 +8550,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1 and {wq_05_domestic_violence_check_answer_to_marital_status_on_01_respo} = 1 and {wq_05_domestic_violence_slap_you} = 1",
+          "visibleIfSourceResolved": "Excel 05: 14a no skips 14b frequency follow-up."
         },
         {
           "type": "radiogroup",
@@ -8301,7 +8599,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1 and {wq_05_domestic_violence_check_answer_to_marital_status_on_01_respo} = 1",
+          "visibleIfSourceResolved": "Excel 05 rows 5,8-9: continue DV section only with privacy and current/live-in relationship."
         },
         {
           "type": "radiogroup",
@@ -8360,7 +8660,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1 and {wq_05_domestic_violence_check_answer_to_marital_status_on_01_respo} = 1 and {wq_05_domestic_violence_punch_you_with_his_fist_or_with_something} = 1",
+          "visibleIfSourceResolved": "Excel 05: 15a no skips 15b frequency follow-up."
         },
         {
           "type": "radiogroup",
@@ -8407,7 +8709,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1 and {wq_05_domestic_violence_check_answer_to_marital_status_on_01_respo} = 1",
+          "visibleIfSourceResolved": "Excel 05 rows 5,8-9: continue DV section only with privacy and current/live-in relationship."
         },
         {
           "type": "radiogroup",
@@ -8466,7 +8770,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1 and {wq_05_domestic_violence_check_answer_to_marital_status_on_01_respo} = 1 and {wq_05_domestic_violence_kick_you_drag_you_or_beat_you_up} = 1",
+          "visibleIfSourceResolved": "Excel 05: 16a no skips 16b frequency follow-up."
         },
         {
           "type": "radiogroup",
@@ -8513,7 +8819,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1 and {wq_05_domestic_violence_check_answer_to_marital_status_on_01_respo} = 1",
+          "visibleIfSourceResolved": "Excel 05 rows 5,8-9: continue DV section only with privacy and current/live-in relationship."
         },
         {
           "type": "radiogroup",
@@ -8572,7 +8880,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1 and {wq_05_domestic_violence_check_answer_to_marital_status_on_01_respo} = 1 and {wq_05_domestic_violence_try_to_choke_you_or_burn_you_on_purpose} = 1",
+          "visibleIfSourceResolved": "Excel 05: 17a no skips 17b frequency follow-up."
         },
         {
           "type": "radiogroup",
@@ -8619,7 +8929,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1 and {wq_05_domestic_violence_check_answer_to_marital_status_on_01_respo} = 1",
+          "visibleIfSourceResolved": "Excel 05 rows 5,8-9: continue DV section only with privacy and current/live-in relationship."
         },
         {
           "type": "radiogroup",
@@ -8678,7 +8990,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1 and {wq_05_domestic_violence_check_answer_to_marital_status_on_01_respo} = 1 and {wq_05_domestic_violence_threaten_or_attack_you_with_a_knife_gun_or} = 1",
+          "visibleIfSourceResolved": "Excel 05: 18a no skips 18b frequency follow-up."
         },
         {
           "type": "radiogroup",
@@ -8725,7 +9039,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1 and {wq_05_domestic_violence_check_answer_to_marital_status_on_01_respo} = 1",
+          "visibleIfSourceResolved": "Excel 05 rows 5,8-9: continue DV section only with privacy and current/live-in relationship."
         },
         {
           "type": "radiogroup",
@@ -8784,7 +9100,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1 and {wq_05_domestic_violence_check_answer_to_marital_status_on_01_respo} = 1 and {wq_05_domestic_violence_physically_force_you_to_perform_any_other} = 1",
+          "visibleIfSourceResolved": "Excel 05: 19a no skips 19b frequency follow-up."
         },
         {
           "type": "radiogroup",
@@ -8831,7 +9149,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1 and {wq_05_domestic_violence_check_answer_to_marital_status_on_01_respo} = 1",
+          "visibleIfSourceResolved": "Excel 05 rows 5,8-9: continue DV section only with privacy and current/live-in relationship."
         },
         {
           "type": "radiogroup",
@@ -8890,7 +9210,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1 and {wq_05_domestic_violence_check_answer_to_marital_status_on_01_respo} = 1 and {wq_05_domestic_violence_force_you_with_threats_or_in_any_other_way} = 1",
+          "visibleIfSourceResolved": "Excel 05: 20a no skips 20b frequency follow-up."
         },
         {
           "type": "radiogroup",
@@ -8937,7 +9259,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1 and {wq_05_domestic_violence_check_answer_to_marital_status_on_01_respo} = 1",
+          "visibleIfSourceResolved": "Excel 05 rows 5,8-9: continue DV section only with privacy and current/live-in relationship."
         },
         {
           "type": "radiogroup",
@@ -8972,7 +9296,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1 and {wq_05_domestic_violence_check_answer_to_marital_status_on_01_respo} = 1 and {wq_05_domestic_violence_check_12a_13a_14a_15a_16a_17a_18a_19a_20a} = 1",
+          "visibleIfSourceResolved": "Excel 05 row 92: no physical violence skips injury follow-ups to Q27."
         },
         {
           "type": "html",
@@ -8980,7 +9306,9 @@
           "html": "Did the following ever happen as a result of what your husband/partner did to you:",
           "order": 152,
           "section_order": 5,
-          "sourceType": "section_note"
+          "sourceType": "section_note",
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1 and {wq_05_domestic_violence_check_answer_to_marital_status_on_01_respo} = 1 and {wq_05_domestic_violence_check_12a_13a_14a_15a_16a_17a_18a_19a_20a} = 1",
+          "visibleIfSourceResolved": "Excel 05 row 92: no physical violence skips injury follow-ups to Q27."
         },
         {
           "type": "radiogroup",
@@ -9027,7 +9355,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1 and {wq_05_domestic_violence_check_answer_to_marital_status_on_01_respo} = 1 and {wq_05_domestic_violence_check_12a_13a_14a_15a_16a_17a_18a_19a_20a} = 1",
+          "visibleIfSourceResolved": "Excel 05 row 92: no physical violence skips injury follow-ups to Q27."
         },
         {
           "type": "radiogroup",
@@ -9074,7 +9404,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1 and {wq_05_domestic_violence_check_answer_to_marital_status_on_01_respo} = 1 and {wq_05_domestic_violence_check_12a_13a_14a_15a_16a_17a_18a_19a_20a} = 1",
+          "visibleIfSourceResolved": "Excel 05 row 92: no physical violence skips injury follow-ups to Q27."
         },
         {
           "type": "radiogroup",
@@ -9121,7 +9453,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1 and {wq_05_domestic_violence_check_answer_to_marital_status_on_01_respo} = 1 and {wq_05_domestic_violence_check_12a_13a_14a_15a_16a_17a_18a_19a_20a} = 1",
+          "visibleIfSourceResolved": "Excel 05 row 92: no physical violence skips injury follow-ups to Q27."
         },
         {
           "type": "radiogroup",
@@ -9168,7 +9502,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1 and {wq_05_domestic_violence_check_answer_to_marital_status_on_01_respo} = 1 and {wq_05_domestic_violence_check_12a_13a_14a_15a_16a_17a_18a_19a_20a} = 1",
+          "visibleIfSourceResolved": "Excel 05 row 92: no physical violence skips injury follow-ups to Q27."
         },
         {
           "type": "radiogroup",
@@ -9215,7 +9551,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1 and {wq_05_domestic_violence_check_answer_to_marital_status_on_01_respo} = 1",
+          "visibleIfSourceResolved": "Excel 05 rows 5,8-9: continue DV section only with privacy and current/live-in relationship."
         },
         {
           "type": "radiogroup",
@@ -9274,7 +9612,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1 and {wq_05_domestic_violence_check_answer_to_marital_status_on_01_respo} = 1 and {wq_05_domestic_violence_have_you_ever_hit_slapped_kicked_or_done_a} = 1",
+          "visibleIfSourceResolved": "Excel 05 row 105: Q27 no skips to Q29."
         },
         {
           "type": "radiogroup",
@@ -9321,7 +9661,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1 and {wq_05_domestic_violence_check_answer_to_marital_status_on_01_respo} = 1",
+          "visibleIfSourceResolved": "Excel 05 rows 5,8-9: continue DV section only with privacy and current/live-in relationship."
         },
         {
           "type": "radiogroup",
@@ -9380,7 +9722,9 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1 and {wq_05_domestic_violence_check_answer_to_marital_status_on_01_respo} = 1 and {wq_05_domestic_violence_does_your_husband_partner_drink_alcohol} = 1",
+          "visibleIfSourceResolved": "Excel 05 row 110: Q29 no skips to Q31."
         },
         {
           "type": "radiogroup",
@@ -9439,9 +9783,13 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1 and {wq_05_domestic_violence_check_answer_to_marital_status_on_01_respo} = 1",
+          "visibleIfSourceResolved": "Excel 05 rows 5,8-9: continue DV section only with privacy and current/live-in relationship."
         }
-      ]
+      ],
+      "visibleIf": "({wq_pregnancy_tracking_eligible} = 1) and (({wq_woman_available} empty or {wq_woman_available} = 1) and ({wq_consent_study} empty or {wq_consent_study} = 1) and ({wq_current_marital_status} empty or {wq_current_marital_status} != 7))",
+      "visibleIfSourceResolved": "Excel 01: unavailable/no consent/never married stops remaining questionnaire pages."
     },
     {
       "name": "page_06_biomarkers",
@@ -9561,7 +9909,8 @@
           },
           "validationRulesSource": [
             "[Bareilly and Belagavi only]"
-          ]
+          ],
+          "skipLogicSource": "Excel 06: blood pressure is Bareilly and Belagavi only; current WQ JSON lacks a clean site-id question for safe JSON gating."
         },
         {
           "type": "text",
@@ -9597,9 +9946,12 @@
           ],
           "validationRulesSource": [
             "[Bareilly only]"
-          ]
+          ],
+          "skipLogicSource": "Excel 06: hemoglobin is Bareilly only; current WQ JSON lacks a clean site-id question for safe JSON gating."
         }
-      ]
+      ],
+      "visibleIf": "({wq_pregnancy_tracking_eligible} = 1) and (({wq_woman_available} empty or {wq_woman_available} = 1) and ({wq_consent_study} empty or {wq_consent_study} = 1) and ({wq_current_marital_status} empty or {wq_current_marital_status} != 7))",
+      "visibleIfSourceResolved": "Excel 01: unavailable/no consent/never married stops remaining questionnaire pages."
     },
     {
       "name": "page_outcome",
@@ -9720,7 +10072,9 @@
             "render_as": "radio"
           }
         }
-      ]
+      ],
+      "visibleIf": "{wq_woman_available} = 2 or ({wq_woman_available} = 1 and {wq_consent_study} notempty) or {wq_current_marital_status} = 7",
+      "visibleIfSourceResolved": "Q4 option 2 stops interview and routes to outcome. Q4 options 3 and 4 are submitted from section 1 for revisit/exclusion workflow. WQ Q17 option 7 never married stops questionnaire and routes to outcome."
     }
   ],
   "extraction_notes": [
