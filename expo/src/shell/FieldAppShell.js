@@ -5,6 +5,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -12,6 +13,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { CameraView, useCameraPermissions } from "expo-camera";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { TaskDetailModal } from "../modules/worklist/TaskDetailModal.js";
@@ -20,6 +22,7 @@ import { navigateTo } from "../navigation/routes.js";
 import { getAssignedLocalities } from "../lib/householdMasterChoices.js";
 import { buildClockDriftAlert } from "../modules/sync/syncWorkflow.js";
 import * as syncService from "../modules/sync/syncService.js";
+import { parseLoginQrPayload } from "../modules/auth/loginQr.js";
 import { useFieldApp } from "./FieldAppProvider.js";
 
 export function FieldAppShell({ route, title, children, topBarCollapsed = false }) {
@@ -100,52 +103,59 @@ export function FieldAppShell({ route, title, children, topBarCollapsed = false 
             </Pressable>
           </View>
 
-          <View style={styles.userSection}>
-            <Text style={styles.userName}>{app.user.username || app.user.email || "Field Worker"}</Text>
-            <Pressable
-              onPress={() => {
-                navigateTo("/profile");
-                setMenuOpen(false);
-              }}
-              style={[styles.profileButton, route?.view === "profile" && styles.profileButtonActive]}
-            >
-              <Text
-                style={[
-                  styles.profileButtonText,
-                  route?.view === "profile" && styles.profileButtonTextActive,
-                ]}
-              >
-                View Profile
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={handleLogout}
-              disabled={loggingOut}
-              style={styles.logoutButton}
-            >
-              <Text style={styles.logoutButtonText}>{loggingOut ? "Logging out..." : "Logout"}</Text>
-            </Pressable>
-          </View>
-
-          <LocalitySwitcher inDrawer />
-
-          {SHELL_NAV_ITEMS.map((item) => {
-            const active = route?.view === item.id;
-            return (
+          <ScrollView
+            style={styles.drawerScroll}
+            contentContainerStyle={styles.drawerScrollContent}
+            showsVerticalScrollIndicator
+            keyboardShouldPersistTaps="handled"
+          >
+            <View style={styles.userSection}>
+              <Text style={styles.userName}>{app.user.username || app.user.email || "Field Worker"}</Text>
               <Pressable
-                key={item.id}
                 onPress={() => {
-                  navigateTo(item.route);
+                  navigateTo("/profile");
                   setMenuOpen(false);
                 }}
-                style={[styles.menuItem, active && styles.activeMenuItem]}
+                style={[styles.profileButton, route?.view === "profile" && styles.profileButtonActive]}
               >
-                <Text style={[styles.menuItemText, active && styles.activeMenuItemText]}>
-                  {item.label}
+                <Text
+                  style={[
+                    styles.profileButtonText,
+                    route?.view === "profile" && styles.profileButtonTextActive,
+                  ]}
+                >
+                  View Profile
                 </Text>
               </Pressable>
-            );
-          })}
+              <Pressable
+                onPress={handleLogout}
+                disabled={loggingOut}
+                style={styles.logoutButton}
+              >
+                <Text style={styles.logoutButtonText}>{loggingOut ? "Logging out..." : "Logout"}</Text>
+              </Pressable>
+            </View>
+
+            <LocalitySwitcher inDrawer />
+
+            {SHELL_NAV_ITEMS.map((item) => {
+              const active = route?.view === item.id;
+              return (
+                <Pressable
+                  key={item.id}
+                  onPress={() => {
+                    navigateTo(item.route);
+                    setMenuOpen(false);
+                  }}
+                  style={[styles.menuItem, active && styles.activeMenuItem]}
+                >
+                  <Text style={[styles.menuItemText, active && styles.activeMenuItemText]}>
+                    {item.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
         </View>
 
         <View style={styles.main}>
@@ -371,9 +381,12 @@ function LoginScreen() {
   const [password, setPassword] = useState("dev-password");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [scannerLocked, setScannerLocked] = useState(false);
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
 
-  async function handleLogin() {
-    if (!username || !password) {
+  async function submitLogin(nextUsername = username, nextPassword = password) {
+    if (!nextUsername || !nextPassword) {
       setError("Please enter username and password");
       return;
     }
@@ -382,12 +395,50 @@ function LoginScreen() {
     setError("");
 
     try {
-      const result = await app.login(username, password);
+      const result = await app.login(nextUsername, nextPassword);
       if (!result.ok) {
         setError(result.error || "Login failed");
       }
     } catch (err) {
       setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleLogin() {
+    await submitLogin();
+  }
+
+  async function handleOpenScanner() {
+    setError("");
+    if (!cameraPermission?.granted) {
+      const permission = await requestCameraPermission();
+      if (!permission.granted) {
+        setError("Camera permission is required to scan login QR codes");
+        return;
+      }
+    }
+    setScannerLocked(false);
+    setScannerOpen(true);
+  }
+
+  async function handleQrScanned(event) {
+    if (scannerLocked) return;
+    setScannerLocked(true);
+    try {
+      const credentials = parseLoginQrPayload(event?.data);
+      setScannerOpen(false);
+      setLoading(true);
+      setError("");
+      const result = await app.loginWithQrPayload(credentials.qrPayload);
+      if (!result.ok) {
+        setError(result.error || "QR login failed");
+        setScannerLocked(false);
+      }
+    } catch (err) {
+      setError(err.message || "Could not read login QR code");
+      setScannerLocked(false);
     } finally {
       setLoading(false);
     }
@@ -434,9 +485,46 @@ function LoginScreen() {
               <Text style={styles.loginButtonText}>Login</Text>
             )}
           </Pressable>
+
+          <Pressable
+            onPress={handleOpenScanner}
+            disabled={loading}
+            style={({ pressed }) => [
+              styles.secondaryLockButton,
+              (pressed || loading) && styles.loginButtonPressed,
+            ]}
+          >
+            <Text style={styles.secondaryLockButtonText}>Scan QR Login</Text>
+          </Pressable>
         </View>
         <Text style={styles.demoText}>Use credentials issued for this study device</Text>
       </View>
+      <Modal
+        animationType="slide"
+        visible={scannerOpen}
+        transparent={false}
+        onRequestClose={() => setScannerOpen(false)}
+      >
+        <SafeAreaView style={styles.safe}>
+          <View style={styles.scannerHeader}>
+            <Text style={styles.scannerTitle}>Scan Login QR</Text>
+            <Pressable onPress={() => setScannerOpen(false)} style={styles.scannerCloseButton}>
+              <Text style={styles.scannerCloseText}>Close</Text>
+            </Pressable>
+          </View>
+          <View style={styles.scannerBody}>
+            <CameraView
+              style={styles.scannerCamera}
+              facing="back"
+              barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
+              onBarcodeScanned={scannerLocked ? undefined : handleQrScanned}
+            />
+            <View style={styles.scannerHint}>
+              <Text style={styles.scannerHintText}>Place the admin-generated login QR inside the camera frame.</Text>
+            </View>
+          </View>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -600,8 +688,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#ffffff",
     borderRightWidth: 1,
     borderRightColor: "#d8dee4",
-    padding: 18,
-    gap: 10,
     zIndex: 1000,
     elevation: 32,
   },
@@ -613,6 +699,17 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    paddingHorizontal: 18,
+    paddingTop: 18,
+    paddingBottom: 10,
+  },
+  drawerScroll: {
+    flex: 1,
+  },
+  drawerScrollContent: {
+    gap: 10,
+    paddingHorizontal: 18,
+    paddingBottom: 28,
   },
   closeButton: {
     width: 36,
@@ -861,5 +958,49 @@ const styles = StyleSheet.create({
     marginTop: 14,
     color: "#667085",
     fontSize: 13,
+  },
+  scannerHeader: {
+    minHeight: 60,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    backgroundColor: "#ffffff",
+    borderBottomWidth: 1,
+    borderBottomColor: "#d8dee4",
+  },
+  scannerTitle: {
+    color: "#17202a",
+    fontSize: 18,
+    fontWeight: "900",
+  },
+  scannerCloseButton: {
+    minHeight: 40,
+    borderRadius: 8,
+    justifyContent: "center",
+    paddingHorizontal: 14,
+    backgroundColor: "#eef2f5",
+  },
+  scannerCloseText: {
+    color: "#17202a",
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  scannerBody: {
+    flex: 1,
+    backgroundColor: "#0f172a",
+  },
+  scannerCamera: {
+    flex: 1,
+  },
+  scannerHint: {
+    padding: 18,
+    backgroundColor: "#ffffff",
+  },
+  scannerHintText: {
+    color: "#344054",
+    fontSize: 14,
+    fontWeight: "700",
+    textAlign: "center",
   },
 });

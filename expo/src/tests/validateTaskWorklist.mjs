@@ -13,8 +13,12 @@ const {
   saveProvisionalTasks,
   buildTaskLocalityOptions,
   filterTaskWorklist,
+  getTaskStage,
+  isFuturePlannedTask,
+  listTaskWorklistCandidates,
   normalizeTaskAttemptLimits,
   selectActionableTasks,
+  selectTasksForStage,
 } = await import("../modules/worklist/taskWorklist.js");
 
 const provisionalTask = {
@@ -53,8 +57,79 @@ const actionable = selectActionableTasks([
   { ...confirmedTask, id: "completed-task", task_key: "completed-key", status: "completed" },
   { ...confirmedTask, id: "superseded-task", task_key: "superseded-key", lifecycle_status: "superseded" },
   { ...confirmedTask, id: "disabled-task", task_key: "disabled-key", form_availability: "disabled" },
+  {
+    ...confirmedTask,
+    id: "future-planned-hrf",
+    task_key: "future-planned-hrf-key",
+    task_type: "HRF",
+    lifecycle_status: "planned",
+    window_start: "2099-01-01",
+    target_date: "2099-01-15",
+  },
+  {
+    ...confirmedTask,
+    id: "future-planned-hhq",
+    task_key: "future-planned-hhq-key",
+    task_type: "HHQ",
+    lifecycle_status: "planned",
+    status: "planned",
+    window_start: "2099-01-01",
+    target_date: "2099-01-15",
+  },
+  {
+    ...confirmedTask,
+    id: "current-planned-wq",
+    task_key: "current-planned-wq-key",
+    task_type: "WQ",
+    lifecycle_status: "planned",
+    window_start: "2000-01-01",
+    target_date: "2000-01-15",
+  },
 ]);
-assert.deepEqual(actionable.map((task) => task.id), ["disabled-task", "server-task-1"]);
+assert.deepEqual(actionable.map((task) => task.id), [
+  "current-planned-wq",
+  "disabled-task",
+  "server-task-1",
+  "future-planned-hhq",
+]);
+
+const futurePlannedTask = {
+  ...confirmedTask,
+  id: "future-planned-hrf-filter",
+  task_key: "future-planned-hrf-filter-key",
+  task_type: "HRF",
+  lifecycle_status: "planned",
+  target_date: "2099-01-15",
+  window_start: "2099-01-01",
+};
+assert.equal(isFuturePlannedTask(futurePlannedTask, "2026-08-17"), true);
+assert.equal(getTaskStage(futurePlannedTask, "2026-08-17"), "future_planned");
+assert.equal(getTaskStage({ ...confirmedTask, has_active_draft: true }, "2026-08-17"), "draft");
+const overdueDraftTask = {
+  ...confirmedTask,
+  id: "overdue-draft-task",
+  task_key: "overdue-draft-task-key",
+  has_active_draft: true,
+  target_date: "2026-08-12",
+  window_start: "2026-08-12",
+};
+assert.equal(getTaskStage(overdueDraftTask, "2026-08-17"), "draft");
+assert.deepEqual(
+  selectTasksForStage([confirmedTask, futurePlannedTask], "future_planned").map((task) => task.id),
+  ["future-planned-hrf-filter"],
+);
+assert.deepEqual(
+  selectTasksForStage([confirmedTask, overdueDraftTask], "outdated").map((task) => task.id),
+  ["overdue-draft-task"],
+);
+assert.deepEqual(
+  selectTasksForStage([confirmedTask, overdueDraftTask], "draft").map((task) => task.id),
+  ["overdue-draft-task"],
+);
+assert.deepEqual(
+  selectTasksForStage([confirmedTask, futurePlannedTask], "").map((task) => task.id),
+  ["server-task-1"],
+);
 
 const savedBatches = [];
 const savedTasks = [];
@@ -127,6 +202,31 @@ assert.equal(withdrawnResult.reconciled[0].disposition, "withdrawn");
 const worklist = listTaskWorklist({ locality_code: "02" }, repository);
 assert.deepEqual(worklist.map((task) => task.id), ["local-task-1"]);
 
+let candidateFilters = null;
+const candidates = listTaskWorklistCandidates({}, {
+  listTasks(filters = {}) {
+    candidateFilters = filters;
+    return [
+      confirmedTask,
+      { ...confirmedTask, id: "completed-candidate", task_key: "completed-candidate-key", status: "completed" },
+      {
+        ...confirmedTask,
+        id: "planned-draft-candidate",
+        task_key: "planned-draft-candidate-key",
+        status: "planned",
+        lifecycle_status: "planned",
+        task_type: "WQ",
+        target_date: "2026-08-12",
+      },
+    ];
+  },
+});
+assert.equal(candidateFilters.status, undefined);
+assert.deepEqual(candidates.map((task) => task.id), [
+  "planned-draft-candidate",
+  "server-task-1",
+]);
+
 const searchableTasks = [
   {
     ...provisionalTask,
@@ -164,6 +264,21 @@ assert.deepEqual(
     (task) => task.id,
   ),
   ["alpha-task"],
+);
+assert.deepEqual(
+  filterTaskWorklist(
+    [
+      ...searchableTasks,
+      {
+        ...searchableTasks[0],
+        id: "draft-alpha-task",
+        task_key: "draft-alpha-key",
+        has_active_draft: true,
+      },
+    ],
+    { stage: "draft" },
+  ).map((task) => task.id),
+  ["draft-alpha-task"],
 );
 assert.deepEqual(
   buildTaskLocalityOptions(

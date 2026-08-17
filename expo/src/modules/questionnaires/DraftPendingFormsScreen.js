@@ -9,8 +9,14 @@ import {
   View,
 } from "react-native";
 
+import { listTaskWorklistCandidates } from "../worklist/taskWorklistRepository.js";
 import { listActiveQuestionnaireDrafts } from "./questionnaireDraftRepository.js";
-import { filterDraftsForUserSite, getDraftHouseholdId, getDraftSiteId } from "./draftPendingForms.js";
+import {
+  filterDraftsForTaskCandidates,
+  filterDraftsForUserSite,
+  getDraftHouseholdId,
+  getDraftSiteId,
+} from "./draftPendingForms.js";
 
 function hasDraftAnswers(draft) {
   return Object.keys(draft?.json_payload || {}).length > 0;
@@ -93,10 +99,11 @@ export function DraftPendingFormsScreen({ user }) {
   const [refreshing, setRefreshing] = useState(false);
 
   const loadDrafts = useCallback(async () => {
-    const rows = filterDraftsForUserSite(
+    const siteDrafts = filterDraftsForUserSite(
       (await listActiveQuestionnaireDrafts()).filter(hasDraftAnswers),
       user,
-    ).map(normalizeDraft);
+    );
+    const rows = filterDraftsForTaskCandidates(siteDrafts, listTaskWorklistCandidates()).map(normalizeDraft);
     setDrafts(rows);
   }, [user]);
 

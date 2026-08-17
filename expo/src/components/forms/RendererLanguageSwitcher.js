@@ -82,18 +82,16 @@ export function RendererLanguageSwitcher({ iconOnly = false, locale, onChange })
           <Text numberOfLines={1} style={styles.triggerText}>{activeLanguage.label}</Text>
         )}
       </Pressable>
-      {Platform.OS === "web" ? (
-        <Modal animationType="none" hardwareAccelerated onRequestClose={() => setOpen(false)} transparent visible={open}>
-          <View style={styles.modalRoot}>
-            <Pressable
-              accessibilityLabel="Close language menu"
-              onPress={() => setOpen(false)}
-              style={StyleSheet.absoluteFill}
-            />
-            {menu}
-          </View>
-        </Modal>
-      ) : open ? menu : null}
+      <Modal animationType="none" hardwareAccelerated onRequestClose={() => setOpen(false)} transparent visible={open}>
+        <View style={styles.modalRoot}>
+          <Pressable
+            accessibilityLabel="Close language menu"
+            onPress={() => setOpen(false)}
+            style={StyleSheet.absoluteFill}
+          />
+          {menu}
+        </View>
+      </Modal>
     </>
   );
 }

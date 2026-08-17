@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -15,12 +15,12 @@ import {
 } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import * as syncService from "../sync/syncService.js";
-import { listTaskWorklist } from "./taskWorklistRepository.js";
-import { buildTaskLocalityOptions, filterTaskWorklist } from "./taskWorklist.js";
+import { listTaskWorklistCandidates } from "./taskWorklistRepository.js";
+import { buildTaskLocalityOptions, filterTaskWorklist, getTaskStage } from "./taskWorklist.js";
 import { getTaskOpenBlockReason } from "./taskOpenPolicy.js";
 import { getHouseholdMemberCountSync, getHouseholdSync } from "../../lib/householdSync.js";
 import { listActiveQuestionnaireDrafts } from "../questionnaires/questionnaireDraftRepository.js";
-import { getDraftHouseholdId } from "../questionnaires/draftPendingForms.js";
+import { draftMatchesTask } from "../questionnaires/draftPendingForms.js";
 
 const BADGE_COLORS = {
   HHQ: "#e74c3c",
@@ -37,19 +37,39 @@ const BADGE_COLORS = {
   UF: "#d35400",
 };
 
-function groupTasksByUrgency(tasks) {
+const STAGE_FILTER_OPTIONS = [
+  { value: "", label: "All stages" },
+  { value: "outdated", label: "Outdated" },
+  { value: "current", label: "Current" },
+  { value: "upcoming", label: "Upcoming" },
+  { value: "future_planned", label: "Future planned" },
+  { value: "draft", label: "Draft" },
+];
+
+function groupTasksByUrgency(tasks, options = {}) {
+  const { stageFilter = "" } = options;
   const today = new Date().toISOString().split("T")[0];
 
   const groups = {
+    draft: [],
     overdue: [],
     today: [],
     upcoming: [],
+    futurePlanned: [],
   };
 
   for (const task of tasks) {
     if (task.status === "completed" || task.status === "missed") continue;
 
-    if (task.target_date < today) {
+    const stage = getTaskStage(task, today);
+    const protocolDate = task.target_date || task.window_start || "";
+    if (stageFilter === "outdated" && protocolDate && protocolDate < today) {
+      groups.overdue.push({ ...task, worklist_display_stage: "outdated" });
+    } else if (stage === "draft") {
+      groups.draft.push(task);
+    } else if (stage === "future_planned") {
+      groups.futurePlanned.push(task);
+    } else if (task.target_date < today) {
       groups.overdue.push(task);
     } else if (task.target_date === today) {
       groups.today.push(task);
@@ -67,13 +87,35 @@ function WorklistFilters({
   localityFilter,
   onLocalityFilterChange,
   localityOptions,
+  stageFilter,
+  onStageFilterChange,
   filteredCount,
   totalCount,
 }) {
-  const [localityDropdownOpen, setLocalityDropdownOpen] = useState(false);
+  const localityButtonRef = useRef(null);
+  const stageButtonRef = useRef(null);
+  const [openDropdown, setOpenDropdown] = useState(null);
+  const [dropdownAnchor, setDropdownAnchor] = useState(null);
   const selectedLocality = localityOptions.find((option) => option.code === localityFilter);
   const selectedLocalityLabel = selectedLocality?.label || "All localities";
   const localityChoices = [{ code: "", label: "All localities" }, ...localityOptions];
+  const selectedStage =
+    STAGE_FILTER_OPTIONS.find((option) => option.value === stageFilter) || STAGE_FILTER_OPTIONS[0];
+
+  function toggleDropdown(type, buttonRef) {
+    if (openDropdown === type) {
+      setOpenDropdown(null);
+      setDropdownAnchor(null);
+      return;
+    }
+
+    buttonRef.current?.measureInWindow((x, y, width, height) => {
+      setDropdownAnchor({ x, y: y + height + 4, width });
+      setOpenDropdown(type);
+    });
+  }
+
+  const dropdownChoices = openDropdown === "locality" ? localityChoices : STAGE_FILTER_OPTIONS;
 
   return (
     <View style={styles.filterPanel}>
@@ -85,9 +127,11 @@ function WorklistFilters({
         style={styles.searchInput}
         autoCapitalize="none"
       />
+      <View style={styles.filterDropdownRow}>
       <View style={styles.localityDropdownWrap}>
         <Pressable
-          onPress={() => setLocalityDropdownOpen((isOpen) => !isOpen)}
+          ref={localityButtonRef}
+          onPress={() => toggleDropdown("locality", localityButtonRef)}
           style={styles.localityDropdownButton}
         >
           <Text style={styles.localityDropdownLabel} numberOfLines={1}>
@@ -95,64 +139,100 @@ function WorklistFilters({
           </Text>
           <Text style={styles.localityDropdownIcon}>v</Text>
         </Pressable>
-        {localityDropdownOpen && (
-          <View style={styles.localityDropdownMenu}>
-            <ScrollView
-              style={styles.localityDropdownList}
-              nestedScrollEnabled
-              keyboardShouldPersistTaps="handled"
-            >
-              {localityChoices.map((option) => {
-                const isActive = localityFilter === option.code;
-                return (
-                  <Pressable
-                    key={option.code || "all-localities"}
-                    onPress={() => {
-                      onLocalityFilterChange(option.code);
-                      setLocalityDropdownOpen(false);
-                    }}
-                    style={[
-                      styles.localityDropdownOption,
-                      isActive && styles.localityDropdownOptionActive,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.localityDropdownOptionText,
-                        isActive && styles.localityDropdownOptionTextActive,
-                      ]}
-                    >
-                      {option.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-          </View>
-        )}
+      </View>
+      <View style={styles.localityDropdownWrap}>
+        <Pressable
+          ref={stageButtonRef}
+          onPress={() => toggleDropdown("stage", stageButtonRef)}
+          style={styles.localityDropdownButton}
+        >
+          <Text style={styles.localityDropdownLabel} numberOfLines={1}>
+            {selectedStage.label}
+          </Text>
+          <Text style={styles.localityDropdownIcon}>v</Text>
+        </Pressable>
+      </View>
       </View>
       <Text style={styles.filterCount}>
         Showing {filteredCount} of {totalCount} tasks
       </Text>
+
+      <Modal
+        visible={Boolean(openDropdown && dropdownAnchor)}
+        transparent
+        animationType="none"
+        onRequestClose={() => setOpenDropdown(null)}
+      >
+        <View style={styles.dropdownOverlay}>
+          <Pressable
+            accessibilityLabel="Close filter options"
+            style={StyleSheet.absoluteFill}
+            onPress={() => setOpenDropdown(null)}
+          />
+          {dropdownAnchor && (
+            <View
+              style={[
+                styles.localityDropdownMenu,
+                styles.floatingDropdownMenu,
+                {
+                  left: dropdownAnchor.x,
+                  top: dropdownAnchor.y,
+                  width: dropdownAnchor.width,
+                },
+              ]}
+            >
+              <ScrollView
+                style={
+                  openDropdown === "stage"
+                    ? styles.stageDropdownList
+                    : styles.localityDropdownList
+                }
+                nestedScrollEnabled
+                keyboardShouldPersistTaps="handled"
+              >
+                {dropdownChoices.map((option) => {
+                  const optionValue = openDropdown === "locality" ? option.code : option.value;
+                  const selectedValue = openDropdown === "locality" ? localityFilter : stageFilter;
+                  const isActive = selectedValue === optionValue;
+                  return (
+                    <Pressable
+                      key={optionValue || `all-${openDropdown}`}
+                      onPress={() => {
+                        if (openDropdown === "locality") {
+                          onLocalityFilterChange(optionValue);
+                        } else {
+                          onStageFilterChange(optionValue);
+                        }
+                        setOpenDropdown(null);
+                        setDropdownAnchor(null);
+                      }}
+                      style={[
+                        styles.localityDropdownOption,
+                        isActive && styles.localityDropdownOptionActive,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.localityDropdownOptionText,
+                          isActive && styles.localityDropdownOptionTextActive,
+                        ]}
+                      >
+                        {option.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          )}
+        </View>
+      </Modal>
     </View>
   );
 }
 
 function findDraftForTask(task, drafts = []) {
-  return drafts.find((draft) => {
-    if (draft.task_id && task.id && draft.task_id === task.id) return true;
-    if (String(draft.form_code || "").toUpperCase() !== String(task.task_type || "").toUpperCase()) {
-      return false;
-    }
-    const draftHouseholdId = getDraftHouseholdId(draft);
-    return (
-      draftHouseholdId === task.household_id ||
-      draftHouseholdId === task.subject_id ||
-      draft.subject_id === task.subject_id ||
-      draft.subject_id === task.household_id ||
-      draft.subject_id === task.task_key
-    );
-  });
+  return drafts.find((draft) => draftMatchesTask(draft, task));
 }
 
 function enrichTaskForWorklist(task, drafts = []) {
@@ -261,9 +341,17 @@ function TaskRow({ task, onPress, onLongPress, onViewHousehold }) {
   const detailLine = task.household_address || "";
   const visitNo = getTaskVisitNo(task);
   const showVisitBadge = String(task.task_type || "").toUpperCase() === "HHQ";
+  const isOutdatedDisplay = task.worklist_display_stage === "outdated";
 
   return (
-    <View style={[styles.taskRow, task.has_active_draft && styles.taskRowDraft, isDisabled && styles.taskRowDisabled]}>
+    <View
+      style={[
+        styles.taskRow,
+        task.has_active_draft && styles.taskRowDraft,
+        isOutdatedDisplay && styles.taskRowOutdated,
+        isDisabled && styles.taskRowDisabled,
+      ]}
+    >
       <Pressable
         onPress={() => onPress(task)}
         onLongPress={() => onLongPress && onLongPress(task)}
@@ -337,6 +425,7 @@ export function WorklistScreen({
   const [syncError, setSyncError] = useState(null);
   const [searchText, setSearchText] = useState("");
   const [localityFilter, setLocalityFilter] = useState(selectedLocalityCode || "");
+  const [stageFilter, setStageFilter] = useState("");
   const [selectedHouseholdTask, setSelectedHouseholdTask] = useState(null);
 
   useEffect(() => {
@@ -351,7 +440,7 @@ export function WorklistScreen({
     setLoading(true);
     try {
       const activeDrafts = await listActiveQuestionnaireDrafts();
-      const allTasks = listTaskWorklist({
+      const allTasks = listTaskWorklistCandidates({
         locality_code: selectedLocalityCode || undefined,
       }).map((task) => enrichTaskForWorklist(task, activeDrafts));
       setTasks(allTasks);
@@ -400,10 +489,15 @@ export function WorklistScreen({
   const filteredTasks = filterTaskWorklist(tasks, {
     search: searchText,
     locality_code: localityFilter,
+    stage: stageFilter,
   });
-  const grouped = groupTasksByUrgency(filteredTasks);
+  const grouped = groupTasksByUrgency(filteredTasks, { stageFilter });
   const hasAnyTasks =
-    grouped.overdue.length > 0 || grouped.today.length > 0 || grouped.upcoming.length > 0;
+    grouped.draft.length > 0 ||
+    grouped.overdue.length > 0 ||
+    grouped.today.length > 0 ||
+    grouped.upcoming.length > 0 ||
+    grouped.futurePlanned.length > 0;
   const filterPanel = (
     <WorklistFilters
       searchText={searchText}
@@ -411,6 +505,8 @@ export function WorklistScreen({
       localityFilter={localityFilter}
       onLocalityFilterChange={setLocalityFilter}
       localityOptions={localityOptions}
+      stageFilter={stageFilter}
+      onStageFilterChange={setStageFilter}
       filteredCount={filteredTasks.length}
       totalCount={tasks.length}
     />
@@ -440,6 +536,21 @@ export function WorklistScreen({
   }
 
   const sections = [];
+
+  if (grouped.draft.length > 0) {
+    sections.push({
+      id: "draft-header",
+      type: "header",
+      title: "Draft",
+    });
+    grouped.draft.forEach((task) => {
+      sections.push({
+        id: task.id,
+        type: "task",
+        task,
+      });
+    });
+  }
 
   if (grouped.overdue.length > 0) {
     sections.push({
@@ -478,6 +589,21 @@ export function WorklistScreen({
       title: "Upcoming",
     });
     grouped.upcoming.forEach((task) => {
+      sections.push({
+        id: task.id,
+        type: "task",
+        task,
+      });
+    });
+  }
+
+  if (grouped.futurePlanned.length > 0) {
+    sections.push({
+      id: "future-planned-header",
+      type: "header",
+      title: "Future Planned",
+    });
+    grouped.futurePlanned.forEach((task) => {
       sections.push({
         id: task.id,
         type: "task",
@@ -618,10 +744,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
+  filterDropdownRow: {
+    flexDirection: "row",
+    gap: 8,
+    alignItems: "flex-start",
+  },
   localityDropdownWrap: {
     position: "relative",
     zIndex: 40,
     elevation: 24,
+    flex: 1,
+    minWidth: 0,
   },
   localityDropdownLabel: {
     flex: 1,
@@ -640,11 +773,25 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: "#cfd7e3",
-    marginBottom: 8,
     overflow: "hidden",
+  },
+  dropdownOverlay: {
+    flex: 1,
+  },
+  floatingDropdownMenu: {
+    position: "absolute",
+    zIndex: 1000,
+    elevation: 30,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.16,
+    shadowRadius: 10,
   },
   localityDropdownList: {
     maxHeight: 220,
+  },
+  stageDropdownList: {
+    maxHeight: 264,
   },
   localityDropdownOption: {
     minHeight: 44,
@@ -712,6 +859,10 @@ const styles = StyleSheet.create({
   taskRowDraft: {
     borderColor: "#f59e0b",
     backgroundColor: "#fffbeb",
+  },
+  taskRowOutdated: {
+    borderColor: "#0284c7",
+    backgroundColor: "#eff6ff",
   },
   taskBodyPressable: {
     flex: 1,

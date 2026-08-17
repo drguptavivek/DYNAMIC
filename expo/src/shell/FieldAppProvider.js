@@ -12,7 +12,7 @@ import {
   getQuestionnaireDraftById,
   listActiveQuestionnaireDrafts,
 } from "../modules/questionnaires/questionnaireDraftRepository.js";
-import { getDraftHouseholdId } from "../modules/questionnaires/draftPendingForms.js";
+import { draftMatchesTask } from "../modules/questionnaires/draftPendingForms.js";
 import * as syncService from "../modules/sync/syncService.js";
 import { initTaskDb } from "../modules/tasks/taskSchema.js";
 import { getTask } from "../modules/tasks/taskRepository.js";
@@ -93,6 +93,15 @@ export function FieldAppProvider({ children }) {
 
   async function login(username, password) {
     const result = await authStore.login(username, password);
+    if (result.ok) {
+      setUser(result.user);
+      await initializeAppLock(result.user, { afterLogin: true });
+    }
+    return result;
+  }
+
+  async function loginWithQrPayload(qrPayload) {
+    const result = await authStore.loginWithQrPayload(qrPayload);
     if (result.ok) {
       setUser(result.user);
       await initializeAppLock(result.user, { afterLogin: true });
@@ -277,13 +286,9 @@ export function FieldAppProvider({ children }) {
     if (!task) return null;
     const existingDraft = await getQuestionnaireDraftById(task.active_draft_id);
     if (existingDraft) return existingDraft;
-    const householdId = String(task.household_id || task.subject_id || "");
-    const formCode = String(task.task_type || "").toUpperCase();
+    const currentUserId = String(user?.user_id || user?.id || user?.username || "dev-user");
     const matchingDraft = (await listActiveQuestionnaireDrafts()).find(
-      (draft) =>
-        String(draft.form_code || "").toUpperCase() === formCode &&
-        getDraftHouseholdId(draft) === householdId &&
-        String(draft.user_id || "") === String(user?.user_id || user?.id || user?.username || "dev-user"),
+      (draft) => String(draft.user_id || "") === currentUserId && draftMatchesTask(draft, task),
     );
     if (matchingDraft) return matchingDraft;
     return getActiveQuestionnaireDraft({
@@ -346,6 +351,7 @@ export function FieldAppProvider({ children }) {
       setLocale,
       user,
       login,
+      loginWithQrPayload,
       logout,
       taskDbReady,
       selectedTask,

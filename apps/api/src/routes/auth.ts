@@ -8,6 +8,7 @@ import { requireAuth } from "../middleware/auth";
 import { authRateLimit } from "../middleware/rateLimit";
 import { sendError, sendSuccess } from "../lib/errors";
 import { JwtPayload, signAccessToken, signRefreshToken, verifyToken } from "../lib/jwt";
+import { decryptLoginQrPayload } from "../lib/loginQr";
 import { markAccessSessionActive, markAccessSessionRevoked } from "../lib/tokenSessionCache";
 
 const router = Router();
@@ -15,6 +16,10 @@ const router = Router();
 const loginSchema = z.object({
   username: z.string().min(1, "Username required"),
   password: z.string().min(1, "Password required"),
+});
+
+const qrLoginSchema = z.object({
+  qr_payload: z.string().min(1, "QR payload required"),
 });
 
 const refreshSchema = z.object({
@@ -146,6 +151,65 @@ router.post("/login", authRateLimit, async (req: Request, res: Response) => {
     } else {
       console.error("Login error:", error);
       sendError(res, 500, "INTERNAL_ERROR", "An error occurred");
+    }
+  }
+});
+
+/**
+ * POST /api/v1/auth/qr-login
+ * Login with an encrypted server-issued QR payload.
+ */
+router.post("/qr-login", authRateLimit, async (req: Request, res: Response) => {
+  try {
+    const { qr_payload } = qrLoginSchema.parse(req.body);
+    const qrPayload = decryptLoginQrPayload(qr_payload);
+
+    const [user] = await db
+      .select()
+      .from(schema.users)
+      .where(eq(schema.users.user_id, qrPayload.user_id));
+
+    if (!user || user.username !== qrPayload.username) {
+      sendError(res, 401, "INVALID_QR_LOGIN", "Invalid QR login code");
+      return;
+    }
+
+    if (!user.active) {
+      sendError(res, 401, "ACCOUNT_DISABLED", "This account has been disabled");
+      return;
+    }
+
+    const passwordValid = await bcrypt.compare(qrPayload.password, user.password_hash);
+    if (!passwordValid) {
+      sendError(res, 401, "INVALID_QR_LOGIN", "Invalid QR login code");
+      return;
+    }
+
+    const tokenPayload = buildTokenPayload(user);
+    const { sessionId, refreshToken } = await createRefreshSession(user.user_id, tokenPayload);
+    const accessToken = signAccessToken(tokenPayload, sessionId);
+
+    sendSuccess(res, {
+      access_token: accessToken,
+      refresh_token: refreshToken,
+      expires_in: 172800,
+      token_type: "Bearer",
+      user: {
+        user_id: user.user_id,
+        username: user.username,
+        display_name: user.display_name,
+        role: user.role,
+        site_id: user.site_id,
+      },
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      sendError(res, 400, "VALIDATION_ERROR", "Invalid request body", {
+        errors: error.errors,
+      });
+    } else {
+      console.error("QR login error:", error);
+      sendError(res, 401, "INVALID_QR_LOGIN", "Invalid QR login code");
     }
   }
 });

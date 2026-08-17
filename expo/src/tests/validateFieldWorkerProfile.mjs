@@ -31,4 +31,27 @@ assert.deepEqual(profile.active_assignments, [
   }
 ]);
 
+const householdAssignedProfile = buildFieldWorkerProfile(
+  {
+    username: "site2",
+    display_name: "Ballabgarh",
+    role: "field_worker",
+    site_id: 2,
+    area_assignments: [],
+    assigned_locality_codes: ["02", "02"],
+  },
+  [{ site_id: 2, locality_code: "02", locality_name: "Sagarapur" }],
+  "2026-08-17",
+);
+assert.deepEqual(householdAssignedProfile.active_assignments, [
+  {
+    site_id: 2,
+    site_name: "Ballabgarh",
+    locality_code: "02",
+    locality_name: "Sagarapur",
+    active_from: "",
+    active_to: "",
+  },
+]);
+
 console.log("Validated field worker profile data.");

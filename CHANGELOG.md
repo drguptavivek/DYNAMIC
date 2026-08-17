@@ -6,6 +6,11 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 
 ## Unreleased
 
+- Fixed Android device registration so repeated logout and login on the same phone reuses a stable app-scoped Android device ID instead of creating a new random registered device on every login.
+- Added per-device authorization controls to Admin Users, with confirmation before deauthorization and API enforcement that blocks deauthorized devices from login registration and sync until reauthorized.
+- Added authenticated server backup and cross-device restore for active questionnaire drafts, including visible sync counts, while keeping drafts separate from finalized evidence and workflow processing.
+- Fixed the questionnaire close button so exiting a baseline WQ form returns directly to Worklist instead of opening the empty questionnaire submissions dashboard.
+
 ### Documentation
 
 - Added a root README describing the application purpose, backend and frontend structure, data flow, local development commands, and canonical project documentation.
@@ -26,6 +31,12 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 - Changed the WQ Q18 household-member dropdown to open inline below the question instead of as a bottom sheet.
 - Changed WQ Q19 outside-household husband/partner line numbering to allocate 00, 99, 98, and so on by the woman's order within the household.
 - Added a two-digit WQ Q9 years entry above the Always/Visitor special responses while preserving values like 00, 02, and 09.
+- Added faker-based admin password generation using three 5-7 letter internally capitalized words plus a 3-digit code, reset QR codes on the Users page, and mobile QR-code login through the existing field-app authentication flow.
+- Refined the admin generated-password modal so the one-time password and QR warning is shown as a single notice without an extra top heading.
+- Changed generated-password QR codes to contain only an encrypted server-issued login payload instead of readable username/password credentials, and added a dedicated mobile QR login endpoint.
+- Made the mobile left drawer menu scrollable so all navigation pages remain reachable on smaller phone screens.
+- Added mobile Worklist Outdated-stage filtering for overdue draft tasks, with overdue draft cards shown in the blue outdated style while Draft/Pending cards remain yellow.
+- Fixed mobile Worklist draft matching so WQ drafts saved by woman individual ID are also matched to their parent household task and appear consistently with Draft/Pending Forms.
 - Added a WQ pregnancy-history repeated panel for Excel questions 15_i through 28_i while keeping the existing `wq_pregnant` answer key for pregnancy workflow promotion.
 - Added Excel-derived WQ skip and applicability rules for respondent background, reproduction, pregnancy-history follow-ups, eligible-only health/work/domestic-violence/biomarker sections, and related follow-up questions.
 - Added WQ visit-number handling plus Q4 woman-availability revisit, incapacitated outcome, and visit-3 exclusion flow to match the finalized task rule.
@@ -55,6 +66,19 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 
 ### Fixed
 
+- Centered the mobile Worklist task details modal with safe screen-edge spacing so its Open Form action remains clear of Android navigation controls.
+- Fixed the mobile Worklist locality and stage dropdowns so they float above the page without expanding the filter panel and close when the user taps outside.
+- Removed the manual `Record Failed Attempt` action from the mobile Worklist task details modal while retaining existing attempt history and policy-driven final-close handling.
+- Added server form-response history to mobile sync pull with a separate backfill cursor so fresh or already-synced logins can populate Uploaded Forms and Upload Errors after Sync Now.
+- Fixed mobile Worklist draft counts by loading non-terminal task candidates, including planned HHQ/WQ tasks that already have active local drafts.
+- Hid orphan local drafts without matching non-terminal Worklist tasks from Draft/Pending Forms so the draft count stays consistent with the Worklist Draft section.
+- Hid the compact mobile language switcher on questionnaire preview and member-summary screens so it does not cover review header content.
+- Kept compact mobile questionnaire preview action buttons inside the screen by stacking the review header controls on small layouts.
+- Added a mobile Worklist stage dropdown for All stages, Outdated, Current, Upcoming, Future planned, and Draft views while keeping future planned follow-up tasks hidden from the default list.
+- Kept baseline HHQ/WQ planned tasks visible and openable in the mobile Worklist while still hiding future HRF follow-up rounds until their window opens.
+- Fixed the compact mobile questionnaire language menu so it opens in a native modal instead of being clipped or blocked by the form scroll surface.
+- Hid future planned HRF rounds from the mobile Worklist until their visit window opens, preventing years of scheduled HRF tasks from appearing as current work.
+- Fixed the mobile Profile assigned-localities panel so household-assigned field workers see localities derived from their synced worklist tasks when formal locality assignments are absent.
 - Closed the mobile Worklist task detail modal before opening a questionnaire so its transparent native overlay cannot block radio buttons, navigation, or form controls.
 - Fixed mobile WQ radio answers not staying selected by aligning native SurveyJS read-only checks with renderer behavior and keeping tapped radio state stable while answer snapshots refresh.
 - Fixed generic mobile questionnaire radio answers for non-HHQ forms by keeping a live ref-backed answer snapshot in the shared questionnaire dashboard.
@@ -387,3 +411,4 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 ## Maintaining This Changelog
 
 Add user-visible, architectural, operational, security, and major testing changes to `Unreleased` as part of the same change. Move those entries into a dated or versioned section when creating a release or formal project checkpoint.
+- Limited each user account to two authorized mobile devices; third-device login now instructs the user to contact an administrator, while existing registered devices can log in again normally.

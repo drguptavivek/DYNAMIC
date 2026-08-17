@@ -19,13 +19,20 @@ const {
   buildDraftKey,
   getActiveQuestionnaireDraft,
   listActiveQuestionnaireDrafts,
+  listQuestionnaireDraftsForSync,
+  mergeServerQuestionnaireDrafts,
   saveQuestionnaireDraft,
   markQuestionnaireDraftSubmitted,
+  toDraftSyncRecord,
 } = await import("../modules/questionnaires/questionnaireDraftRepository.js");
 const {
+  draftMatchesTask,
+  filterDraftsForTaskCandidates,
   filterDraftsForUserSite,
+  getDraftComparableIds,
   getDraftHouseholdId,
   getDraftSiteId,
+  getDraftSubjectId,
 } = await import("../modules/questionnaires/draftPendingForms.js");
 const { getDraftSavedMessage } = await import("../modules/questionnaires/draftSaveMessages.js");
 
@@ -169,11 +176,80 @@ const mixedSiteDrafts = [
 ];
 
 assert.equal(getDraftSiteId(mixedSiteDrafts[2]), 2);
+const wqDraft = {
+  draft_id: "wq-draft",
+  form_code: "WQ",
+  task_id: "task-wq-1",
+  subject_id: "2-02-0003-01-01",
+  json_payload: { wq_enter_structure_id_woman: "2-02-0003-01-01" },
+};
+assert.equal(getDraftSubjectId(wqDraft), "2-02-0003-01-01");
+assert.equal(getDraftHouseholdId(wqDraft), "2-02-0003-01");
+assert.deepEqual([...getDraftComparableIds(wqDraft)].sort(), [
+  "2-02-0003-01",
+  "2-02-0003-01-01",
+  "task-wq-1",
+  "wq-draft",
+].sort());
+const wqTaskCandidate = {
+  id: "task-wq-1",
+  task_type: "WQ",
+  household_id: "2-02-0003-01",
+  subject_id: "2-02-0003-01-01",
+};
+const orphanDraft = {
+  draft_id: "orphan-hhq",
+  form_code: "HHQ",
+  subject_id: "2-00-0000-00",
+  json_payload: { hhq_household_id: "2-00-0000-00" },
+};
+assert.equal(draftMatchesTask(wqDraft, wqTaskCandidate), true);
+assert.deepEqual(
+  filterDraftsForTaskCandidates([wqDraft, orphanDraft], [wqTaskCandidate]).map(
+    (draft) => draft.draft_id,
+  ),
+  ["wq-draft"],
+);
 assert.deepEqual(
   filterDraftsForUserSite(mixedSiteDrafts, { site_id: 2 }).map((draft) => draft.draft_id),
   ["site-2-payload", "site-2-household"],
 );
 assert.equal(getDraftSavedMessage("hi"), "फॉर्म ड्राफ्ट के रूप में सेव हो गया है।");
 assert.equal(getDraftSavedMessage("unknown"), "Form saved as draft.");
+
+const crossDeviceDraft = await saveQuestionnaireDraft({
+  ...context,
+  taskId: "task-cross-device",
+  subjectId: "2-02-0009-01",
+  payload: {
+    hhq_site_id: 2,
+    hhq_locality_code: "02",
+    hhq_structure_map_id: "0009",
+    hhq_household_number: "01",
+    hhq_household_head_name: "Recovered Head",
+  },
+});
+const syncRecord = toDraftSyncRecord(crossDeviceDraft);
+assert.equal(syncRecord.household_id, "2-02-0009-01");
+assert.equal(syncRecord.site_id, 2);
+assert.equal(syncRecord.locality_code, "02");
+assert.equal((await listQuestionnaireDraftsForSync("fdc-1")).some(
+  (draft) => draft.draft_id === crossDeviceDraft.draft_id,
+), true);
+
+await markQuestionnaireDraftSubmitted({ draftId: crossDeviceDraft.draft_id });
+const restoredCount = await mergeServerQuestionnaireDrafts(
+  [{ ...syncRecord, draft_status: "active", updated_at: "2099-01-01T00:00:00.000Z" }],
+  { userId: "fdc-1", deviceId: "replacement-device" },
+);
+assert.equal(restoredCount, 1);
+const restoredDraft = await getActiveQuestionnaireDraft({
+  ...context,
+  taskId: "task-cross-device",
+  subjectId: "2-02-0009-01",
+  deviceId: "replacement-device",
+});
+assert.equal(restoredDraft.json_payload.hhq_household_head_name, "Recovered Head");
+assert.equal(restoredDraft.device_id, "replacement-device");
 
 console.log("Validated questionnaire draft workflow helpers.");

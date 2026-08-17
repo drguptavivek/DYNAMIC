@@ -62,6 +62,9 @@ export const devices = pgTable("devices", {
   device_id: text("device_id").primaryKey(),
   device_name: text("device_name"),
   user_id: text("user_id").references(() => users.user_id),
+  authorized: boolean("authorized").notNull().default(true),
+  deauthorized_at: timestamp("deauthorized_at", { withTimezone: true }),
+  deauthorized_by_user_id: text("deauthorized_by_user_id").references(() => users.user_id),
   last_sync_at: timestamp("last_sync_at", { withTimezone: true }),
   registered_at: timestamp("registered_at", { withTimezone: true }),
 });

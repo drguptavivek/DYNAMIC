@@ -4,11 +4,13 @@ This policy defines how SurveyJS forms become evidence and how Expo reconciles w
 
 ## Drafts
 
-Drafts are local recovery state.
+Drafts are mutable recovery state, not study evidence.
 
 - Drafts are overwriteable.
-- Drafts stay local.
-- Drafts do not sync.
+- Drafts save locally first and may sync through the dedicated authenticated draft channel.
+- Active synced drafts may be restored after the same user signs in on another registered device.
+- Draft sync is scoped to the authenticated user and their current area access.
+- Draft reconciliation must not overwrite a newer local draft with an older server copy.
 - Drafts do not create events.
 - Drafts do not update projections.
 - Drafts do not create or complete tasks.
@@ -70,6 +72,8 @@ Push sends evidence and event records:
 - Provisional Study Events
 - provisional Task Lifecycle Events
 - contextual opportunity events when present
+
+Mutable drafts use a separate draft-sync endpoint. Receiving a draft must never invoke finalized-response ingest, event processing, task completion, or projection updates.
 
 Push does not use arbitrary local projection table edits as the source of truth.
 

@@ -59,8 +59,11 @@ Field devices must be registered.
 Rules:
 
 - Field workers can register their own device.
+- A user may have at most two authorized registered devices. A third distinct device must be rejected until an administrator deauthorizes one of the existing devices.
 - Central admins can bulk-register devices.
 - Device records associate `device_id` with the currently authenticated user, name, and registration time.
+- Central admins can authorize or deauthorize individual registered devices; Site Research Scientists can do so only for users in their own site.
+- A deauthorized device remains in audit history and cannot self-register, pull, push, or back up drafts until explicitly reauthorized.
 - Device association is not permanent ownership: a user may log out of one device and another user may log in and register the same device.
 - Authenticated sync push requires a registered or otherwise accepted `device_id` associated with the current authenticated user/session.
 - Finalized Form Submissions already saved to the local outbox must still sync after logout.

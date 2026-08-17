@@ -148,3 +148,30 @@ Open:
 - Continue long-label and translated-content device QA.
 Archive:
 - `session-log-archive.md#2026-07-28-native-hhq-icon-shell-and-repeat-editor`
+
+## 2026-08-17 [working]
+Goal: Back up active mobile questionnaire drafts and restore them after same-user login on another device.
+Decisions:
+- Drafts use a dedicated authenticated sync channel and remain mutable recovery state, never finalized evidence.
+- Server access is restricted to the authenticated user, registered device, raw-CRF permission, and current area scope.
+- Newer client timestamps win; finalized evidence and terminal draft states prevent stale active recovery.
+Open:
+- Device-test backup, logout/local wipe, fresh login, sync, and resume after the next explicitly requested APK build.
+
+## 2026-08-17 [working]
+Goal: Stop repeated device registrations when the same Android phone logs out and logs back in.
+Decisions:
+- Android registration uses the app-scoped Android ID, while web and unsupported platforms retain the persisted UUID fallback.
+- Logout continues clearing user study data; the stable Android identity is recomputed before registration on the next login.
+Open:
+- Rebuild and verify repeated logout/login on the physical phone when explicitly requested; legacy duplicate server rows remain untouched.
+
+## 2026-08-17 [working]
+Goal: Let authorized administrators deauthorize or reauthorize individual registered devices.
+Decisions:
+- Device authorization is stored per registered device and enforced on registration plus draft/main sync pull and push.
+- Central administrators may manage every device; site research scientists may manage devices belonging to users in their own site.
+- A rejected device registration does not persist the newly issued login tokens on the mobile device.
+- Each user is limited to two authorized devices; existing devices may re-register, while a third distinct device requires an administrator to deauthorize one active device first.
+Open:
+- Rebuild and verify deauthorization against the physical phone when explicitly requested; existing duplicate device rows can be deauthorized individually.

@@ -356,7 +356,7 @@ export function QuestionnaireDashboard({
     if (model && dirtyRef.current) {
       await saveDraftFromModel(model, { silent: true });
     }
-    navigateTo(ROUTES.questionnaire(formCode));
+    navigateTo(ROUTES.worklist, { replace: true });
   }
 
   const survey = useMemo(() => {
@@ -721,7 +721,7 @@ export function QuestionnaireDashboard({
             </View>
           </View>
           <View pointerEvents="box-none" style={[styles.formWindowBody, compact && styles.formWindowBodyCompact]}>
-            {compact ? (
+            {compact && !previewOpen && !memberSummaryOpen ? (
               <View pointerEvents="box-none" style={styles.languageOverlay}>
                 <RendererLanguageSwitcher iconOnly locale={activeLocale} onChange={changeFormLocale} />
               </View>
@@ -774,23 +774,23 @@ export function QuestionnaireDashboard({
               <View pointerEvents="box-none" style={[styles.formContentPane, compact && styles.formContentPaneCompact]}>
                 {memberSummaryOpen ? (
                   <View style={styles.memberSummaryPanel}>
-                    <View style={styles.previewHeader}>
-                      <View>
+                    <View style={[styles.previewHeader, compact && styles.previewHeaderCompact]}>
+                      <View style={compact && styles.previewTitleBlockCompact}>
                         <Text style={styles.previewTitle}>02B-Household Member Summary</Text>
                         <Text style={styles.subtle}>Review the household listing before Section 03</Text>
                       </View>
-                      <View style={styles.formWindowActions}>
+                      <View style={[styles.formWindowActions, compact && styles.previewActionsCompact]}>
                         <Pressable
                           onPress={() => goBackFromMemberSummary(survey)}
-                          style={styles.secondaryButton}
+                          style={[styles.secondaryButton, compact && styles.previewActionButtonCompact]}
                         >
-                          <Text style={styles.secondaryButtonText}>Go Back</Text>
+                          <Text numberOfLines={1} style={[styles.secondaryButtonText, compact && styles.previewActionTextCompact]}>Go Back</Text>
                         </Pressable>
                         <Pressable
                           onPress={() => confirmMemberSummary(survey)}
-                          style={styles.primaryButton}
+                          style={[styles.primaryButton, compact && styles.previewActionButtonCompact]}
                         >
-                          <Text style={styles.primaryButtonText}>Confirm</Text>
+                          <Text numberOfLines={1} style={[styles.primaryButtonText, compact && styles.previewActionTextCompact]}>Confirm</Text>
                         </Pressable>
                       </View>
                     </View>
@@ -825,26 +825,26 @@ export function QuestionnaireDashboard({
                   </View>
                 ) : previewOpen ? (
                   <View style={styles.previewPanel}>
-                    <View style={styles.previewHeader}>
-                      <View>
+                    <View style={[styles.previewHeader, compact && styles.previewHeaderCompact]}>
+                      <View style={compact && styles.previewTitleBlockCompact}>
                         <Text style={styles.previewTitle}>Preview</Text>
                         <Text style={styles.subtle}>Compact final review from the saved local draft</Text>
                       </View>
-                      <View style={styles.formWindowActions}>
+                      <View style={[styles.formWindowActions, compact && styles.previewActionsCompact]}>
                         <Pressable
                           onPress={() => {
                             setPreviewOpen(false);
                             if (survey) updateSurveyStatus(survey);
                           }}
-                          style={styles.secondaryButton}
+                          style={[styles.secondaryButton, compact && styles.previewActionButtonCompact]}
                         >
-                          <Text style={styles.secondaryButtonText}>Edit Form</Text>
+                          <Text numberOfLines={1} style={[styles.secondaryButtonText, compact && styles.previewActionTextCompact]}>Edit Form</Text>
                         </Pressable>
                         <Pressable
                           onPress={() => survey?.doComplete?.()}
-                          style={styles.primaryButton}
+                          style={[styles.primaryButton, compact && styles.previewActionButtonCompact]}
                         >
-                          <Text style={styles.primaryButtonText}>Confirm & Submit</Text>
+                          <Text numberOfLines={1} style={[styles.primaryButtonText, compact && styles.previewActionTextCompact]}>Confirm & Submit</Text>
                         </Pressable>
                       </View>
                     </View>
@@ -1234,6 +1234,30 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: "#eef2f5",
+  },
+  previewHeaderCompact: {
+    flexDirection: "column",
+    alignItems: "stretch",
+    gap: 10,
+  },
+  previewTitleBlockCompact: {
+    width: "100%",
+    minWidth: 0,
+  },
+  previewActionsCompact: {
+    width: "100%",
+    flexWrap: "nowrap",
+    justifyContent: "flex-end",
+    gap: 8,
+  },
+  previewActionButtonCompact: {
+    flex: 1,
+    minWidth: 0,
+    alignItems: "center",
+    paddingHorizontal: 8,
+  },
+  previewActionTextCompact: {
+    fontSize: 14,
   },
   previewTitle: {
     fontSize: 22,

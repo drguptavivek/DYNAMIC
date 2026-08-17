@@ -12,14 +12,36 @@ export function getDraftSiteId(draft) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function normalizeId(value) {
+  return String(value || "").trim();
+}
+
 function normalizeHouseholdIdPart(value, width) {
-  const text = String(value || "").trim();
+  const text = normalizeId(value);
   return text && width ? text.padStart(width, "0") : text;
+}
+
+function householdIdFromIndividualId(value) {
+  const parts = normalizeId(value).split("-");
+  if (parts.length >= 5) return parts.slice(0, 4).join("-");
+  return "";
+}
+
+export function getDraftSubjectId(draft) {
+  const answers = draft?.json_payload || {};
+  return normalizeId(
+    answers.wq_enter_structure_id_woman ||
+      answers.individual_id ||
+      answers.woman_id ||
+      answers.subject_id ||
+      draft?.subject_id,
+  );
 }
 
 export function getDraftHouseholdId(draft) {
   const answers = draft?.json_payload || {};
-  if (answers.hhq_household_id) return String(answers.hhq_household_id);
+  if (answers.hhq_household_id) return normalizeId(answers.hhq_household_id);
+  if (answers.household_id) return normalizeId(answers.household_id);
   const siteId = normalizeHouseholdIdPart(answers.hhq_site_id);
   const localityCode = normalizeHouseholdIdPart(answers.hhq_locality_code, 2);
   const structureNumber = normalizeHouseholdIdPart(answers.hhq_structure_map_id, 4);
@@ -27,7 +49,43 @@ export function getDraftHouseholdId(draft) {
   if (siteId && localityCode && structureNumber && householdNumber) {
     return [siteId, localityCode, structureNumber, householdNumber].join("-");
   }
-  return draft?.subject_id ? String(draft.subject_id) : "";
+  const subjectHouseholdId = householdIdFromIndividualId(getDraftSubjectId(draft));
+  if (subjectHouseholdId) return subjectHouseholdId;
+  return draft?.subject_id ? normalizeId(draft.subject_id) : "";
+}
+
+export function getDraftComparableIds(draft) {
+  return new Set(
+    [
+      draft?.task_id,
+      draft?.draft_id,
+      draft?.draft_key,
+      draft?.subject_id,
+      getDraftSubjectId(draft),
+      getDraftHouseholdId(draft),
+    ]
+      .map(normalizeId)
+      .filter(Boolean),
+  );
+}
+
+export function draftMatchesTask(draft, task) {
+  if (!draft || !task) return false;
+  if (String(draft.form_code || "").toUpperCase() !== String(task.task_type || "").toUpperCase()) {
+    return false;
+  }
+  const draftIds = getDraftComparableIds(draft);
+  return [
+    task.id,
+    task.task_id,
+    task.task_key,
+    task.household_id,
+    task.subject_id,
+  ].some((value) => draftIds.has(normalizeId(value)));
+}
+
+export function filterDraftsForTaskCandidates(drafts = [], tasks = []) {
+  return drafts.filter((draft) => tasks.some((task) => draftMatchesTask(draft, task)));
 }
 
 export function filterDraftsForUserSite(drafts, user) {

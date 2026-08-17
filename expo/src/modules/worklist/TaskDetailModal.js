@@ -9,14 +9,12 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
-  TextInput,
 } from "react-native";
 import { getTaskOpenBlockReason } from "./taskOpenPolicy.js";
 import { listTaskFinalCloseReasons } from "./taskWorklist.js";
 import {
   closeTaskWithFinalReason,
   listTaskAttempts,
-  recordFailedTaskAttempt,
 } from "./taskWorklistRepository.js";
 
 const STATUS_COLORS = {
@@ -26,14 +24,9 @@ const STATUS_COLORS = {
   closed: "#95a5a6",
 };
 
-const ATTEMPT_OUTCOMES = ["not_found", "refused", "unavailable", "other"];
-
 export function TaskDetailModal({ visible, task, onClose, onOpenForm, onTaskChanged }) {
   const [attempts, setAttempts] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [showAttemptForm, setShowAttemptForm] = useState(false);
-  const [selectedOutcome, setSelectedOutcome] = useState("not_found");
-  const [attemptNotes, setAttemptNotes] = useState("");
   const [showCloseForm, setShowCloseForm] = useState(false);
   const [selectedCloseReason, setSelectedCloseReason] = useState("");
 
@@ -59,44 +52,6 @@ export function TaskDetailModal({ visible, task, onClose, onOpenForm, onTaskChan
       setAttempts(taskAttempts);
     } catch (error) {
       console.error("Error loading attempts:", error);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleRecordAttempt() {
-    if (!selectedOutcome) {
-      Alert.alert("Error", "Please select an outcome");
-      return;
-    }
-
-    try {
-      setLoading(true);
-      const attemptId = `${task.id}-attempt-${Date.now()}`;
-      const attempt = {
-        id: attemptId,
-        task_id: task.id,
-        outcome: selectedOutcome,
-        notes: attemptNotes,
-      };
-
-      const result = recordFailedTaskAttempt({ task, attempt });
-      setAttemptNotes("");
-      setShowAttemptForm(false);
-      setSelectedOutcome("not_found");
-      loadAttempts();
-      if (result.decision.should_prompt_final_close_reason) {
-        setShowCloseForm(true);
-        Alert.alert(
-          "Final close reason required",
-          "The failed-attempt limit has been reached. Record a final close reason before closing this task.",
-        );
-      } else {
-        Alert.alert("Success", "Attempt recorded");
-      }
-    } catch (error) {
-      console.error("Error recording attempt:", error);
-      Alert.alert("Error", `Failed to record attempt: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -202,19 +157,6 @@ export function TaskDetailModal({ visible, task, onClose, onOpenForm, onTaskChan
               </Pressable>
             )}
 
-            {task.status === "open" && (
-              <Pressable
-                onPress={() => setShowAttemptForm(!showAttemptForm)}
-                style={({ pressed }) => [
-                  styles.button,
-                  styles.secondaryButton,
-                  pressed && styles.buttonPressed,
-                ]}
-              >
-                <Text style={styles.secondaryButtonText}>Record Failed Attempt</Text>
-              </Pressable>
-            )}
-
             {task.status === "open" && canRecordFinalClose && !showCloseForm && (
               <Pressable
                 onPress={() => setShowCloseForm(true)}
@@ -226,77 +168,6 @@ export function TaskDetailModal({ visible, task, onClose, onOpenForm, onTaskChan
               >
                 <Text style={styles.secondaryButtonText}>Enter Final Close Reason</Text>
               </Pressable>
-            )}
-
-            {showAttemptForm && task.status === "open" && (
-              <View style={styles.attemptForm}>
-                <Text style={styles.formLabel}>Outcome</Text>
-                <View style={styles.pickerContainer}>
-                  {/* Fallback UI for non-mobile */}
-                  <View style={styles.outcomePicker}>
-                    {ATTEMPT_OUTCOMES.map((outcome) => (
-                      <Pressable
-                        key={outcome}
-                        onPress={() => setSelectedOutcome(outcome)}
-                        style={[
-                          styles.outcomeOption,
-                          selectedOutcome === outcome && styles.outcomeOptionSelected,
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.outcomeOptionText,
-                            selectedOutcome === outcome && styles.outcomeOptionTextSelected,
-                          ]}
-                        >
-                          {outcome}
-                        </Text>
-                      </Pressable>
-                    ))}
-                  </View>
-                </View>
-
-                <Text style={styles.formLabel}>Notes (optional)</Text>
-                <TextInput
-                  style={styles.notesInput}
-                  placeholder="Add notes about this attempt..."
-                  value={attemptNotes}
-                  onChangeText={setAttemptNotes}
-                  multiline={true}
-                  numberOfLines={4}
-                />
-
-                <View style={styles.formButtons}>
-                  <Pressable
-                    onPress={handleRecordAttempt}
-                    disabled={loading}
-                    style={({ pressed }) => [
-                      styles.button,
-                      styles.primaryButton,
-                      (pressed || loading) && styles.buttonPressed,
-                    ]}
-                  >
-                    {loading ? (
-                      <ActivityIndicator color="#ffffff" />
-                    ) : (
-                      <Text style={styles.buttonText}>Save Attempt</Text>
-                    )}
-                  </Pressable>
-                  <Pressable
-                    onPress={() => {
-                      setShowAttemptForm(false);
-                      setAttemptNotes("");
-                    }}
-                    style={({ pressed }) => [
-                      styles.button,
-                      styles.secondaryButton,
-                      pressed && styles.buttonPressed,
-                    ]}
-                  >
-                    <Text style={styles.secondaryButtonText}>Cancel</Text>
-                  </Pressable>
-                </View>
-              </View>
             )}
 
             {showCloseForm && finalCloseReasons.length > 0 && (
@@ -412,15 +283,18 @@ const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.38)",
-    justifyContent: "flex-end",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 24,
   },
   modalContent: {
     backgroundColor: "#ffffff",
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    maxHeight: "90%",
+    borderRadius: 16,
+    width: "100%",
+    maxHeight: "82%",
     paddingHorizontal: 20,
     paddingTop: 12,
+    paddingBottom: 12,
   },
   modalHeader: {
     flexDirection: "row",
@@ -531,16 +405,6 @@ const styles = StyleSheet.create({
     padding: 12,
     marginVertical: 12,
   },
-  formLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#18202a",
-    marginBottom: 8,
-    marginTop: 12,
-  },
-  pickerContainer: {
-    marginBottom: 12,
-  },
   outcomePicker: {
     flexDirection: "column",
     gap: 8,
@@ -565,17 +429,6 @@ const styles = StyleSheet.create({
   outcomeOptionTextSelected: {
     color: "#3498db",
     fontWeight: "600",
-  },
-  notesInput: {
-    borderWidth: 1,
-    borderColor: "#d8dee4",
-    borderRadius: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    backgroundColor: "#ffffff",
-    minHeight: 100,
-    textAlignVertical: "top",
   },
   formButtons: {
     flexDirection: "row",

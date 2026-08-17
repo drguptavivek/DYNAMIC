@@ -157,7 +157,7 @@ test("HHQ early-stop submission schedules HHQ revisit and does not create HRF ta
     assert.equal(revisitTasks[0].max_failed_attempts, 3);
 
     const pulled = await fetchData(
-      `${baseUrl}/sync/pull?locality_codes=01&include_members=false&page_size=100&since=${encodeURIComponent(sinceBeforePush)}`,
+      `${baseUrl}/sync/pull?device_id=e2e-early-stop-device&locality_codes=01&include_members=false&page_size=100&since=${encodeURIComponent(sinceBeforePush)}`,
       { headers: { Authorization: authorization } },
     );
     assert.ok(
@@ -873,7 +873,7 @@ test("HHQ offline submission creates local WQ workflow, syncs backend, and pulls
     );
 
     const pulled = await fetchData(
-      `${baseUrl}/sync/pull?locality_codes=01&include_members=false&page_size=100&since=${encodeURIComponent(sinceBeforePush)}`,
+      `${baseUrl}/sync/pull?device_id=e2e-device&locality_codes=01&include_members=false&page_size=100&since=${encodeURIComponent(sinceBeforePush)}`,
       { headers: { Authorization: authorization } },
     );
     assert.ok(

@@ -94,6 +94,12 @@ function normalizePart(value) {
   return value === undefined || value === null || value === "" ? "none" : String(value);
 }
 
+function getHouseholdIdFromDraft(draft) {
+  const candidate = getPayloadHouseholdId(draft?.json_payload || {}, draft?.subject_id);
+  const parts = String(candidate || "").split("-");
+  return parts.length >= 4 ? parts.slice(0, 4).join("-") : candidate || null;
+}
+
 function normalizeHouseholdIdPart(value, width) {
   const text = String(value || "").trim();
   return text && width ? text.padStart(width, "0") : text;
@@ -269,6 +275,88 @@ export async function getQuestionnaireDraftById(draftId) {
 
 export async function listActiveQuestionnaireDrafts() {
   return dedupeActiveDrafts(await readRows());
+}
+
+export async function listQuestionnaireDraftsForSync(userId) {
+  const rows = await readRows();
+  return rows.filter((row) => !userId || row.user_id === userId);
+}
+
+export function toDraftSyncRecord(draft) {
+  const householdId = getHouseholdIdFromDraft(draft);
+  const [siteId, localityCode] = String(householdId || "").split("-");
+  return {
+    draft_id: draft.draft_id,
+    form_code: draft.form_code,
+    form_version: draft.form_version,
+    task_id: draft.task_id,
+    subject_type: draft.subject_type,
+    subject_id: draft.subject_id,
+    household_id: householdId,
+    site_id: Number.parseInt(siteId, 10),
+    locality_code: localityCode,
+    user_id: draft.user_id,
+    device_id: draft.device_id,
+    json_payload: draft.json_payload || {},
+    completion_state: draft.completion_state || {},
+    draft_status: draft.draft_status,
+    submitted_form_response_id: draft.submitted_form_response_id || null,
+    created_at: draft.created_at,
+    updated_at: draft.updated_at,
+  };
+}
+
+export async function mergeServerQuestionnaireDrafts(drafts, context = {}) {
+  if (!Array.isArray(drafts)) return 0;
+  const rows = await readRows();
+  let merged = 0;
+
+  for (const incoming of drafts) {
+    if (!incoming?.draft_id || incoming.draft_status !== "active") continue;
+    if (context.userId && incoming.user_id !== context.userId) continue;
+
+    const incomingComparable = {
+      ...incoming,
+      json_payload: incoming.json_payload || {},
+    };
+    const incomingHouseholdUserKey = getDraftHouseholdUserKey(incomingComparable);
+    const existing = rows.find(
+      (row) =>
+        row.draft_id === incoming.draft_id ||
+        (row.draft_status === "active" && getDraftHouseholdUserKey(row) === incomingHouseholdUserKey),
+    );
+    if (existing && String(existing.updated_at) >= String(incoming.updated_at)) continue;
+
+    const draft = {
+      draft_id: existing?.draft_id || incoming.draft_id,
+      draft_key: buildDraftKey({
+        formCode: incoming.form_code,
+        formVersion: incoming.form_version,
+        taskId: incoming.task_id,
+        subjectType: incoming.subject_type,
+        subjectId: incoming.subject_id,
+        deviceId: context.deviceId || incoming.device_id,
+        userId: incoming.user_id,
+      }),
+      form_code: incoming.form_code,
+      form_version: incoming.form_version || null,
+      task_id: incoming.task_id || null,
+      subject_type: incoming.subject_type || null,
+      subject_id: incoming.subject_id || null,
+      device_id: context.deviceId || incoming.device_id,
+      user_id: incoming.user_id,
+      json_payload: incoming.json_payload || {},
+      completion_state: incoming.completion_state || {},
+      draft_status: "active",
+      submitted_form_response_id: null,
+      created_at: incoming.created_at,
+      updated_at: incoming.updated_at,
+    };
+    await persistDraft(draft);
+    await supersedeDuplicateActiveDrafts(draft);
+    merged += 1;
+  }
+  return merged;
 }
 
 export async function saveQuestionnaireDraft({

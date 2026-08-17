@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
+import QRCode from "qrcode";
 import { api } from "../lib/api";
 import { useAuth, type UserRole } from "../lib/auth-context";
+import { generateStudyPassword } from "../lib/passwordGenerator";
 import styles from "./UsersPage.module.css";
 
 interface User {
@@ -20,6 +22,12 @@ interface RegisteredDevice {
   device_name?: string | null;
   registered_at?: string | null;
   last_sync_at?: string | null;
+  authorized: boolean;
+  deauthorized_at?: string | null;
+}
+
+interface PasswordLoginQrResponse {
+  qr_payload: string;
 }
 
 interface AreaAssignment {
@@ -116,12 +124,14 @@ export default function UsersPage() {
   const [sites, setSites] = useState<Site[]>([]);
   const [loading, setLoading] = useState(false);
   const [savingStatusFor, setSavingStatusFor] = useState<string | null>(null);
+  const [savingDeviceFor, setSavingDeviceFor] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [activeFilter, setActiveFilter] = useState<boolean | "">("");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [passwordResetUser, setPasswordResetUser] = useState<User | null>(null);
 
   const sitesById = useMemo(
     () => new Map(sites.map((site) => [site.site_id, site])),
@@ -261,6 +271,33 @@ export default function UsersPage() {
     }
   }
 
+  async function handlePasswordReset(target: User, newPassword: string) {
+    await api.patch(`/users/${target.user_id}`, { password: newPassword });
+    await loadUsers();
+  }
+
+  async function handleDeviceAuthorization(device: RegisteredDevice) {
+    const nextAuthorized = !device.authorized;
+    if (!nextAuthorized) {
+      const confirmed = window.confirm(
+        "Deauthorize this device? It will not be able to log in or sync until an administrator authorizes it again.",
+      );
+      if (!confirmed) return;
+    }
+    setSavingDeviceFor(device.device_id);
+    setError("");
+    try {
+      await api.patch(`/devices/${encodeURIComponent(device.device_id)}/authorization`, {
+        authorized: nextAuthorized,
+      });
+      await loadUsers();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to change device authorization");
+    } finally {
+      setSavingDeviceFor(null);
+    }
+  }
+
   return (
     <div className={styles.container}>
       <div className={styles.header}>
@@ -310,7 +347,13 @@ export default function UsersPage() {
                     <td>{listedUser.role.replace(/_/g, " ")}</td>
                     <td><SiteName site={listedUser.site_id ? sitesById.get(listedUser.site_id) : undefined} siteId={listedUser.site_id} /></td>
                     <td><AssignmentBadges assignments={assignmentsByUser[listedUser.user_id] ?? []} localitiesByKey={localitiesByKey} /></td>
-                    <td><RegisteredDeviceCell devices={listedUser.registered_devices ?? []} /></td>
+                    <td>
+                      <RegisteredDeviceCell
+                        devices={listedUser.registered_devices ?? []}
+                        savingDeviceFor={savingDeviceFor}
+                        onAuthorizationChange={(device) => void handleDeviceAuthorization(device)}
+                      />
+                    </td>
                     <td>
                       <StatusSwitch
                         active={listedUser.active}
@@ -319,7 +362,12 @@ export default function UsersPage() {
                         onToggle={() => void handleStatusToggle(listedUser)}
                       />
                     </td>
-                    <td><button onClick={() => setEditingUser(listedUser)} className={styles.actionBtn}>Edit</button></td>
+                    <td>
+                      <div className={styles.actionGroup}>
+                        <button onClick={() => setEditingUser(listedUser)} className={styles.actionBtn}>Edit</button>
+                        <button onClick={() => setPasswordResetUser(listedUser)} className={styles.actionBtn}>Password</button>
+                      </div>
+                    </td>
                   </tr>
                 );
               })}
@@ -347,11 +395,27 @@ export default function UsersPage() {
           onSubmit={handleEditUser}
         />
       )}
+      {passwordResetUser && (
+        <PasswordResetModal
+          user={passwordResetUser}
+          site={passwordResetUser.site_id ? sitesById.get(passwordResetUser.site_id) : undefined}
+          onClose={() => setPasswordResetUser(null)}
+          onSubmit={handlePasswordReset}
+        />
+      )}
     </div>
   );
 }
 
-function RegisteredDeviceCell({ devices }: { devices: RegisteredDevice[] }) {
+function RegisteredDeviceCell({
+  devices,
+  savingDeviceFor,
+  onAuthorizationChange,
+}: {
+  devices: RegisteredDevice[];
+  savingDeviceFor: string | null;
+  onAuthorizationChange: (device: RegisteredDevice) => void;
+}) {
   if (!devices.length) return <span className={styles.muted}>Not registered</span>;
   return (
     <div className={styles.deviceList}>
@@ -359,6 +423,23 @@ function RegisteredDeviceCell({ devices }: { devices: RegisteredDevice[] }) {
         <div key={device.device_id} className={styles.deviceItem}>
           <code>{device.device_id}</code>
           {device.device_name ? <span className={styles.deviceName}>{device.device_name}</span> : null}
+          <div className={styles.deviceAuthorizationRow}>
+            <span className={device.authorized ? styles.deviceAuthorized : styles.deviceDeauthorized}>
+              {device.authorized ? "Authorized" : "Deauthorized"}
+            </span>
+            <button
+              type="button"
+              className={device.authorized ? styles.deviceDeauthorizeBtn : styles.deviceAuthorizeBtn}
+              disabled={savingDeviceFor === device.device_id}
+              onClick={() => onAuthorizationChange(device)}
+            >
+              {savingDeviceFor === device.device_id
+                ? "Saving..."
+                : device.authorized
+                  ? "Deauthorize"
+                  : "Authorize"}
+            </button>
+          </div>
         </div>
       ))}
     </div>
@@ -494,6 +575,11 @@ function CreateUserModal({
   const [loading, setLoading] = useState(false);
   const roles = permittedRoles(currentUserRole);
 
+  function handleGeneratePassword() {
+    const password = generateStudyPassword();
+    setFormData({ ...formData, password, confirm_password: password });
+  }
+
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault(); setError(""); setLoading(true);
     try { await onSubmit(formData); }
@@ -521,7 +607,7 @@ function CreateUserModal({
         <FormInput label="Institution Name *" value={formData.institution_name} required onChange={(institution_name) => setFormData({ ...formData, institution_name })} />
         <FormInput label="Institution Country" value={formData.institution_country} onChange={(institution_country) => setFormData({ ...formData, institution_country })} />
         <div className={styles.formGroup}><label>Institution Type</label><select value={formData.institution_type} onChange={(event) => setFormData({ ...formData, institution_type: event.target.value })}><option value="study_site">Study Site</option><option value="coordinating_center">Coordinating Center</option><option value="collaborator">Collaborator</option></select></div>
-        <FormInput label="Password *" name="create-user-password" autoComplete="new-password" type="password" value={formData.password} required onChange={(password) => setFormData({ ...formData, password })} />
+        <PasswordField label="Password *" name="create-user-password" value={formData.password} required onGenerate={handleGeneratePassword} onChange={(password) => setFormData({ ...formData, password })} />
         <FormInput label="Confirm Password *" name="create-user-confirm-password" autoComplete="new-password" type="password" value={formData.confirm_password} required onChange={(confirm_password) => setFormData({ ...formData, confirm_password })} />
         <ModalFooter loading={loading} submitLabel="Create" onClose={onClose} />
       </form>
@@ -554,6 +640,10 @@ function EditUserModal({
   const [loading, setLoading] = useState(false);
   const roles = permittedRoles(currentUserRole);
 
+  function handleGeneratePassword() {
+    setFormData({ ...formData, new_password: generateStudyPassword() });
+  }
+
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault(); setError(""); setLoading(true);
     try { await onSubmit(formData); }
@@ -574,7 +664,7 @@ function EditUserModal({
           setFormData({ ...formData, role, site_id: siteRequired ? formData.site_id : "" });
         }}>{roles.map((role) => <option key={role} value={role}>{role.replace(/_/g, " ")}</option>)}</select></div>
         <ScopeSelector siteId={formData.site_id} sites={sites} lockedSiteId={lockedSiteId} siteRequired={SITE_ADMIN_ROLES.has(formData.role)} onChange={(site_id) => setFormData({ ...formData, site_id })} />
-        <FormInput label="New Password (leave blank to keep current)" name="edit-user-new-password" autoComplete="new-password" type="password" value={formData.new_password} onChange={(new_password) => setFormData({ ...formData, new_password })} />
+        <PasswordField label="New Password (leave blank to keep current)" name="edit-user-new-password" value={formData.new_password} onGenerate={handleGeneratePassword} onChange={(new_password) => setFormData({ ...formData, new_password })} />
         <p className={styles.statusHint}>Account status is changed with the switch in the Users table.</p>
         <ModalFooter loading={loading} submitLabel="Update" onClose={onClose} />
       </form>
@@ -582,8 +672,163 @@ function EditUserModal({
   );
 }
 
+function PasswordResetModal({
+  user,
+  site,
+  onClose,
+  onSubmit,
+}: {
+  user: User;
+  site?: Site;
+  onClose: () => void;
+  onSubmit: (user: User, password: string) => Promise<void>;
+}) {
+  const [password, setPassword] = useState(() => generateStudyPassword());
+  const [qrDataUrl, setQrDataUrl] = useState("");
+  const [qrLoading, setQrLoading] = useState(false);
+  const [generatedAt, setGeneratedAt] = useState(() => new Date());
+  const [savedPassword, setSavedPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const siteName = site ? siteLabel(site) : user.site_id ? `Site ID ${user.site_id}` : "Central / no site";
+  const generatedAtLabel = generatedAt.toLocaleString();
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function generateQr() {
+      if (password.length < 8) {
+        setQrDataUrl("");
+        return;
+      }
+      setQrLoading(true);
+      setQrDataUrl("");
+      try {
+        const result = await api.post<PasswordLoginQrResponse>(
+          `/users/${user.user_id}/password-login-qr`,
+          { password },
+        );
+        const dataUrl = await QRCode.toDataURL(result.qr_payload, {
+          errorCorrectionLevel: "M",
+          margin: 1,
+          width: 220,
+        });
+        if (!cancelled) setQrDataUrl(dataUrl);
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : "Failed to generate QR code");
+      } finally {
+        if (!cancelled) setQrLoading(false);
+      }
+    }
+
+    generateQr();
+    return () => {
+      cancelled = true;
+    };
+  }, [password, user.user_id]);
+
+  async function handleSave() {
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters");
+      return;
+    }
+    setError("");
+    setLoading(true);
+    try {
+      await onSubmit(user, password);
+      setSavedPassword(password);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to reset password");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleCopyPassword() {
+    try {
+      await navigator.clipboard.writeText(savedPassword || password);
+    } catch {
+      setError("Could not copy password. Select and copy it manually.");
+    }
+  }
+
+  return (
+    <div className={styles.modal}><div className={styles.modalContent}>
+      {error && <div className={styles.error}>{error}</div>}
+      {savedPassword && <div className={styles.success}>Password saved. Share this password or QR only with the selected user.</div>}
+      <div className={styles.passwordResetIntro}>
+        <p>New Password Generated. Click Save Password to set this password and deactivate old password. This password and QR Code will only be shown once.</p>
+        <div><span>Username</span><strong>{user.username}</strong></div>
+        <div><span>Site</span><strong>{siteName}</strong></div>
+        <div><span>Date generated on</span><strong>{generatedAtLabel}</strong></div>
+      </div>
+      <div className={styles.passwordResetBody}>
+        <div className={styles.passwordValueBlock}>
+          <label>Generated password</label>
+          <input
+            type="text"
+            value={password}
+            onChange={(event) => {
+              setPassword(event.target.value);
+              setSavedPassword("");
+            }}
+            className={styles.passwordValueInput}
+          />
+          <p className={styles.fieldHint}>Format: three faker words of 5-7 letters with one internal capital letter each, plus one 3-digit number, separated by dashes.</p>
+          <div className={styles.inlineActions}>
+            <button type="button" className={styles.secondaryBtn} onClick={() => { setPassword(generateStudyPassword()); setGeneratedAt(new Date()); setSavedPassword(""); }}>Generate New</button>
+            <button type="button" className={styles.secondaryBtn} onClick={handleCopyPassword}>Copy Password</button>
+          </div>
+        </div>
+        <div className={styles.qrPreview}>
+          {qrDataUrl ? <img src={qrDataUrl} alt={`Login QR for ${user.username}`} /> : <span>{qrLoading ? "Generating secure QR..." : "QR unavailable"}</span>}
+        </div>
+      </div>
+      <div className={styles.modalFooter}>
+        <button type="button" onClick={onClose} className={styles.secondaryBtn}>Close</button>
+        <button type="button" disabled={loading || Boolean(savedPassword)} onClick={handleSave} className={styles.primaryBtn}>
+          {loading ? "Saving..." : savedPassword ? "Saved" : "Save Password"}
+        </button>
+      </div>
+    </div></div>
+  );
+}
+
 function FormInput({ label, value, type = "text", required = false, name, autoComplete, onChange }: { label: string; value: string; type?: string; required?: boolean; name?: string; autoComplete?: string; onChange: (value: string) => void }) {
   return <div className={styles.formGroup}><label>{label}</label><input type={type} name={name} autoComplete={autoComplete} value={value} required={required} onChange={(event) => onChange(event.target.value)} /></div>;
+}
+
+function PasswordField({
+  label,
+  value,
+  required = false,
+  name,
+  onGenerate,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  required?: boolean;
+  name?: string;
+  onGenerate: () => void;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className={styles.formGroup}>
+      <div className={styles.inputHeader}>
+        <label>{label}</label>
+        <button type="button" className={styles.linkButton} onClick={onGenerate}>Generate</button>
+      </div>
+      <input
+        type="password"
+        name={name}
+        autoComplete="new-password"
+        value={value}
+        required={required}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </div>
+  );
 }
 
 function ModalFooter({ loading, submitLabel, onClose }: { loading: boolean; submitLabel: string; onClose: () => void }) {

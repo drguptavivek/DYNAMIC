@@ -21,6 +21,12 @@
           "faceIDPermission": "Allow DYNAMIC to use Face ID to unlock the field app after login."
         }
       ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow DYNAMIC to scan admin-issued login QR codes."
+        }
+      ],
       "expo-sqlite"
     ],
     "android": {

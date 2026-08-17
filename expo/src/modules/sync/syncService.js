@@ -111,11 +111,33 @@ export function getLastSyncAt() {
   return value;
 }
 
+function getLastFormResponseSyncAt() {
+  const value = getMeta("last_form_response_sync_at");
+  if (!value) return null;
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    setMeta("last_form_response_sync_at", "");
+    return null;
+  }
+
+  return value;
+}
+
 function setLastSyncAt(timestamp) {
   try {
     setMeta("last_sync_at", timestamp);
   } catch (error) {
     console.error("Error setting last_sync_at:", error);
+    throw error;
+  }
+}
+
+function setLastFormResponseSyncAt(timestamp) {
+  try {
+    setMeta("last_form_response_sync_at", timestamp);
+  } catch (error) {
+    console.error("Error setting last_form_response_sync_at:", error);
     throw error;
   }
 }
@@ -279,12 +301,15 @@ export async function pullSync(options = {}) {
   }
 
   const lastSync = getLastSyncAt();
+  const lastFormResponseSync = getLastFormResponseSyncAt();
   const localities = getAssignedLocalities();
 
   const baseParams = new URLSearchParams();
+  baseParams.set("device_id", getMeta("device_id") || "unregistered-device");
   if (lastSync) {
     baseParams.append("since", lastSync);
   }
+  baseParams.append("form_response_since", lastFormResponseSync || new Date(0).toISOString());
   if (localities.length > 0) {
     baseParams.append("locality_codes", localities.join(","));
   }
@@ -300,6 +325,7 @@ export async function pullSync(options = {}) {
     let pulledMembers = 0;
     let pulledEligibleWomen = 0;
     let pulledPregnancies = 0;
+    let pulledFormResponses = 0;
     let formsUpdated = 0;
     let lastData = null;
     let batch = 0;
@@ -316,6 +342,7 @@ export async function pullSync(options = {}) {
         pulledMembers,
         pulledEligibleWomen,
         pulledPregnancies,
+        pulledFormResponses,
         formsUpdated,
         });
       }
@@ -344,6 +371,7 @@ export async function pullSync(options = {}) {
         tasks = [],
         eligible_women: eligibleWomen = [],
         pregnancies = [],
+        form_responses: formResponses = [],
         form_versions: formVersions = [],
         protocol_config_version,
         total_households: totalHouseholds = 0,
@@ -370,6 +398,7 @@ export async function pullSync(options = {}) {
           pulledMembers,
           pulledEligibleWomen,
           pulledPregnancies,
+          pulledFormResponses,
           formsUpdated,
         });
       }
@@ -388,6 +417,7 @@ export async function pullSync(options = {}) {
             pulledMembers,
             pulledEligibleWomen,
             pulledPregnancies,
+            pulledFormResponses,
             formsUpdated,
           });
         }
@@ -416,6 +446,10 @@ export async function pullSync(options = {}) {
         pulledPregnancies += pregnancies.length;
       }
 
+      if (formResponses.length > 0) {
+        pulledFormResponses += taskRepository.saveSyncedFormResponsesBatch(formResponses);
+      }
+
       const formRefresh = await refreshProtocolForms(formVersions);
       formsUpdated += formRefresh.formsUpdated;
       if (protocol_config_version) {
@@ -438,6 +472,7 @@ export async function pullSync(options = {}) {
           pulledMembers,
           pulledEligibleWomen,
           pulledPregnancies,
+          pulledFormResponses,
           formsUpdated,
         });
       }
@@ -446,6 +481,7 @@ export async function pullSync(options = {}) {
     const nextCursor = lastData ? selectNextPullCursor(lastData, lastSync) : null;
     if (nextCursor) {
       setLastSyncAt(nextCursor);
+      setLastFormResponseSyncAt(nextCursor);
     }
 
     return {
@@ -455,6 +491,7 @@ export async function pullSync(options = {}) {
       pulledMembers,
       pulledEligibleWomen,
       pulledPregnancies,
+      pulledFormResponses,
       formsUpdated,
     };
   } catch (error) {
@@ -492,8 +529,15 @@ export async function pushSync() {
   const { getPendingEvents } = await import("../events/eventOutbox.js");
   const pendingEvents = getPendingEvents();
 
-  if (pending.length === 0 && pendingEvents.length === 0) {
-    return { pushed: 0, events: 0 };
+  const {
+    listQuestionnaireDraftsForSync,
+    toDraftSyncRecord,
+  } = await import("../questionnaires/questionnaireDraftRepository.js");
+  const user = authStore.getUser();
+  const drafts = await listQuestionnaireDraftsForSync(user?.user_id || user?.id);
+
+  if (pending.length === 0 && pendingEvents.length === 0 && drafts.length === 0) {
+    return { pushed: 0, events: 0, drafts: 0 };
   }
 
   try {
@@ -503,6 +547,38 @@ export async function pushSync() {
     });
 
     const deviceId = getMeta("device_id") || "unregistered-device";
+    let syncedDrafts = 0;
+    if (drafts.length > 0) {
+      const draftResponse = await fetch(`${API_BASE_URL}/sync/drafts`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          device_id: deviceId,
+          drafts: drafts.map(toDraftSyncRecord),
+        }),
+      });
+      if (!draftResponse.ok) {
+        throw new Error(`Draft sync failed: ${draftResponse.statusText}`);
+      }
+      const draftResult = unwrapApiData(await draftResponse.json());
+      const draftErrors = Array.isArray(draftResult.errors) ? draftResult.errors : [];
+      if (draftErrors.length > 0) {
+        throw new Error(
+          `Draft sync rejected ${draftErrors.length} record(s): ${draftErrors
+            .map((item) => `${item.id}: ${item.error}`)
+            .join("; ")}`,
+        );
+      }
+      syncedDrafts = Number(draftResult.synced || 0);
+    }
+
+    if (pending.length === 0 && pendingEvents.length === 0) {
+      return { pushed: 0, events: 0, drafts: syncedDrafts };
+    }
+
     const response = await fetch(`${API_BASE_URL}/sync/push`, {
       method: "POST",
       headers: {
@@ -600,7 +676,7 @@ export async function pushSync() {
       (event) => acceptedIds.has(event.id) || handledEventErrorIds.has(event.id),
     ).length;
 
-    return { pushed: acceptedResponses, events: acceptedEvents, uploadErrors };
+    return { pushed: acceptedResponses, events: acceptedEvents, uploadErrors, drafts: syncedDrafts };
   } catch (error) {
     console.error("Push sync error:", error);
     throw error;
@@ -649,6 +725,24 @@ export async function syncAll(options = {}) {
       clearHouseholdCacheForSync();
     }
     const pullResult = await pullSync({ onProgress });
+    const draftParams = new URLSearchParams({
+      device_id: getMeta("device_id") || "unregistered-device",
+    });
+    const draftResponse = await fetch(`${API_BASE_URL}/sync/drafts?${draftParams.toString()}`, {
+      headers: { Authorization: `Bearer ${authStore.getToken()}` },
+    });
+    if (!draftResponse.ok) {
+      throw new Error(`Draft pull failed: ${draftResponse.statusText}`);
+    }
+    const pulledDraftData = unwrapApiData(await draftResponse.json());
+    const { mergeServerQuestionnaireDrafts } = await import(
+      "../questionnaires/questionnaireDraftRepository.js"
+    );
+    const currentUser = authStore.getUser();
+    const pulledDrafts = await mergeServerQuestionnaireDrafts(pulledDraftData.drafts, {
+      userId: currentUser?.user_id || currentUser?.id,
+      deviceId: getMeta("device_id"),
+    });
     emitProgress(onProgress, {
       stage: "complete",
       message: "Sync complete",
@@ -660,7 +754,10 @@ export async function syncAll(options = {}) {
       pulledOpenTasks: pullResult.pulledOpenTasks,
       pulledHouseholds: pullResult.pulledHouseholds,
       pulledMembers: pullResult.pulledMembers,
+      pulledFormResponses: pullResult.pulledFormResponses,
       formsUpdated: pullResult.formsUpdated,
+      draftsPushed: pushResult.drafts || 0,
+      draftsPulled: pulledDrafts,
       clockStatus: getClockStatus(),
     });
     return {
@@ -671,10 +768,13 @@ export async function syncAll(options = {}) {
       pulledOpenTasks: pullResult.pulledOpenTasks,
       pulledHouseholds: pullResult.pulledHouseholds,
       pulledMembers: pullResult.pulledMembers,
+      pulledFormResponses: pullResult.pulledFormResponses,
       pushed: pushResult.pushed,
       events: pushResult.events,
       uploadErrors: pushResult.uploadErrors,
       formsUpdated: pullResult.formsUpdated,
+      draftsPushed: pushResult.drafts || 0,
+      draftsPulled: pulledDrafts,
     };
   } catch (error) {
     console.error("Sync all error:", error);

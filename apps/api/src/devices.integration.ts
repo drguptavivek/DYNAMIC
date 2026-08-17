@@ -97,6 +97,77 @@ test("device self-registration allows the active user to reuse a device", async 
   }
 });
 
+test("a user can register two devices but a third requires administrator action", async () => {
+  process.env.DATABASE_URL = testDatabaseUrl;
+  process.env.JWT_SECRET = "test_jwt_secret";
+  process.env.JWT_REFRESH_SECRET = "test_refresh_secret";
+
+  const { createApp } = await import("./app");
+  const { db, schema } = await import("./db");
+  const { createSessionBackedAccessToken } = await import("./test-helpers/session-token");
+
+  const userId = `two-device-user-${randomUUID()}`;
+  const firstDeviceId = `first-device-${randomUUID()}`;
+  const secondDeviceId = `second-device-${randomUUID()}`;
+  const thirdDeviceId = `third-device-${randomUUID()}`;
+  const now = new Date();
+  await db.insert(schema.users).values({
+    user_id: userId,
+    username: userId,
+    display_name: "Two Device User",
+    role: "field_worker",
+    site_id: 1,
+    password_hash: "unused",
+    active: true,
+    created_at: now,
+    updated_at: now,
+  });
+
+  const server = createServer(createApp());
+  await new Promise<void>((resolve) => server.listen(0, resolve));
+  try {
+    const address = server.address();
+    assert.ok(address && typeof address === "object");
+    const baseUrl = `http://127.0.0.1:${address.port}/api/v1`;
+    const token = await createSessionBackedAccessToken({
+      sub: userId,
+      username: userId,
+      role: "field_worker",
+      site_id: 1,
+    });
+
+    const register = (deviceId: string) =>
+      fetch(`${baseUrl}/devices/register`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ device_id: deviceId, device_name: "Test phone" }),
+      });
+
+    assert.equal((await register(firstDeviceId)).status, 200);
+    assert.equal((await register(secondDeviceId)).status, 200);
+    assert.equal((await register(firstDeviceId)).status, 200);
+
+    const thirdResponse = await register(thirdDeviceId);
+    const thirdBody = await thirdResponse.json();
+    assert.equal(thirdResponse.status, 403);
+    assert.equal(thirdBody.error.code, "DEVICE_LIMIT_REACHED");
+    assert.equal(
+      thirdBody.error.message,
+      "Already registered on two devices. Contact administrator.",
+    );
+
+    await db
+      .update(schema.devices)
+      .set({ authorized: false, deauthorized_at: new Date() })
+      .where(eq(schema.devices.device_id, firstDeviceId));
+    assert.equal((await register(thirdDeviceId)).status, 200);
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => (error ? reject(error) : resolve()));
+    });
+  }
+});
+
 test("site admin can assign devices only within their site", async () => {
   process.env.DATABASE_URL = testDatabaseUrl;
   process.env.JWT_SECRET = "test_jwt_secret";
@@ -199,6 +270,110 @@ test("site admin can assign devices only within their site", async () => {
     const otherSiteBody = await otherSiteResponse.json();
     assert.equal(otherSiteResponse.status, 403);
     assert.equal(otherSiteBody.error.code, "INSUFFICIENT_PERMISSIONS");
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => (error ? reject(error) : resolve()));
+    });
+  }
+});
+
+test("central admin can deauthorize and reauthorize a registered device", async () => {
+  process.env.DATABASE_URL = testDatabaseUrl;
+  process.env.JWT_SECRET = "test_jwt_secret";
+  process.env.JWT_REFRESH_SECRET = "test_refresh_secret";
+
+  const { createApp } = await import("./app");
+  const { db, schema } = await import("./db");
+  const { createSessionBackedAccessToken } = await import("./test-helpers/session-token");
+
+  const adminId = `device-admin-${randomUUID()}`;
+  const fieldWorkerId = `device-worker-${randomUUID()}`;
+  const deviceId = `managed-device-${randomUUID()}`;
+  const now = new Date();
+  await db.insert(schema.users).values([
+    {
+      user_id: adminId,
+      username: adminId,
+      display_name: "Device Admin",
+      role: "central_admin",
+      password_hash: "unused",
+      active: true,
+      created_at: now,
+      updated_at: now,
+    },
+    {
+      user_id: fieldWorkerId,
+      username: fieldWorkerId,
+      display_name: "Device Worker",
+      role: "field_worker",
+      site_id: 1,
+      password_hash: "unused",
+      active: true,
+      created_at: now,
+      updated_at: now,
+    },
+  ]);
+  await db.insert(schema.devices).values({
+    device_id: deviceId,
+    device_name: "Managed phone",
+    user_id: fieldWorkerId,
+    registered_at: now,
+  });
+
+  const server = createServer(createApp());
+  await new Promise<void>((resolve) => server.listen(0, resolve));
+  try {
+    const address = server.address();
+    assert.ok(address && typeof address === "object");
+    const baseUrl = `http://127.0.0.1:${address.port}/api/v1`;
+    const adminToken = await createSessionBackedAccessToken({
+      sub: adminId,
+      username: adminId,
+      role: "central_admin",
+      site_id: null,
+    });
+    const workerToken = await createSessionBackedAccessToken({
+      sub: fieldWorkerId,
+      username: fieldWorkerId,
+      role: "field_worker",
+      site_id: 1,
+    });
+
+    const disableResponse = await fetch(
+      `${baseUrl}/devices/${encodeURIComponent(deviceId)}/authorization`,
+      {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${adminToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ authorized: false }),
+      },
+    );
+    assert.equal(disableResponse.status, 200);
+
+    const blockedRegistration = await fetch(`${baseUrl}/devices/register`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${workerToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ device_id: deviceId, device_name: "Managed phone" }),
+    });
+    const blockedBody = await blockedRegistration.json();
+    assert.equal(blockedRegistration.status, 403);
+    assert.equal(blockedBody.error.code, "DEVICE_DEAUTHORIZED");
+
+    const enableResponse = await fetch(
+      `${baseUrl}/devices/${encodeURIComponent(deviceId)}/authorization`,
+      {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${adminToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ authorized: true }),
+      },
+    );
+    assert.equal(enableResponse.status, 200);
+
+    const restoredRegistration = await fetch(`${baseUrl}/devices/register`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${workerToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ device_id: deviceId, device_name: "Managed phone" }),
+    });
+    assert.equal(restoredRegistration.status, 200);
   } finally {
     await new Promise<void>((resolve, reject) => {
       server.close((error) => (error ? reject(error) : resolve()));

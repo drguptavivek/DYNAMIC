@@ -113,6 +113,15 @@ assert.equal(
 
 assert.equal(
   formatSyncCompletionMessage({
+    pulledOpenTasks: 0,
+    draftsPushed: 1,
+    draftsPulled: 2,
+  }),
+  "Sync complete: 0 open tasks available, 1 draft backed up, 2 drafts restored",
+);
+
+assert.equal(
+  formatSyncCompletionMessage({
     pulled: 4,
     pulledOpenTasks: 1,
     pulledHouseholds: 500,

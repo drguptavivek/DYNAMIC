@@ -5,6 +5,7 @@ import { eq, and, ilike, inArray, isNull, or } from "drizzle-orm";
 import { db, schema } from "../db";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { sendError, sendSuccess } from "../lib/errors";
+import { createLoginQrPayload } from "../lib/loginQr";
 import { hashPassword } from "../lib/password";
 import { markAccessSessionRevoked } from "../lib/tokenSessionCache";
 
@@ -337,6 +338,8 @@ router.get(
                 device_id: schema.devices.device_id,
                 device_name: schema.devices.device_name,
                 user_id: schema.devices.user_id,
+                authorized: schema.devices.authorized,
+                deauthorized_at: schema.devices.deauthorized_at,
                 registered_at: schema.devices.registered_at,
                 last_sync_at: schema.devices.last_sync_at,
               })
@@ -612,6 +615,83 @@ const patchUserSchema = z.object({
   active: z.boolean().optional(),
 });
 
+const passwordLoginQrSchema = z.object({
+  password: z.string().min(8),
+});
+
+function userManagementScopeError(
+  actor: { sub: string; role: string; site_id: number | null },
+  target: { user_id: string; role: string; site_id: number | null },
+): { status: number; code: string; message: string } | null {
+  if (
+    actor.role === "site_research_scientist" &&
+    target.site_id !== actor.site_id
+  ) {
+    return {
+      status: 403,
+      code: "INSUFFICIENT_PERMISSIONS",
+      message: "Site research scientists can only modify users from their own site",
+    };
+  }
+
+  const actorRank = roleRank[actor.role as UserRole] ?? 0;
+  const targetRank = roleRank[target.role as UserRole] ?? Number.MAX_SAFE_INTEGER;
+  if (targetRank > actorRank) {
+    return {
+      status: 403,
+      code: "INSUFFICIENT_PERMISSIONS",
+      message: "Cannot modify a user with a higher-level role",
+    };
+  }
+
+  return null;
+}
+
+/**
+ * POST /api/v1/users/:id/password-login-qr
+ * Generate an encrypted QR payload for the pending generated password.
+ */
+router.post(
+  "/:id/password-login-qr",
+  requireAuth,
+  requireRole("central_admin", "site_research_scientist"),
+  async (req: Request, res: Response) => {
+    try {
+      const userId = req.params.id;
+      const data = passwordLoginQrSchema.parse(req.body);
+      const [user] = await db.select().from(schema.users).where(eq(schema.users.user_id, userId));
+
+      if (!user) {
+        sendError(res, 404, "USER_NOT_FOUND", "User not found");
+        return;
+      }
+
+      const scopeError = userManagementScopeError(req.user!, user);
+      if (scopeError) {
+        sendError(res, scopeError.status, scopeError.code, scopeError.message);
+        return;
+      }
+
+      sendSuccess(res, {
+        qr_payload: createLoginQrPayload({
+          userId: user.user_id,
+          username: user.username,
+          password: data.password,
+        }),
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        sendError(res, 400, "VALIDATION_ERROR", "Invalid request body", {
+          errors: error.errors,
+        });
+      } else {
+        console.error("Password QR payload error:", error);
+        sendError(res, 500, "INTERNAL_ERROR", "An error occurred");
+      }
+    }
+  },
+);
+
 /**
  * PATCH /api/v1/users/:id
  * Update user
@@ -733,7 +813,7 @@ router.patch(
         }
       });
 
-      if (data.active === false && user.active !== false) {
+      if (data.password || (data.active === false && user.active !== false)) {
         await revokeUserSessions(userId);
       }
 

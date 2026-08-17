@@ -11,7 +11,7 @@ export function buildFieldWorkerProfile(user, localities = [], today = new Date(
     localities.map((locality) => [String(locality.locality_code), locality])
   );
   const assignments = Array.isArray(user?.area_assignments) ? user.area_assignments : [];
-  const activeAssignments = assignments
+  let activeAssignments = assignments
     .filter((assignment) => isActiveAssignment(assignment, today))
     .map((assignment) => {
       const localityCode = String(assignment.locality_code);
@@ -26,6 +26,24 @@ export function buildFieldWorkerProfile(user, localities = [], today = new Date(
         active_to: assignment.active_to || ""
       };
     });
+
+  if (activeAssignments.length === 0 && Array.isArray(user?.assigned_locality_codes)) {
+    activeAssignments = [...new Set(user.assigned_locality_codes.map((code) => String(code)))]
+      .filter(Boolean)
+      .sort()
+      .map((localityCode) => {
+        const locality = localitiesByCode.get(localityCode);
+        const siteId = Number(locality?.site_id || user?.site_id || 0);
+        return {
+          site_id: siteId || null,
+          site_name: getStudySiteName(siteId),
+          locality_code: localityCode,
+          locality_name: locality?.locality_name || localityCode,
+          active_from: "",
+          active_to: ""
+        };
+      });
+  }
 
   return {
     display_name: user?.display_name || user?.username || "Field Worker",

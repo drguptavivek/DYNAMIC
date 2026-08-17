@@ -69,7 +69,7 @@ test("API smoke flow passes against dynamic_test without a fixed port", async ()
     );
 
     const pull = await fetchData(
-      `${baseUrl}/sync/pull?locality_codes=01&since=${encodeURIComponent(seedSince)}`,
+      `${baseUrl}/sync/pull?device_id=test-smoke-device&locality_codes=01&since=${encodeURIComponent(seedSince)}`,
       { headers: { Authorization: authorization } },
     );
     assert.ok(pull.tasks.some((task: { id: string; form_code: string }) => task.id === "dev-task-hhq-1" && task.form_code === "HHQ"));
@@ -77,7 +77,7 @@ test("API smoke flow passes against dynamic_test without a fixed port", async ()
 
     const oldCursor = "1970-01-01T00:00:00.000Z";
     const firstPage = await fetchData(
-      `${baseUrl}/sync/pull?locality_codes=01&include_members=false&page_size=1&since=${encodeURIComponent(oldCursor)}`,
+      `${baseUrl}/sync/pull?device_id=test-smoke-device&locality_codes=01&include_members=false&page_size=1&since=${encodeURIComponent(oldCursor)}`,
       { headers: { Authorization: authorization } },
     );
     assert.notEqual(firstPage.sync_cursor, oldCursor);
@@ -85,7 +85,7 @@ test("API smoke flow passes against dynamic_test without a fixed port", async ()
     assert.ok(firstPage.next_page_token);
 
     const secondPage = await fetchData(
-      `${baseUrl}/sync/pull?include_members=false&page_token=${encodeURIComponent(firstPage.next_page_token)}`,
+      `${baseUrl}/sync/pull?device_id=test-smoke-device&include_members=false&page_token=${encodeURIComponent(firstPage.next_page_token)}`,
       { headers: { Authorization: authorization } },
     );
     assert.equal(secondPage.sync_cursor, firstPage.sync_cursor);

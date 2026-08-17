@@ -429,6 +429,99 @@ export function saveFormResponse(response) {
   }
 }
 
+function normalizePulledFormResponse(response) {
+  const now = new Date().toISOString();
+  const responseId = response.id || response.response_id || response.form_response_id || response.submission_id;
+  const answersJson =
+    typeof response.answers_json === "string"
+      ? response.answers_json
+      : JSON.stringify(response.answers_json || response.json_payload || {});
+
+  return {
+    id: responseId,
+    task_id: response.task_id || null,
+    form_code: response.form_code,
+    form_version: response.form_version || "",
+    household_id: response.household_id || null,
+    site_id: response.site_id ?? null,
+    locality_code: response.locality_code || null,
+    subject_type: response.subject_type || null,
+    subject_id: response.subject_id || null,
+    answers_json: answersJson,
+    submitted_at: response.submitted_at || response.created_offline_at || response.synced_at || response.created_at || now,
+    sync_status: response.sync_status || "synced",
+    sync_error: response.sync_error || null,
+    sync_error_at: response.sync_error_at || null,
+    device_id: response.device_id || "server",
+    created_at: response.created_at || response.synced_at || now,
+    updated_at: response.updated_at || response.synced_at || response.created_at || now,
+  };
+}
+
+export function saveSyncedFormResponsesBatch(responses = []) {
+  if (!Array.isArray(responses) || responses.length === 0) return 0;
+  const db = getDb();
+  let saved = 0;
+
+  try {
+    db.runSync("BEGIN TRANSACTION");
+    for (const response of responses) {
+      const row = normalizePulledFormResponse(response || {});
+      if (!row.id || !row.form_code) continue;
+
+      db.runSync(
+        `INSERT INTO form_responses
+         (id, task_id, form_code, form_version, household_id, site_id, locality_code,
+          subject_type, subject_id, answers_json, submitted_at, sync_status, sync_error,
+          sync_error_at, device_id, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+          task_id = excluded.task_id,
+          form_code = excluded.form_code,
+          form_version = excluded.form_version,
+          household_id = excluded.household_id,
+          site_id = excluded.site_id,
+          locality_code = excluded.locality_code,
+          subject_type = excluded.subject_type,
+          subject_id = excluded.subject_id,
+          answers_json = excluded.answers_json,
+          submitted_at = excluded.submitted_at,
+          sync_status = excluded.sync_status,
+          sync_error = excluded.sync_error,
+          sync_error_at = excluded.sync_error_at,
+          device_id = excluded.device_id,
+          updated_at = excluded.updated_at`,
+        [
+          row.id,
+          row.task_id,
+          row.form_code,
+          row.form_version,
+          row.household_id,
+          row.site_id,
+          row.locality_code,
+          row.subject_type,
+          row.subject_id,
+          row.answers_json,
+          row.submitted_at,
+          row.sync_status,
+          row.sync_error,
+          row.sync_error_at,
+          row.device_id,
+          row.created_at,
+          row.updated_at,
+        ],
+      );
+      saved += 1;
+    }
+    db.runSync("COMMIT");
+    return saved;
+  } catch (error) {
+    db.runSync("ROLLBACK");
+    console.error("Error saving synced form responses:", error);
+    throw error;
+  }
+}
+
 export function saveDomainEvent(event, createdAt) {
   const db = getDb();
   try {

@@ -4,7 +4,7 @@ This policy is canonical even where implementation still lags. Code should move 
 
 ## Core Rule
 
-Drafts are mutable local recovery state. Submitted form responses are immutable evidence. Do not store drafts as submitted responses with a draft status.
+Drafts are mutable recovery state, saved locally first and optionally backed up to the server. Submitted form responses are immutable evidence. Do not store drafts as submitted responses with a draft status.
 
 ## Draft Scope
 
@@ -26,9 +26,10 @@ form_version
 task_id
 subject_type
 subject_id
-device_id
 user_id
 ```
+
+`device_id` is retained as provenance but is not part of the cross-device recovery identity. The same user's latest draft for one workflow context must converge across registered devices.
 
 Draft fields should include:
 
@@ -71,7 +72,9 @@ Rules:
 - Form navigation actions save the current local draft after the destination section/page has been resolved.
 - App backgrounding, navigation away, or form close should save dirty drafts before leaving.
 - Failed local draft save must be visible to the field user.
-- Drafts are not uploaded or returned by sync.
+- Sync uploads local active and terminal draft states through the dedicated draft channel.
+- Sync returns only active drafts owned by the authenticated user and within that user's current area scope.
+- Server-backed drafts remain mutable recovery data and must never enter finalized-response processing.
 - Admin review/edit workflows operate on submitted responses, not active field drafts.
 
 ## Resume
@@ -79,12 +82,14 @@ Rules:
 When reopening a form:
 
 1. Resolve task/context and prefill snapshot.
-2. Load the latest active local draft for that context when present.
+2. Load the latest active local or previously synced draft for that context when present.
 3. Restore `answers_json`.
 4. Restore the last active section/page when `completion_state_json` has it.
 5. Recompute progress/validation from the current SurveyJS model.
 
 If another device has already completed the same task and that completion syncs back, any local active draft for that task should be shown as superseded rather than silently reused.
+
+Conflict rule: compare client `updated_at` values and keep the newest draft. A pulled server copy must not overwrite a newer local copy. Finalized evidence always wins over any active draft.
 
 ## Finalization
 

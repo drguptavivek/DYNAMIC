@@ -22,7 +22,7 @@ function isDevelopmentRuntime(): boolean {
   return process.env.NODE_ENV !== "production" && process.env.APP_ENV !== "production";
 }
 
-function getJwtSecret(type: JwtTokenType): string {
+export function getJwtSecret(type: JwtTokenType): string {
   const envName = type === "access" ? "JWT_SECRET" : "JWT_REFRESH_SECRET";
   const secret = process.env[envName];
   if (secret) {

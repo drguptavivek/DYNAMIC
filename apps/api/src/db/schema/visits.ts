@@ -1,4 +1,4 @@
-import { pgTable, text, integer, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, timestamp, jsonb, unique } from "drizzle-orm/pg-core";
 
 export const visits = pgTable("visits", {
   visit_id: text("visit_id").primaryKey(),
@@ -43,3 +43,31 @@ export const formResponses = pgTable("form_responses", {
   response_status: text("response_status").default("primary"),
   created_at: timestamp("created_at", { withTimezone: true }),
 });
+
+export const questionnaireDrafts = pgTable(
+  "questionnaire_drafts",
+  {
+    draft_id: text("draft_id").primaryKey(),
+    context_key: text("context_key").notNull(),
+    form_code: text("form_code").notNull(),
+    form_version: text("form_version"),
+    task_id: text("task_id"),
+    subject_type: text("subject_type"),
+    subject_id: text("subject_id"),
+    household_id: text("household_id"),
+    site_id: integer("site_id").notNull(),
+    locality_code: text("locality_code").notNull(),
+    user_id: text("user_id").notNull(),
+    device_id: text("device_id").notNull(),
+    json_payload: jsonb("json_payload").notNull(),
+    completion_state: jsonb("completion_state").notNull(),
+    draft_status: text("draft_status").notNull().default("active"),
+    submitted_form_response_id: text("submitted_form_response_id"),
+    client_created_at: timestamp("client_created_at", { withTimezone: true }).notNull(),
+    client_updated_at: timestamp("client_updated_at", { withTimezone: true }).notNull(),
+    server_updated_at: timestamp("server_updated_at", { withTimezone: true }).notNull(),
+  },
+  (t) => ({
+    contextUnique: unique().on(t.context_key),
+  }),
+);

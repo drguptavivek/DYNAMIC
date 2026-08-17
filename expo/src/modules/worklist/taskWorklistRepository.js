@@ -5,6 +5,7 @@ import {
   saveProvisionalPregnancyWorkflow as saveProvisionalPregnancyWorkflowWithRepository,
   saveProvisionalTasks as saveProvisionalTasksWithRepository,
   listTaskAttempts as listTaskAttemptsWithRepository,
+  listTaskWorklistCandidates as listTaskWorklistCandidatesWithRepository,
   listTaskWorklist as listTaskWorklistWithRepository,
   recordFailedTaskAttempt as recordFailedTaskAttemptWithRepository,
   reconcilePulledTasks as reconcilePulledTasksWithRepository,
@@ -12,6 +13,10 @@ import {
 
 export function listTaskWorklist(filters = {}) {
   return listTaskWorklistWithRepository(filters, taskRepository);
+}
+
+export function listTaskWorklistCandidates(filters = {}) {
+  return listTaskWorklistCandidatesWithRepository(filters, taskRepository);
 }
 
 export function listTaskAttempts(taskId) {

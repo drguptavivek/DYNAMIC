@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { buildFieldWorkerProfile } from "./profileData.js";
+import { listTasks } from "../tasks/taskRepository.js";
 import { useFieldApp } from "../../shell/FieldAppProvider.js";
 
 function formatRole(role) {
@@ -14,7 +15,23 @@ function formatRole(role) {
 
 export function FieldWorkerProfileScreen({ user, localities }) {
   const app = useFieldApp();
-  const profile = buildFieldWorkerProfile(user, localities);
+  const assignedLocalityCodes = useMemo(() => {
+    try {
+      return [
+        ...new Set(
+          listTasks({})
+            .map((task) => String(task.assigned_locality_code || "").trim())
+            .filter(Boolean),
+        ),
+      ].sort();
+    } catch {
+      return [];
+    }
+  }, [app.taskWorklistRevision]);
+  const profile = buildFieldWorkerProfile(
+    { ...user, assigned_locality_codes: assignedLocalityCodes },
+    localities,
+  );
   const [password, setPassword] = useState("");
   const [pin, setPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");

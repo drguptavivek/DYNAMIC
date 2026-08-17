@@ -107,9 +107,9 @@ Form schemas may keep evolving while source PDFs are finalized. That does not ch
 
 ## Form Lifecycle
 
-Drafts are local recovery state. Finalized CRFs are study evidence.
+Drafts are mutable recovery state that can be backed up through the authenticated draft-sync channel. Finalized CRFs are study evidence.
 
-- Drafts stay local, are overwriteable, and never promote domain state.
+- Drafts are overwriteable, may be restored on another registered device for the same user, and never promote domain state.
 - Final confirmation creates one immutable local response with sync metadata.
 - Expo can locally promote finalized evidence into provisional household/task/workflow state so field work continues offline.
 - Sync pushes Finalized CRFs and Provisional Study Events, not arbitrary projection-table edits as the source of truth.

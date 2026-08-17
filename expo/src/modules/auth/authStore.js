@@ -1,8 +1,11 @@
+import * as Application from "expo-application";
+import { Platform } from "react-native";
 import { getDb } from "../tasks/taskSchema.js";
 import { clearSyncedTaskCache } from "../tasks/taskRepository.js";
 import { clearHouseholdCacheForSync } from "../households/householdRepository.js";
 import { API_BASE_URL } from "../sync/apiConfig.js";
 import { clearLocalDeviceData } from "../storage/localDeviceDataReset.js";
+import { formatAndroidDeviceId } from "./deviceIdentity.js";
 
 let currentUser = null;
 const DEVICE_ID_PREFIX = "dynamic-field-device";
@@ -59,6 +62,18 @@ function createLocalUuid() {
 }
 
 function getOrCreateDeviceId() {
+  if (Platform.OS === "android") {
+    try {
+      const androidDeviceId = formatAndroidDeviceId(Application.getAndroidId());
+      if (androidDeviceId) {
+        setMeta("device_id", androidDeviceId);
+        return androidDeviceId;
+      }
+    } catch (error) {
+      console.warn("Could not read Android device identity; using local fallback:", error);
+    }
+  }
+
   const existing = getMeta("device_id");
   if (existing) return existing;
   const deviceId = createLocalUuid();
@@ -86,7 +101,14 @@ async function registerCurrentDevice(accessToken, user) {
   });
 
   if (!response.ok) {
-    throw new Error(`Device registration failed: ${response.statusText}`);
+    let message = `Device registration failed: ${response.statusText}`;
+    try {
+      const payload = await response.json();
+      message = payload?.error?.message || message;
+    } catch {
+      // Keep the HTTP fallback when the server response is not JSON.
+    }
+    throw new Error(message);
   }
 
   return { deviceId, registration: unwrapApiData(await response.json()) };
@@ -107,19 +129,47 @@ export async function login(username, password) {
     const data = unwrapApiData(await response.json());
     const { access_token, refresh_token, user } = data;
 
-    setMeta("access_token", access_token);
-    if (refresh_token) {
-      setMeta("refresh_token", refresh_token);
-    }
     const fetchedUser = await fetchCurrentUser(access_token, user);
     const { deviceId } = await registerCurrentDevice(access_token, fetchedUser);
     resetSyncedCacheForLogin();
+    setMeta("access_token", access_token);
+    setMeta("refresh_token", refresh_token || "");
     setMeta("device_id", deviceId);
     const enrichedUser = { ...fetchedUser, device_id: deviceId };
     storeUser(enrichedUser);
     return { ok: true, user: enrichedUser };
   } catch (error) {
     console.error("Login error:", error);
+    return { ok: false, error: error.message };
+  }
+}
+
+export async function loginWithQrPayload(qrPayload) {
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/qr-login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ qr_payload: qrPayload }),
+    });
+
+    if (!response.ok) {
+      return { ok: false, error: `QR login failed: ${response.statusText}` };
+    }
+
+    const data = unwrapApiData(await response.json());
+    const { access_token, refresh_token, user } = data;
+
+    const fetchedUser = await fetchCurrentUser(access_token, user);
+    const { deviceId } = await registerCurrentDevice(access_token, fetchedUser);
+    resetSyncedCacheForLogin();
+    setMeta("access_token", access_token);
+    setMeta("refresh_token", refresh_token || "");
+    setMeta("device_id", deviceId);
+    const enrichedUser = { ...fetchedUser, device_id: deviceId };
+    storeUser(enrichedUser);
+    return { ok: true, user: enrichedUser };
+  } catch (error) {
+    console.error("QR login error:", error);
     return { ok: false, error: error.message };
   }
 }

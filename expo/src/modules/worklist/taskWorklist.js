@@ -11,6 +11,7 @@ const TERMINAL_STATUSES = new Set([
 ]);
 const BASELINE_ATTEMPT_TASK_TYPES = new Set(["HHQ", "WQ"]);
 const BASELINE_MAX_FAILED_ATTEMPTS = 3;
+const BASELINE_TASK_TYPES = new Set(["HHQ", "WQ"]);
 
 function taskIdentity(task) {
   return task?.task_key || task?.id || null;
@@ -27,7 +28,71 @@ function isConfirmedTask(task) {
 function isActionableTask(task) {
   const status = task?.status || task?.lifecycle_status || "open";
   const lifecycleStatus = task?.lifecycle_status || status;
-  return !TERMINAL_STATUSES.has(status) && !TERMINAL_STATUSES.has(lifecycleStatus);
+  if (isTerminalTask(task)) {
+    return false;
+  }
+  if (BASELINE_TASK_TYPES.has(String(task?.task_type || "").toUpperCase())) {
+    return true;
+  }
+  if (String(lifecycleStatus).toLowerCase() === "planned") {
+    const today = new Date().toISOString().split("T")[0];
+    const opensOn = task?.window_start || task?.target_date || "";
+    return !opensOn || opensOn <= today;
+  }
+  return true;
+}
+
+function isTerminalTask(task) {
+  const status = task?.status || task?.lifecycle_status || "open";
+  const lifecycleStatus = task?.lifecycle_status || status;
+  return TERMINAL_STATUSES.has(status) || TERMINAL_STATUSES.has(lifecycleStatus);
+}
+
+function taskProtocolDate(task) {
+  return task?.target_date || task?.window_start || "";
+}
+
+function taskOpenDate(task) {
+  return task?.window_start || task?.target_date || "";
+}
+
+export function isFuturePlannedTask(task, today = new Date().toISOString().split("T")[0]) {
+  if (isTerminalTask(task)) return false;
+  const lifecycleStatus = String(task?.lifecycle_status || task?.status || "").toLowerCase();
+  if (lifecycleStatus !== "planned") return false;
+  if (BASELINE_TASK_TYPES.has(String(task?.task_type || "").toUpperCase())) return false;
+  const opensOn = taskOpenDate(task);
+  return Boolean(opensOn && opensOn > today);
+}
+
+export function getTaskStage(task, today = new Date().toISOString().split("T")[0]) {
+  if (task?.has_active_draft) return "draft";
+  if (isFuturePlannedTask(task, today)) return "future_planned";
+  const date = taskProtocolDate(task);
+  if (date && date < today) return "outdated";
+  if (date && date === today) return "current";
+  return "upcoming";
+}
+
+function isOutdatedTask(task, today = new Date().toISOString().split("T")[0]) {
+  const date = taskProtocolDate(task);
+  return Boolean(date && date < today);
+}
+
+export function selectTasksForStage(tasks = [], stage = "") {
+  const normalizedStage = String(stage || "").trim();
+  if (normalizedStage === "future_planned") {
+    return tasks.filter((task) => isFuturePlannedTask(task)).sort(sortByProtocolDate);
+  }
+
+  const actionableTasks = selectActionableTasks(tasks);
+  if (!normalizedStage) return actionableTasks;
+  if (normalizedStage === "outdated") {
+    return actionableTasks.filter((task) => isOutdatedTask(task)).sort(sortByProtocolDate);
+  }
+  return actionableTasks
+    .filter((task) => getTaskStage(task) === normalizedStage)
+    .sort(sortByProtocolDate);
 }
 
 function describeReconciledProvisional(existingTask, confirmedTask) {
@@ -37,7 +102,7 @@ function describeReconciledProvisional(existingTask, confirmedTask) {
     task_key: confirmedTask.task_key || existingTask.task_key || null,
     provisional_task_id: existingTask.id,
     confirmed_task_id: confirmedTask.id,
-    disposition: isActionableTask(confirmedTask) ? "confirmed" : "withdrawn",
+    disposition: isTerminalTask(confirmedTask) ? "withdrawn" : "confirmed",
   };
 }
 
@@ -111,8 +176,9 @@ function taskSearchText(task) {
 export function filterTaskWorklist(tasks = [], filters = {}) {
   const search = normalizeSearchValue(filters.search);
   const localityCode = String(filters.locality_code || "").trim();
+  const stage = String(filters.stage || "").trim();
 
-  return tasks.filter((task) => {
+  return selectTasksForStage(tasks, stage).filter((task) => {
     if (localityCode && String(task?.assigned_locality_code || "").trim() !== localityCode) {
       return false;
     }
@@ -184,7 +250,21 @@ export function listTaskWorklist(filters = {}, repository) {
     locality_code: filters.locality_code,
     task_type: filters.task_type,
   });
-  return filterTaskWorklist(selectActionableTasks(tasks), { search: filters.search });
+  return filterTaskWorklist(tasks, { search: filters.search, stage: filters.stage });
+}
+
+export function listTaskWorklistCandidates(filters = {}, repository) {
+  if (!repository || typeof repository.listTasks !== "function") {
+    throw new Error("Task Worklist repository adapter must provide listTasks");
+  }
+  return repository
+    .listTasks({
+      status: filters.status,
+      locality_code: filters.locality_code,
+      task_type: filters.task_type,
+    })
+    .filter((task) => !isTerminalTask(task))
+    .sort(sortByProtocolDate);
 }
 
 export function listTaskAttempts(taskId, repository) {

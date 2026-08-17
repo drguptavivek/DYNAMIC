@@ -227,6 +227,10 @@ export function formatSyncCompletionMessage(result = {}) {
     parts.push(`${pluralize(result.pulledEligibleWomen, "eligible woman", "eligible women")} pulled`);
   }
 
+  if (typeof result.pulledFormResponses === "number") {
+    parts.push(`${pluralize(result.pulledFormResponses, "uploaded form")} pulled`);
+  }
+
   if (typeof result.pushed === "number") {
     parts.push(`${pluralize(result.pushed, "response")} pushed`);
   }
@@ -237,6 +241,14 @@ export function formatSyncCompletionMessage(result = {}) {
 
   if (typeof result.uploadErrors === "number" && result.uploadErrors > 0) {
     parts.push(`${pluralize(result.uploadErrors, "upload error")} saved`);
+  }
+
+  if (typeof result.draftsPushed === "number") {
+    parts.push(`${pluralize(result.draftsPushed, "draft")} backed up`);
+  }
+
+  if (typeof result.draftsPulled === "number") {
+    parts.push(`${pluralize(result.draftsPulled, "draft")} restored`);
   }
 
   if (Object.prototype.hasOwnProperty.call(result, "formsUpdated")) {

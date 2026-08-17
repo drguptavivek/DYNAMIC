@@ -83,6 +83,35 @@ const resolveRecordScope = (data: any): { site_id: number; locality_code: string
   return { site_id, locality_code: String(locality_code), household_id };
 };
 
+const buildDraftContextKey = (userId: string, draft: any): string =>
+  [
+    userId,
+    draft.form_code,
+    draft.form_version || "none",
+    draft.task_id || "none",
+    draft.subject_type || "none",
+    draft.subject_id || draft.household_id || "none",
+  ].join("|");
+
+const mapDraftForExpo = (draft: typeof schema.questionnaireDrafts.$inferSelect) => ({
+  draft_id: draft.draft_id,
+  form_code: draft.form_code,
+  form_version: draft.form_version,
+  task_id: draft.task_id,
+  subject_type: draft.subject_type,
+  subject_id: draft.subject_id,
+  household_id: draft.household_id,
+  site_id: draft.site_id,
+  locality_code: draft.locality_code,
+  user_id: draft.user_id,
+  device_id: draft.device_id,
+  json_payload: draft.json_payload,
+  completion_state: draft.completion_state,
+  draft_status: draft.draft_status,
+  created_at: draft.client_created_at,
+  updated_at: draft.client_updated_at,
+});
+
 const buildLocationConditions = (
   table: { site_id: any; locality_code: any },
   siteId: number | undefined,
@@ -119,6 +148,52 @@ const mapTaskForExpo = (task: typeof schema.followUpTasks.$inferSelect) => ({
   lifecycle_status: task.status,
   status: toExpoTaskStatus(task.status),
 });
+
+const toExpoFormResponseSyncStatus = (status: string | null): "synced" | "upload_error" => {
+  if (["duplicate", "held_for_review", "invalid_rejected"].includes(status || "")) {
+    return "upload_error";
+  }
+  return "synced";
+};
+
+const mapFormResponseForExpo = (response: typeof schema.formResponses.$inferSelect) => {
+  const syncStatus = toExpoFormResponseSyncStatus(response.response_status);
+  return {
+    id: response.form_response_id,
+    task_id: response.task_id,
+    form_code: response.form_code,
+    form_version: response.form_version,
+    household_id: response.household_id,
+    site_id: response.site_id,
+    locality_code: response.locality_code,
+    subject_type: response.subject_type,
+    subject_id: response.subject_id,
+    answers_json: response.answers_json,
+    submitted_at: response.created_offline_at ?? response.synced_at ?? response.created_at,
+    sync_status: syncStatus,
+    sync_error:
+      syncStatus === "upload_error"
+        ? `Server classified this form as ${response.response_status || "upload_error"}`
+        : null,
+    sync_error_at: syncStatus === "upload_error" ? response.synced_at ?? response.created_at : null,
+    device_id: response.device_id,
+    created_at: response.created_at,
+    updated_at: response.synced_at ?? response.created_at,
+    server_response_status: response.response_status || "primary",
+  };
+};
+
+const rejectUnauthorizedDevice = (res: Response, device: typeof schema.devices.$inferSelect | undefined) => {
+  if (!device) {
+    sendError(res, 403, "UNREGISTERED_DEVICE", "Device must be registered before sync");
+    return true;
+  }
+  if (!device.authorized) {
+    sendError(res, 403, "DEVICE_DEAUTHORIZED", "This device has been deauthorized by an administrator");
+    return true;
+  }
+  return false;
+};
 
 async function resolveSyncPushUser(
   req: Request,
@@ -171,6 +246,153 @@ router.get("/time", async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/v1/sync/drafts
+ * Restore active mutable drafts for the authenticated user. Drafts are not evidence.
+ */
+router.get(
+  "/drafts",
+  requireAuth,
+  requireDataAccess("can_access_raw_crfs"),
+  async (req: Request, res: Response) => {
+    try {
+      const deviceId = String(req.query.device_id || "");
+      if (!deviceId) {
+        sendError(res, 400, "MISSING_DEVICE_ID", "Device ID is required for sync");
+        return;
+      }
+      const [device] = deviceId
+        ? await db.select().from(schema.devices).where(eq(schema.devices.device_id, deviceId)).limit(1)
+        : [];
+      if (rejectUnauthorizedDevice(res, device)) return;
+      if (device.user_id !== req.user!.sub) {
+        sendError(res, 403, "DEVICE_USER_MISMATCH", "Device is not registered to this user");
+        return;
+      }
+      const rows = await db
+        .select()
+        .from(schema.questionnaireDrafts)
+        .where(
+          and(
+            eq(schema.questionnaireDrafts.user_id, req.user!.sub),
+            eq(schema.questionnaireDrafts.draft_status, "active"),
+          ),
+        );
+      const scopedDrafts = [];
+      for (const draft of rows) {
+        if (await canAccessLocation(req.user!, draft.site_id, draft.locality_code, draft.household_id)) {
+          scopedDrafts.push(mapDraftForExpo(draft));
+        }
+      }
+      sendSuccess(res, { drafts: scopedDrafts });
+    } catch (error) {
+      console.error("Draft pull error:", error);
+      sendError(res, 500, "DRAFT_PULL_ERROR", "Error pulling questionnaire drafts");
+    }
+  },
+);
+
+/**
+ * POST /api/v1/sync/drafts
+ * Back up mutable drafts without processing them as submitted form responses.
+ */
+router.post(
+  "/drafts",
+  requireAuth,
+  requireDataAccess("can_access_raw_crfs"),
+  async (req: Request, res: Response) => {
+    try {
+      const deviceId = String(req.body?.device_id || "");
+      const drafts = Array.isArray(req.body?.drafts) ? req.body.drafts : null;
+      if (!deviceId || !drafts) {
+        return sendError(res, 400, "INVALID_DRAFT_SYNC", "Missing device_id or drafts");
+      }
+
+      const [device] = await db
+        .select()
+        .from(schema.devices)
+        .where(eq(schema.devices.device_id, deviceId))
+        .limit(1);
+      if (rejectUnauthorizedDevice(res, device)) {
+        return;
+      }
+      if (device.user_id !== req.user!.sub) {
+        return sendError(res, 403, "DEVICE_USER_MISMATCH", "Device is not registered to this user");
+      }
+
+      let synced = 0;
+      const errors: { id: string; error: string }[] = [];
+      for (const draft of drafts) {
+        const draftId = String(draft?.draft_id || "");
+        try {
+          if (!draftId || !draft?.form_code || draft?.user_id !== req.user!.sub) {
+            throw new Error("Invalid draft identity");
+          }
+          const scope = resolveRecordScope({
+            ...draft,
+            answers_json: draft.json_payload,
+          });
+          if (!(await canAccessLocation(req.user!, scope.site_id, scope.locality_code, scope.household_id))) {
+            throw new Error("Draft is outside the user's assigned area scope");
+          }
+
+          const clientCreatedAt = new Date(draft.created_at);
+          const clientUpdatedAt = new Date(draft.updated_at);
+          if (Number.isNaN(clientCreatedAt.getTime()) || Number.isNaN(clientUpdatedAt.getTime())) {
+            throw new Error("Invalid draft timestamp");
+          }
+          const contextKey = buildDraftContextKey(req.user!.sub, draft);
+          const [existing] = await db
+            .select()
+            .from(schema.questionnaireDrafts)
+            .where(eq(schema.questionnaireDrafts.context_key, contextKey))
+            .limit(1);
+          if (existing && existing.client_updated_at >= clientUpdatedAt) {
+            continue;
+          }
+
+          const values = {
+            draft_id: existing?.draft_id || draftId,
+            context_key: contextKey,
+            form_code: String(draft.form_code),
+            form_version: draft.form_version ? String(draft.form_version) : null,
+            task_id: draft.task_id ? String(draft.task_id) : null,
+            subject_type: draft.subject_type ? String(draft.subject_type) : null,
+            subject_id: draft.subject_id ? String(draft.subject_id) : null,
+            household_id: scope.household_id || null,
+            site_id: scope.site_id,
+            locality_code: scope.locality_code,
+            user_id: req.user!.sub,
+            device_id: deviceId,
+            json_payload: draft.json_payload || {},
+            completion_state: draft.completion_state || {},
+            draft_status: draft.draft_status === "active" ? "active" : String(draft.draft_status || "active"),
+            submitted_form_response_id: draft.submitted_form_response_id || null,
+            client_created_at: existing?.client_created_at || clientCreatedAt,
+            client_updated_at: clientUpdatedAt,
+            server_updated_at: new Date(),
+          };
+          if (existing) {
+            await db
+              .update(schema.questionnaireDrafts)
+              .set(values)
+              .where(eq(schema.questionnaireDrafts.context_key, contextKey));
+          } else {
+            await db.insert(schema.questionnaireDrafts).values(values);
+          }
+          synced += 1;
+        } catch (error) {
+          errors.push({ id: draftId || "unknown", error: error instanceof Error ? error.message : "Invalid draft" });
+        }
+      }
+      sendSuccess(res, { synced, errors });
+    } catch (error) {
+      console.error("Draft push error:", error);
+      sendError(res, 500, "DRAFT_PUSH_ERROR", "Error syncing questionnaire drafts");
+    }
+  },
+);
+
+/**
  * GET /api/v1/sync/pull
  * Pull data for offline sync
  */
@@ -184,11 +406,27 @@ router.get(
       site_id: siteIdStr,
       locality_codes: localityCodesStr,
       since,
+      form_response_since: formResponseSince,
       page_size: pageSizeStr,
       page_token: pageTokenStr,
       include_members: includeMembersStr,
       client_time_utc: clientTimeUtc,
+      device_id: deviceId,
     } = req.query;
+
+    if (!deviceId) {
+      sendError(res, 400, "MISSING_DEVICE_ID", "Device ID is required for sync");
+      return;
+    }
+
+    const [pullDevice] = deviceId
+      ? await db.select().from(schema.devices).where(eq(schema.devices.device_id, String(deviceId))).limit(1)
+      : [];
+    if (rejectUnauthorizedDevice(res, pullDevice)) return;
+    if (pullDevice.user_id !== req.user!.sub) {
+      sendError(res, 403, "DEVICE_USER_MISMATCH", "Device is not registered to this user");
+      return;
+    }
 
     const siteId = siteIdStr ? parseInt(siteIdStr as string, 10) : undefined;
     let localityCodes: string[] = [];
@@ -217,6 +455,12 @@ router.get(
     const sinceDate = parseSyncCursorDate(sinceCursor);
     if (!sinceDate) {
       return sendError(res, 400, "INVALID_SYNC_CURSOR", "Invalid sync cursor");
+    }
+    const formResponseSinceDate = parseSyncCursorDate(
+      typeof formResponseSince === "string" ? formResponseSince : sinceCursor,
+    );
+    if (!formResponseSinceDate) {
+      return sendError(res, 400, "INVALID_FORM_RESPONSE_SYNC_CURSOR", "Invalid form response sync cursor");
     }
     const syncCursorDate = parseSyncCursorDate(syncCursor);
     if (!syncCursorDate) {
@@ -375,6 +619,23 @@ router.get(
             .offset(offset)
         : [];
 
+    // Query finalized form response summaries so a freshly logged-in device can
+    // show Uploaded Forms and Upload Errors after Sync Now.
+    const formResponseConditions: any[] = [
+      gt(schema.formResponses.created_at, formResponseSinceDate),
+      lte(schema.formResponses.created_at, syncCursorDate),
+      ...buildLocationConditions(schema.formResponses, siteId, localityCodes),
+    ];
+    await appendAreaScopeCondition(req.user!, schema.formResponses, formResponseConditions);
+
+    const formResponsesData = await db
+      .select()
+      .from(schema.formResponses)
+      .where(and(...formResponseConditions))
+      .orderBy(schema.formResponses.created_at)
+      .limit(pageSize)
+      .offset(offset);
+
     const formVersions = await getEffectiveFormVersionManifest(req.user?.site_id ?? undefined);
 
     // Determine if there are more pages
@@ -385,7 +646,8 @@ router.get(
       pregnanciesData.length >= pageSize ||
       childrenData.length >= pageSize ||
       tasksData.length >= pageSize ||
-      taskAttempts.length >= pageSize;
+      taskAttempts.length >= pageSize ||
+      formResponsesData.length >= pageSize;
 
     const nextPageToken = hasMore
       ? encodePageToken({
@@ -409,6 +671,7 @@ router.get(
       children: childrenData,
       tasks: tasksData.map(mapTaskForExpo),
       task_attempts: taskAttempts,
+      form_responses: formResponsesData.map(mapFormResponseForExpo),
       protocol_config_version: "1.0.0",
       form_versions: formVersions,
     });
@@ -479,9 +742,7 @@ router.post(
       .where(eq(schema.devices.device_id, deviceId))
       .limit(1);
 
-    if (!device) {
-      return sendError(res, 403, "UNREGISTERED_DEVICE", "Device must be registered before sync");
-    }
+    if (rejectUnauthorizedDevice(res, device)) return;
 
     if (req.user && device.user_id !== req.user.sub) {
       return sendError(res, 403, "DEVICE_USER_MISMATCH", "Device is not registered to this user");
