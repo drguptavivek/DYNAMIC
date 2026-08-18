@@ -389,8 +389,8 @@ export function saveFormResponse(response) {
       `INSERT INTO form_responses
        (id, task_id, form_code, form_version, household_id, site_id, locality_code,
         subject_type, subject_id, answers_json, submitted_at, sync_status, sync_error,
-        sync_error_at, device_id, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        sync_error_at, server_response_status, device_id, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         responseId,
         response.task_id || null,
@@ -406,6 +406,7 @@ export function saveFormResponse(response) {
         response.sync_status || "pending",
         response.sync_error || null,
         response.sync_error_at || null,
+        response.server_response_status || null,
         response.device_id || "unknown",
         response.created_at || now,
         response.updated_at || now,
@@ -452,6 +453,7 @@ function normalizePulledFormResponse(response) {
     sync_status: response.sync_status || "synced",
     sync_error: response.sync_error || null,
     sync_error_at: response.sync_error_at || null,
+    server_response_status: response.server_response_status || null,
     device_id: response.device_id || "server",
     created_at: response.created_at || response.synced_at || now,
     updated_at: response.updated_at || response.synced_at || response.created_at || now,
@@ -473,8 +475,8 @@ export function saveSyncedFormResponsesBatch(responses = []) {
         `INSERT INTO form_responses
          (id, task_id, form_code, form_version, household_id, site_id, locality_code,
           subject_type, subject_id, answers_json, submitted_at, sync_status, sync_error,
-          sync_error_at, device_id, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          sync_error_at, server_response_status, device_id, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
           task_id = excluded.task_id,
           form_code = excluded.form_code,
@@ -489,6 +491,7 @@ export function saveSyncedFormResponsesBatch(responses = []) {
           sync_status = excluded.sync_status,
           sync_error = excluded.sync_error,
           sync_error_at = excluded.sync_error_at,
+          server_response_status = excluded.server_response_status,
           device_id = excluded.device_id,
           updated_at = excluded.updated_at`,
         [
@@ -506,6 +509,7 @@ export function saveSyncedFormResponsesBatch(responses = []) {
           row.sync_status,
           row.sync_error,
           row.sync_error_at,
+          row.server_response_status,
           row.device_id,
           row.created_at,
           row.updated_at,

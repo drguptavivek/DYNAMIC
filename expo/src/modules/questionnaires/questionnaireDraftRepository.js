@@ -94,6 +94,23 @@ function normalizePart(value) {
   return value === undefined || value === null || value === "" ? "none" : String(value);
 }
 
+export async function removeQuestionnaireDraft(draftId) {
+  if (!draftId) return false;
+
+  const storage = getWebStorage();
+  if (storage) {
+    const rows = await readRows();
+    const remaining = rows.filter((row) => row.draft_id !== draftId);
+    if (remaining.length === rows.length) return false;
+    storage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(remaining));
+    return true;
+  }
+
+  const db = await getNativeDatabase();
+  const result = db.runSync("DELETE FROM questionnaire_drafts WHERE draft_id = ?", [draftId]);
+  return Number(result?.changes || 0) > 0;
+}
+
 function getHouseholdIdFromDraft(draft) {
   const candidate = getPayloadHouseholdId(draft?.json_payload || {}, draft?.subject_id);
   const parts = String(candidate || "").split("-");

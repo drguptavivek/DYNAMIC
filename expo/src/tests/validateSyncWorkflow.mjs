@@ -5,6 +5,7 @@ const {
   buildPushRecords,
   buildClockDriftAlert,
   collectAcceptedSyncIds,
+  classifyDraftSyncErrors,
   countOpenPulledTasks,
   formatClockDelta,
   selectChangedFormCodes,
@@ -111,13 +112,28 @@ assert.equal(
   1,
 );
 
+assert.deepEqual(
+  classifyDraftSyncErrors([
+    {
+      id: "stale-draft",
+      error: "Draft is outside the user's assigned area scope",
+    },
+    { id: "invalid-draft", error: "Invalid draft timestamp" },
+  ]),
+  {
+    staleDraftIds: ["stale-draft"],
+    blockingErrors: [{ id: "invalid-draft", error: "Invalid draft timestamp" }],
+  },
+);
+
 assert.equal(
   formatSyncCompletionMessage({
     pulledOpenTasks: 0,
     draftsPushed: 1,
     draftsPulled: 2,
+    staleDraftsRemoved: 1,
   }),
-  "Sync complete: 0 open tasks available, 1 draft backed up, 2 drafts restored",
+  "Sync complete: 0 open tasks available, 1 draft backed up, 2 drafts restored, 1 stale draft removed",
 );
 
 assert.equal(

@@ -21,6 +21,7 @@ const {
   listActiveQuestionnaireDrafts,
   listQuestionnaireDraftsForSync,
   mergeServerQuestionnaireDrafts,
+  removeQuestionnaireDraft,
   saveQuestionnaireDraft,
   markQuestionnaireDraftSubmitted,
   toDraftSyncRecord,
@@ -251,5 +252,13 @@ const restoredDraft = await getActiveQuestionnaireDraft({
 });
 assert.equal(restoredDraft.json_payload.hhq_household_head_name, "Recovered Head");
 assert.equal(restoredDraft.device_id, "replacement-device");
+assert.equal(await removeQuestionnaireDraft(restoredDraft.draft_id), true);
+assert.equal(
+  (await listQuestionnaireDraftsForSync("fdc-1")).some(
+    (draft) => draft.draft_id === restoredDraft.draft_id,
+  ),
+  false,
+);
+assert.equal(await removeQuestionnaireDraft("missing-draft"), false);
 
 console.log("Validated questionnaire draft workflow helpers.");

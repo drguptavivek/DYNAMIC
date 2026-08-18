@@ -277,7 +277,7 @@ test("site admin can assign devices only within their site", async () => {
   }
 });
 
-test("central admin can deauthorize and reauthorize a registered device", async () => {
+test("central admin can deauthorize, reauthorize, and delete a registered device", async () => {
   process.env.DATABASE_URL = testDatabaseUrl;
   process.env.JWT_SECRET = "test_jwt_secret";
   process.env.JWT_REFRESH_SECRET = "test_refresh_secret";
@@ -339,6 +339,17 @@ test("central admin can deauthorize and reauthorize a registered device", async 
       site_id: 1,
     });
 
+    const activeDeleteResponse = await fetch(
+      `${baseUrl}/devices/${encodeURIComponent(deviceId)}`,
+      {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${adminToken}` },
+      },
+    );
+    const activeDeleteBody = await activeDeleteResponse.json();
+    assert.equal(activeDeleteResponse.status, 409);
+    assert.equal(activeDeleteBody.error.code, "DEVICE_MUST_BE_DEAUTHORIZED");
+
     const disableResponse = await fetch(
       `${baseUrl}/devices/${encodeURIComponent(deviceId)}/authorization`,
       {
@@ -374,6 +385,34 @@ test("central admin can deauthorize and reauthorize a registered device", async 
       body: JSON.stringify({ device_id: deviceId, device_name: "Managed phone" }),
     });
     assert.equal(restoredRegistration.status, 200);
+
+    const disableBeforeDeleteResponse = await fetch(
+      `${baseUrl}/devices/${encodeURIComponent(deviceId)}/authorization`,
+      {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${adminToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ authorized: false }),
+      },
+    );
+    assert.equal(disableBeforeDeleteResponse.status, 200);
+
+    const deleteResponse = await fetch(
+      `${baseUrl}/devices/${encodeURIComponent(deviceId)}`,
+      {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${adminToken}` },
+      },
+    );
+    const deleteBody = await deleteResponse.json();
+    assert.equal(deleteResponse.status, 200);
+    assert.equal(deleteBody.data.device_id, deviceId);
+    assert.equal(deleteBody.data.deleted, true);
+
+    const deletedDevices = await db
+      .select({ device_id: schema.devices.device_id })
+      .from(schema.devices)
+      .where(eq(schema.devices.device_id, deviceId));
+    assert.equal(deletedDevices.length, 0);
   } finally {
     await new Promise<void>((resolve, reject) => {
       server.close((error) => (error ? reject(error) : resolve()));

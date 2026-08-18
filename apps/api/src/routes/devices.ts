@@ -273,4 +273,68 @@ router.patch(
   },
 );
 
+/**
+ * DELETE /api/v1/devices/:deviceId
+ * Permanently remove a deauthorized registration without touching historical records that carry its device id.
+ */
+router.delete(
+  "/:deviceId",
+  requireAuth,
+  requireRole("central_admin", "site_research_scientist"),
+  async (req: Request, res: Response) => {
+    try {
+      const deviceId = String(req.params.deviceId || "");
+      const [device] = await db
+        .select()
+        .from(schema.devices)
+        .where(eq(schema.devices.device_id, deviceId))
+        .limit(1);
+
+      if (!device) {
+        sendError(res, 404, "DEVICE_NOT_FOUND", "Registered device not found");
+        return;
+      }
+
+      if (req.user!.role === "site_research_scientist") {
+        const [deviceUser] = device.user_id
+          ? await db
+              .select({ site_id: schema.users.site_id })
+              .from(schema.users)
+              .where(eq(schema.users.user_id, device.user_id))
+              .limit(1)
+          : [];
+        if (!deviceUser || deviceUser.site_id !== req.user!.site_id) {
+          sendError(res, 403, "INSUFFICIENT_PERMISSIONS", "You can only manage devices registered to users in your site");
+          return;
+        }
+      }
+
+      if (device.authorized) {
+        sendError(res, 409, "DEVICE_MUST_BE_DEAUTHORIZED", "Deauthorize the device before deleting it");
+        return;
+      }
+
+      const [deleted] = await db
+        .delete(schema.devices)
+        .where(
+          and(
+            eq(schema.devices.device_id, deviceId),
+            eq(schema.devices.authorized, false),
+          ),
+        )
+        .returning({ device_id: schema.devices.device_id });
+
+      if (!deleted) {
+        sendError(res, 409, "DEVICE_AUTHORIZATION_CHANGED", "Device authorization changed; refresh and try again");
+        return;
+      }
+
+      sendSuccess(res, { device_id: deleted.device_id, deleted: true });
+    } catch (error) {
+      console.error("Device deletion error:", error);
+      sendError(res, 500, "INTERNAL_ERROR", "An error occurred");
+    }
+  },
+);
+
 export default router;

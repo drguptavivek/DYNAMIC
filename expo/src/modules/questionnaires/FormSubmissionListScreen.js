@@ -13,6 +13,10 @@ import {
 } from "react-native";
 
 import { listFormResponses } from "../tasks/taskRepository.js";
+import {
+  buildSubmissionDisplayItems,
+  getHhqVisitResultLabel,
+} from "./formSubmissionHistory.js";
 
 function normalizeFormResponse(row) {
   return {
@@ -28,6 +32,7 @@ function normalizeFormResponse(row) {
     sync_status: row.sync_status || "pending",
     sync_error: row.sync_error || "",
     sync_error_at: row.sync_error_at || "",
+    server_response_status: row.server_response_status || "",
   };
 }
 
@@ -162,6 +167,41 @@ function FormCard({ response }) {
   );
 }
 
+function HhqHistoryCard({ group }) {
+  return (
+    <View style={styles.card}>
+      <View style={styles.cardHeader}>
+        <Text style={styles.formBadge}>{group.form_code}</Text>
+        <View style={styles.cardTitleBlock}>
+          <Text style={styles.cardTitle}>{group.household_id}</Text>
+          <Text style={styles.cardSubtle}>
+            {group.responses.length === 1 ? "1 uploaded visit" : `${group.responses.length} uploaded visits`}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.visitHistory}>
+        {group.responses.map((response, index) => (
+          <View key={response.id} style={styles.visitRow}>
+            <View style={styles.visitLabelBlock}>
+              <Text style={styles.visitLabel}>Visit {index + 1}</Text>
+              <Text style={styles.visitDate}>{formatDateTime(response.submitted_at)}</Text>
+            </View>
+            <Text style={styles.visitResult}>
+              {getHhqVisitResultLabel(response, index, group.responses.length)}
+            </Text>
+          </View>
+        ))}
+      </View>
+
+      <View style={styles.scopeRow}>
+        <Text style={styles.scopeText}>Site {group.site_id || "-"}</Text>
+        <Text style={styles.scopeText}>Locality {group.locality_code || "-"}</Text>
+      </View>
+    </View>
+  );
+}
+
 export function FormSubmissionListScreen({ mode }) {
   const uploaded = mode === "uploaded";
   const uploadErrors = mode === "uploadErrors";
@@ -184,6 +224,7 @@ export function FormSubmissionListScreen({ mode }) {
     formId,
     localityCode,
   });
+  const displayItems = uploaded ? buildSubmissionDisplayItems(filteredResponses) : [];
 
   const loadResponses = useCallback(() => {
     const rows = listFormResponses({ sync_status: syncStatus }).map(normalizeFormResponse);
@@ -281,12 +322,24 @@ export function FormSubmissionListScreen({ mode }) {
           </View>
 
           <Text style={styles.countText}>
-            {filteredResponses.length === 1
-              ? "Showing 1 form"
-              : `Showing ${filteredResponses.length} of ${responses.length} forms`}
+            {uploaded
+              ? `Showing ${displayItems.length} records (${filteredResponses.length} submissions)`
+              : filteredResponses.length === 1
+                ? "Showing 1 form"
+                : `Showing ${filteredResponses.length} of ${responses.length} forms`}
           </Text>
           {filteredResponses.length ? (
-            filteredResponses.map((response) => <FormCard key={response.id} response={response} />)
+            uploaded ? (
+              displayItems.map((item) =>
+                item.type === "hhq-history" ? (
+                  <HhqHistoryCard key={item.key} group={item} />
+                ) : (
+                  <FormCard key={item.key} response={item.response} />
+                ),
+              )
+            ) : (
+              filteredResponses.map((response) => <FormCard key={response.id} response={response} />)
+            )
           ) : (
             <View style={styles.emptyCard}>
               <Text style={styles.emptyTitle}>
@@ -554,6 +607,51 @@ const styles = StyleSheet.create({
   },
   errorText: {
     color: "#b42318",
+  },
+  visitHistory: {
+    borderTopWidth: 1,
+    borderTopColor: "#e4e7ec",
+  },
+  visitRow: {
+    minHeight: 66,
+    paddingVertical: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e4e7ec",
+  },
+  visitLabelBlock: {
+    flex: 1,
+    minWidth: 0,
+  },
+  visitLabel: {
+    color: "#17202a",
+    fontSize: 16,
+    fontWeight: "900",
+  },
+  visitDate: {
+    marginTop: 3,
+    color: "#667085",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  visitResult: {
+    maxWidth: "48%",
+    color: "#126b45",
+    fontSize: 14,
+    fontWeight: "900",
+    textAlign: "right",
+  },
+  scopeRow: {
+    flexDirection: "row",
+    gap: 18,
+  },
+  scopeText: {
+    color: "#475467",
+    fontSize: 13,
+    fontWeight: "800",
   },
   emptyState: {
     flex: 1,

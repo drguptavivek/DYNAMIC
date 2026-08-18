@@ -298,6 +298,25 @@ export default function UsersPage() {
     }
   }
 
+  async function handleDeviceDelete(device: RegisteredDevice) {
+    if (device.authorized) return;
+    const confirmed = window.confirm(
+      "Permanently delete this deauthorized device registration? This cannot be undone. Historical form and sync records will remain.",
+    );
+    if (!confirmed) return;
+
+    setSavingDeviceFor(device.device_id);
+    setError("");
+    try {
+      await api.delete(`/devices/${encodeURIComponent(device.device_id)}`);
+      await loadUsers();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete device registration");
+    } finally {
+      setSavingDeviceFor(null);
+    }
+  }
+
   return (
     <div className={styles.container}>
       <div className={styles.header}>
@@ -352,6 +371,7 @@ export default function UsersPage() {
                         devices={listedUser.registered_devices ?? []}
                         savingDeviceFor={savingDeviceFor}
                         onAuthorizationChange={(device) => void handleDeviceAuthorization(device)}
+                        onDelete={(device) => void handleDeviceDelete(device)}
                       />
                     </td>
                     <td>
@@ -411,10 +431,12 @@ function RegisteredDeviceCell({
   devices,
   savingDeviceFor,
   onAuthorizationChange,
+  onDelete,
 }: {
   devices: RegisteredDevice[];
   savingDeviceFor: string | null;
   onAuthorizationChange: (device: RegisteredDevice) => void;
+  onDelete: (device: RegisteredDevice) => void;
 }) {
   if (!devices.length) return <span className={styles.muted}>Not registered</span>;
   return (
@@ -439,6 +461,16 @@ function RegisteredDeviceCell({
                   ? "Deauthorize"
                   : "Authorize"}
             </button>
+            {!device.authorized ? (
+              <button
+                type="button"
+                className={styles.deviceDeleteBtn}
+                disabled={savingDeviceFor === device.device_id}
+                onClick={() => onDelete(device)}
+              >
+                {savingDeviceFor === device.device_id ? "Deleting..." : "Delete"}
+              </button>
+            ) : null}
           </div>
         </div>
       ))}

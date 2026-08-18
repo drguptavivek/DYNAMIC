@@ -10,6 +10,7 @@ import {
 import { API_BASE_URL } from "./apiConfig.js";
 import {
   buildPushRecords,
+  classifyDraftSyncErrors,
   collectAcceptedSyncIds,
   collectAssignedLocalityCodes,
   countOpenPulledTasks,
@@ -301,7 +302,8 @@ export async function pullSync(options = {}) {
   }
 
   const lastSync = getLastSyncAt();
-  const lastFormResponseSync = getLastFormResponseSyncAt();
+  const responseStatusBackfillNeeded = getMeta("form_response_status_backfill_v1") !== "complete";
+  const lastFormResponseSync = responseStatusBackfillNeeded ? null : getLastFormResponseSyncAt();
   const localities = getAssignedLocalities();
 
   const baseParams = new URLSearchParams();
@@ -483,6 +485,9 @@ export async function pullSync(options = {}) {
       setLastSyncAt(nextCursor);
       setLastFormResponseSyncAt(nextCursor);
     }
+    if (responseStatusBackfillNeeded) {
+      setMeta("form_response_status_backfill_v1", "complete");
+    }
 
     return {
       pulled: pulledTasks,
@@ -531,13 +536,14 @@ export async function pushSync() {
 
   const {
     listQuestionnaireDraftsForSync,
+    removeQuestionnaireDraft,
     toDraftSyncRecord,
   } = await import("../questionnaires/questionnaireDraftRepository.js");
   const user = authStore.getUser();
   const drafts = await listQuestionnaireDraftsForSync(user?.user_id || user?.id);
 
   if (pending.length === 0 && pendingEvents.length === 0 && drafts.length === 0) {
-    return { pushed: 0, events: 0, drafts: 0 };
+    return { pushed: 0, events: 0, drafts: 0, staleDraftsRemoved: 0 };
   }
 
   try {
@@ -548,6 +554,7 @@ export async function pushSync() {
 
     const deviceId = getMeta("device_id") || "unregistered-device";
     let syncedDrafts = 0;
+    let staleDraftsRemoved = 0;
     if (drafts.length > 0) {
       const draftResponse = await fetch(`${API_BASE_URL}/sync/drafts`, {
         method: "POST",
@@ -565,9 +572,15 @@ export async function pushSync() {
       }
       const draftResult = unwrapApiData(await draftResponse.json());
       const draftErrors = Array.isArray(draftResult.errors) ? draftResult.errors : [];
-      if (draftErrors.length > 0) {
+      const { staleDraftIds, blockingErrors } = classifyDraftSyncErrors(draftErrors);
+      for (const draftId of staleDraftIds) {
+        if (await removeQuestionnaireDraft(draftId)) {
+          staleDraftsRemoved += 1;
+        }
+      }
+      if (blockingErrors.length > 0) {
         throw new Error(
-          `Draft sync rejected ${draftErrors.length} record(s): ${draftErrors
+          `Draft sync rejected ${blockingErrors.length} record(s): ${blockingErrors
             .map((item) => `${item.id}: ${item.error}`)
             .join("; ")}`,
         );
@@ -576,7 +589,7 @@ export async function pushSync() {
     }
 
     if (pending.length === 0 && pendingEvents.length === 0) {
-      return { pushed: 0, events: 0, drafts: syncedDrafts };
+      return { pushed: 0, events: 0, drafts: syncedDrafts, staleDraftsRemoved };
     }
 
     const response = await fetch(`${API_BASE_URL}/sync/push`, {
@@ -676,7 +689,13 @@ export async function pushSync() {
       (event) => acceptedIds.has(event.id) || handledEventErrorIds.has(event.id),
     ).length;
 
-    return { pushed: acceptedResponses, events: acceptedEvents, uploadErrors, drafts: syncedDrafts };
+    return {
+      pushed: acceptedResponses,
+      events: acceptedEvents,
+      uploadErrors,
+      drafts: syncedDrafts,
+      staleDraftsRemoved,
+    };
   } catch (error) {
     console.error("Push sync error:", error);
     throw error;
@@ -711,6 +730,7 @@ export async function syncAll(options = {}) {
       pushed: pushResult.pushed,
       events: pushResult.events,
       uploadErrors: pushResult.uploadErrors,
+      staleDraftsRemoved: pushResult.staleDraftsRemoved,
       clockStatus: getClockStatus(),
     });
     if (getHouseholdCacheInfo().isWebStorage) {
@@ -758,6 +778,7 @@ export async function syncAll(options = {}) {
       formsUpdated: pullResult.formsUpdated,
       draftsPushed: pushResult.drafts || 0,
       draftsPulled: pulledDrafts,
+      staleDraftsRemoved: pushResult.staleDraftsRemoved || 0,
       clockStatus: getClockStatus(),
     });
     return {
@@ -775,6 +796,7 @@ export async function syncAll(options = {}) {
       formsUpdated: pullResult.formsUpdated,
       draftsPushed: pushResult.drafts || 0,
       draftsPulled: pulledDrafts,
+      staleDraftsRemoved: pushResult.staleDraftsRemoved || 0,
     };
   } catch (error) {
     console.error("Sync all error:", error);

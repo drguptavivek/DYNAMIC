@@ -6,6 +6,9 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 
 ## Unreleased
 
+- Grouped uploaded HHQ submissions by household, backfilled server classifications once after upgrade, and displayed chronological visit numbers plus results so legitimate revisit history no longer looks like duplicate forms.
+- Fixed mobile sync so an obsolete local draft outside the freshly logged-in field worker's assignment scope is securely removed without blocking valid draft, response, task, household, or questionnaire synchronization.
+- Added deauthorized-device deletion controls to Admin Users, including confirmation, role/site scope enforcement, active-device deletion protection, and preservation of historical records carrying the device ID.
 - Fixed Android device registration so repeated logout and login on the same phone reuses a stable app-scoped Android device ID instead of creating a new random registered device on every login.
 - Added per-device authorization controls to Admin Users, with confirmation before deauthorization and API enforcement that blocks deauthorized devices from login registration and sync until reauthorized.
 - Added authenticated server backup and cross-device restore for active questionnaire drafts, including visible sync counts, while keeping drafts separate from finalized evidence and workflow processing.

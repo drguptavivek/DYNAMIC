@@ -139,6 +139,23 @@ export function selectNextPullCursor(syncPayload = {}, fallbackCursor = null) {
   return Number.isNaN(parsed.getTime()) ? null : nextCursor;
 }
 
+const OUT_OF_SCOPE_DRAFT_ERROR = "Draft is outside the user's assigned area scope";
+
+export function classifyDraftSyncErrors(errors = []) {
+  const staleDraftIds = [];
+  const blockingErrors = [];
+
+  for (const item of Array.isArray(errors) ? errors : []) {
+    if (item?.id && item?.error === OUT_OF_SCOPE_DRAFT_ERROR) {
+      staleDraftIds.push(item.id);
+    } else {
+      blockingErrors.push(item);
+    }
+  }
+
+  return { staleDraftIds, blockingErrors };
+}
+
 const TERMINAL_TASK_STATUSES = new Set([
   "completed",
   "missed",
@@ -249,6 +266,10 @@ export function formatSyncCompletionMessage(result = {}) {
 
   if (typeof result.draftsPulled === "number") {
     parts.push(`${pluralize(result.draftsPulled, "draft")} restored`);
+  }
+
+  if (typeof result.staleDraftsRemoved === "number" && result.staleDraftsRemoved > 0) {
+    parts.push(`${pluralize(result.staleDraftsRemoved, "stale draft")} removed`);
   }
 
   if (Object.prototype.hasOwnProperty.call(result, "formsUpdated")) {

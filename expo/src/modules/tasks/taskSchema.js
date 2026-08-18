@@ -70,6 +70,7 @@ export function initTaskDb() {
       sync_status TEXT DEFAULT 'pending',
       sync_error TEXT,
       sync_error_at TEXT,
+      server_response_status TEXT,
       device_id TEXT,
       created_at TEXT,
       updated_at TEXT
@@ -166,6 +167,7 @@ export function initTaskDb() {
     "ALTER TABLE form_responses ADD COLUMN subject_id TEXT",
     "ALTER TABLE form_responses ADD COLUMN sync_error TEXT",
     "ALTER TABLE form_responses ADD COLUMN sync_error_at TEXT",
+    "ALTER TABLE form_responses ADD COLUMN server_response_status TEXT",
     "ALTER TABLE pregnancies ADD COLUMN usg_available INTEGER DEFAULT 0",
     "ALTER TABLE pregnancies ADD COLUMN source_form_response_id TEXT",
     "ALTER TABLE pregnancies ADD COLUMN source_event_id TEXT",

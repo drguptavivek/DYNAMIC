@@ -1,3 +1,27 @@
+## 2026-08-18 13:35 [saved]
+Goal: Make Uploaded Forms distinguish HHQ revisit history from duplicate submissions.
+Decisions:
+- Keep every immutable HHQ visit response as study evidence.
+- Group HHQ responses by household and show chronological visit number plus server result.
+- Keep person-level and other forms as separate submission records.
+Rejected:
+- Deleting legitimate revisit records just because they share a household ID.
+- Grouping WQ submissions from different women in the same household.
+Open:
+- Build/install only when explicitly requested.
+
+## 2026-08-18 12:20 [saved]
+Goal: Prevent an out-of-scope stale local draft from blocking a field worker's complete sync.
+Decisions:
+- Keep the API's assignment-scope rejection strict.
+- Remove only local drafts explicitly rejected as outside the authenticated user's assigned area, then continue syncing valid records.
+- Continue treating all other draft rejection reasons as blocking errors.
+Rejected:
+- Weakening server area-scope enforcement.
+- Allowing one stale draft to abort task, household, response, and questionnaire sync.
+Open:
+- Rebuild/install the Android app only when requested, then verify site2 Sync Now on device.
+
 ## 2026-06-18 09:14 [saved]
 Goal: Standardize DYNAMIC local dev runtime commands.
 Decisions:
@@ -175,3 +199,11 @@ Decisions:
 - Each user is limited to two authorized devices; existing devices may re-register, while a third distinct device requires an administrator to deauthorize one active device first.
 Open:
 - Rebuild and verify deauthorization against the physical phone when explicitly requested; existing duplicate device rows can be deauthorized individually.
+## 2026-08-18 [saved]
+Goal: Allow administrators to remove obsolete device registrations.
+Decisions:
+- Delete is available only after a device is deauthorized.
+- Device registration deletion preserves historical form, event, and sync records containing the device ID.
+- Central admins retain global scope; Site Research Scientists remain restricted to their site.
+Open:
+- None.
