@@ -2619,7 +2619,7 @@
           "renderingHint": {
             "render_as": "checkboxes"
           },
-          "rawText": "What does this household usually do to make the water safe to drink? Anything else? (RECORD ALL MENTIONED) A Boil B Use Alum C Add Bleach/Chlorine Tablets D Strain through a cloth E Use water filter (ceramic/sand/composite/etc) F Use electronic purifier G Use solar disinfection H Let it stand and settle X OTHER (SPECIFY) Z Don't know",
+          "rawText": "What does this household usually do to make the water safe to drink? Anything else? (RECORD ALL MENTIONED) A Boil B Use Alum C Add Bleach/Chlorine Tablets D Strain through a cloth E Use water filter (ceramic/sand/composite/etc) F Use electronic purifier G Use solar disinfection H Let it stand and settle I Dont Do Anything X OTHER (SPECIFY) Z Don't know",
           "choices": [
             {
               "value": "A",
@@ -2710,6 +2710,18 @@
               "text": {
                 "default": "Let it stand and settle",
                 "hi": "इसे खड़े रहने दो और व्यवस्थित होने दो",
+                "kn": "",
+                "mr": "",
+                "ta": "",
+                "te": "",
+                "ur": ""
+              }
+            },
+            {
+              "value": "I",
+              "text": {
+                "default": "Dont Do Anything",
+                "hi": "",
                 "kn": "",
                 "mr": "",
                 "ta": "",

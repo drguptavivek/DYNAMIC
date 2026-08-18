@@ -94,7 +94,7 @@ export function GroupedCodedSingleSelectRenderer({ answerData, locale, question,
           accessibilityRole="radio"
           accessibilityState={{ selected: isSelected, disabled }}
           disabled={disabled}
-          onPressIn={() => selectGroup(group)}
+          onPress={() => selectGroup(group)}
           style={[controlStyles.option, isSelected && controlStyles.optionSelected]}
         >
           <View style={[controlStyles.optionMark, isSelected && controlStyles.optionMarkSelected]} />
@@ -126,7 +126,7 @@ export function GroupedCodedSingleSelectRenderer({ answerData, locale, question,
         accessibilityRole="radio"
         accessibilityState={{ selected, disabled }}
         disabled={disabled}
-        onPressIn={() => selectFinalValue(value)}
+        onPress={() => selectFinalValue(value)}
         style={[styles.childOption, selected && styles.childOptionSelected]}
       >
         <View style={[controlStyles.optionMark, selected && controlStyles.optionMarkSelected]} />

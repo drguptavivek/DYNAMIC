@@ -8,6 +8,7 @@ import { Model } from "survey-core";
 const {
   assertNativeSurveySupport,
   buildNativeSurveyPreview,
+  getNativeQuestionChoices,
   getNativeQuestionErrors,
   getNativeQuestionTitle,
   getNativeQuestionValue,
@@ -138,6 +139,12 @@ const liveRoster = liveEditorModel.getQuestionByName("hhq_household_members");
 liveRoster.addPanel();
 const livePanel = liveRoster.panels[0];
 setNativeQuestionValue(livePanel.getQuestionByName("member_name"), "Jeetu");
+const liveResidenceDuration = livePanel.getQuestionByName("member_residence_duration");
+setNativeQuestionValue(liveResidenceDuration, { months: 2, years: 5 });
+assert.deepEqual(getNativeQuestionValue(liveResidenceDuration, liveEditorModel.data), {
+  months: 2,
+  years: 5,
+});
 setNativeQuestionValue(livePanel.getQuestionByName("member_age_years"), "25");
 setNativeQuestionValue(livePanel.getQuestionByName("member_sex"), 1);
 setNativeQuestionValue(livePanel.getQuestionByName("member_marital_status"), 7);
@@ -160,6 +167,13 @@ const drinkingWaterSource = model.getQuestionByName(
 assert.equal(getNativeRendererKind(drinkingWaterSource), "grouped-coded-single-select");
 setNativeQuestionValue(drinkingWaterSource, 31);
 assert.equal(drinkingWaterSource.value, 31);
+const waterTreatment = model.getQuestionByName(
+  "hhq_household_usually_make_water_safe_drink_anything_else"
+);
+const waterTreatmentChoices = getNativeQuestionChoices(waterTreatment, "default");
+const settleChoiceIndex = waterTreatmentChoices.findIndex((choice) => choice.value === "H");
+assert.equal(waterTreatmentChoices[settleChoiceIndex + 1]?.value, "I");
+assert.equal(waterTreatmentChoices[settleChoiceIndex + 1]?.text, "Dont Do Anything");
 const toiletFacilityType = model.getQuestionByName(
   "hhq_kind_toilet_facility_members_household_usually_use_flush"
 );

@@ -1,5 +1,11 @@
 # Changelog
 
+- Fixed HHQ household-member question `6_i` so its Months and Years inputs read and retain values from the active repeated-member panel while typing.
+- Tightened the HHQ household-member summary columns so Count, Name, Age, and Sex remain visible together on mobile screens.
+- Fixed grouped HHQ coded-choice rows so starting a vertical scroll no longer changes the selected option; a completed tap is now required.
+- Fixed native checkbox questions so scrolling over an option does not select it, and selected options can be tapped again to clear them.
+- Made HHQ water-treatment question 4 optional and added `Dont Do Anything` as coded option `I` immediately after option `H`.
+
 This file records notable changes to DYNAMIC. The repository does not currently use tagged releases, so completed work is grouped by dated development checkpoints from the Git history.
 
 The format follows the principles of [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), using the categories Added, Changed, Fixed, Security, Documentation, and Testing where applicable.

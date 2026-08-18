@@ -807,10 +807,10 @@ export function BaselineHouseholdForm({
                   subtitle={`${memberRows.length} ${memberRows.length === 1 ? "member" : "members"} added. Confirm name, age, and sex before check listing.`}
                   rows={memberRows}
                   columns={[
-                    { key: "sr", title: "Count", width: 70 },
-                    { key: "memberName", title: "Name", width: 190 },
-                    { key: "age", title: "Age", width: 65 },
-                    { key: "sex", title: "Sex", width: 110 },
+                    { key: "sr", title: "Count", width: 54 },
+                    { key: "memberName", title: "Name", width: 110 },
+                    { key: "age", title: "Age", width: 42 },
+                    { key: "sex", title: "Sex", width: 70 },
                   ]}
                 />
                 {memberRows.length ? (

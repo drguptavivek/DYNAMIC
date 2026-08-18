@@ -1,5 +1,5 @@
 /** Renders localized checkbox choices and maintains a Survey Core array value. */
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { getNativeQuestionChoices, getNativeQuestionValue, setNativeQuestionValue } from "../nativeSurveyModel.js";
@@ -7,8 +7,14 @@ import { QuestionFrame, controlStyles } from "./QuestionFrame.js";
 
 export function SelectManyRenderer({ answerData, locale, question, onChange }) {
   const value = getNativeQuestionValue(question, answerData);
-  const selectedValues = Array.isArray(value) ? value : [];
+  const [selectedValues, setSelectedValues] = useState(() =>
+    Array.isArray(value) ? value : []
+  );
   const disabled = question?.readOnly === true;
+
+  useEffect(() => {
+    setSelectedValues(Array.isArray(value) ? value : []);
+  }, [question?.name, value]);
 
   function toggleChoice(choice) {
     if (disabled) return;
@@ -16,7 +22,12 @@ export function SelectManyRenderer({ answerData, locale, question, onChange }) {
     const next = selected
       ? selectedValues.filter((value) => String(value) !== String(choice.value))
       : [...selectedValues, choice.value];
-    setNativeQuestionValue(question, next);
+    setSelectedValues(next);
+    const wrote = setNativeQuestionValue(question, next);
+    if (!wrote) {
+      setSelectedValues(Array.isArray(value) ? value : []);
+      return;
+    }
     question.validate?.();
     onChange?.();
   }
@@ -32,7 +43,7 @@ export function SelectManyRenderer({ answerData, locale, question, onChange }) {
               accessibilityRole="checkbox"
               accessibilityState={{ checked: selected, disabled }}
               disabled={disabled}
-              onPressIn={() => toggleChoice(choice)}
+              onPress={() => toggleChoice(choice)}
               style={[controlStyles.option, selected && controlStyles.optionSelected]}
             >
               <View style={[styles.checkbox, selected && styles.checkboxSelected]}>

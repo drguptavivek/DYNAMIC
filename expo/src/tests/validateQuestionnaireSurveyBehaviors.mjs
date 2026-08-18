@@ -51,6 +51,11 @@ const mandatoryQuestions = [
   { name: "hhq_total_household_members", readOnly: true, isRequired: false },
   { name: "member_line_number", readOnly: true, isRequired: false },
   { name: "member_name", readOnly: false, isRequired: false },
+  {
+    name: "hhq_household_usually_make_water_safe_drink_anything_else",
+    readOnly: false,
+    isRequired: true,
+  },
 ];
 const mandatoryModel = createModel({}, {}, mandatoryQuestions);
 attachHouseholdSurveyBehaviors(mandatoryModel, { form_code: "HHQ" });
@@ -61,6 +66,7 @@ assert.equal(mandatoryQuestions[1].isRequired, true);
 assert.equal(mandatoryQuestions[2].isRequired, false);
 assert.equal(mandatoryQuestions[3].isRequired, false);
 assert.equal(mandatoryQuestions[4].isRequired, true);
+assert.equal(mandatoryQuestions[5].isRequired, false);
 
 const model = createModel({
   hhq_household_members: [

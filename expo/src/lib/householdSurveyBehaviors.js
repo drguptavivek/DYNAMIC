@@ -20,6 +20,9 @@ const HOUSEHOLD_ID_FIELDS = new Set([
   "hhq_household_number"
 ]);
 const HOUSEHOLD_NUMBER_FIELD = "hhq_household_number";
+const OPTIONAL_HHQ_QUESTIONS = new Set([
+  "hhq_household_usually_make_water_safe_drink_anything_else",
+]);
 const MEMBER_NAME_LABEL_FIELDS = new Set([
   "member_relationship_to_head",
   "member_sex",
@@ -453,7 +456,11 @@ function refreshVisibleAgeResidenceErrors() {
 function applyMandatoryHhqQuestions(model) {
   model.getAllQuestions().forEach((question) => {
     if (!question?.name || question.readOnly || question.isReadOnly) return;
-    if (question.name === HH_MEMBER_PANEL || question.getType?.() === "paneldynamic") {
+    if (
+      question.name === HH_MEMBER_PANEL ||
+      question.getType?.() === "paneldynamic" ||
+      OPTIONAL_HHQ_QUESTIONS.has(question.name)
+    ) {
       question.isRequired = false;
       return;
     }

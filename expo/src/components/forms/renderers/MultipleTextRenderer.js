@@ -1,8 +1,8 @@
 /** Renders a SurveyJS multiple-text question as individually labeled native inputs. */
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
-import { setNativeQuestionValue } from "../nativeSurveyModel.js";
+import { getNativeQuestionValue, setNativeQuestionValue } from "../nativeSurveyModel.js";
 import { QuestionFrame, controlStyles } from "./QuestionFrame.js";
 
 function localizedItemText(text, locale = "default") {
@@ -14,10 +14,7 @@ function localizedItemText(text, locale = "default") {
 }
 
 export function MultipleTextRenderer({ answerData, locale, question, onChange }) {
-  const modelValue =
-    question.survey?.getValue?.(question.name) ??
-    question.survey?.data?.[question.name] ??
-    question.value;
+  const modelValue = getNativeQuestionValue(question, answerData);
   const answerValue = modelValue && typeof modelValue === "object"
     ? modelValue
     : answerData && Object.prototype.hasOwnProperty.call(answerData, question.name)
@@ -35,8 +32,6 @@ export function MultipleTextRenderer({ answerData, locale, question, onChange })
               : item.value;
           const unknownSelected =
             unknownValue !== undefined && itemValue !== undefined && String(itemValue) === String(unknownValue);
-          const textValue =
-            itemValue === undefined || itemValue === null || unknownSelected ? "" : String(itemValue);
           const commitItemValue = (nextItemValue) => {
             const nextAnswer =
               answerValue && typeof answerValue === "object" ? { ...answerValue } : {};
@@ -56,30 +51,13 @@ export function MultipleTextRenderer({ answerData, locale, question, onChange })
           return (
             <View key={item.name} style={styles.item}>
               <Text style={styles.label}>{item.title || item.name}</Text>
-              <TextInput
-                accessibilityLabel={`${question.name}.${item.name}`}
-                value={textValue}
-                editable={!question.isReadOnly}
-                keyboardType={item.inputType === "number" ? "numeric" : "default"}
-                maxLength={item.maxLength}
-                placeholder={item.placeholder}
-                onChangeText={(value) => {
-                  const sanitized =
-                    item.inputType === "number" ? value.replace(/[^0-9.-]/g, "") : value;
-                  const preserveString = item.preserveString === true || item.jsonObj?.preserveString === true;
-                  const nextItemValue =
-                    sanitized === ""
-                      ? undefined
-                      : item.inputType === "number" && !preserveString
-                        ? Number(sanitized)
-                        : sanitized;
-                  commitItemValue(nextItemValue);
-                }}
-                onBlur={() => {
-                  question.validate?.();
-                  onChange?.();
-                }}
-                style={[controlStyles.input, question.isReadOnly && controlStyles.readOnly]}
+              <MultipleTextItemInput
+                item={item}
+                itemValue={itemValue}
+                question={question}
+                unknownSelected={unknownSelected}
+                onCommit={commitItemValue}
+                onChange={onChange}
               />
               {unknownChoice ? (
                 <TouchableOpacity
@@ -99,6 +77,44 @@ export function MultipleTextRenderer({ answerData, locale, question, onChange })
         })}
       </View>
     </QuestionFrame>
+  );
+}
+
+function MultipleTextItemInput({ item, itemValue, question, unknownSelected, onCommit, onChange }) {
+  const externalText =
+    itemValue === undefined || itemValue === null || unknownSelected ? "" : String(itemValue);
+  const [textValue, setTextValue] = useState(externalText);
+
+  useEffect(() => {
+    setTextValue(externalText);
+  }, [externalText]);
+
+  return (
+    <TextInput
+      accessibilityLabel={`${question.name}.${item.name}`}
+      value={textValue}
+      editable={!question.isReadOnly}
+      keyboardType={item.inputType === "number" ? "numeric" : "default"}
+      maxLength={item.maxLength > 0 ? item.maxLength : item.jsonObj?.maxLength}
+      placeholder={item.placeholder}
+      onChangeText={(value) => {
+        const sanitized = item.inputType === "number" ? value.replace(/[^0-9.-]/g, "") : value;
+        setTextValue(sanitized);
+        const preserveString = item.preserveString === true || item.jsonObj?.preserveString === true;
+        const nextItemValue =
+          sanitized === ""
+            ? undefined
+            : item.inputType === "number" && !preserveString
+              ? Number(sanitized)
+              : sanitized;
+        onCommit(nextItemValue);
+      }}
+      onBlur={() => {
+        question.validate?.();
+        onChange?.();
+      }}
+      style={[controlStyles.input, question.isReadOnly && controlStyles.readOnly]}
+    />
   );
 }
 
