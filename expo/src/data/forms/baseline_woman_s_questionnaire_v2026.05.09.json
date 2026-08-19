@@ -9969,7 +9969,7 @@
           "type": "radiogroup",
           "name": "wq_result_interview",
           "title": {
-            "default": "Result of Interview",
+            "default": "Outcome of Interview (4 and 5 are temporary states only to remind the interviewers that these HH have to be revisited and in a reasonable frame of time these will have to change to 1 or 6)",
             "hi": "",
             "kn": "",
             "mr": "",
@@ -9987,7 +9987,7 @@
               "value": 1,
               "text": {
                 "default": "Completed",
-                "hi": "",
+                "hi": "पूर्ण",
                 "kn": "",
                 "mr": "",
                 "ta": "",
@@ -9998,8 +9998,8 @@
             {
               "value": 2,
               "text": {
-                "default": "Not at home",
-                "hi": "",
+                "default": "No household member at home or no competent respondent at home despite 3 visits",
+                "hi": "मुलाक़ात के समय घर पर कोई घरेलू सदस्य नहीं या घर पर कोई सक्षम प्रतिवादी नहीं",
                 "kn": "",
                 "mr": "",
                 "ta": "",
@@ -10010,8 +10010,8 @@
             {
               "value": 3,
               "text": {
-                "default": "Posponed",
-                "hi": "",
+                "default": "Entire household absent for extended period of time",
+                "hi": "पूरा परिवार लंबे समय तक अनुपस्थित रहा",
                 "kn": "",
                 "mr": "",
                 "ta": "",
@@ -10022,8 +10022,8 @@
             {
               "value": 4,
               "text": {
-                "default": "Refused",
-                "hi": "",
+                "default": "Postponed ( no competent member but visit 2 or 3 is pending or, comptent person is present but busy and interviewer has been asked to return later )",
+                "hi": "स्थगित",
                 "kn": "",
                 "mr": "",
                 "ta": "",
@@ -10034,7 +10034,7 @@
             {
               "value": 5,
               "text": {
-                "default": "Partly completed",
+                "default": "Incomplete (consent provided but had to stop interview in between asked to return later)",
                 "hi": "",
                 "kn": "",
                 "mr": "",
@@ -10046,8 +10046,8 @@
             {
               "value": 6,
               "text": {
-                "default": "Incapacitated",
-                "hi": "",
+                "default": "Refused (consent or, refused during interview)",
+                "hi": "आवास खाली है अथवा पता आवास नहीं है",
                 "kn": "",
                 "mr": "",
                 "ta": "",
@@ -10057,6 +10057,42 @@
             },
             {
               "value": 7,
+              "text": {
+                "default": "Dwelling vacant or address not a dwelling",
+                "hi": "आवास नष्ट हो गया",
+                "kn": "",
+                "mr": "",
+                "ta": "",
+                "te": "",
+                "ur": ""
+              }
+            },
+            {
+              "value": 8,
+              "text": {
+                "default": "Dweling destroyed",
+                "hi": "आवास नहीं मिला)",
+                "kn": "",
+                "mr": "",
+                "ta": "",
+                "te": "",
+                "ur": ""
+              }
+            },
+            {
+              "value": 9,
+              "text": {
+                "default": "Dwelling not found)",
+                "hi": "अन्य (बताएँ)",
+                "kn": "",
+                "mr": "",
+                "ta": "",
+                "te": "",
+                "ur": ""
+              }
+            },
+            {
+              "value": 10,
               "text": {
                 "default": "Other (specify)",
                 "hi": "",
@@ -10070,6 +10106,54 @@
           ],
           "renderingHint": {
             "render_as": "radio"
+          }
+        },
+        {
+          "type": "text",
+          "name": "wq_result_interview_other_specify",
+          "title": {
+            "default": "Specify other response",
+            "hi": "अन्य उत्तर निर्दिष्ट करें",
+            "kn": "",
+            "mr": "",
+            "ta": "",
+            "te": "",
+            "ur": ""
+          },
+          "order": 167.1,
+          "section_order": 7,
+          "sourceCode": "1_specifyother",
+          "sourceType": "text_other_specify",
+          "renderingHint": {
+            "render_as": "input"
+          },
+          "rawText": "Other (specify)",
+          "visibleIf": "{wq_result_interview} = 10",
+          "isRequired": true,
+          "validators": [
+            {
+              "type": "text",
+              "minLength": 1,
+              "maxLength": 120,
+              "text": {
+                "default": "Specify the other response.",
+                "hi": "अन्य उत्तर निर्दिष्ट करें।",
+                "kn": "",
+                "mr": "",
+                "ta": "",
+                "te": "",
+                "ur": ""
+              }
+            }
+          ],
+          "description": {
+            "default": "Complete only if Other (specify) is selected.",
+            "hi": "केवल तब भरें जब अन्य चुना गया हो।",
+            "kn": "",
+            "mr": "",
+            "ta": "",
+            "te": "",
+            "ur": ""
           }
         }
       ],

@@ -101,7 +101,7 @@ function getWqRevisitStopMessage(model) {
 
 function routeWqIncapacitatedToOutcome(model) {
   if (!model || Number(model.getValue(WQ_WOMAN_AVAILABLE_FIELD)) !== 2) return;
-  model.setValue(WQ_RESULT_INTERVIEW_FIELD, 6);
+  model.setValue(WQ_RESULT_INTERVIEW_FIELD, 10);
   const outcomePage = model.getPageByName?.(WQ_OUTCOME_PAGE_NAME);
   if (outcomePage?.isVisible) {
     goToSurveySection(model, WQ_OUTCOME_PAGE_NAME);
