@@ -1,7 +1,7 @@
 ## 2026-08-19 (latest) [saved]
 Goal: Make the WQ outcome options identical to the HHQ outcome list.
 Decisions:
-- `wq_result_interview` now uses the HHQ outcome question's title and all ten choices verbatim (1 Completed through 10 Other (specify)); old WQ-only options are removed.
+- `wq_result_interview` uses the HHQ list but keeps the short WQ title "Result of Interview" (the copied HHQ heading was reverted on request).
 - Added `wq_result_interview_other_specify` (required text, visible when result = 10), mirroring the HHQ specify question with WQ field names; catalog `question_count` bumped to 170.
 - Incapacitated auto-routing now preselects 10 Other (specify) because the old code 6 means Refused in the shared list; the interviewer records the reason in the specify text.
 - Expo and the API share `expo/src/data/forms` as the single form source, so the API-served definition and checksum update automatically; no backend consumer reads `wq_result_interview` yet.

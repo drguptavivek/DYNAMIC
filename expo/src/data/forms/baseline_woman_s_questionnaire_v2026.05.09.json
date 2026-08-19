@@ -9969,7 +9969,7 @@
           "type": "radiogroup",
           "name": "wq_result_interview",
           "title": {
-            "default": "Outcome of Interview (4 and 5 are temporary states only to remind the interviewers that these HH have to be revisited and in a reasonable frame of time these will have to change to 1 or 6)",
+            "default": "Result of Interview",
             "hi": "",
             "kn": "",
             "mr": "",
