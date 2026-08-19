@@ -193,6 +193,42 @@ assert.equal(getNativeRendererKind(wallMaterialType), "grouped-coded-single-sele
 setNativeQuestionValue(wallMaterialType, 26);
 assert.equal(wallMaterialType.value, 26);
 
+function createOutcomeModel() {
+  const outcomeModel = new Model(prepareQuestionnaireSurveyJson(hhq));
+  attachHouseholdSurveyBehaviors(outcomeModel, hhq);
+  outcomeModel.setValue("hhq_interview_date", "2026-09-01");
+  outcomeModel.setValue("hhq_competent_respondent_available", 1);
+  outcomeModel.setValue("hhq_consent_study_provide_pis_explain_study_adult_member", 1);
+  return outcomeModel;
+}
+
+function getOutcomeVisibleValues(outcomeModel) {
+  return outcomeModel
+    .getQuestionByName("hhq_result_interview")
+    .visibleChoices.map((choice) => choice.value);
+}
+
+let outcomeModel = createOutcomeModel();
+outcomeModel.setValue("hhq_we_like_learn_about_places_that_households_use", 2);
+assert.equal(outcomeModel.getValue("hhq_result_interview"), 1);
+assert.deepEqual(getOutcomeVisibleValues(outcomeModel), [1]);
+
+outcomeModel = createOutcomeModel();
+outcomeModel.setValue("hhq_we_like_learn_about_places_that_households_use", 3);
+assert.equal(outcomeModel.getValue("hhq_result_interview"), 1);
+assert.deepEqual(getOutcomeVisibleValues(outcomeModel), [1]);
+
+outcomeModel = createOutcomeModel();
+outcomeModel.setValue("hhq_we_like_learn_about_places_that_households_use", 4);
+assert.equal(outcomeModel.getValue("hhq_result_interview"), 10);
+assert.deepEqual(getOutcomeVisibleValues(outcomeModel), [10]);
+
+outcomeModel = createOutcomeModel();
+outcomeModel.setValue("hhq_we_like_learn_about_places_that_households_use", 1);
+outcomeModel.setValue("hhq_observation_only", ["A"]);
+assert.equal(outcomeModel.getValue("hhq_result_interview"), 1);
+assert.deepEqual(getOutcomeVisibleValues(outcomeModel), [1]);
+
 for (const formMeta of formCatalog) {
   const catalogForm = formsByCode[formMeta.form_code];
   const catalogModel = new Model(prepareQuestionnaireSurveyJson(catalogForm));

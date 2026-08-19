@@ -122,6 +122,30 @@ export function getVisiblePageQuestions(page) {
   );
 }
 
+function isEmptyNativeQuestionValue(value) {
+  if (value === undefined || value === null || value === "") return true;
+  if (Array.isArray(value)) return value.length === 0;
+  if (typeof value === "object") return Object.keys(value).length === 0;
+  return false;
+}
+
+/**
+ * True when the question blocks section navigation: its own errors, a required-but-empty
+ * answer, multipletext item errors (stored on the item editor), or any repeat-panel row.
+ */
+export function hasNativeValidationProblem(question) {
+  if (!question) return false;
+  if (Array.isArray(question.errors) && question.errors.length > 0) return true;
+  if (question.isRequired && isEmptyNativeQuestionValue(question.value)) return true;
+  if (Array.isArray(question.items)) {
+    if (question.items.some((item) => ((item.editor ?? item)?.errors ?? []).length > 0)) return true;
+  }
+  if (question.getType?.() !== "paneldynamic") return false;
+  return (question.panels || []).some((panel) =>
+    (panel.questions || []).some((panelQuestion) => hasNativeValidationProblem(panelQuestion))
+  );
+}
+
 export function setNativeQuestionValue(question, value) {
   if (!question) return false;
   if (question.readOnly === true) return false;

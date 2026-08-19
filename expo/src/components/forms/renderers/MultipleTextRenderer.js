@@ -1,9 +1,9 @@
+import { QuestionFrame, controlStyles } from "./QuestionFrame.js";
 /** Renders a SurveyJS multiple-text question as individually labeled native inputs. */
 import React, { useEffect, useState } from "react";
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
-import { getNativeQuestionValue, setNativeQuestionValue } from "../nativeSurveyModel.js";
-import { QuestionFrame, controlStyles } from "./QuestionFrame.js";
+import { getNativeQuestionErrors, getNativeQuestionValue, setNativeQuestionValue } from "../nativeSurveyModel.js";
 
 function localizedItemText(text, locale = "default") {
   if (typeof text === "string") return text;
@@ -59,6 +59,16 @@ export function MultipleTextRenderer({ answerData, locale, question, onChange })
                 onCommit={commitItemValue}
                 onChange={onChange}
               />
+              {(() => {
+                const itemErrors = getNativeQuestionErrors(item.editor ?? item);
+                return itemErrors.length
+                  ? itemErrors.map((error) => (
+                      <Text key={error} style={styles.itemError}>
+                        {error}
+                      </Text>
+                    ))
+                  : null;
+              })()}
               {unknownChoice ? (
                 <TouchableOpacity
                   accessibilityRole="radio"
@@ -122,5 +132,6 @@ const styles = StyleSheet.create({
   items: { gap: 10 },
   item: { gap: 5 },
   label: { color: "#344054", fontSize: 13, fontWeight: "700" },
+  itemError: { color: "#d92d20", fontSize: 13, fontWeight: "700" },
   unknownOption: { marginTop: 4 },
 });

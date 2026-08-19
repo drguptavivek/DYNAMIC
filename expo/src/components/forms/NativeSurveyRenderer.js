@@ -8,6 +8,7 @@ import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import {
   assertNativeSurveySupport,
   getVisiblePageQuestions,
+  hasNativeValidationProblem,
   stripSurveyHtml,
 } from "./nativeSurveyModel.js";
 import { NativeQuestionRenderer } from "./renderers/NativeQuestionRenderer.js";
@@ -178,7 +179,7 @@ export function NativeSurveyRenderer({
     model.nextPage();
     refresh();
     if (model.currentPage === currentPage) {
-      const firstQuestionWithError = getVisiblePageQuestions(currentPage).find(hasQuestionValidationProblem);
+      const firstQuestionWithError = getVisiblePageQuestions(currentPage).find(hasNativeValidationProblem);
       scrollToQuestion(firstQuestionWithError);
     } else {
       scrollToTop();
@@ -188,9 +189,7 @@ export function NativeSurveyRenderer({
 
   async function complete() {
     await onCompleteRequested?.(model);
-    const firstQuestionWithError = getVisiblePageQuestions(model.currentPage).find(
-      hasQuestionValidationProblem
-    );
+    const firstQuestionWithError = getVisiblePageQuestions(model.currentPage).find(hasNativeValidationProblem);
     scrollToQuestion(firstQuestionWithError);
     refresh();
   }
@@ -326,18 +325,3 @@ const styles = StyleSheet.create({
   disabled: { opacity: 0.35 },
 });
 
-function hasQuestionValidationProblem(question) {
-  if (Array.isArray(question?.errors) && question.errors.length > 0) return true;
-  if (question?.isRequired && isEmptyQuestionValue(question.value)) return true;
-  if (question?.getType?.() !== "paneldynamic") return false;
-  return (question.panels || []).some((panel) =>
-    (panel.questions || []).some((panelQuestion) => hasQuestionValidationProblem(panelQuestion))
-  );
-}
-
-function isEmptyQuestionValue(value) {
-  if (value === undefined || value === null || value === "") return true;
-  if (Array.isArray(value)) return value.length === 0;
-  if (typeof value === "object") return Object.keys(value).length === 0;
-  return false;
-}

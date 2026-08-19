@@ -1,3 +1,33 @@
+## 2026-08-19 (later) [saved]
+Goal: Stop the WQ Next button from silently doing nothing after Section 01.
+Decisions:
+- Root cause: Survey Core's validation error-focus path dereferences `settings.environment` (browser DOM) unguarded; on React Native `nextPage()` threw a TypeError that killed the Next/Complete handler, so blocked sections showed no error and no scroll.
+- `expo/src/polyfills/surveyCoreNative.js` now no-ops `SurveyModel.scrollElementToTop` and `Question.focusInputElement` on DOM-less runtimes; native renderers own scrolling and focus.
+- Device evidence (draft pulled from the phone via debug-build `run-as`): the field worker's active WQ draft was blocked by exactly one error - DOB month stored as "2" (validator requires 2 digits "02") - and the error lived on the multipletext item editor, invisible to both the error display and the blocked-Next scroll.
+- `hasNativeValidationProblem` (new shared helper in `nativeSurveyModel.js`) now detects question errors, required-empty answers, multipletext item errors, and repeat-panel rows; the renderer uses it for blocked Next/Complete scrolling.
+- `MultipleTextRenderer` renders item editor errors under each input, and section status chips count item errors.
+- An intermediate build crashed on the phone (`ReferenceError: Property 'QuestionFrame' doesn't exist`) after an import rewrite accidentally dropped the `QuestionFrame` import in `MultipleTextRenderer.js`; fixed, and `validateRendererImports.mjs` now statically blocks unimported JSX components (in the suite).
+- Device QA passed on the physical phone: blocked Next now scrolls to the failing question with its validator error, and Section 2 advances once the value is corrected (confirmed by the field user on their own draft).
+Rejected:
+- try/catch wrappers around every `model.nextPage()`/`validate()` call site; the bootstrap patch fixes every form in one place.
+- Stubbing `settings.environment` with a fake DOM; no-op scroll/focus is strictly safer.
+Open:
+- None for this entry; remaining repo-wide Open items stay in the 2026-08-19 HHQ entry.
+
+## 2026-08-19 [saved]
+Goal: Preselect and filter the HHQ outcome question when section 3 observation questions end the interview.
+Decisions:
+- Q60 (`hhq_we_like_learn_about_places_that_households_use`) options 2/3 force outcome `hhq_result_interview = 1` (Completed) with only that choice visible; option 4 forces value 10 (Other) with only that choice plus the required specify text visible.
+- Any Q62 (`hhq_observation_only`) selection after Q60 = 1 forces outcome 1 with only that choice visible.
+- Choice filtering uses per-choice `visibleIf` added by `applyHhqOutcomeChoiceVisibility`; value forcing uses `applyForcedHhqOutcomeResult` in the HHQ runtime behaviors, which also clears the stale other-specify text.
+- Untriggered states keep all ten outcome options so the normal manual outcome flow is unchanged.
+Rejected:
+- Editing the bundled HHQ form JSON directly; runtime transforms keep the definition reusable.
+- Backend changes; `result_interview` is already a pass-through integer projection.
+Open:
+- Device QA of the preselected outcome rendering after the next explicitly requested APK build.
+- Rebuild the release APK with `EXPO_PUBLIC_API_BASE_URL=http://192.168.1.81:3310/api/v1` (laptop Wi-Fi IP) plus a firewall rule for inbound 3310, then drop the `adb reverse tcp:3310` tunnel.
+
 ## 2026-08-18 13:35 [saved]
 Goal: Make Uploaded Forms distinguish HHQ revisit history from duplicate submissions.
 Decisions:

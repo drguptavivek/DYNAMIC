@@ -335,4 +335,66 @@ panel
 panel.getQuestionByName("pregnancy_02_reproduction_is_name_still_alive").value = 2;
 assert.equal(diedAge.isVisible, true);
 
+await import("../polyfills/surveyCoreNative.js");
+
+const blockedNextModel = createWqModel();
+blockedNextModel.setValue("wq_interview_date", "2026-08-14");
+blockedNextModel.setValue("wq_visit_no", 1);
+blockedNextModel.setValue("wq_woman_available", 1);
+blockedNextModel.setValue("wq_consent_study", 1);
+blockedNextModel.setValue("wq_current_marital_status", 1);
+blockedNextModel.setValue("wq_age_last_birthday", "3");
+assert.equal(
+  blockedNextModel.nextPage(),
+  false,
+  "Invalid section answers must block Next without throwing on DOM-less runtimes"
+);
+assert.equal(blockedNextModel.currentPage.name, "page_01_respondent_background");
+assert.ok(
+  question(blockedNextModel, "wq_age_last_birthday").errors.some((error) =>
+    /2 digits/.test(error.text || "")
+  ),
+  "Blocked Next must leave the failing validator error on the question"
+);
+blockedNextModel.setValue("wq_age_last_birthday", "30");
+assert.equal(blockedNextModel.nextPage(), true);
+assert.equal(blockedNextModel.currentPage.name, "page_02_reproduction");
+
+const {
+  getNativeQuestionErrors,
+  hasNativeValidationProblem,
+} = await import("../components/forms/nativeSurveyModel.js");
+
+const itemErrorModel = createWqModel();
+itemErrorModel.setValue("wq_interview_date", "2026-08-14");
+itemErrorModel.setValue("wq_visit_no", 1);
+itemErrorModel.setValue("wq_woman_available", 1);
+itemErrorModel.setValue("wq_consent_study", 1);
+itemErrorModel.setValue("wq_current_marital_status", 1);
+itemErrorModel.setValue("wq_age_last_birthday", "28");
+itemErrorModel.setValue("wq_01_respondent_s_backgr_in_what_month_and_year_were_you_born", {
+  month: "2",
+  year: "1996",
+});
+assert.equal(itemErrorModel.nextPage(), false);
+assert.equal(itemErrorModel.currentPage.name, "page_01_respondent_background");
+const dobQuestion = question(itemErrorModel, "wq_01_respondent_s_backgr_in_what_month_and_year_were_you_born");
+const monthItem = dobQuestion.items.find((item) => item.name === "month");
+assert.equal(
+  dobQuestion.errors.length,
+  0,
+  "multipletext validators report on the item editor, not the parent question"
+);
+assert.equal(hasNativeValidationProblem(dobQuestion), true);
+assert.ok(
+  getNativeQuestionErrors(monthItem.editor ?? monthItem).some((text) => /2 digits/.test(text)),
+  "Blocked Next must surface the month 2-digit validator error on the item"
+);
+itemErrorModel.setValue("wq_01_respondent_s_backgr_in_what_month_and_year_were_you_born", {
+  month: "02",
+  year: "1996",
+});
+assert.equal(itemErrorModel.nextPage(), true);
+assert.equal(itemErrorModel.currentPage.name, "page_02_reproduction");
+
 console.log("Validated WQ Excel-derived skip logic.");

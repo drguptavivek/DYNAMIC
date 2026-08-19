@@ -37,3 +37,6 @@ outputs/pretsing-flowchart-pptx/rendered/
 
 # AI assistant artifacts
 context-snapshot.json
+
+# Runtime upload artifacts created when the API is started from the repo root
+uploads/

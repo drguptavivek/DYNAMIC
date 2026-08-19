@@ -64,6 +64,7 @@ const consent = findElementByName(
   surveyJson,
   "hhq_consent_study_provide_pis_explain_study_adult_member",
 );
+const outcomeResult = findElementByName(surveyJson, "hhq_result_interview");
 
 assert.equal(singleMobile, null);
 assert.equal(mobilePanel.type, "paneldynamic");
@@ -138,6 +139,7 @@ assert.equal(competentRespondent.visibleIf, "{hhq_interview_date} notempty");
 assert.equal(competentRespondent.choices.length, 3);
 assert.equal(competentRespondent.choices[2].visibleIf, "{hhq_visit_no} < 3");
 assert.equal(consent.visibleIf, "{hhq_competent_respondent_available} = 1");
+assert.ok(outcomeResult.choices.every((choice) => choice.visibleIf));
 assert.equal(surveyJson.clearInvisibleValues, "onHiddenContainer");
 assert.equal(
   surveyJson.pages[1].visibleIf,
@@ -238,5 +240,20 @@ assert.equal(consentModel.visiblePages.length, 1);
 assert.equal(consentModel.getQuestionByName("hhq_result_interview").isVisible, false);
 assert.equal(consentModel.getValue("hhq_result_interview"), undefined);
 assert.equal(consentModel.getValue("hhq_language_questionnaire"), undefined);
+
+const outcomeModel = new Model(surveyJson);
+outcomeModel.setValue("hhq_interview_date", "2026-09-01");
+outcomeModel.setValue("hhq_competent_respondent_available", 1);
+outcomeModel.setValue("hhq_consent_study_provide_pis_explain_study_adult_member", 1);
+const outcomeQuestion = outcomeModel.getQuestionByName("hhq_result_interview");
+outcomeModel.setValue("hhq_we_like_learn_about_places_that_households_use", 2);
+assert.deepEqual(outcomeQuestion.visibleChoices.map((choice) => choice.value), [1]);
+outcomeModel.setValue("hhq_we_like_learn_about_places_that_households_use", 3);
+assert.deepEqual(outcomeQuestion.visibleChoices.map((choice) => choice.value), [1]);
+outcomeModel.setValue("hhq_we_like_learn_about_places_that_households_use", 4);
+assert.deepEqual(outcomeQuestion.visibleChoices.map((choice) => choice.value), [10]);
+outcomeModel.setValue("hhq_we_like_learn_about_places_that_households_use", 1);
+outcomeModel.setValue("hhq_observation_only", ["A"]);
+assert.deepEqual(outcomeQuestion.visibleChoices.map((choice) => choice.value), [1]);
 
 console.log("Validated questionnaire SurveyJS JSON transforms.");

@@ -81,7 +81,12 @@ export function buildSurveySections(model, options = {}) {
   const sections = model.pages.map((page, index) => {
     const questions = getSectionQuestions(page);
     const answered = questions.filter((question) => hasAnswer(getQuestionValue(model, question))).length;
-    const hasErrors = questions.some((question) => Array.isArray(question.errors) && question.errors.length > 0);
+    const hasErrors = questions.some(
+      (question) =>
+        (Array.isArray(question.errors) && question.errors.length > 0) ||
+        (Array.isArray(question.items) &&
+          question.items.some((item) => ((item.editor ?? item)?.errors ?? []).length > 0))
+    );
     const applicable = page.isVisible !== false && questions.length > 0;
 
     return {

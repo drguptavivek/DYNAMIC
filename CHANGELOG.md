@@ -1,5 +1,7 @@
 # Changelog
 
+- Fixed WQ Section 01 being silently blocked when a Date-of-Birth month/year entry failed its validator: multipletext item errors were stored on the item editor where neither the error display nor the blocked-Next scroll looked, so pressing Next appeared to do nothing. Item validator messages now render under each input, blocked Next scrolls to the offending question (including item, required, and repeat-row problems via the shared `hasNativeValidationProblem` helper), and section status chips flag item errors.
+- Fixed WQ (and all native questionnaires) so pressing Next with a validation problem surfaces the failing question instead of silently doing nothing: Survey Core's DOM-dependent error-focus path threw on React Native and killed the Next/Complete handler; the native bootstrap now disables those DOM helpers on DOM-less runtimes.
 - Fixed HHQ household-member question `6_i` so its Months and Years inputs read and retain values from the active repeated-member panel while typing.
 - Tightened the HHQ household-member summary columns so Count, Name, Age, and Sex remain visible together on mobile screens.
 - Fixed grouped HHQ coded-choice rows so starting a vertical scroll no longer changes the selected option; a completed tap is now required.
@@ -12,6 +14,7 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 
 ## Unreleased
 
+- Fixed HHQ Q60/Q62 outcome routing so skipped handwashing observations show only the correct preselected outcome option: Completed for Q60 options 2/3 and any Q62 selection, or Other specify for Q60 option 4.
 - Grouped uploaded HHQ submissions by household, backfilled server classifications once after upgrade, and displayed chronological visit numbers plus results so legitimate revisit history no longer looks like duplicate forms.
 - Fixed mobile sync so an obsolete local draft outside the freshly logged-in field worker's assignment scope is securely removed without blocking valid draft, response, task, household, or questionnaire synchronization.
 - Added deauthorized-device deletion controls to Admin Users, including confirmation, role/site scope enforcement, active-device deletion protection, and preservation of historical records carrying the device ID.

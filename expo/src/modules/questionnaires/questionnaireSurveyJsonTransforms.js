@@ -8,6 +8,19 @@ const HHQ_SINGLE_MOBILE_NAME = "hhq_contact_mobile";
 const HHQ_MOBILE_LIST_NAME = "hhq_contact_mobile_numbers";
 const HHQ_MOBILE_ROW_NAME = "mobile_number";
 const HHQ_HOUSEHOLD_NUMBER_NAME = "hhq_household_number";
+const HHQ_HANDWASHING_PLACE_NAME = "hhq_we_like_learn_about_places_that_households_use";
+const HHQ_HANDWASHING_OBSERVATION_NAME = "hhq_observation_only";
+const HHQ_RESULT_INTERVIEW_NAME = "hhq_result_interview";
+const HHQ_OUTCOME_COMPLETED_VALUE = 1;
+const HHQ_OUTCOME_OTHER_SPECIFY_VALUE = 10;
+const HHQ_OUTCOME_COMPLETED_VISIBLE_IF =
+  `({${HHQ_HANDWASHING_PLACE_NAME}} = 2 or {${HHQ_HANDWASHING_PLACE_NAME}} = 3 or ` +
+  `({${HHQ_HANDWASHING_PLACE_NAME}} = 1 and {${HHQ_HANDWASHING_OBSERVATION_NAME}} notempty))`;
+const HHQ_OUTCOME_OTHER_VISIBLE_IF = `{${HHQ_HANDWASHING_PLACE_NAME}} = 4`;
+const HHQ_OUTCOME_NORMAL_VISIBLE_IF =
+  `(({${HHQ_HANDWASHING_PLACE_NAME}} empty or ` +
+  `({${HHQ_HANDWASHING_PLACE_NAME}} != 2 and {${HHQ_HANDWASHING_PLACE_NAME}} != 3 and ` +
+  `{${HHQ_HANDWASHING_PLACE_NAME}} != 4)) and {${HHQ_HANDWASHING_OBSERVATION_NAME}} empty)`;
 
 function isHhqForm(form) {
   return form?.form_code === HHQ_FORM_CODE;
@@ -147,6 +160,49 @@ function markHhqDatabaseCheck(surveyJson) {
   };
 }
 
+function applyHhqOutcomeChoiceVisibility(surveyJson) {
+  function visit(elements = []) {
+    return elements.map((element) => {
+      const next = { ...element };
+      if (next.name === HHQ_RESULT_INTERVIEW_NAME && Array.isArray(next.choices)) {
+        next.choices = next.choices.map((choice) => {
+          if (choice.value === HHQ_OUTCOME_COMPLETED_VALUE) {
+            return {
+              ...choice,
+              visibleIf: `(${HHQ_OUTCOME_NORMAL_VISIBLE_IF}) or (${HHQ_OUTCOME_COMPLETED_VISIBLE_IF})`,
+            };
+          }
+          if (choice.value === HHQ_OUTCOME_OTHER_SPECIFY_VALUE) {
+            return {
+              ...choice,
+              visibleIf: `(${HHQ_OUTCOME_NORMAL_VISIBLE_IF}) or (${HHQ_OUTCOME_OTHER_VISIBLE_IF})`,
+            };
+          }
+          return {
+            ...choice,
+            visibleIf: HHQ_OUTCOME_NORMAL_VISIBLE_IF,
+          };
+        });
+      }
+      if (Array.isArray(next.elements)) {
+        next.elements = visit(next.elements);
+      }
+      if (Array.isArray(next.templateElements)) {
+        next.templateElements = visit(next.templateElements);
+      }
+      return next;
+    });
+  }
+
+  return {
+    ...surveyJson,
+    pages: surveyJson.pages.map((page) => ({
+      ...page,
+      elements: visit(page.elements),
+    })),
+  };
+}
+
 export function normalizeQuestionnaireSurveyData(form, data) {
   if (!isHhqForm(form) || !data || typeof data !== "object") {
     return data || {};
@@ -170,6 +226,7 @@ export function prepareQuestionnaireSurveyJson(form) {
   if (isHhqForm(form)) {
     surveyJson = allowMultipleHhqMobileNumbers(surveyJson);
     surveyJson = markHhqDatabaseCheck(surveyJson);
+    surveyJson = applyHhqOutcomeChoiceVisibility(surveyJson);
     surveyJson = applyMandatoryHhqSurveyJson(surveyJson);
   }
   return surveyJson;

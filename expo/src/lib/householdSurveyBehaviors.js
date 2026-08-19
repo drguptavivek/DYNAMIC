@@ -3,6 +3,12 @@
  */
 const HHQ_CODE = "HHQ";
 const HH_MEMBER_PANEL = "hhq_household_members";
+const HHQ_HANDWASHING_PLACE_FIELD = "hhq_we_like_learn_about_places_that_households_use";
+const HHQ_HANDWASHING_OBSERVATION_FIELD = "hhq_observation_only";
+const HHQ_RESULT_INTERVIEW_FIELD = "hhq_result_interview";
+const HHQ_RESULT_INTERVIEW_OTHER_SPECIFY_FIELD = "hhq_result_interview_other_specify";
+const HHQ_OUTCOME_COMPLETED = 1;
+const HHQ_OUTCOME_OTHER_SPECIFY = 10;
 const HH_MEMBER_GENERATED_FIELDS = new Set([
   "member_line_number",
   "member_individual_id",
@@ -79,6 +85,40 @@ function clearModelValue(model, name) {
     return;
   }
   model.setValue(name, undefined);
+}
+
+function hasHhqObservationSelections(value) {
+  if (Array.isArray(value)) return value.length > 0;
+  return value !== undefined && value !== null && value !== "";
+}
+
+function getForcedHhqOutcomeResult(model) {
+  const observationPlace = parseFiniteNumber(model.getValue(HHQ_HANDWASHING_PLACE_FIELD));
+  if (observationPlace === 2 || observationPlace === 3) {
+    return HHQ_OUTCOME_COMPLETED;
+  }
+  if (observationPlace === 4) {
+    return HHQ_OUTCOME_OTHER_SPECIFY;
+  }
+  if (
+    observationPlace === 1 &&
+    hasHhqObservationSelections(model.getValue(HHQ_HANDWASHING_OBSERVATION_FIELD))
+  ) {
+    return HHQ_OUTCOME_COMPLETED;
+  }
+  return null;
+}
+
+function applyForcedHhqOutcomeResult(model) {
+  const forcedResult = getForcedHhqOutcomeResult(model);
+  if (forcedResult === null) return;
+
+  if (model.getValue(HHQ_RESULT_INTERVIEW_FIELD) !== forcedResult) {
+    model.setValue(HHQ_RESULT_INTERVIEW_FIELD, forcedResult);
+  }
+  if (forcedResult !== HHQ_OUTCOME_OTHER_SPECIFY) {
+    clearModelValue(model, HHQ_RESULT_INTERVIEW_OTHER_SPECIFY_FIELD);
+  }
 }
 
 function clearHouseholdListingCalculations(model) {
@@ -481,6 +521,7 @@ export function refreshHouseholdSurveyBehaviors(model, selectedForm) {
   if (selectedForm?.form_code !== HHQ_CODE) return;
   applyMandatoryHhqQuestions(model);
   configureHouseholdRosterQuestion(model);
+  applyForcedHhqOutcomeResult(model);
   updateHouseholdIdCalculation(model);
   updateHouseholdListingCalculations(model);
   validateSingleHouseholdHead(model);
@@ -621,6 +662,13 @@ export function attachHouseholdSurveyBehaviors(
     if (options.name === "member_name" || options.name === HH_MEMBER_PANEL) {
       refreshQuestionTitles(sender);
       setTimeout(() => italicizeVisibleMemberNames(sender), 0);
+    }
+    if (
+      options.name === HHQ_HANDWASHING_PLACE_FIELD ||
+      options.name === HHQ_HANDWASHING_OBSERVATION_FIELD ||
+      options.name === HHQ_RESULT_INTERVIEW_FIELD
+    ) {
+      applyForcedHhqOutcomeResult(sender);
     }
     if (
       options.name === HH_MEMBER_PANEL ||
