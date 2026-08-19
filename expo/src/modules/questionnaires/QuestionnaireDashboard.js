@@ -99,17 +99,20 @@ function getWqRevisitStopMessage(model) {
   return visitNo >= MAX_WQ_VISIT_NO ? WQ_EXCLUDED_MESSAGE : WQ_RESCHEDULE_MESSAGE;
 }
 
-function routeWqIncapacitatedToOutcome(model) {
-  if (!model || Number(model.getValue(WQ_WOMAN_AVAILABLE_FIELD)) !== 2) return;
-  model.setValue(WQ_RESULT_INTERVIEW_FIELD, 6);
-  const outcomePage = model.getPageByName?.(WQ_OUTCOME_PAGE_NAME);
-  if (outcomePage?.isVisible) {
-    goToSurveySection(model, WQ_OUTCOME_PAGE_NAME);
-  }
-}
+const WQ_STOP_OUTCOME_BY_AVAILABILITY = { 2: 6, 3: 3, 4: 2 };
+const WQ_STOP_MESSAGES = {
+  2: "Interview stopped. Complete the outcome before final save.",
+  3: "Visit postponed. Complete the outcome before final save.",
+  4: "Woman not at home. Complete the outcome before final save.",
+};
 
-function routeWqNeverMarriedToOutcome(model) {
-  if (!model || Number(model.getValue(WQ_CURRENT_MARITAL_STATUS_FIELD)) !== 7) return;
+function routeWqStopToOutcome(model, { navigate = true } = {}) {
+  if (!model) return;
+  const availability = Number(model.getValue(WQ_WOMAN_AVAILABLE_FIELD));
+  const forcedOutcome = WQ_STOP_OUTCOME_BY_AVAILABILITY[availability];
+  if (forcedOutcome === undefined) return;
+  model.setValue(WQ_RESULT_INTERVIEW_FIELD, forcedOutcome);
+  if (!navigate) return;
   const outcomePage = model.getPageByName?.(WQ_OUTCOME_PAGE_NAME);
   if (outcomePage?.isVisible) {
     goToSurveySection(model, WQ_OUTCOME_PAGE_NAME);
@@ -406,13 +409,11 @@ export function QuestionnaireDashboard({
           applyWqVisitNo(sender, taskContext);
         }
         if (options.name === WQ_WOMAN_AVAILABLE_FIELD) {
-          const value = Number(options.value);
-          const stopMessage = getWqRevisitStopMessage(sender);
-          if (stopMessage) setSaveMessage(stopMessage);
-          if (value === 2) {
-            setSaveMessage("Interview stopped. Complete the outcome before final save.");
+          const stopMessage = WQ_STOP_MESSAGES[Number(options.value)];
+          if (stopMessage) {
+            setSaveMessage(stopMessage);
             requestAnimationFrame(() => {
-              routeWqIncapacitatedToOutcome(sender);
+              routeWqStopToOutcome(sender);
               updateSurveyStatus(sender);
             });
           }
@@ -567,8 +568,8 @@ export function QuestionnaireDashboard({
         }
         if (isWomanQuestionnaire(form)) {
           applyWqPregnancyTrackingEligibility(survey);
+          routeWqStopToOutcome(survey, { navigate: false });
         }
-        hasPreviewedRef.current = false;
         setPreviewConfirmed(false);
         memberSummaryConfirmedRef.current = false;
         setMemberSummaryConfirmed(false);

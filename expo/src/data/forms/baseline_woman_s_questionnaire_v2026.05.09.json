@@ -10133,7 +10133,7 @@
           }
         }
       ],
-      "visibleIf": "{wq_woman_available} = 2 or ({wq_woman_available} = 1 and {wq_consent_study} notempty) or {wq_current_marital_status} = 7",
+      "visibleIf": "{wq_woman_available} = 2 or {wq_woman_available} = 3 or {wq_woman_available} = 4 or ({wq_woman_available} = 1 and {wq_consent_study} notempty) or {wq_current_marital_status} = 7",
       "visibleIfSourceResolved": "Q4 option 2 stops interview and routes to outcome. Q4 options 3 and 4 are submitted from section 1 for revisit/exclusion workflow. WQ Q17 option 7 never married stops questionnaire and routes to outcome."
     }
   ],

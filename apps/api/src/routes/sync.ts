@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { eq, and, gt, inArray, count, lte } from "drizzle-orm";
+import { eq, and, gt, inArray, count, lte, or } from "drizzle-orm";
 import { db, schema } from "../db";
 import { JwtPayload, optionalAuth, requireAuth } from "../middleware/auth";
 import { sendError, sendSuccess } from "../lib/errors";
@@ -344,7 +344,12 @@ router.post(
           const [existing] = await db
             .select()
             .from(schema.questionnaireDrafts)
-            .where(eq(schema.questionnaireDrafts.context_key, contextKey))
+            .where(
+              or(
+                eq(schema.questionnaireDrafts.draft_id, draftId),
+                eq(schema.questionnaireDrafts.context_key, contextKey),
+              ),
+            )
             .limit(1);
           if (existing && existing.client_updated_at >= clientUpdatedAt) {
             continue;
@@ -375,7 +380,7 @@ router.post(
             await db
               .update(schema.questionnaireDrafts)
               .set(values)
-              .where(eq(schema.questionnaireDrafts.context_key, contextKey));
+              .where(eq(schema.questionnaireDrafts.draft_id, existing.draft_id));
           } else {
             await db.insert(schema.questionnaireDrafts).values(values);
           }

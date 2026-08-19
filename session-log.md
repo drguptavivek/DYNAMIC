@@ -1,3 +1,23 @@
+## 2026-08-19 (draft sync blocker) [working]
+Goal: Stop device sync from aborting with "Draft sync rejected" and unblock form refreshes.
+Decisions:
+- Root cause: regenerated revisit tasks changed draft task references, so the device sent the same draft_id with a new context_key; POST /sync/drafts matched only by context_key, missed the row, and the insert collided on the draft_id primary key; the raw DB error is not the tolerated out-of-scope class, so the app aborted the whole sync before the form pull (form definitions and tasks never refreshed).
+- The drafts upsert in `apps/api/src/routes/sync.ts` now matches existing rows by draft_id or context_key and updates by draft_id; replay of the device's exact drafts returns synced=2, errors=[].
+- Diagnosis trail: API request logging (added then removed), direct replay of /sync/pull and /sync/drafts with the device's token, postgres logs for the PK violation.
+- A diagnostic debug build shipped a stale Metro bundle (pull request missing device_id); caches were purged and the good release build reinstalled. The release bundle was verified correct.
+Open:
+- Device QA: user taps Sync Now (server fix is live), confirm form refresh plus WQ Q4 option 2/3/4 outcome routing; earlier test submissions closed the open tasks, so a WQ test task may need reseeding.
+- Then commit and push the working tree (WQ Q4 routing + drafts upsert fix + docs).
+
+## 2026-08-19 (Q4 stop routing) [saved]
+Goal: Route WQ Q4 stop answers through the outcome page with a single preselected option.
+Decisions:
+- `page_outcome` is now visible for `wq_woman_available` 2, 3, and 4; `applyWqOutcomeChoiceVisibility` (WQ transform) hides all outcome options except the mapped one (2->6 Incapacitated, 3->3 Posponed, 4->2 Not at home) while the normal path (Q4 empty/1) keeps the full list.
+- `routeWqStopToOutcome` in the dashboard forces the mapped outcome and navigates on Q4 change; draft restore forces the value without jumping pages.
+- The immediate "Reschedule has been setup" banner on selecting Q4 option 3/4 is removed; the reschedule/exclusion Alert now fires only after final submit, then the form lands on Completed Forms and sync drives revisit task generation.
+Open:
+- Device QA of the three Q4 stop flows after rebuild and Sync Now.
+
 ## 2026-08-19 (final outcome option) [saved]
 Goal: Add the detailed refusal option to the WQ outcome list.
 Decisions:

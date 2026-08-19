@@ -1,5 +1,7 @@
 # Changelog
 
+- Fixed draft backup sync failing with "Draft sync rejected" after the scheduler regenerated revisit tasks: the drafts upsert now matches existing rows by draft_id or context key and updates in place, so a changed task reference no longer collides on the draft primary key and aborts the whole device sync.
+- Reworked WQ Q4 stop routing: selecting option 2 (incapacitated), 3 (postponed), or 4 (not at home) now goes to the outcome page with only the matching outcome preselected (Incapacitated, Posponed, Not at home respectively) and all other options hidden; the reschedule/exclusion notice now appears only after final submit instead of immediately on selection.
 - Added the required `wq_result_interview_other_specify` input so selecting Other (specify) on the WQ outcome shows a text box for the reason; WQ catalog count is 170 again.
 - Added WQ outcome option 8 "Refused (consent or, refused during interview)" directly above Other (specify); existing option values are unchanged so stored draft/response data keeps its meaning.
 - Fixed WQ Section 01 being silently blocked when a Date-of-Birth month/year entry failed its validator: multipletext item errors were stored on the item editor where neither the error display nor the blocked-Next scroll looked, so pressing Next appeared to do nothing. Item validator messages now render under each input, blocked Next scrolls to the offending question (including item, required, and repeat-row problems via the shared `hasNativeValidationProblem` helper), and section status chips flag item errors.

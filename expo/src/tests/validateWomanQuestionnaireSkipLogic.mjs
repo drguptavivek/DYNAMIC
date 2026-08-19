@@ -112,6 +112,41 @@ q4IncapacitatedModel.setValue("wq_visit_no", 1);
 q4IncapacitatedModel.setValue("wq_woman_available", 2);
 assert.equal(q4IncapacitatedModel.getPageByName("page_02_reproduction").isVisible, false);
 assert.equal(q4IncapacitatedModel.getPageByName("page_outcome").isVisible, true);
+assert.deepEqual(
+  q4IncapacitatedModel
+    .getQuestionByName("wq_result_interview")
+    .visibleChoices.map((choice) => choice.value),
+  [6],
+  "Q4 incapacitated must show only the Incapacitated outcome option"
+);
+
+const q4PostponedModel = createWqModel();
+q4PostponedModel.setValue("wq_interview_date", "2026-08-14");
+q4PostponedModel.setValue("wq_visit_no", 1);
+q4PostponedModel.setValue("wq_woman_available", 3);
+assert.equal(q4PostponedModel.getPageByName("page_02_reproduction").isVisible, false);
+assert.equal(q4PostponedModel.getPageByName("page_outcome").isVisible, true);
+assert.deepEqual(
+  q4PostponedModel
+    .getQuestionByName("wq_result_interview")
+    .visibleChoices.map((choice) => choice.value),
+  [3],
+  "Q4 postponed must show only the Posponed outcome option"
+);
+
+const q4NotAtHomeModel = createWqModel();
+q4NotAtHomeModel.setValue("wq_interview_date", "2026-08-14");
+q4NotAtHomeModel.setValue("wq_visit_no", 1);
+q4NotAtHomeModel.setValue("wq_woman_available", 4);
+assert.equal(q4NotAtHomeModel.getPageByName("page_02_reproduction").isVisible, false);
+assert.equal(q4NotAtHomeModel.getPageByName("page_outcome").isVisible, true);
+assert.deepEqual(
+  q4NotAtHomeModel
+    .getQuestionByName("wq_result_interview")
+    .visibleChoices.map((choice) => choice.value),
+  [2],
+  "Q4 not at home must show only the Not at home outcome option"
+);
 
 const wqOutcomeJson = wq.pages
   .find((page) => page.name === "page_outcome")
@@ -148,7 +183,7 @@ q4RevisitModel.setValue("wq_interview_date", "2026-08-14");
 q4RevisitModel.setValue("wq_visit_no", 1);
 q4RevisitModel.setValue("wq_woman_available", 4);
 assert.equal(q4RevisitModel.getPageByName("page_02_reproduction").isVisible, false);
-assert.equal(q4RevisitModel.getPageByName("page_outcome").isVisible, false);
+assert.equal(q4RevisitModel.getPageByName("page_outcome").isVisible, true);
 
 assert.equal(
   isVisible(model, "wq_01_respondent_s_backgr_what_is_the_highest_grade_you_completed"),

@@ -22,6 +22,20 @@ const HHQ_OUTCOME_NORMAL_VISIBLE_IF =
   `({${HHQ_HANDWASHING_PLACE_NAME}} != 2 and {${HHQ_HANDWASHING_PLACE_NAME}} != 3 and ` +
   `{${HHQ_HANDWASHING_PLACE_NAME}} != 4)) and {${HHQ_HANDWASHING_OBSERVATION_NAME}} empty)`;
 
+const WQ_FORM_CODE = "WQ";
+const WQ_WOMAN_AVAILABLE_NAME = "wq_woman_available";
+const WQ_RESULT_INTERVIEW_NAME = "wq_result_interview";
+const WQ_OUTCOME_NOT_AT_HOME_VALUE = 2;
+const WQ_OUTCOME_POSTPONED_VALUE = 3;
+const WQ_OUTCOME_INCAPACITATED_VALUE = 6;
+const WQ_OUTCOME_NORMAL_VISIBLE_IF =
+  `({${WQ_WOMAN_AVAILABLE_NAME}} empty or {${WQ_WOMAN_AVAILABLE_NAME}} = 1)`;
+const WQ_STOP_OUTCOME_VISIBLE_IF = {
+  [WQ_OUTCOME_NOT_AT_HOME_VALUE]: `{${WQ_WOMAN_AVAILABLE_NAME}} = 4`,
+  [WQ_OUTCOME_POSTPONED_VALUE]: `{${WQ_WOMAN_AVAILABLE_NAME}} = 3`,
+  [WQ_OUTCOME_INCAPACITATED_VALUE]: `{${WQ_WOMAN_AVAILABLE_NAME}} = 2`,
+};
+
 function isHhqForm(form) {
   return form?.form_code === HHQ_FORM_CODE;
 }
@@ -203,6 +217,35 @@ function applyHhqOutcomeChoiceVisibility(surveyJson) {
   };
 }
 
+function isWqForm(form) {
+  return form?.form_code === WQ_FORM_CODE;
+}
+
+function applyWqOutcomeChoiceVisibility(surveyJson) {
+  return {
+    ...surveyJson,
+    pages: surveyJson.pages.map((page) => ({
+      ...page,
+      elements: page.elements.map((element) => {
+        if (element.name !== WQ_RESULT_INTERVIEW_NAME || !Array.isArray(element.choices)) {
+          return element;
+        }
+        return {
+          ...element,
+          choices: element.choices.map((choice) => {
+            const stopVisibleIf = WQ_STOP_OUTCOME_VISIBLE_IF[choice.value];
+            return {
+              ...choice,
+              visibleIf: stopVisibleIf
+                ? `(${WQ_OUTCOME_NORMAL_VISIBLE_IF}) or (${stopVisibleIf})`
+                : WQ_OUTCOME_NORMAL_VISIBLE_IF,
+            };
+          }),
+        };
+      }),
+    })),
+  };
+}
 export function normalizeQuestionnaireSurveyData(form, data) {
   if (!isHhqForm(form) || !data || typeof data !== "object") {
     return data || {};
@@ -228,6 +271,9 @@ export function prepareQuestionnaireSurveyJson(form) {
     surveyJson = markHhqDatabaseCheck(surveyJson);
     surveyJson = applyHhqOutcomeChoiceVisibility(surveyJson);
     surveyJson = applyMandatoryHhqSurveyJson(surveyJson);
+  }
+  if (isWqForm(form)) {
+    surveyJson = applyWqOutcomeChoiceVisibility(surveyJson);
   }
   return surveyJson;
 }
