@@ -1,16 +1,12 @@
-## 2026-08-19 (latest) [saved]
-Goal: Make the WQ outcome options identical to the HHQ outcome list.
+## 2026-08-19 (reverted) [saved]
+Goal: Restore the original WQ outcome page after the boss reversed the shared-outcome request.
 Decisions:
-- `wq_result_interview` uses the HHQ list but keeps the short WQ title "Result of Interview" (the copied HHQ heading was reverted on request).
-- Added `wq_result_interview_other_specify` (required text, visible when result = 10), mirroring the HHQ specify question with WQ field names; catalog `question_count` bumped to 170.
-- Incapacitated auto-routing now preselects 10 Other (specify) because the old code 6 means Refused in the shared list; the interviewer records the reason in the specify text.
-- Expo and the API share `expo/src/data/forms` as the single form source, so the API-served definition and checksum update automatically; no backend consumer reads `wq_result_interview` yet.
-- Regression coverage in `validateWomanQuestionnaireSkipLogic.mjs` asserts WQ/HHQ choice parity, specify visibility, and the full 1-10 visible choice list.
+- The WQ outcome keeps its original seven options (1 Completed, 2 Not at home, 3 Postponed, 4 Refused, 5 Partly completed, 6 Incapacitated, 7 Other) with title "Result of Interview"; the copied HHQ list and `wq_result_interview_other_specify` are removed (form JSON and catalog restored from before the change).
+- Incapacitated auto-routing is back to preselecting outcome 6.
 Rejected:
-- Copying the HHQ outcome page's household-total read-only fields into WQ; they are HHQ roster summaries with no WQ equivalent.
-- Keeping positional meaning of old WQ outcome codes; only 1 and 2 are semantically aligned across the old and new lists.
+- Sharing the HHQ outcome list across HHQ and WQ (request reversed on 2026-08-19; commits e4fcd26 and 780dbc5 reverted).
 Open:
-- Device QA of the new WQ outcome options after this rebuild.
+- Re-sync the field device so its cached WQ definition returns to the original outcome list.
 
 ## 2026-08-19 (later) [saved]
 Goal: Stop the WQ Next button from silently doing nothing after Section 01.

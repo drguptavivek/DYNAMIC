@@ -113,48 +113,6 @@ q4IncapacitatedModel.setValue("wq_woman_available", 2);
 assert.equal(q4IncapacitatedModel.getPageByName("page_02_reproduction").isVisible, false);
 assert.equal(q4IncapacitatedModel.getPageByName("page_outcome").isVisible, true);
 
-const hhqPath = path.resolve(
-  root,
-  "../data/forms/baseline_household_questionnaire_v2026.05.09.json"
-);
-const hhq = JSON.parse(fs.readFileSync(hhqPath, "utf8"));
-const findElement = (form, name) => {
-  for (const page of form.pages) {
-    for (const element of page.elements) {
-      if (element.name === name) return element;
-    }
-  }
-  return null;
-};
-const wqOutcomeElement = findElement(wq, "wq_result_interview");
-const hhqOutcomeElement = findElement(hhq, "hhq_result_interview");
-assert.deepEqual(
-  wqOutcomeElement.choices,
-  hhqOutcomeElement.choices,
-  "WQ outcome options must match the HHQ outcome list"
-);
-assert.equal(wqOutcomeElement.choices.length, 10);
-
-const outcomeParityModel = createWqModel();
-outcomeParityModel.setValue("wq_interview_date", "2026-08-14");
-outcomeParityModel.setValue("wq_visit_no", 1);
-outcomeParityModel.setValue("wq_woman_available", 1);
-outcomeParityModel.setValue("wq_consent_study", 1);
-assert.equal(
-  (wqOutcomeElement.title?.default ?? wqOutcomeElement.title),
-  "Result of Interview",
-  "WQ outcome keeps its own short title; only the HHQ option list is shared"
-);
-const specifyQuestion = question(outcomeParityModel, "wq_result_interview_other_specify");
-assert.equal(specifyQuestion.isRequired, true);
-assert.equal(isVisible(outcomeParityModel, "wq_result_interview_other_specify"), false);
-outcomeParityModel.setValue("wq_result_interview", 10);
-assert.equal(isVisible(outcomeParityModel, "wq_result_interview_other_specify"), true);
-assert.deepEqual(
-  question(outcomeParityModel, "wq_result_interview").visibleChoices.map((choice) => choice.value),
-  [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-);
-
 const q4RevisitModel = createWqModel();
 q4RevisitModel.setValue("wq_interview_date", "2026-08-14");
 q4RevisitModel.setValue("wq_visit_no", 1);
