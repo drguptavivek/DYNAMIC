@@ -113,6 +113,24 @@ q4IncapacitatedModel.setValue("wq_woman_available", 2);
 assert.equal(q4IncapacitatedModel.getPageByName("page_02_reproduction").isVisible, false);
 assert.equal(q4IncapacitatedModel.getPageByName("page_outcome").isVisible, true);
 
+const wqOutcomeJson = wq.pages
+  .find((page) => page.name === "page_outcome")
+  .elements.find((element) => element.name === "wq_result_interview");
+assert.deepEqual(
+  wqOutcomeJson.choices.map((choice) => [choice.value, choice.text.default]),
+  [
+    [1, "Completed"],
+    [2, "Not at home"],
+    [3, "Posponed"],
+    [4, "Refused"],
+    [5, "Partly completed"],
+    [6, "Incapacitated"],
+    [8, "Refused (consent or, refused during interview)"],
+    [7, "Other (specify)"],
+  ],
+  "Refused-during-interview must sit directly above Other (specify); value 7 stays Other for existing data"
+);
+
 const q4RevisitModel = createWqModel();
 q4RevisitModel.setValue("wq_interview_date", "2026-08-14");
 q4RevisitModel.setValue("wq_visit_no", 1);

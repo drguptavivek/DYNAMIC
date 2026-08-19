@@ -10056,6 +10056,18 @@
               }
             },
             {
+              "value": 8,
+              "text": {
+                "default": "Refused (consent or, refused during interview)",
+                "hi": "",
+                "kn": "",
+                "mr": "",
+                "ta": "",
+                "te": "",
+                "ur": ""
+              }
+            },
+            {
               "value": 7,
               "text": {
                 "default": "Other (specify)",

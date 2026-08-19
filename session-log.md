@@ -1,3 +1,11 @@
+## 2026-08-19 (final outcome option) [saved]
+Goal: Add the detailed refusal option to the WQ outcome list.
+Decisions:
+- WQ outcome gains option value 8 "Refused (consent or, refused during interview)" displayed directly above Other (specify); value 7 remains Other (specify) so existing drafts and responses keep their meaning (no renumbering).
+- Regression coverage in `validateWomanQuestionnaireSkipLogic.mjs` pins the full ordered option list.
+Open:
+- Re-sync field devices so the cached WQ definition picks up the new option.
+
 ## 2026-08-19 (reverted) [saved]
 Goal: Restore the original WQ outcome page after the boss reversed the shared-outcome request.
 Decisions:
