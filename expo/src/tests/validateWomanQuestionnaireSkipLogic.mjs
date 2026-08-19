@@ -131,6 +131,18 @@ assert.deepEqual(
   "Refused-during-interview must sit directly above Other (specify); value 7 stays Other for existing data"
 );
 
+const specifyModel = createWqModel();
+specifyModel.setValue("wq_interview_date", "2026-08-14");
+specifyModel.setValue("wq_visit_no", 1);
+specifyModel.setValue("wq_woman_available", 1);
+specifyModel.setValue("wq_consent_study", 1);
+assert.equal(isVisible(specifyModel, "wq_result_interview_other_specify"), false);
+assert.equal(question(specifyModel, "wq_result_interview_other_specify").isRequired, true);
+specifyModel.setValue("wq_result_interview", 7);
+assert.equal(isVisible(specifyModel, "wq_result_interview_other_specify"), true);
+specifyModel.setValue("wq_result_interview", 3);
+assert.equal(isVisible(specifyModel, "wq_result_interview_other_specify"), false);
+
 const q4RevisitModel = createWqModel();
 q4RevisitModel.setValue("wq_interview_date", "2026-08-14");
 q4RevisitModel.setValue("wq_visit_no", 1);

@@ -10083,6 +10083,54 @@
           "renderingHint": {
             "render_as": "radio"
           }
+        },
+        {
+          "type": "text",
+          "name": "wq_result_interview_other_specify",
+          "title": {
+            "default": "Specify other response",
+            "hi": "अन्य उत्तर निर्दिष्ट करें",
+            "kn": "",
+            "mr": "",
+            "ta": "",
+            "te": "",
+            "ur": ""
+          },
+          "order": 167.1,
+          "section_order": 7,
+          "sourceCode": "1_specifyother",
+          "sourceType": "text_other_specify",
+          "renderingHint": {
+            "render_as": "input"
+          },
+          "rawText": "Other (specify)",
+          "visibleIf": "{wq_result_interview} = 7",
+          "isRequired": true,
+          "validators": [
+            {
+              "type": "text",
+              "minLength": 1,
+              "maxLength": 120,
+              "text": {
+                "default": "Specify the other response.",
+                "hi": "अन्य उत्तर निर्दिष्ट करें।",
+                "kn": "",
+                "mr": "",
+                "ta": "",
+                "te": "",
+                "ur": ""
+              }
+            }
+          ],
+          "description": {
+            "default": "Complete only if Other (specify) is selected.",
+            "hi": "केवल तब भरें जब अन्य चुना गया हो।",
+            "kn": "",
+            "mr": "",
+            "ta": "",
+            "te": "",
+            "ur": ""
+          }
         }
       ],
       "visibleIf": "{wq_woman_available} = 2 or ({wq_woman_available} = 1 and {wq_consent_study} notempty) or {wq_current_marital_status} = 7",

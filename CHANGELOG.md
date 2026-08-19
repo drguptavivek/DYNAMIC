@@ -1,5 +1,6 @@
 # Changelog
 
+- Added the required `wq_result_interview_other_specify` input so selecting Other (specify) on the WQ outcome shows a text box for the reason; WQ catalog count is 170 again.
 - Added WQ outcome option 8 "Refused (consent or, refused during interview)" directly above Other (specify); existing option values are unchanged so stored draft/response data keeps its meaning.
 - Fixed WQ Section 01 being silently blocked when a Date-of-Birth month/year entry failed its validator: multipletext item errors were stored on the item editor where neither the error display nor the blocked-Next scroll looked, so pressing Next appeared to do nothing. Item validator messages now render under each input, blocked Next scrolls to the offending question (including item, required, and repeat-row problems via the shared `hasNativeValidationProblem` helper), and section status chips flag item errors.
 - Fixed WQ (and all native questionnaires) so pressing Next with a validation problem surfaces the failing question instead of silently doing nothing: Survey Core's DOM-dependent error-focus path threw on React Native and killed the Next/Complete handler; the native bootstrap now disables those DOM helpers on DOM-less runtimes.
