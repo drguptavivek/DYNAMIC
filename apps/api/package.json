@@ -40,7 +40,7 @@
     "@types/multer": "^2.1.0",
     "@types/node": "^20.0.0",
     "@types/pg": "^8.11.6",
-    "drizzle-kit": "^0.22.7",
+    "drizzle-kit": "^0.31.10",
     "tsx": "^4.11.0",
     "typescript": "^5.4.5"
   }
