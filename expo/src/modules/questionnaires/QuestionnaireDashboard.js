@@ -99,23 +99,71 @@ function getWqRevisitStopMessage(model) {
   return visitNo >= MAX_WQ_VISIT_NO ? WQ_EXCLUDED_MESSAGE : WQ_RESCHEDULE_MESSAGE;
 }
 
+const WQ_CONSENT_FIELD = "wq_consent_study";
+const WQ_CONSENT_NO_VALUE = 2;
+const WQ_NEVER_MARRIED_VALUE = 7;
+const WQ_OUTCOME_COMPLETED_VALUE = 1;
+const WQ_OUTCOME_REFUSED_CONSENT_VALUE = 8;
 const WQ_STOP_OUTCOME_BY_AVAILABILITY = { 2: 6, 3: 3, 4: 2 };
 const WQ_STOP_MESSAGES = {
   2: "Interview stopped. Complete the outcome before final save.",
   3: "Visit postponed. Complete the outcome before final save.",
   4: "Woman not at home. Complete the outcome before final save.",
 };
+const WQ_CONSENT_STOP_MESSAGE =
+  "Consent not provided. Complete the outcome before final save.";
+
+function forcedWqOutcomeFor(availability, consent, marital) {
+  const stopOutcome = WQ_STOP_OUTCOME_BY_AVAILABILITY[availability];
+  if (stopOutcome !== undefined) return stopOutcome;
+  if (consent === WQ_CONSENT_NO_VALUE) return WQ_OUTCOME_REFUSED_CONSENT_VALUE;
+  // Never-married stops the questionnaire but the interview itself completed;
+  // follow-up/revisit workflow is decided server-side by the task workflow.
+  if (marital === WQ_NEVER_MARRIED_VALUE) return WQ_OUTCOME_COMPLETED_VALUE;
+  return undefined;
+}
 
 function routeWqStopToOutcome(model, { navigate = true } = {}) {
   if (!model) return;
-  const availability = Number(model.getValue(WQ_WOMAN_AVAILABLE_FIELD));
-  const forcedOutcome = WQ_STOP_OUTCOME_BY_AVAILABILITY[availability];
+  const forcedOutcome = forcedWqOutcomeFor(
+    Number(model.getValue(WQ_WOMAN_AVAILABLE_FIELD)),
+    Number(model.getValue(WQ_CONSENT_FIELD)),
+    Number(model.getValue(WQ_CURRENT_MARITAL_STATUS_FIELD)),
+  );
   if (forcedOutcome === undefined) return;
   model.setValue(WQ_RESULT_INTERVIEW_FIELD, forcedOutcome);
   if (!navigate) return;
   const outcomePage = model.getPageByName?.(WQ_OUTCOME_PAGE_NAME);
   if (outcomePage?.isVisible) {
     goToSurveySection(model, WQ_OUTCOME_PAGE_NAME);
+  }
+}
+
+// When a stop answer (availability stop, consent refusal, or never married)
+// changes back to a continue answer, the outcome it forced must not linger as
+// a stale pre-selection on the outcome page.
+function clearStaleWqForcedOutcome(model, changedName, oldValue) {
+  if (!model) return;
+  const previousForced = forcedWqOutcomeFor(
+    changedName === WQ_WOMAN_AVAILABLE_FIELD
+      ? Number(oldValue)
+      : Number(model.getValue(WQ_WOMAN_AVAILABLE_FIELD)),
+    changedName === WQ_CONSENT_FIELD
+      ? Number(oldValue)
+      : Number(model.getValue(WQ_CONSENT_FIELD)),
+    changedName === WQ_CURRENT_MARITAL_STATUS_FIELD
+      ? Number(oldValue)
+      : Number(model.getValue(WQ_CURRENT_MARITAL_STATUS_FIELD)),
+  );
+  if (previousForced === undefined) return;
+  const currentForced = forcedWqOutcomeFor(
+    Number(model.getValue(WQ_WOMAN_AVAILABLE_FIELD)),
+    Number(model.getValue(WQ_CONSENT_FIELD)),
+    Number(model.getValue(WQ_CURRENT_MARITAL_STATUS_FIELD)),
+  );
+  if (currentForced !== undefined) return;
+  if (Number(model.getValue(WQ_RESULT_INTERVIEW_FIELD)) === previousForced) {
+    model.setValue(WQ_RESULT_INTERVIEW_FIELD, undefined);
   }
 }
 
@@ -408,6 +456,13 @@ export function QuestionnaireDashboard({
         if (options.name === WQ_INTERVIEW_DATE_FIELD) {
           applyWqVisitNo(sender, taskContext);
         }
+        const isWqOutcomeDriver =
+          options.name === WQ_WOMAN_AVAILABLE_FIELD ||
+          options.name === WQ_CONSENT_FIELD ||
+          options.name === WQ_CURRENT_MARITAL_STATUS_FIELD;
+        if (isWqOutcomeDriver) {
+          clearStaleWqForcedOutcome(sender, options.name, options.oldValue);
+        }
         if (options.name === WQ_WOMAN_AVAILABLE_FIELD) {
           const stopMessage = WQ_STOP_MESSAGES[Number(options.value)];
           if (stopMessage) {
@@ -418,10 +473,20 @@ export function QuestionnaireDashboard({
             });
           }
         }
-        if (options.name === WQ_CURRENT_MARITAL_STATUS_FIELD && Number(options.value) === 7) {
+        if (options.name === WQ_CONSENT_FIELD && Number(options.value) === WQ_CONSENT_NO_VALUE) {
+          setSaveMessage(WQ_CONSENT_STOP_MESSAGE);
+          requestAnimationFrame(() => {
+            routeWqStopToOutcome(sender);
+            updateSurveyStatus(sender);
+          });
+        }
+        if (
+          options.name === WQ_CURRENT_MARITAL_STATUS_FIELD &&
+          Number(options.value) === WQ_NEVER_MARRIED_VALUE
+        ) {
           setSaveMessage("Never married selected. Complete the outcome before final save.");
           requestAnimationFrame(() => {
-            routeWqNeverMarriedToOutcome(sender);
+            routeWqStopToOutcome(sender);
             updateSurveyStatus(sender);
           });
         }

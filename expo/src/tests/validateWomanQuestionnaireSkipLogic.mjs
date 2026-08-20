@@ -26,6 +26,26 @@ const wqPath = path.resolve(
 );
 const wq = JSON.parse(fs.readFileSync(wqPath, "utf8"));
 
+// Release bundles crash at runtime (not build time) when the WQ dashboard
+// references an undeclared module-level identifier, so pin every WQ_* symbol
+// to a declaration or an import.
+const dashboardPath = path.resolve(
+  root,
+  "../modules/questionnaires/QuestionnaireDashboard.js"
+);
+const dashboardSource = fs.readFileSync(dashboardPath, "utf8");
+const dashboardDeclared = new Set(
+  (dashboardSource.match(/(?:const|let|var|function)\s+(WQ_[A-Z0-9_]+)/g) || []).map(
+    (statement) => statement.split(/\s+/)[1]
+  )
+);
+for (const identifier of new Set(dashboardSource.match(/\bWQ_[A-Z0-9_]+\b/g) || [])) {
+  assert.ok(
+    dashboardDeclared.has(identifier) || dashboardSource.includes(`  ${identifier},`),
+    `QuestionnaireDashboard.js must declare or import "${identifier}"; undeclared identifiers crash release builds`
+  );
+}
+
 function createWqModel() {
   return new Model(prepareQuestionnaireSurveyJson(wq));
 }
@@ -146,6 +166,62 @@ assert.deepEqual(
     .visibleChoices.map((choice) => choice.value),
   [2],
   "Q4 not at home must show only the Not at home outcome option"
+);
+
+const q5ConsentRefusedModel = createWqModel();
+q5ConsentRefusedModel.setValue("wq_interview_date", "2026-08-14");
+q5ConsentRefusedModel.setValue("wq_visit_no", 1);
+q5ConsentRefusedModel.setValue("wq_woman_available", 1);
+q5ConsentRefusedModel.setValue("wq_consent_study", 2);
+assert.equal(q5ConsentRefusedModel.getPageByName("page_outcome").isVisible, true);
+assert.deepEqual(
+  q5ConsentRefusedModel
+    .getQuestionByName("wq_result_interview")
+    .visibleChoices.map((choice) => choice.value),
+  [8],
+  "Q5 consent refused must show only the Refused (consent or, refused during interview) outcome option"
+);
+
+const q5ConsentYesModel = createWqModel();
+q5ConsentYesModel.setValue("wq_interview_date", "2026-08-14");
+q5ConsentYesModel.setValue("wq_visit_no", 1);
+q5ConsentYesModel.setValue("wq_woman_available", 1);
+q5ConsentYesModel.setValue("wq_consent_study", 1);
+assert.deepEqual(
+  q5ConsentYesModel
+    .getQuestionByName("wq_result_interview")
+    .visibleChoices.map((choice) => choice.value),
+  [1, 2, 3, 4, 5, 6, 8, 7],
+  "Q5 consent yes must keep the full outcome option list"
+);
+
+const q17NeverMarriedModel = createWqModel();
+q17NeverMarriedModel.setValue("wq_interview_date", "2026-08-14");
+q17NeverMarriedModel.setValue("wq_visit_no", 1);
+q17NeverMarriedModel.setValue("wq_woman_available", 1);
+q17NeverMarriedModel.setValue("wq_consent_study", 1);
+q17NeverMarriedModel.setValue("wq_current_marital_status", 7);
+assert.equal(q17NeverMarriedModel.getPageByName("page_outcome").isVisible, true);
+assert.deepEqual(
+  q17NeverMarriedModel
+    .getQuestionByName("wq_result_interview")
+    .visibleChoices.map((choice) => choice.value),
+  [1],
+  "Q17 never married must show only the Completed outcome option"
+);
+
+const q17MarriedModel = createWqModel();
+q17MarriedModel.setValue("wq_interview_date", "2026-08-14");
+q17MarriedModel.setValue("wq_visit_no", 1);
+q17MarriedModel.setValue("wq_woman_available", 1);
+q17MarriedModel.setValue("wq_consent_study", 1);
+q17MarriedModel.setValue("wq_current_marital_status", 1);
+assert.deepEqual(
+  q17MarriedModel
+    .getQuestionByName("wq_result_interview")
+    .visibleChoices.map((choice) => choice.value),
+  [1, 2, 3, 4, 5, 6, 8, 7],
+  "Q17 married must keep the full outcome option list"
 );
 
 const wqOutcomeJson = wq.pages
