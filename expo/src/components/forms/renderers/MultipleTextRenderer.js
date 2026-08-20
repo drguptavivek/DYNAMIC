@@ -103,10 +103,10 @@ function MultipleTextItemInput({ item, itemValue, question, unknownSelected, onC
     <TextInput
       accessibilityLabel={`${question.name}.${item.name}`}
       value={textValue}
-      editable={!question.isReadOnly}
+      editable={!question.isReadOnly && !unknownSelected}
       keyboardType={item.inputType === "number" ? "numeric" : "default"}
       maxLength={item.maxLength > 0 ? item.maxLength : item.jsonObj?.maxLength}
-      placeholder={item.placeholder}
+      placeholder={unknownSelected ? "" : item.placeholder}
       onChangeText={(value) => {
         const sanitized = item.inputType === "number" ? value.replace(/[^0-9.-]/g, "") : value;
         setTextValue(sanitized);
@@ -123,15 +123,19 @@ function MultipleTextItemInput({ item, itemValue, question, unknownSelected, onC
         question.validate?.();
         onChange?.();
       }}
-      style={[controlStyles.input, question.isReadOnly && controlStyles.readOnly]}
+      style={[
+        controlStyles.input,
+        (question.isReadOnly || unknownSelected) && controlStyles.readOnly,
+        unknownSelected && styles.unknownSelectedInput,
+      ]}
     />
   );
 }
-
 const styles = StyleSheet.create({
   items: { gap: 10 },
   item: { gap: 5 },
   label: { color: "#344054", fontSize: 13, fontWeight: "700" },
   itemError: { color: "#d92d20", fontSize: 13, fontWeight: "700" },
   unknownOption: { marginTop: 4 },
+  unknownSelectedInput: { opacity: 0.5 },
 });

@@ -105,6 +105,9 @@ const WQ_NEVER_MARRIED_VALUE = 7;
 const WQ_OUTCOME_COMPLETED_VALUE = 1;
 const WQ_OUTCOME_REFUSED_CONSENT_VALUE = 8;
 const WQ_STOP_OUTCOME_BY_AVAILABILITY = { 2: 6, 3: 3, 4: 2 };
+const WQ_EVER_GIVEN_BIRTH_FIELD = "wq_02_reproduction_now_i_would_like_to_ask_about_all_the_birt";
+const WQ_EVER_GIVEN_BIRTH_NO = 2;
+const WQ_BORN_ALIVE_LATER_DIED_FIELD = "wq_02_reproduction_have_you_ever_given_birth_to_a_boy_or_girl";
 const WQ_STOP_MESSAGES = {
   2: "Interview stopped. Complete the outcome before final save.",
   3: "Visit postponed. Complete the outcome before final save.",
@@ -242,6 +245,7 @@ export function QuestionnaireDashboard({
   const memberSummaryConfirmedRef = useRef(false);
   const surveyRef = useRef(null);
   const answerSnapshotRef = useRef({});
+  const rendererRef = useRef(null);
 
   useEffect(() => {
     if (!showForm) {
@@ -488,6 +492,17 @@ export function QuestionnaireDashboard({
           requestAnimationFrame(() => {
             routeWqStopToOutcome(sender);
             updateSurveyStatus(sender);
+          });
+        }
+        if (
+          options.name === WQ_EVER_GIVEN_BIRTH_FIELD &&
+          Number(options.value) === WQ_EVER_GIVEN_BIRTH_NO
+        ) {
+          // Excel 02 row 4: Q1 "no" skips straight to Q6 (born alive but
+          // later died); the remaining living-children questions are hidden
+          // by their visibleIf rules.
+          requestAnimationFrame(() => {
+            rendererRef.current?.focusQuestion(WQ_BORN_ALIVE_LATER_DIED_FIELD);
           });
         }
         if (shouldRecalculateWqPregnancyTrackingEligibility(options.name)) {
@@ -918,6 +933,7 @@ export function QuestionnaireDashboard({
                   </View>
                 ) : survey ? (
                   <NativeSurveyRenderer
+                    ref={rendererRef}
                     answerData={activeRendererAnswerData}
                     compactPager={false}
                     locale={activeLocale}

@@ -1048,14 +1048,9 @@
               },
               "validators": [
                 {
-                  "type": "numeric",
-                  "minValue": 1,
-                  "maxValue": 12
-                },
-                {
                   "type": "regex",
-                  "regex": "^(0[1-9]|1[0-2])$",
-                  "text": "Enter month as 2 digits from 01 to 12."
+                  "regex": "^(0[1-9]|1[0-2]|98)$",
+                  "text": "Enter month as 2 digits from 01 to 12, or select don't know."
                 }
               ]
             },
@@ -1069,13 +1064,7 @@
               "unknownChoice": {
                 "value": 9998,
                 "text": {
-                  "default": "don't know year",
-                  "hi": "",
-                  "kn": "",
-                  "mr": "",
-                  "ta": "",
-                  "te": "",
-                  "ur": ""
+                  "default": "don't know year"
                 }
               },
               "validators": [
@@ -1084,8 +1073,8 @@
                 },
                 {
                   "type": "regex",
-                  "regex": "^\\d{4}$",
-                  "text": "Enter year as 4 digits."
+                  "regex": "^(\\d{4}|9998)$",
+                  "text": "Enter year as 4 digits, or select don't know."
                 }
               ]
             }
@@ -2202,8 +2191,7 @@
           "renderingHint": {
             "render_as": "radio"
           },
-          "visibleIf": "{wq_02_reproduction_now_i_would_like_to_ask_about_all_the_birt} = 1",
-          "visibleIfSourceResolved": "Excel 02 row 4: Q1 no skips to Q6."
+          "visibleIfSourceResolved": "Excel 02 row 4: Q1 no skips to Q6, so Q6 must stay visible for both Q1 answers."
         },
         {
           "type": "text",
@@ -2237,7 +2225,7 @@
               "type": "numeric"
             }
           ],
-          "visibleIf": "{wq_02_reproduction_now_i_would_like_to_ask_about_all_the_birt} = 1 and {wq_02_reproduction_have_you_ever_given_birth_to_a_boy_or_girl} = 1",
+          "visibleIf": "{wq_02_reproduction_have_you_ever_given_birth_to_a_boy_or_girl} = 1",
           "visibleIfSourceResolved": "Excel 02 row 14: Q6 no skips to Q8."
         },
         {
@@ -2272,7 +2260,7 @@
               "type": "numeric"
             }
           ],
-          "visibleIf": "{wq_02_reproduction_now_i_would_like_to_ask_about_all_the_birt} = 1 and {wq_02_reproduction_have_you_ever_given_birth_to_a_boy_or_girl} = 1",
+          "visibleIf": "{wq_02_reproduction_have_you_ever_given_birth_to_a_boy_or_girl} = 1",
           "visibleIfSourceResolved": "Excel 02 row 14: Q6 no skips to Q8."
         },
         {

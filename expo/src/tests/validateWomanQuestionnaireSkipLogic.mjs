@@ -210,6 +210,35 @@ assert.deepEqual(
   "Q17 never married must show only the Completed outcome option"
 );
 
+const section2Model = createWqModel();
+section2Model.setValue("wq_interview_date", "2026-08-14");
+section2Model.setValue("wq_visit_no", 1);
+section2Model.setValue("wq_woman_available", 1);
+section2Model.setValue("wq_consent_study", 1);
+section2Model.setValue("wq_current_marital_status", 1);
+section2Model.setValue("wq_02_reproduction_now_i_would_like_to_ask_about_all_the_birt", 1);
+assert.equal(isVisible(section2Model, "wq_02_reproduction_do_you_have_any_sons_or_daughters_to_whom"), true);
+assert.equal(isVisible(section2Model, "wq_02_reproduction_have_you_ever_given_birth_to_a_boy_or_girl"), true);
+
+section2Model.setValue("wq_02_reproduction_now_i_would_like_to_ask_about_all_the_birt", 2);
+assert.equal(
+  isVisible(section2Model, "wq_02_reproduction_do_you_have_any_sons_or_daughters_to_whom"),
+  false,
+  "Q1 no must hide the living-children chain"
+);
+assert.equal(
+  isVisible(section2Model, "wq_02_reproduction_have_you_ever_given_birth_to_a_boy_or_girl"),
+  true,
+  "Q1 no must keep Q6 reachable as the skip target"
+);
+assert.equal(
+  isVisible(section2Model, "wq_02_reproduction_how_many_boys_have_died"),
+  false,
+  "Q6-dependent counts must stay hidden while Q6 is unanswered"
+);
+section2Model.setValue("wq_02_reproduction_have_you_ever_given_birth_to_a_boy_or_girl", 1);
+assert.equal(isVisible(section2Model, "wq_02_reproduction_how_many_boys_have_died"), true);
+
 const q17MarriedModel = createWqModel();
 q17MarriedModel.setValue("wq_interview_date", "2026-08-14");
 q17MarriedModel.setValue("wq_visit_no", 1);
@@ -536,6 +565,27 @@ itemErrorModel.setValue("wq_01_respondent_s_backgr_in_what_month_and_year_were_y
   year: "1996",
 });
 assert.equal(itemErrorModel.nextPage(), true);
+
+// Don't-know sentinels (98 month / 9998 year) must validate cleanly so the
+// unknown radio never leaves the item blocked with a pattern error.
+const dobUnknownModel = createWqModel();
+dobUnknownModel.setValue("wq_interview_date", "2026-08-14");
+dobUnknownModel.setValue("wq_visit_no", 1);
+dobUnknownModel.setValue("wq_woman_available", 1);
+dobUnknownModel.setValue("wq_consent_study", 1);
+dobUnknownModel.setValue("wq_current_marital_status", 1);
+dobUnknownModel.setValue("wq_01_respondent_s_backgr_in_what_month_and_year_were_you_born", {
+  month: "98",
+  year: "9998",
+});
+assert.equal(dobUnknownModel.nextPage(), true);
+assert.equal(
+  hasNativeValidationProblem(
+    question(dobUnknownModel, "wq_01_respondent_s_backgr_in_what_month_and_year_were_you_born")
+  ),
+  false,
+  "don't know sentinels must pass item validation"
+);
 assert.equal(itemErrorModel.currentPage.name, "page_02_reproduction");
 
 console.log("Validated WQ Excel-derived skip logic.");

@@ -1,7 +1,7 @@
 /**
  * Renders the active Survey Core page using only native controls and explicit section navigation.
  */
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
@@ -14,7 +14,7 @@ import {
 import { NativeQuestionRenderer } from "./renderers/NativeQuestionRenderer.js";
 import { SectionNavigator } from "./SectionNavigator.js";
 
-export function NativeSurveyRenderer({
+export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
   model,
   answerData,
   locale,
@@ -27,7 +27,7 @@ export function NativeSurveyRenderer({
   sections = [],
   onSectionSelect,
   compactPager = false,
-}) {
+}, ref) {
   const { width } = useWindowDimensions();
   const compact = Platform.OS !== "web" || width < 700;
   const [revision, setRevision] = useState(0);
@@ -139,6 +139,21 @@ export function NativeSurveyRenderer({
     compactScrollRef.current?.scrollTo?.({ animated: false, y: 0 });
     desktopScrollRef.current?.scrollTo?.({ animated: false, y: 0 });
   }
+
+  // Lets the dashboard drive in-page navigation (for example the WQ Section 2
+  // Q1 "no" skip straight to Q6) on top of the internal question pager.
+  useImperativeHandle(
+    ref,
+    () => ({
+      focusQuestion(name) {
+        const target = visibleQuestions.find((item) => item.name === name);
+        if (!target) return false;
+        scrollToQuestion(target);
+        return true;
+      },
+    }),
+    [visibleQuestions, scrollToQuestion, useCompactPager],
+  );
 
   function canMoveToPreviousQuestion() {
     return useCompactPager && activeQuestionIndex > 0;
@@ -304,7 +319,7 @@ export function NativeSurveyRenderer({
       </View>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   wrap: { flex: 1, gap: 10 },
