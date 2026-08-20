@@ -55,6 +55,8 @@ Do not create new active policy docs under `docs/superpowers/`. If a Superpower 
 - Main entry points: `make db-reset-full`, `make db-push`, `make db-status`, `make db-smoke`.
 - `make db-migrate` is legacy only.
 - Dev credentials after seed: `dev-field-worker` / `dev-password`; `dev-central-admin` / `dev-admin-password`.
+- NEVER run destructive operations (DB/volume resets like `db-reset-full` or `docker compose down -v`, table truncates, deletes) without asking the user first and getting explicit confirmation. The dev DB can hold user-created data that is not re-creatable from the seed; repo reset conventions never override this rule.
+- NEVER `git commit` or `git push` without the user's explicit permission in the current session. Leave all changes uncommitted in the working tree unless the user asks for a commit.
 
 ## Verification
 

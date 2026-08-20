@@ -1,3 +1,34 @@
+## 2026-08-20 (post-reset login and local-data fixes) [working]
+Goal: Fix stale site-2 data on mobile after DB reset, logout/login device wipes, and admin panel login failures.
+Decisions:
+- Root cause (mobile): login never cleared local study tables, so pre-reset rows (site 2) persisted across logins; localities/dashboard read local SQLite. `authStore.login/loginWithQrPayload` now run `clearLocalDeviceData()` after device registration; `restoreSession` wipes and returns null on definitive 401/403 (network errors keep the offline session). Logout wipe list now also clears `study_sites`/`study_villages`. Web sqlite shim gained `resetWebDatabase()` because its in-memory state wrote stale rows back after key removal.
+- Re-login + Sync restores server-backed-up drafts (GET /sync/drafts merge, "drafts restored" in sync summary); logout never calls the server, satisfying the user's rule that only device data is deleted.
+- Root cause (admin): stored token restored without validation and no 401 handling. `auth-context.tsx` validates the token against /users/me at boot (401/403 -> clear session); `api.ts` clears session and returns to /login on any 401 except /auth/* paths. Admin API only works via edge 58080; Vite 5317 has no /api proxy.
+- "Invalid username or password" cause: dev-field-worker (05:08) and dev-central-admin (05:10) password hashes were rewritten via PATCH /users by a session holding a pre-reset access token (stateless JWTs stay valid across DB resets because JWT_SECRET is unchanged). Documented dev credentials restored by re-running the seed; logins verified 200 and through the admin UI.
+- Questionnaire definitions are bundled repo files (formCatalog reads from disk), untouched by the DB reset; all 32 code tables match the DB 1:1 (drizzle push shows only cosmetic constraint-name churn).
+- Verified end to end on Expo web: planted stale site-2 rows are gone after login; Sync pulls only server scope (locality 01 Sunped, 1 HHQ task, 11 questionnaires); admin browser flow (stale token -> login page, wrong creds inline error, dev-central-admin -> dashboard) all pass. Validators: validateLocalDeviceDataReset, validateWebSqliteTaskStorage green; admin typecheck clean.
+Open:
+- User rules now in AGENTS.md: ask before any destructive operation; never commit or push without explicit permission.
+- Release APK rebuilt and installed on phone (55102a94): Windows 260-char path limit broke the native CMake build, fixed by `subst X:` -> repo root and building from `X:/expo/android` (keep using X: for future gradle builds). `EXPO_PUBLIC_API_BASE_URL=http://192.168.1.81:3310/api/v1` verified inside the release bundle; phone reaches the API over Wi-Fi; app launches clean.
+- HHQ Q2 residence-area auto-select (user request): admin locality_type now flows through /sync/pull (households enriched from study_localities), device households table stores it (CREATE + guarded ALTER + sync upsert + getHousehold), and buildHhqPrefill maps urban->1 / rural->2 into hhq_residence_area_type from the local DB (works offline; drafts unaffected via mergePrefillIntoBlankValues; answer stays editable). Verified live: pull returns locality_type "urban"; validators extended (readOnlyFields, householdRepository wiring, smoke pin); API typecheck clean. APK rebuilt and installed on phone.
+- dev-field-worker password: user changed it themselves via admin (06:17); left untouched. Note: running db-smoke/dev-seed would reset it back to dev-password (seed upserts the documented password).
+- DB reset self-healing (user request): API startup now runs `ensureDatabaseReady` (apps/api/src/lib/dbEnsure.ts, dev runs only) — if core tables are missing it recreates the full schema via drizzle-kit push and, when users is empty, re-runs the dev seed, then serves normally. Proven on a throwaway database: boot against empty DB -> 32 tables + 5 users + seed + login 200, all automatic; existing DBs are a silent no-op. Note: a wiped DB comes back with documented dev passwords (a user-changed dev-field-worker password would be reset to dev-password by the auto-seed).
+- Phone needs a rebuilt/reloaded app bundle to get the wipe fixes; after update, log out once (or just log in) and Sync to clear old site-2 local data.
+- Uncommitted (deliberately, per user rule): apps/api/package.json, package-lock.json, apps/api/src/dev/dev-seed.ts, expo authStore/localDeviceDataReset/web-shim + validator, admin api.ts/auth-context.tsx, AGENTS.md, session-log.md.
+
+## 2026-08-20 (Windows dev stack start) [working]
+Goal: Start the full dev stack on this Windows host, which has no `make`.
+Decisions:
+- Replicated Makefile targets directly: db-up (postgres 55432, redis), db-push, db-seed, edge (nginx 58080), then backend (3310), admin Vite (5317), and Expo web (8088) as supervised processes launched via `cmd.exe /c npm ...` (PTY cannot exec the extensionless npm shim).
+- Redis host port moved 56379 -> 56279: Windows excludes 56342-56441 (WinNAT ranges shift per reboot). `DYNAMIC_REDIS_PORT=56279` must be passed on every `docker compose up`; backend does not read Redis in dev (in-memory fallback).
+- `db-reset-full` (volume wipe) used because drizzle push hit an interactive truncate prompt against stale volume data; fresh push+seed is clean.
+- drizzle-kit bumped `^0.22.7` -> `^0.31.5` in apps/api: 0.22.8 hard-exits against drizzle-orm 0.45.2 (compat 10), so `make db-push` was broken on this lockfile for everyone.
+- `dev-seed.ts` now upserts `field_worker_household_assignments` (dev-field-worker, household 1-01-0001-01, assigned by dev-central-admin): without a row, field-worker household/task scope resolves to `false` and `/sync/pull` returns zero tasks, failing db-smoke.
+- Verified: db-smoke green (login, 11 forms, 1 pulled task, push accepted=0), edge `/health` + admin title OK, Expo 8088 returns 200, `npm --workspace @dynamic/api run typecheck` clean.
+Open:
+- Rule set by user after the reset destroyed their unsaved data: always ask before any destructive operation (DB/volume reset, truncate, delete); now codified in AGENTS.md Dev Database section.
+- Uncommitted: apps/api/package.json, package-lock.json, apps/api/src/dev/dev-seed.ts (drizzle-kit bump + seed fix).
+
 ## 2026-08-19 (draft sync blocker) [working]
 Goal: Stop device sync from aborting with "Draft sync rejected" and unblock form refreshes.
 Decisions:
