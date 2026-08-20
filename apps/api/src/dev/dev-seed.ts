@@ -564,6 +564,27 @@ export async function upsertDevSeed() {
         active_to: null,
       },
     });
+  await db
+    .insert(schema.fieldWorkerHouseholdAssignments)
+    .values({
+      assignment_id: "dev-field-worker-hh-1-01-0001-01",
+      household_id: "1-01-0001-01",
+      user_id: smokeUser.user_id,
+      assigned_by_user_id: adminUser.user_id,
+      assigned_at: now,
+      updated_at: now,
+    })
+    .onConflictDoUpdate({
+      target: [
+        schema.fieldWorkerHouseholdAssignments.household_id,
+        schema.fieldWorkerHouseholdAssignments.user_id,
+      ],
+      set: {
+        assigned_by_user_id: adminUser.user_id,
+        updated_at: now,
+      },
+    });
+
 
   await db
     .insert(schema.followUpTasks)
