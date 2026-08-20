@@ -42,6 +42,16 @@ export function buildHhqPrefill(household, today = new Date()) {
     hhq_household_address: household.address || "",
   });
 
+  // Auto-select the residence area type from the locality's admin-managed
+  // master data (synced onto the device with the household, so this also
+  // works fully offline). Field workers may still correct the answer.
+  const localityType = String(household.locality_type || "").trim().toLowerCase();
+  if (localityType === "urban") {
+    prefill.hhq_residence_area_type = 1;
+  } else if (localityType === "rural") {
+    prefill.hhq_residence_area_type = 2;
+  }
+
   const readOnlyFields = ["hhq_site_id", "hhq_locality_code"];
 
   return { prefill, readOnlyFields };

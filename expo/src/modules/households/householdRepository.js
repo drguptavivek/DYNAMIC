@@ -368,6 +368,7 @@ async function initializeSqlite(db) {
       site_id INTEGER,
       locality_code TEXT,
       locality_name TEXT,
+      locality_type TEXT,
       structure_number TEXT,
       household_number TEXT,
       address TEXT,
@@ -424,6 +425,11 @@ async function initializeSqlite(db) {
     CREATE INDEX IF NOT EXISTS idx_household_members_name
       ON household_members(member_name);
   `);
+  try {
+    await db.execAsync("ALTER TABLE households ADD COLUMN locality_type TEXT");
+  } catch {
+    // Column already exists on databases created after the locality-type sync.
+  }
   for (const site of STUDY_SITES) {
     await db.runAsync(
       `INSERT INTO study_sites (site_id, site_code, site_name)
@@ -617,7 +623,7 @@ export async function getHousehold(householdId) {
   if (db) {
     await initializeSqlite(db);
     return db.getFirstAsync(
-      `SELECT household_id, site_id, locality_code, locality_name,
+      `SELECT household_id, site_id, locality_code, locality_name, locality_type,
               structure_number, household_number, address,
               household_head_name, consent_status, interview_date,
               result_interview, language_questionnaire, mobile_number,
@@ -782,6 +788,7 @@ export async function saveSyncedHouseholdsAndMembers(households = [], members = 
     site_id: household.site_id,
     locality_code: household.locality_code,
     locality_name: household.locality_name || household.locality_code,
+    locality_type: household.locality_type || null,
     structure_number: household.structure_map_id,
     household_number: household.household_number,
     address: household.address,
@@ -819,15 +826,16 @@ export async function saveSyncedHouseholdsAndMembers(households = [], members = 
     for (const household of mappedHouseholds) {
       await db.runAsync(
         `INSERT INTO households (
-           household_id, site_id, locality_code, locality_name, structure_number,
-           household_number, address, household_head_name, consent_status,
-           interview_date, result_interview, language_questionnaire, mobile_number,
-           sync_status, updated_at
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           household_id, site_id, locality_code, locality_name, locality_type,
+           structure_number, household_number, address, household_head_name,
+           consent_status, interview_date, result_interview, language_questionnaire,
+           mobile_number, sync_status, updated_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(household_id) DO UPDATE SET
            site_id = excluded.site_id,
            locality_code = excluded.locality_code,
            locality_name = excluded.locality_name,
+           locality_type = excluded.locality_type,
            structure_number = excluded.structure_number,
            household_number = excluded.household_number,
            address = excluded.address,
@@ -844,6 +852,7 @@ export async function saveSyncedHouseholdsAndMembers(households = [], members = 
           household.site_id,
           household.locality_code,
           household.locality_name,
+          household.locality_type,
           household.structure_number,
           household.household_number,
           household.address,

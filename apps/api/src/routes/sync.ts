@@ -495,7 +495,42 @@ router.get(
       .limit(pageSize + 1)
       .offset(offset);
 
-    const householdsResult = householdsData.slice(0, pageSize);
+    // Enrich pulled households with the admin-managed locality type (urban or
+    // rural) so devices can preselect residence-area answers from master data.
+    const localityPairs = [
+      ...new Set(
+        householdsData.map((household) => `${household.site_id}|${household.locality_code}`),
+      ),
+    ];
+    const localityTypeByKey = new Map<string, string | null>();
+    if (localityPairs.length > 0) {
+      const localityRows = await db
+        .select({
+          site_id: schema.studyLocalities.site_id,
+          locality_code: schema.studyLocalities.locality_code,
+          locality_type: schema.studyLocalities.locality_type,
+        })
+        .from(schema.studyLocalities)
+        .where(
+          or(
+            ...localityPairs.map((pair) => {
+              const separator = pair.indexOf("|");
+              return and(
+                eq(schema.studyLocalities.site_id, Number(pair.slice(0, separator))),
+                eq(schema.studyLocalities.locality_code, pair.slice(separator + 1)),
+              )!;
+            }),
+          ),
+        );
+      for (const row of localityRows) {
+        localityTypeByKey.set(`${row.site_id}|${row.locality_code}`, row.locality_type ?? null);
+      }
+    }
+    const householdsResult = householdsData.slice(0, pageSize).map((household) => ({
+      ...household,
+      locality_type:
+        localityTypeByKey.get(`${household.site_id}|${household.locality_code}`) ?? null,
+    }));
     const hasMoreHouseholds = householdsData.length > pageSize;
 
     // Query household members only when requested. Large offline sync pulls

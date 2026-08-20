@@ -44,6 +44,28 @@ assert.doesNotMatch(offlineDatabaseNativeSource, /require\("expo-sqlite"\)/);
 assert.match(offlineDatabaseNativeSource, /SQLite\.openDatabaseSync\(DATABASE_NAME\)/);
 assert.match(offlineDatabaseWebSource, /expo-sqlite\.web\.js/);
 assert.doesNotMatch(offlineDatabaseWebSource, /expo-sqlite";/);
+assert.match(
+  householdRepositorySource,
+  /CREATE TABLE IF NOT EXISTS households[\s\S]*?locality_type TEXT/,
+  "local households table must store the admin-managed locality type",
+);
+assert.match(
+  householdRepositorySource,
+  /ALTER TABLE households ADD COLUMN locality_type TEXT/,
+  "existing device databases must be migrated to carry locality_type",
+);
+assert.match(
+  householdRepositorySource,
+  /INSERT INTO households \(\s*household_id, site_id, locality_code, locality_name, locality_type,/,
+  "synced household upserts must persist locality_type",
+);
+assert.match(householdRepositorySource, /locality_type = excluded\.locality_type/);
+assert.match(householdRepositorySource, /locality_type: household\.locality_type \|\| null/);
+assert.match(
+  householdRepositorySource,
+  /SELECT household_id, site_id, locality_code, locality_name, locality_type,/,
+  "getHousehold must expose locality_type for the HHQ prefill",
+);
 
 const {
   extractHouseholdRegistryFields,

@@ -61,6 +61,10 @@ async function runSmoke() {
   if (!Array.isArray(pull.tasks) || pull.tasks.length === 0) {
     throw new Error("/sync/pull did not return seeded task");
   }
+  const seededHousehold = Array.isArray(pull.households) ? pull.households[0] : undefined;
+  if (seededHousehold?.locality_type !== "urban") {
+    throw new Error("/sync/pull did not return locality_type for the seeded household");
+  }
   if (!Array.isArray(pull.form_versions) || !pull.form_versions[0]?.checksum) {
     throw new Error("/sync/pull did not return checksum-bearing form_versions");
   }

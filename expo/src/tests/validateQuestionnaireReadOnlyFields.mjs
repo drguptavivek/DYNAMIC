@@ -109,6 +109,31 @@ assert.deepEqual(hhqContextPrefill.prefill, {
 });
 assert.deepEqual(hhqContextPrefill.readOnlyFields, ["hhq_site_id", "hhq_locality_code"]);
 
+const urbanPrefill = buildHhqPrefill({
+  site_id: 1,
+  locality_code: "01",
+  locality_type: "urban",
+});
+assert.equal(urbanPrefill.prefill.hhq_residence_area_type, 1, "urban locality should preselect HHQ residence area type 1");
+
+const ruralPrefill = buildHhqPrefill({
+  site_id: 1,
+  locality_code: "01",
+  locality_type: "Rural",
+});
+assert.equal(ruralPrefill.prefill.hhq_residence_area_type, 2, "rural locality should preselect HHQ residence area type 2");
+
+const unknownTypePrefill = buildHhqPrefill({
+  site_id: 1,
+  locality_code: "01",
+  locality_type: null,
+});
+assert.equal(
+  unknownTypePrefill.prefill.hhq_residence_area_type,
+  undefined,
+  "unknown locality type must leave the residence area question unanswered"
+);
+
 const hhqDateOnlyPrefill = buildHhqPrefill(null, new Date("2026-08-05T10:00:00"));
 assert.deepEqual(hhqDateOnlyPrefill.prefill, {
   hhq_interview_date: "2026-08-05",
