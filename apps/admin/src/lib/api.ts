@@ -4,6 +4,20 @@ function getToken(): string | null {
   return localStorage.getItem("access_token");
 }
 
+/**
+ * Clears the stored admin session and returns to the login page when the API
+ * rejects the access token (401). Login requests themselves are excluded so a
+ * wrong password still renders the inline error instead of reloading the page.
+ */
+function handleRejectedSession(path: string, res: Response) {
+  if (res.status !== 401 || path.startsWith("/auth/")) return;
+  localStorage.removeItem("access_token");
+  localStorage.removeItem("user");
+  if (window.location.pathname !== "/login") {
+    window.location.assign("/login");
+  }
+}
+
 type ApiErrorIssue = {
   path?: Array<string | number>;
   message?: string;
@@ -45,6 +59,7 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
       ...options.headers,
     },
   });
+  handleRejectedSession(path, res);
 
   const json = await res.json();
   if (!res.ok) throw new Error(formatApiError(json, `HTTP ${res.status}`));
@@ -61,11 +76,11 @@ export async function apiFetchPage<T>(
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
   });
+  handleRejectedSession(path, res);
   const json = await res.json();
   if (!res.ok) throw new Error(formatApiError(json, `HTTP ${res.status}`));
   return { data: json.data as T, meta: json.meta };
 }
-
 export async function apiUpload<T>(path: string, formData: FormData): Promise<T> {
   const token = getToken();
   const res = await fetch(`${BASE}${path}`, {
@@ -75,6 +90,7 @@ export async function apiUpload<T>(path: string, formData: FormData): Promise<T>
     },
     body: formData,
   });
+  handleRejectedSession(path, res);
 
   const json = await res.json();
   if (!res.ok) throw new Error(formatApiError(json, `HTTP ${res.status}`));
@@ -88,6 +104,7 @@ export async function apiDownload(path: string): Promise<Blob> {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
   });
+  handleRejectedSession(path, res);
 
   if (!res.ok) {
     const json = await res.json().catch(() => undefined);

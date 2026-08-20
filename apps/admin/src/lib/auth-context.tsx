@@ -32,12 +32,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem("access_token");
-    const userData = localStorage.getItem("user");
-    if (token && userData) {
-      setUser(JSON.parse(userData));
+    let cancelled = false;
+    async function restoreSession() {
+      const token = localStorage.getItem("access_token");
+      const userData = localStorage.getItem("user");
+      if (token && userData) {
+        setUser(JSON.parse(userData));
+      }
+      // A stored token is not proof of a live session (it may be expired or the
+      // server may have been reset). Validate it once against the API so a dead
+      // session lands on the login page instead of a console full of 401s.
+      if (token) {
+        try {
+          const res = await fetch(
+            `${import.meta.env.VITE_API_BASE_URL ?? "/api/v1"}/users/me`,
+            { headers: { Authorization: `Bearer ${token}` } },
+          );
+          if (res.status === 401 || res.status === 403) {
+            localStorage.removeItem("access_token");
+            localStorage.removeItem("user");
+            if (!cancelled) setUser(null);
+          }
+        } catch {
+          // Offline or server unreachable: keep the cached session.
+        }
+      }
+      if (!cancelled) setLoading(false);
     }
-    setLoading(false);
+    restoreSession();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   async function login(username: string, password: string) {
