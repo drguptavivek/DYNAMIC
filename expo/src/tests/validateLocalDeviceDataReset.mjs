@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 
 import {
@@ -37,10 +38,29 @@ for (const table of [
   "form_submissions",
   "household_members",
   "households",
+  "study_sites",
+  "study_villages",
   "sync_meta",
 ]) {
   assert.ok(nativeTablesToClear.includes(table), `logout should clear native table ${table}`);
 }
+
+const authStoreSource = readFileSync(
+  new URL("../modules/auth/authStore.js", import.meta.url),
+  "utf8",
+);
+const loginWipes = authStoreSource.match(
+  /await clearLocalDeviceData\(\);/g,
+) || [];
+assert.ok(
+  loginWipes.length >= 3,
+  "login, QR login, and rejected session restore must all wipe local device data",
+);
+assert.match(
+  authStoreSource,
+  /response\.status === 401 \|\| response\.status === 403/,
+  "restoreSession must treat rejected tokens as a forced logout",
+);
 
 for (const key of webStorageKeys) {
   window.localStorage.setItem(key, "cached");

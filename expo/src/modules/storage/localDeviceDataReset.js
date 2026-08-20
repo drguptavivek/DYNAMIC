@@ -24,11 +24,24 @@ const NATIVE_TABLES_TO_CLEAR = [
   "form_submissions",
   "household_members",
   "households",
+  "study_sites",
+  "study_villages",
   "sync_meta",
 ];
 
-function clearWebLocalStorage() {
+async function clearWebLocalStorage() {
   if (typeof window === "undefined" || !window.localStorage) return;
+  // The web SQLite shim keeps its tables in memory after the first load; reset
+  // that state too, or the next persist() writes the stale rows back after the
+  // storage keys are removed.
+  try {
+    const webSqlite = await import("../../shims/expo-sqlite.web.js");
+    if (typeof webSqlite.resetWebDatabase === "function") {
+      webSqlite.resetWebDatabase();
+    }
+  } catch (error) {
+    console.warn("Could not reset web sqlite state:", error);
+  }
   for (const key of WEB_STORAGE_KEYS) {
     window.localStorage.removeItem(key);
   }
@@ -50,7 +63,7 @@ async function clearNativeSqlite() {
 
 export async function clearLocalDeviceData() {
   if (typeof window !== "undefined" && window.localStorage) {
-    clearWebLocalStorage();
+    await clearWebLocalStorage();
     return;
   }
 

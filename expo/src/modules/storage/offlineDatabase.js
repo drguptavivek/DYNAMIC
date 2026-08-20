@@ -14,8 +14,11 @@ function getSQLiteModule() {
     return WebSQLite;
   }
 
-  const nativeRequire = eval("require");
-  return nativeRequire("expo-sqlite");
+  // Metro resolves this require statically at bundle time. It must stay a
+  // plain require (not eval("require"), which breaks release bundles because
+  // require is module-scoped, not a global) and must only execute on native
+  // runtimes; the web branch above returns the shim first.
+  return require("expo-sqlite");
 }
 
 export function getOfflineDatabase() {

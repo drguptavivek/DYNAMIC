@@ -131,6 +131,10 @@ export async function login(username, password) {
 
     const fetchedUser = await fetchCurrentUser(access_token, user);
     const { deviceId } = await registerCurrentDevice(access_token, fetchedUser);
+    // A fresh login starts from a clean device: drop all locally stored study
+    // data and the previous session so only the new user's server-synced scope
+    // remains after the first sync.
+    await clearLocalDeviceData();
     resetSyncedCacheForLogin();
     setMeta("access_token", access_token);
     setMeta("refresh_token", refresh_token || "");
@@ -161,6 +165,10 @@ export async function loginWithQrPayload(qrPayload) {
 
     const fetchedUser = await fetchCurrentUser(access_token, user);
     const { deviceId } = await registerCurrentDevice(access_token, fetchedUser);
+    // A fresh login starts from a clean device: drop all locally stored study
+    // data and the previous session so only the new user's server-synced scope
+    // remains after the first sync.
+    await clearLocalDeviceData();
     resetSyncedCacheForLogin();
     setMeta("access_token", access_token);
     setMeta("refresh_token", refresh_token || "");
@@ -258,11 +266,42 @@ export async function restoreSession() {
     return null;
   }
 
-  const freshUser = await fetchCurrentUser(getToken(), restoredUser);
-  if (freshUser) {
-    storeUser({ ...freshUser, device_id: restoredUser?.device_id || getOrCreateDeviceId() });
+  try {
+    const response = await fetch(`${API_BASE_URL}/users/me`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${getToken()}`,
+        "Content-Type": "application/json",
+      },
+    });
+    if (response.status === 401 || response.status === 403) {
+      // The server definitively rejected the stored session (expired, revoked,
+      // or the server database was reset). Treat it as a forced logout and wipe
+      // all local study data so a later login cannot mix stale rows into the
+      // new user's synced scope.
+      await clearLocalDeviceData();
+      currentUser = null;
+      return null;
+    }
+    if (response.ok) {
+      const freshUser = unwrapApiData(await response.json());
+      const restored = {
+        ...freshUser,
+        device_id: restoredUser?.device_id || getOrCreateDeviceId(),
+      };
+      storeUser(restored);
+      return restored;
+    }
+    // Other server statuses (for example 5xx): keep the cached session so the
+    // app remains usable offline.
+  } catch (error) {
+    // Offline: keep the cached session.
+    console.error("Session restore check failed:", error);
   }
-  return freshUser ? { ...freshUser, device_id: restoredUser?.device_id || getOrCreateDeviceId() } : freshUser;
+  if (restoredUser) {
+    storeUser(restoredUser);
+  }
+  return restoredUser;
 }
 
 export function isAuthenticated() {

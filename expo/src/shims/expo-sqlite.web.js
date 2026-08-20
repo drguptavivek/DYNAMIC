@@ -374,3 +374,13 @@ export function openDatabaseSync() {
 export async function openDatabaseAsync() {
   return db;
 }
+
+/**
+ * Drops the in-memory tables and re-persists an empty state. Local device data
+ * resets call this so a later persist() cannot resurrect stale rows that were
+ * loaded into memory before the reset.
+ */
+export function resetWebDatabase() {
+  db.state = defaultState();
+  db.persist();
+}
