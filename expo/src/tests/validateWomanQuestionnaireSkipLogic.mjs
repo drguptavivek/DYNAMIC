@@ -1130,4 +1130,34 @@ assert.equal(
 );
 assert.equal(itemErrorModel.currentPage.name, "page_02_reproduction");
 
+// Section 6 biomarker entry formats (user spec):
+// Q1 height 3 digits cm, Q2 weight 3 digits + . + 2 digits kg,
+// Q3 blood pressure 3/3 digits, Q4 hemoglobin 2 digits.
+const biomarkerModel = createWqModel();
+const biomarkerFormat = [
+  ["wq_height_measured_site_cm", "165", "16"],
+  ["wq_weight_measured_site_kg", "121.45", "121.4"],
+  ["wq_hemoglobin_measured_site", "01", "1"],
+];
+for (const [fieldName, validValue, invalidValue] of biomarkerFormat) {
+  const item = question(biomarkerModel, fieldName);
+  assert.equal(item.renderAs, "numeric_textbox", `WQ Section 6 ${fieldName} must use the string-preserving numeric entry`);
+  item.value = validValue;
+  assert.equal(item.validate() !== false && !item.errors.length, true, `WQ Section 6 ${fieldName} must accept ${validValue}`);
+  item.value = invalidValue;
+  assert.equal(item.validate() !== false && !item.errors.length, false, `WQ Section 6 ${fieldName} must reject ${invalidValue}`);
+  item.value = undefined;
+}
+const bloodPressure = question(biomarkerModel, "wq_blood_pressure_measured_site");
+assert.equal(bloodPressure.getType(), "multipletext", "WQ Section 6 Q3 must be a systolic/diastolic compound entry");
+assert.deepEqual(
+  bloodPressure.items.map((item) => item.name),
+  ["systolic", "diastolic"]
+);
+bloodPressure.value = { systolic: "095", diastolic: "085" };
+assert.equal(bloodPressure.validate() !== false && !bloodPressure.errors.length, true, "WQ Section 6 Q3 must accept 3/3 digits");
+bloodPressure.value = { systolic: "95", diastolic: "085" };
+assert.equal(bloodPressure.validate() !== false && !bloodPressure.errors.length, false, "WQ Section 6 Q3 must reject short entries");
+bloodPressure.value = undefined;
+
 console.log("Validated WQ Excel-derived skip logic.");

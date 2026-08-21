@@ -10117,10 +10117,26 @@
             "te": "",
             "ur": ""
           },
-          "inputType": "number",
+          "renderingHint": {
+            "render_as": "numeric_textbox"
+          },
+          "maxLength": 3,
           "validators": [
             {
               "type": "numeric"
+            },
+            {
+              "type": "regex",
+              "regex": "^\\d{3}$",
+              "text": {
+                "default": "Enter height as exactly 3 digits in cm (for example 165).",
+                "hi": "",
+                "kn": "",
+                "mr": "",
+                "ta": "",
+                "te": "",
+                "ur": ""
+              }
             }
           ]
         },
@@ -10150,15 +10166,31 @@
             "te": "",
             "ur": ""
           },
-          "inputType": "number",
+          "renderingHint": {
+            "render_as": "numeric_textbox"
+          },
+          "maxLength": 6,
           "validators": [
             {
               "type": "numeric"
+            },
+            {
+              "type": "regex",
+              "regex": "^\\d{3}\\.\\d{2}$",
+              "text": {
+                "default": "Enter weight as 3 digits, a decimal point, then 2 digits in kg (for example 121.45).",
+                "hi": "",
+                "kn": "",
+                "mr": "",
+                "ta": "",
+                "te": "",
+                "ur": ""
+              }
             }
           ]
         },
         {
-          "type": "text",
+          "type": "multipletext",
           "name": "wq_blood_pressure_measured_site",
           "title": {
             "default": "Blood pressure - measured on site",
@@ -10172,7 +10204,7 @@
           "order": 165,
           "section_order": 6,
           "sourceCode": "3",
-          "sourceType": "date",
+          "sourceType": "multiple_numeric",
           "rawText": "Blood pressure - measured on site |_|_|_|/|_|_|_| [Bareilly and Belagavi only]",
           "description": {
             "default": "[Bareilly and Belagavi only]",
@@ -10183,10 +10215,68 @@
             "te": "",
             "ur": ""
           },
-          "inputType": "date",
-          "renderingHint": {
-            "render_as": "date_picker"
-          },
+          "items": [
+            {
+              "name": "systolic",
+              "title": {
+                "default": "Systolic",
+                "hi": "",
+                "kn": "",
+                "mr": "",
+                "ta": "",
+                "te": "",
+                "ur": ""
+              },
+              "inputType": "number",
+              "maxLength": 3,
+              "preserveString": true,
+              "validators": [
+                {
+                  "type": "regex",
+                  "regex": "^\\d{3}$",
+                  "text": {
+                    "default": "Enter systolic as exactly 3 digits (for example 123).",
+                    "hi": "",
+                    "kn": "",
+                    "mr": "",
+                    "ta": "",
+                    "te": "",
+                    "ur": ""
+                  }
+                }
+              ]
+            },
+            {
+              "name": "diastolic",
+              "title": {
+                "default": "Diastolic",
+                "hi": "",
+                "kn": "",
+                "mr": "",
+                "ta": "",
+                "te": "",
+                "ur": ""
+              },
+              "inputType": "number",
+              "maxLength": 3,
+              "preserveString": true,
+              "validators": [
+                {
+                  "type": "regex",
+                  "regex": "^\\d{3}$",
+                  "text": {
+                    "default": "Enter diastolic as exactly 3 digits (for example 123).",
+                    "hi": "",
+                    "kn": "",
+                    "mr": "",
+                    "ta": "",
+                    "te": "",
+                    "ur": ""
+                  }
+                }
+              ]
+            }
+          ],
           "validationRulesSource": [
             "[Bareilly and Belagavi only]"
           ],
@@ -10218,10 +10308,26 @@
             "te": "",
             "ur": ""
           },
-          "inputType": "number",
+          "renderingHint": {
+            "render_as": "numeric_textbox"
+          },
+          "maxLength": 2,
           "validators": [
             {
               "type": "numeric"
+            },
+            {
+              "type": "regex",
+              "regex": "^\\d{2}$",
+              "text": {
+                "default": "Enter hemoglobin as exactly 2 digits (for example 01 or 25).",
+                "hi": "",
+                "kn": "",
+                "mr": "",
+                "ta": "",
+                "te": "",
+                "ur": ""
+              }
             }
           ],
           "validationRulesSource": [
