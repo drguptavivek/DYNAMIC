@@ -19,6 +19,7 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 ## Unreleased
 
 - Fixed WQ Section 4 Q13 and Q14 so husband alcohol days/drinks provide a two-digit numeric entry while preserving Excel special codes `00` and `95`.
+- Fixed WQ Section 4 Q1 option 2 skip routing so it now starts at Q6 instead of jumping to Q15.
 - Fixed WQ Section 4 Q2, Q7, and Q9 so husband age, cigarette count, and bidi count accept exactly two digits and preserve leading zeroes.
 - Fixed WQ Section 4 Q5 so the husband occupation text changes from "What is..." for currently married to "What was..." for formerly married while keeping the same editable text answer field.
 - Fixed WQ Q38 pregnancy-status-tracking eligibility so hidden/skipped Q34 no longer blocks Section 3; Q34 is required only when the Q33b/Q33c skip path actually asks the hysterectomy question.

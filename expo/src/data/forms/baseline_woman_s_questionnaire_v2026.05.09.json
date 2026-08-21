@@ -6190,8 +6190,8 @@
           "renderingHint": {
             "render_as": "radio"
           },
-          "visibleIf": "{wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 1",
-          "visibleIfSourceResolved": "Excel 04: ask only if Q1 = 1 currently married."
+          "visibleIf": "({wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 1 or {wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 2)",
+          "visibleIfSourceResolved": "Excel 04: Q1 option 2 skips to Q6; ask Q6 when Q1 = 1 or 2."
         },
         {
           "type": "text",
@@ -6236,7 +6236,7 @@
           "renderingHint": {
             "render_as": "numeric_textbox"
           },
-          "visibleIf": "{wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 1 and {wq_04_husband_s_backgroun_now_i_would_like_to_ask_you_some_questions} = 1",
+          "visibleIf": "({wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 1 or {wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 2) and {wq_04_husband_s_backgroun_now_i_would_like_to_ask_you_some_questions} = 1",
           "visibleIfSourceResolved": "Excel 04: ask cigarette count only for currently married and Q6 = Every day."
         },
         {
@@ -6297,7 +6297,7 @@
           "renderingHint": {
             "render_as": "radio"
           },
-          "visibleIf": "{wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 1",
+          "visibleIf": "({wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 1 or {wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 2)",
           "visibleIfSourceResolved": "Excel 04: ask only if Q1 = 1 currently married."
         },
         {
@@ -6343,7 +6343,7 @@
           "renderingHint": {
             "render_as": "numeric_textbox"
           },
-          "visibleIf": "{wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 1 and {wq_04_husband_s_backgroun_does_your_husband_partner_currently_smoke} = 1",
+          "visibleIf": "({wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 1 or {wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 2) and {wq_04_husband_s_backgroun_does_your_husband_partner_currently_smoke} = 1",
           "visibleIfSourceResolved": "Excel 04: ask bidi count only for currently married and Q8 = Every day."
         },
         {
@@ -6404,7 +6404,7 @@
           "renderingHint": {
             "render_as": "radio"
           },
-          "visibleIf": "{wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 1",
+          "visibleIf": "({wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 1 or {wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 2)",
           "visibleIfSourceResolved": "Excel 04: ask only if Q1 = 1 currently married."
         },
         {
@@ -6537,7 +6537,7 @@
           "renderingHint": {
             "render_as": "checkbox"
           },
-          "visibleIf": "{wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 1 and {wq_04_husband_s_backgroun_does_your_husband_partner_currently_smoke_2} = 1",
+          "visibleIf": "({wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 1 or {wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 2) and {wq_04_husband_s_backgroun_does_your_husband_partner_currently_smoke_2} = 1",
           "visibleIfSourceResolved": "Excel 04: ask other tobacco type only for currently married and Q10 = Every day."
         },
         {
@@ -6586,7 +6586,7 @@
           "renderingHint": {
             "render_as": "radio"
           },
-          "visibleIf": "{wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 1",
+          "visibleIf": "({wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 1 or {wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 2)",
           "visibleIfSourceResolved": "Excel 04: ask only if Q1 = 1 currently married."
         },
         {
@@ -6647,7 +6647,7 @@
           "validationRulesSource": [
             "Enter exactly 2 digits; 00 skips to Q15; 95 = every day/almost every day."
           ],
-          "visibleIf": "{wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 1 and {wq_04_husband_s_backgroun_now_i_would_like_to_ask_you_some_questions_2} = 1",
+          "visibleIf": "({wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 1 or {wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 2) and {wq_04_husband_s_backgroun_now_i_would_like_to_ask_you_some_questions_2} = 1",
           "visibleIfSourceResolved": "Excel 04: ask husband alcohol days only for currently married and Q12 = Yes.",
           "maxLength": 2,
           "preserveString": true
@@ -6686,7 +6686,7 @@
           "renderingHint": {
             "render_as": "years_with_special_codes"
           },
-          "visibleIf": "{wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 1 and {wq_04_husband_s_backgroun_during_the_last_one_month_on_how_many_days} notempty and {wq_04_husband_s_backgroun_during_the_last_one_month_on_how_many_days} != 0 and {wq_04_husband_s_backgroun_during_the_last_one_month_on_how_many_days} != '00'",
+          "visibleIf": "({wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 1 or {wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 2) and {wq_04_husband_s_backgroun_during_the_last_one_month_on_how_many_days} notempty and {wq_04_husband_s_backgroun_during_the_last_one_month_on_how_many_days} != 0 and {wq_04_husband_s_backgroun_during_the_last_one_month_on_how_many_days} != '00'",
           "visibleIfSourceResolved": "Excel 04: ask husband drinks only for currently married and Q13 is answered non-zero/non-00.",
           "description": {
             "default": "Enter number of drinks as exactly 2 digits. Use 00 for less than one standard drink.",

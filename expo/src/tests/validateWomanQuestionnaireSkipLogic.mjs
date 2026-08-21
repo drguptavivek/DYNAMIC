@@ -760,6 +760,10 @@ assert.equal(
   isVisible(model, "wq_04_husband_s_backgroun_how_old_was_your_husband_on_his_last_birth"),
   false
 );
+assert.equal(
+  isVisible(model, "wq_04_husband_s_backgroun_now_i_would_like_to_ask_you_some_questions"),
+  true
+);
 model.setValue(
   "wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo",
   1
@@ -808,6 +812,18 @@ const womanEarningsDecision =
 workHusbandModel.setValue(husbandMaritalCheck, 2);
 assert.equal(isVisible(workHusbandModel, husbandAge), false);
 assert.equal(isVisible(workHusbandModel, husbandSchool), false);
+assert.equal(isVisible(workHusbandModel, husbandOccupation), false);
+assert.equal(isVisible(workHusbandModel, husbandCigaretteUse), true);
+workHusbandModel.setValue(husbandCigaretteUse, 2);
+assert.equal(isVisible(workHusbandModel, husbandCigaretteCount), false);
+assert.equal(isVisible(workHusbandModel, husbandAlcoholEver), true);
+workHusbandModel.setValue(husbandAlcoholEver, 1);
+assert.equal(isVisible(workHusbandModel, husbandAlcoholDays), true);
+
+workHusbandModel.setValue(husbandMaritalCheck, 3);
+assert.equal(isVisible(workHusbandModel, husbandAge), false);
+assert.equal(isVisible(workHusbandModel, husbandSchool), true);
+assert.equal(isVisible(workHusbandModel, husbandOccupation), true);
 assert.equal(isVisible(workHusbandModel, husbandCigaretteUse), false);
 
 workHusbandModel.setValue(husbandMaritalCheck, 1);
