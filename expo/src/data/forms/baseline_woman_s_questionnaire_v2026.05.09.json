@@ -1027,10 +1027,10 @@
           "sourceType": "multiple_numeric",
           "rawText": "In what month and year were you born? |_|_| month (01 to 12) |_|_|_|_| year",
           "items": [
-            {
-              "name": "month",
-              "title": "Month",
-              "inputType": "number",
+                {
+                  "name": "month",
+                  "title": "Month",
+                  "inputType": "number",
               "placeholder": "MM",
               "maxLength": 2,
               "preserveString": true,
@@ -2590,7 +2590,7 @@
             "te": "",
             "ur": ""
           },
-          "sourceCode": "14_28_i",
+          "sourceCode": "14",
           "sourceType": "repeating_panel",
           "order": 38,
           "section_order": 2,
@@ -2685,7 +2685,7 @@
               }
             },
             {
-              "type": "checkbox",
+              "type": "radiogroup",
               "name": "pregnancy_02_reproduction_if_15_i_single_was_the_baby_born_alive_bor",
               "title": {
                 "default": "If 15_i = single: Was the baby born alive, born dead, or did you have a miscarriage or abortion?\nIf 15_i > 1, for the first of multiple: Was the first baby in this pregnancy born alive or born dead?\nNext of multiple: Was the next baby in this pregnancy born alive or born dead?",
@@ -2699,7 +2699,7 @@
               "order": 2,
               "section_order": 2,
               "sourceCode": "16_i",
-              "sourceType": "select_many",
+              "sourceType": "select_one",
               "rawText": "If 15_i = single: Was the baby born alive, born dead, or did you have a miscarriage or abortion?\nIf 15_i > 1, for the first of multiple: Was the first baby in this pregnancy born alive or born dead?\nNext of multiple: Was the next baby in this pregnancy born alive or born dead? 1 Born alive SKIP TO 18_i",
               "description": {
                 "default": "Born alive SKIP TO 18_i",
@@ -2761,7 +2761,7 @@
                 }
               ],
               "renderingHint": {
-                "render_as": "checkbox"
+                "render_as": "radio"
               },
               "validationRulesSource": [
                 "SKIP TO 18_i"
@@ -2813,7 +2813,7 @@
               "renderingHint": {
                 "render_as": "radio"
               },
-              "visibleIf": "{pregnancy_02_reproduction_if_15_i_single_was_the_baby_born_alive_bor} contains 2",
+              "visibleIf": "{pregnancy_02_reproduction_if_15_i_single_was_the_baby_born_alive_bor} = 2",
               "visibleIfSourceResolved": "Excel 02 row 37: Q17 only follows born dead/no sign-of-life path."
             },
             {
@@ -2834,7 +2834,7 @@
               "sourceType": "text",
               "rawText": "What name was given to the baby? RECORD NAME",
               "inputType": "text",
-              "visibleIf": "({pregnancy_02_reproduction_if_15_i_single_was_the_baby_born_alive_bor} contains 1 or {pregnancy_02_reproduction_did_the_baby_cry_move_or_breathe} = 1)",
+              "visibleIf": "({pregnancy_02_reproduction_if_15_i_single_was_the_baby_born_alive_bor} = 1 or {pregnancy_02_reproduction_did_the_baby_cry_move_or_breathe} = 1)",
               "visibleIfSourceResolved": "Excel 02 rows 32,37: born alive skips to Q18; no sign-of-life skips to Q20."
             },
             {
@@ -2883,11 +2883,11 @@
               "renderingHint": {
                 "render_as": "radio"
               },
-              "visibleIf": "({pregnancy_02_reproduction_if_15_i_single_was_the_baby_born_alive_bor} contains 1 or {pregnancy_02_reproduction_did_the_baby_cry_move_or_breathe} = 1)",
+              "visibleIf": "({pregnancy_02_reproduction_if_15_i_single_was_the_baby_born_alive_bor} = 1 or {pregnancy_02_reproduction_did_the_baby_cry_move_or_breathe} = 1)",
               "visibleIfSourceResolved": "Excel 02 rows 32,37: ask sex only for born-alive outcome."
             },
             {
-              "type": "text",
+              "type": "multipletext",
               "name": "pregnancy_02_reproduction_check_16_and_17_type_of_pregnancy_outcome",
               "title": {
                 "default": "CHECK 16 and 17: TYPE OF PREGNANCY OUTCOME\nNOTE:\nIF 17_i = 1, THEN PREGNANCY OUTCOME = BORN ALIVE.\nIF BORN ALIVE: On what day, month, and year was (NAME in 18_i) born?\nIF BORN DEAD, MISCARRIAGE, OR ABORTION: On what day, month, and year did this pregnancy end?",
@@ -2901,10 +2901,10 @@
               "order": 6,
               "section_order": 2,
               "sourceCode": "20_i",
-              "sourceType": "integer",
-              "rawText": "CHECK 16 and 17: TYPE OF PREGNANCY OUTCOME\nNOTE:\nIF 17_i = 1, THEN PREGNANCY OUTCOME = BORN ALIVE.\nIF BORN ALIVE: On what day, month, and year was (NAME in 18_i) born?\nIF BORN DEAD, MISCARRIAGE, OR ABORTION: On what day, month, and year did this pregnancy end? |_|_| DAY",
+              "sourceType": "multiple_numeric",
+              "rawText": "CHECK 16 and 17: TYPE OF PREGNANCY OUTCOME\nNOTE:\nIF 17_i = 1, THEN PREGNANCY OUTCOME = BORN ALIVE.\nIF BORN ALIVE: On what day, month, and year was (NAME in 18_i) born?\nIF BORN DEAD, MISCARRIAGE, OR ABORTION: On what day, month, and year did this pregnancy end? |_|_| DAY |_|_| MONTH |_|_|_|_| YEAR",
               "description": {
-                "default": "DAY",
+                "default": "DAY / MONTH / YEAR",
                 "hi": "",
                 "kn": "",
                 "mr": "",
@@ -2912,17 +2912,58 @@
                 "te": "",
                 "ur": ""
               },
-              "inputType": "number",
-              "validators": [
+              "items": [
                 {
-                  "type": "numeric"
+                  "name": "day",
+                  "title": "Day",
+                  "inputType": "number",
+                  "placeholder": "DD",
+                  "maxLength": 2,
+                  "preserveString": true,
+                  "validators": [
+                    {
+                      "type": "regex",
+                      "regex": "^(0[1-9]|[12][0-9]|3[01])$",
+                      "text": "Enter day as 2 digits from 01 to 31."
+                    }
+                  ]
+                },
+                {
+                  "name": "month",
+                  "title": "Month",
+                  "inputType": "number",
+                  "placeholder": "MM",
+                  "maxLength": 2,
+                  "preserveString": true,
+                  "validators": [
+                    {
+                      "type": "regex",
+                      "regex": "^(0[1-9]|1[0-2])$",
+                      "text": "Enter month as 2 digits from 01 to 12."
+                    }
+                  ]
+                },
+                {
+                  "name": "year",
+                  "title": "Year",
+                  "inputType": "number",
+                  "placeholder": "YYYY",
+                  "maxLength": 4,
+                  "preserveString": true,
+                  "validators": [
+                    {
+                      "type": "regex",
+                      "regex": "^[0-9]{4}$",
+                      "text": "Enter year as 4 digits."
+                    }
+                  ]
                 }
               ],
-              "visibleIf": "({pregnancy_02_reproduction_if_15_i_single_was_the_baby_born_alive_bor} contains 1 or {pregnancy_02_reproduction_if_15_i_single_was_the_baby_born_alive_bor} contains 3 or {pregnancy_02_reproduction_if_15_i_single_was_the_baby_born_alive_bor} contains 4 or ({pregnancy_02_reproduction_if_15_i_single_was_the_baby_born_alive_bor} contains 2 and {pregnancy_02_reproduction_did_the_baby_cry_move_or_breathe} notempty))",
+              "visibleIf": "({pregnancy_02_reproduction_if_15_i_single_was_the_baby_born_alive_bor} = 1 or {pregnancy_02_reproduction_if_15_i_single_was_the_baby_born_alive_bor} = 3 or {pregnancy_02_reproduction_if_15_i_single_was_the_baby_born_alive_bor} = 4 or ({pregnancy_02_reproduction_if_15_i_single_was_the_baby_born_alive_bor} = 2 and {pregnancy_02_reproduction_did_the_baby_cry_move_or_breathe} notempty))",
               "visibleIfSourceResolved": "Excel 02 rows 32,37,40: Q20 is reached after born-alive, miscarriage, abortion, or after Q17 is answered for born-dead."
             },
             {
-              "type": "text",
+              "type": "multipletext",
               "name": "pregnancy_02_reproduction_how_long_did_this_pregnancy_last_in_weeks",
               "title": {
                 "default": "How long did this pregnancy last in weeks or months? \nRECORD IN COMPLETED WEEKS OR MONTHS",
@@ -2936,10 +2977,10 @@
               "order": 7,
               "section_order": 2,
               "sourceCode": "21_i",
-              "sourceType": "integer",
-              "rawText": "How long did this pregnancy last in weeks or months? \nRECORD IN COMPLETED WEEKS OR MONTHS |_|_| WEEKS",
+              "sourceType": "multiple_numeric",
+              "rawText": "How long did this pregnancy last in weeks or months? \nRECORD IN COMPLETED WEEKS OR MONTHS |_|_| WEEKS |_|_| MONTHS",
               "description": {
-                "default": "WEEKS",
+                "default": "WEEKS / MONTHS",
                 "hi": "",
                 "kn": "",
                 "mr": "",
@@ -2947,13 +2988,39 @@
                 "te": "",
                 "ur": ""
               },
-              "inputType": "number",
-              "validators": [
+              "items": [
                 {
-                  "type": "numeric"
+                  "name": "weeks",
+                  "title": "Weeks",
+                  "inputType": "number",
+                  "placeholder": "WW",
+                  "maxLength": 2,
+                  "preserveString": true,
+                  "validators": [
+                    {
+                      "type": "regex",
+                      "regex": "^[0-9]{2}$",
+                      "text": "Enter weeks as 2 digits."
+                    }
+                  ]
+                },
+                {
+                  "name": "months",
+                  "title": "Months",
+                  "inputType": "number",
+                  "placeholder": "MM",
+                  "maxLength": 2,
+                  "preserveString": true,
+                  "validators": [
+                    {
+                      "type": "regex",
+                      "regex": "^[0-9]{2}$",
+                      "text": "Enter months as 2 digits."
+                    }
+                  ]
                 }
               ],
-              "visibleIf": "({pregnancy_02_reproduction_if_15_i_single_was_the_baby_born_alive_bor} contains 1 or {pregnancy_02_reproduction_if_15_i_single_was_the_baby_born_alive_bor} contains 3 or {pregnancy_02_reproduction_if_15_i_single_was_the_baby_born_alive_bor} contains 4 or ({pregnancy_02_reproduction_if_15_i_single_was_the_baby_born_alive_bor} contains 2 and {pregnancy_02_reproduction_did_the_baby_cry_move_or_breathe} notempty))",
+              "visibleIf": "({pregnancy_02_reproduction_if_15_i_single_was_the_baby_born_alive_bor} = 1 or {pregnancy_02_reproduction_if_15_i_single_was_the_baby_born_alive_bor} = 3 or {pregnancy_02_reproduction_if_15_i_single_was_the_baby_born_alive_bor} = 4 or ({pregnancy_02_reproduction_if_15_i_single_was_the_baby_born_alive_bor} = 2 and {pregnancy_02_reproduction_did_the_baby_cry_move_or_breathe} notempty))",
               "visibleIfSourceResolved": "Excel 02 rows 32,37,42: Q21 follows the resolved Q16/Q17 pregnancy outcome path."
             },
             {
@@ -3084,7 +3151,10 @@
               ],
               "renderingHint": {
                 "render_as": "radio"
-              }
+              },
+              "readOnly": true,
+              "calculated": true,
+              "calculationSource": "Automatically filled from Q16, Q17, and Q21 according to Excel Section 2 Q23."
             },
             {
               "type": "radiogroup",
@@ -3161,12 +3231,19 @@
                 "te": "",
                 "ur": ""
               },
-              "inputType": "number",
+              "inputType": "text",
+              "maxLength": 2,
+              "preserveString": true,
               "validators": [
                 {
-                  "type": "numeric"
+                  "type": "regex",
+                  "regex": "^[0-9]{2}$",
+                  "text": "Enter age as 2 digits."
                 }
               ],
+              "renderingHint": {
+                "render_as": "numeric_textbox"
+              },
               "visibleIf": "{pregnancy_02_reproduction_check_16_17_and_21_if_16_i_1_or_17_i_1_the} = 1 and {pregnancy_02_reproduction_is_name_still_alive} = 1",
               "visibleIfSourceResolved": "Excel 02 row 56: Q24 no skips to Q28."
             },
@@ -3245,12 +3322,19 @@
                 "te": "",
                 "ur": ""
               },
-              "inputType": "number",
+              "inputType": "text",
+              "maxLength": 2,
+              "preserveString": true,
               "validators": [
                 {
-                  "type": "numeric"
+                  "type": "regex",
+                  "regex": "^[0-9]{2}$",
+                  "text": "Enter line number as 2 digits. Use 00 if child is not listed in household."
                 }
               ],
+              "renderingHint": {
+                "render_as": "numeric_textbox"
+              },
               "validationRulesSource": [
                 "SKIP TO 23 IN NEXT ROW (i+1)"
               ],
@@ -3258,7 +3342,7 @@
               "visibleIfSourceResolved": "Excel 02 row 56: Q24 no skips to Q28."
             },
             {
-              "type": "text",
+              "type": "multipletext",
               "name": "pregnancy_02_reproduction_if_born_alive_and_now_dead_if_19_i_1_boy_h",
               "title": {
                 "default": "IF BORN ALIVE AND NOW DEAD:\n\nIF 19_i = 1-BOY:\nHow old was (NAME in 18_i) when he died?\nIF 12 MONTHS OR 1 YEAR, ASK: Did (NAME) have his first birthday?\nTHEN ASK: Exactly how many months old was (NAME in 18_i) when he died?\nRECORD DAYS IF LESS THAN 1 MONTH; MONTHS IF LESS THAN 2 YEARS; OR YEARS\n\nIF 19_i = 2-GIRL:\nHow old was (NAME in 18_i) when she died?\nIF 12 MONTHS OR 1 YEAR, ASK: Did (NAME) have her first birthday?\nTHEN ASK: Exactly how many months old was (NAME in 18_i) when she died?\nRECORD DAYS IF LESS THAN 1 MONTH; MONTHS IF LESS THAN 2 YEARS; OR YEARS",
@@ -3272,10 +3356,10 @@
               "order": 14,
               "section_order": 2,
               "sourceCode": "28_i",
-              "sourceType": "integer",
-              "rawText": "IF BORN ALIVE AND NOW DEAD:\n\nIF 19_i = 1-BOY:\nHow old was (NAME in 18_i) when he died?\nIF 12 MONTHS OR 1 YEAR, ASK: Did (NAME) have his first birthday?\nTHEN ASK: Exactly how many months old was (NAME in 18_i) when he died?\nRECORD DAYS IF LESS THAN 1 MONTH; MONTHS IF LESS THAN 2 YEARS; OR YEARS\n\nIF 19_i = 2-GIRL:\nHow old was (NAME in 18_i) when she died?\nIF 12 MONTHS OR 1 YEAR, ASK: Did (NAME) have her first birthday?\nTHEN ASK: Exactly how many months old was (NAME in 18_i) when she died?\nRECORD DAYS IF LESS THAN 1 MONTH; MONTHS IF LESS THAN 2 YEARS; OR YEARS |_|_| DAYS SKIP TO 23 IN NEXT ROW (i+1)",
+              "sourceType": "multiple_numeric",
+              "rawText": "IF BORN ALIVE AND NOW DEAD:\n\nIF 19_i = 1-BOY:\nHow old was (NAME in 18_i) when he died?\nIF 12 MONTHS OR 1 YEAR, ASK: Did (NAME) have his first birthday?\nTHEN ASK: Exactly how many months old was (NAME in 18_i) when he died?\nRECORD DAYS IF LESS THAN 1 MONTH; MONTHS IF LESS THAN 2 YEARS; OR YEARS\n\nIF 19_i = 2-GIRL:\nHow old was (NAME in 18_i) when she died?\nIF 12 MONTHS OR 1 YEAR, ASK: Did (NAME) have her first birthday?\nTHEN ASK: Exactly how many months old was (NAME in 18_i) when she died?\nRECORD DAYS IF LESS THAN 1 MONTH; MONTHS IF LESS THAN 2 YEARS; OR YEARS |_|_| DAYS |_|_| MONTHS |_|_| YEARS SKIP TO 23 IN NEXT ROW (i+1)",
               "description": {
-                "default": "DAYS SKIP TO 23 IN NEXT ROW (i+1)",
+                "default": "DAYS / MONTHS / YEARS",
                 "hi": "",
                 "kn": "",
                 "mr": "",
@@ -3283,10 +3367,51 @@
                 "te": "",
                 "ur": ""
               },
-              "inputType": "number",
-              "validators": [
+              "items": [
                 {
-                  "type": "numeric"
+                  "name": "days",
+                  "title": "Days",
+                  "inputType": "number",
+                  "placeholder": "DD",
+                  "maxLength": 2,
+                  "preserveString": true,
+                  "validators": [
+                    {
+                      "type": "regex",
+                      "regex": "^[0-9]{2}$",
+                      "text": "Enter days as 2 digits."
+                    }
+                  ]
+                },
+                {
+                  "name": "months",
+                  "title": "Months",
+                  "inputType": "number",
+                  "placeholder": "MM",
+                  "maxLength": 2,
+                  "preserveString": true,
+                  "validators": [
+                    {
+                      "type": "regex",
+                      "regex": "^[0-9]{2}$",
+                      "text": "Enter months as 2 digits."
+                    }
+                  ]
+                },
+                {
+                  "name": "years",
+                  "title": "Years",
+                  "inputType": "number",
+                  "placeholder": "YY",
+                  "maxLength": 2,
+                  "preserveString": true,
+                  "validators": [
+                    {
+                      "type": "regex",
+                      "regex": "^[0-9]{2}$",
+                      "text": "Enter years as 2 digits."
+                    }
+                  ]
                 }
               ],
               "validationRulesSource": [

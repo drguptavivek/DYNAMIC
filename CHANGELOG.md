@@ -18,6 +18,8 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 
 ## Unreleased
 
+- Fixed WQ Q38 pregnancy-status-tracking eligibility so hidden/skipped Q34 no longer blocks Section 3; Q34 is required only when the Q33b/Q33c skip path actually asks the hysterectomy question.
+- Fixed WQ Section 2 pregnancy-history Q14-Q28 handling so the repeated pregnancy panel uses Excel code `14`, Q15_i remains editable, Q16_i is a single-choice outcome, Q20_i/Q21_i/Q28_i render their required date/duration/age boxes, `(NAME)` labels fill from Q18_i, Q23_i is calculated from Q16_i/Q17_i/Q21_i, and applicable two-digit blanks such as Q21_i/Q27_i/Q28_i preserve `00`.
 - Added WQ Section 2 reproduction calculations for Q8, Q12, and CHECK 12, and made parent "No" skip paths store `00` in the related two-digit count fields from the Excel instructions.
 - Tightened WQ Section 2 Reproduction skip logic from the Excel workbook so pregnancy-history date/duration fields wait for the Q16/Q17 outcome path, Q33c waits for Q33b, and Q34 waits for both Q33b and Q33c.
 - Fixed HHQ Q60/Q62 outcome routing so skipped handwashing observations show only the correct preselected outcome option: Completed for Q60 options 2/3 and any Q62 selection, or Other specify for Q60 option 4.

@@ -38,9 +38,11 @@ import { listHouseholdMembers } from "../households/householdRepository.js";
 import { getDraftSavedMessage } from "./draftSaveMessages.js";
 import {
   WQ_CURRENT_MARITAL_STATUS_FIELD,
+  applyWqPregnancyHistoryCalculations,
   applyWqPregnancyTrackingEligibility,
   applyWqReproductionSummary,
   buildWqHusbandPartnerChoices,
+  shouldRecalculateWqPregnancyHistory,
   shouldRecalculateWqPregnancyTrackingEligibility,
   shouldRecalculateWqReproductionSummary,
 } from "../../lib/womanSurveyBehaviors.js";
@@ -441,6 +443,7 @@ export function QuestionnaireDashboard({
     if (isWomanQuestionnaire(form)) {
       applyWqVisitNo(model, taskContext);
       applyWqReproductionSummary(model);
+      applyWqPregnancyHistoryCalculations(model);
       applyWqPregnancyTrackingEligibility(model);
     }
 
@@ -513,6 +516,9 @@ export function QuestionnaireDashboard({
         }
         if (shouldRecalculateWqReproductionSummary(options.name)) {
           applyWqReproductionSummary(sender);
+        }
+        if (shouldRecalculateWqPregnancyHistory(options.name)) {
+          applyWqPregnancyHistoryCalculations(sender);
         }
       }
     });
@@ -654,6 +660,7 @@ export function QuestionnaireDashboard({
         }
         if (isWomanQuestionnaire(form)) {
           applyWqReproductionSummary(survey);
+          applyWqPregnancyHistoryCalculations(survey);
           applyWqPregnancyTrackingEligibility(survey);
           routeWqStopToOutcome(survey, { navigate: false });
         }

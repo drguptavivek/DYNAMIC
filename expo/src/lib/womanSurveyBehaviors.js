@@ -1,6 +1,9 @@
 export const WQ_AGE_FIELD = "wq_age_last_birthday";
 export const WQ_CURRENT_MARITAL_STATUS_FIELD = "wq_current_marital_status";
 export const WQ_LMP_FIELD = "wq_02_reproduction_when_did_your_last_menstrual_period_start";
+export const WQ_LMP_MORE_THAN_SIX_MONTHS_FIELD =
+  "wq_02_reproduction_check_33a_if_last_menstrual_period_6_month";
+export const WQ_NOT_PREGNANT_OR_UNSURE_FIELD = "wq_02_reproduction_check_32_if_not_pregnant_or_unsure";
 export const WQ_HYSTERECTOMY_FIELD = "wq_02_reproduction_some_women_undergo_an_operation_to_remove";
 export const WQ_STERILIZATION_FIELD = "wq_02_reproduction_are_you_or_your_partner_sterilized_probe_w";
 export const WQ_PREGNANCY_TRACKING_ELIGIBLE_FIELD = "wq_pregnancy_tracking_eligible";
@@ -20,6 +23,14 @@ export const WQ_NON_LIVE_BIRTH_PREGNANCY_FIELD = "wq_02_reproduction_women_somet
 export const WQ_PREGNANCY_LOSSES_FIELD = "wq_02_reproduction_how_many_miscarriages_abortions_and_stillb";
 export const WQ_TOTAL_PREGNANCY_OUTCOMES_FIELD = "wq_02_reproduction_sum_answers_to_8_and_11_and_enter_total_if";
 export const WQ_PAST_PREGNANCY_CHECK_FIELD = "wq_02_reproduction_check_12";
+export const WQ_PREGNANCY_HISTORY_FIELD = "wq_pregnancy_history";
+export const WQ_PREGNANCY_BIRTH_RESULT_FIELD = "pregnancy_02_reproduction_if_15_i_single_was_the_baby_born_alive_bor";
+export const WQ_PREGNANCY_SIGN_OF_LIFE_FIELD = "pregnancy_02_reproduction_did_the_baby_cry_move_or_breathe";
+export const WQ_PREGNANCY_DURATION_FIELD = "pregnancy_02_reproduction_how_long_did_this_pregnancy_last_in_weeks";
+export const WQ_PREGNANCY_OUTCOME_FIELD = "pregnancy_02_reproduction_check_16_17_and_21_if_16_i_1_or_17_i_1_the";
+export const WQ_PREGNANCY_CHILD_LIVING_WITH_FIELD = "pregnancy_02_reproduction_if_born_alive_and_still_living_is_name_liv";
+export const WQ_PREGNANCY_CHILD_LINE_FIELD = "pregnancy_02_reproduction_if_born_alive_and_still_living_record_hous";
+export const WQ_PREGNANCY_DEATH_AGE_FIELD = "pregnancy_02_reproduction_if_born_alive_and_now_dead_if_19_i_1_boy_h";
 
 const WQ_REPRODUCTION_SUMMARY_SOURCE_FIELDS = [
   WQ_EVER_GIVEN_BIRTH_FIELD,
@@ -35,6 +46,15 @@ const WQ_REPRODUCTION_SUMMARY_SOURCE_FIELDS = [
   WQ_TOTAL_LIVE_BIRTHS_FIELD,
   WQ_NON_LIVE_BIRTH_PREGNANCY_FIELD,
   WQ_PREGNANCY_LOSSES_FIELD,
+];
+
+const WQ_PREGNANCY_HISTORY_SOURCE_FIELDS = [
+  WQ_PREGNANCY_HISTORY_FIELD,
+  WQ_PREGNANCY_BIRTH_RESULT_FIELD,
+  WQ_PREGNANCY_SIGN_OF_LIFE_FIELD,
+  WQ_PREGNANCY_DURATION_FIELD,
+  WQ_PREGNANCY_CHILD_LIVING_WITH_FIELD,
+  WQ_PREGNANCY_DEATH_AGE_FIELD,
 ];
 
 function toFiniteNumber(value) {
@@ -146,8 +166,12 @@ export function calculateWqPregnancyTrackingEligibilityValue(answers = {}) {
   const age = toFiniteNumber(answers[WQ_AGE_FIELD]);
   const maritalStatus = toFiniteNumber(answers[WQ_CURRENT_MARITAL_STATUS_FIELD]);
   const lmp = toFiniteNumber(answers[WQ_LMP_FIELD]);
+  const lmpMoreThanSixMonths = toFiniteNumber(answers[WQ_LMP_MORE_THAN_SIX_MONTHS_FIELD]);
+  const notPregnantOrUnsure = toFiniteNumber(answers[WQ_NOT_PREGNANT_OR_UNSURE_FIELD]);
   const hysterectomy = toFiniteNumber(answers[WQ_HYSTERECTOMY_FIELD]);
   const sterilization = toFiniteNumber(answers[WQ_STERILIZATION_FIELD]);
+  const hysterectomyQuestionApplies = lmpMoreThanSixMonths === 1 && notPregnantOrUnsure === 1;
+  const hysterectomyEligible = hysterectomyQuestionApplies ? hysterectomy === 2 : true;
   const isEligible =
     age !== null &&
     age >= 18 &&
@@ -156,7 +180,7 @@ export function calculateWqPregnancyTrackingEligibilityValue(answers = {}) {
     lmp !== null &&
     lmp !== 993 &&
     lmp !== 994 &&
-    hysterectomy === 2 &&
+    hysterectomyEligible &&
     sterilization === 4;
   return isEligible ? 1 : 2;
 }
@@ -183,12 +207,75 @@ export function calculateWqPastPregnancyCheckValue(answers = {}) {
   return toCount(answers[WQ_TOTAL_PREGNANCY_OUTCOMES_FIELD]) > 0 ? 1 : 2;
 }
 
+function getMultipleTextNumber(value, key) {
+  if (!value || typeof value !== "object") return null;
+  return toFiniteNumber(value[key]);
+}
+
+export function calculateWqPregnancyHistoryOutcomeValue(answers = {}) {
+  const birthResult = toFiniteNumber(answers[WQ_PREGNANCY_BIRTH_RESULT_FIELD]);
+  const signOfLife = toFiniteNumber(answers[WQ_PREGNANCY_SIGN_OF_LIFE_FIELD]);
+  const duration = answers[WQ_PREGNANCY_DURATION_FIELD];
+  const durationWeeks = getMultipleTextNumber(duration, "weeks");
+  const durationMonths = getMultipleTextNumber(duration, "months");
+
+  if (birthResult === 1 || signOfLife === 1) return 1;
+  if (birthResult === 4) return 4;
+  if (birthResult === 2 || birthResult === 3) {
+    if (durationMonths === null && durationWeeks === null) return null;
+    if (
+      (durationMonths !== null && durationMonths >= 7) ||
+      (durationWeeks !== null && durationWeeks >= 28)
+    ) {
+      return 2;
+    }
+    return 3;
+  }
+  return null;
+}
+
 function setModelValueIfChanged(model, fieldName, nextValue) {
   const question = model?.getQuestionByName?.(fieldName);
   if (!question) return;
-  if (String(model.getValue(fieldName) ?? "") !== String(nextValue)) {
+  if (!surveyValuesEqual(model.getValue(fieldName), nextValue)) {
     model.setValue(fieldName, nextValue);
   }
+}
+
+function getPanelQuestionValue(panel, fieldName) {
+  const question = panel?.getQuestionByName?.(fieldName);
+  return question?.value;
+}
+
+function setPanelQuestionValueIfChanged(panel, fieldName, nextValue) {
+  const question = panel?.getQuestionByName?.(fieldName);
+  if (!question) return;
+  if (!surveyValuesEqual(question.value, nextValue)) {
+    question.value = nextValue;
+  }
+}
+
+function surveyValuesEqual(a, b) {
+  if (a === b) return true;
+  if (a && b && typeof a === "object" && typeof b === "object") {
+    return JSON.stringify(a) === JSON.stringify(b);
+  }
+  return String(a ?? "") === String(b ?? "");
+}
+
+function defaultMultipleTextMissingKeysToZero(value, keys = []) {
+  if (!value || typeof value !== "object") return value;
+  const hasAnyAnswer = keys.some((key) => String(value[key] ?? "") !== "");
+  if (!hasAnyAnswer) return value;
+  let changed = false;
+  const nextValue = { ...value };
+  for (const key of keys) {
+    if (String(nextValue[key] ?? "") === "") {
+      nextValue[key] = "00";
+      changed = true;
+    }
+  }
+  return changed ? nextValue : value;
 }
 
 function defaultCountsToZeroWhenNo(model, parentFieldName, childFieldNames = []) {
@@ -267,6 +354,8 @@ export function applyWqPregnancyTrackingEligibility(model) {
     [WQ_AGE_FIELD]: model.getValue(WQ_AGE_FIELD),
     [WQ_CURRENT_MARITAL_STATUS_FIELD]: model.getValue(WQ_CURRENT_MARITAL_STATUS_FIELD),
     [WQ_LMP_FIELD]: model.getValue(WQ_LMP_FIELD),
+    [WQ_LMP_MORE_THAN_SIX_MONTHS_FIELD]: model.getValue(WQ_LMP_MORE_THAN_SIX_MONTHS_FIELD),
+    [WQ_NOT_PREGNANT_OR_UNSURE_FIELD]: model.getValue(WQ_NOT_PREGNANT_OR_UNSURE_FIELD),
     [WQ_HYSTERECTOMY_FIELD]: model.getValue(WQ_HYSTERECTOMY_FIELD),
     [WQ_STERILIZATION_FIELD]: model.getValue(WQ_STERILIZATION_FIELD),
   };
@@ -277,11 +366,47 @@ export function applyWqPregnancyTrackingEligibility(model) {
   question.readOnly = true;
 }
 
+export function applyWqPregnancyHistoryCalculations(model) {
+  const panelDynamic = model?.getQuestionByName?.(WQ_PREGNANCY_HISTORY_FIELD);
+  const panels = Array.isArray(panelDynamic?.panels) ? panelDynamic.panels : [];
+  for (const panel of panels) {
+    const outcomeQuestion = panel?.getQuestionByName?.(WQ_PREGNANCY_OUTCOME_FIELD);
+    if (outcomeQuestion) outcomeQuestion.readOnly = true;
+
+    const outcome = calculateWqPregnancyHistoryOutcomeValue({
+      [WQ_PREGNANCY_BIRTH_RESULT_FIELD]: getPanelQuestionValue(panel, WQ_PREGNANCY_BIRTH_RESULT_FIELD),
+      [WQ_PREGNANCY_SIGN_OF_LIFE_FIELD]: getPanelQuestionValue(panel, WQ_PREGNANCY_SIGN_OF_LIFE_FIELD),
+      [WQ_PREGNANCY_DURATION_FIELD]: getPanelQuestionValue(panel, WQ_PREGNANCY_DURATION_FIELD),
+    });
+    if (outcome !== null) {
+      setPanelQuestionValueIfChanged(panel, WQ_PREGNANCY_OUTCOME_FIELD, outcome);
+    }
+
+    const duration = getPanelQuestionValue(panel, WQ_PREGNANCY_DURATION_FIELD);
+    const normalizedDuration = defaultMultipleTextMissingKeysToZero(duration, ["weeks", "months"]);
+    if (normalizedDuration !== duration) {
+      setPanelQuestionValueIfChanged(panel, WQ_PREGNANCY_DURATION_FIELD, normalizedDuration);
+    }
+
+    if (Number(getPanelQuestionValue(panel, WQ_PREGNANCY_CHILD_LIVING_WITH_FIELD)) === 2) {
+      setPanelQuestionValueIfChanged(panel, WQ_PREGNANCY_CHILD_LINE_FIELD, "00");
+    }
+
+    const deathAge = getPanelQuestionValue(panel, WQ_PREGNANCY_DEATH_AGE_FIELD);
+    const normalizedDeathAge = defaultMultipleTextMissingKeysToZero(deathAge, ["days", "months", "years"]);
+    if (normalizedDeathAge !== deathAge) {
+      setPanelQuestionValueIfChanged(panel, WQ_PREGNANCY_DEATH_AGE_FIELD, normalizedDeathAge);
+    }
+  }
+}
+
 export function shouldRecalculateWqPregnancyTrackingEligibility(fieldName) {
   return [
     WQ_AGE_FIELD,
     WQ_CURRENT_MARITAL_STATUS_FIELD,
     WQ_LMP_FIELD,
+    WQ_LMP_MORE_THAN_SIX_MONTHS_FIELD,
+    WQ_NOT_PREGNANT_OR_UNSURE_FIELD,
     WQ_HYSTERECTOMY_FIELD,
     WQ_STERILIZATION_FIELD,
   ].includes(fieldName);
@@ -289,4 +414,8 @@ export function shouldRecalculateWqPregnancyTrackingEligibility(fieldName) {
 
 export function shouldRecalculateWqReproductionSummary(fieldName) {
   return WQ_REPRODUCTION_SUMMARY_SOURCE_FIELDS.includes(fieldName);
+}
+
+export function shouldRecalculateWqPregnancyHistory(fieldName) {
+  return WQ_PREGNANCY_HISTORY_SOURCE_FIELDS.includes(fieldName);
 }

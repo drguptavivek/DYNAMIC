@@ -12,12 +12,24 @@ const {
   WQ_AGE_FIELD,
   WQ_CURRENT_MARITAL_STATUS_FIELD,
   WQ_HYSTERECTOMY_FIELD,
+  WQ_LMP_MORE_THAN_SIX_MONTHS_FIELD,
   WQ_LMP_FIELD,
+  WQ_NOT_PREGNANT_OR_UNSURE_FIELD,
+  WQ_PREGNANCY_BIRTH_RESULT_FIELD,
+  WQ_PREGNANCY_CHILD_LINE_FIELD,
+  WQ_PREGNANCY_CHILD_LIVING_WITH_FIELD,
+  WQ_PREGNANCY_DEATH_AGE_FIELD,
+  WQ_PREGNANCY_DURATION_FIELD,
+  WQ_PREGNANCY_OUTCOME_FIELD,
+  WQ_PREGNANCY_SIGN_OF_LIFE_FIELD,
   WQ_STERILIZATION_FIELD,
+  applyWqPregnancyHistoryCalculations,
   applyWqReproductionSummary,
   buildWqHusbandPartnerChoices,
+  calculateWqPregnancyHistoryOutcomeValue,
   calculateWqPregnancyTrackingEligibilityValue,
   getWqOutsideHouseholdHusbandLineNumber,
+  shouldRecalculateWqPregnancyHistory,
   shouldRecalculateWqReproductionSummary,
 } = await import("../lib/womanSurveyBehaviors.js");
 const { getNativeQuestionTitle } = await import("../components/forms/nativeSurveyModel.js");
@@ -522,6 +534,10 @@ const pregnancyDuration = panelQuestion(
   pregnancyPanel,
   "pregnancy_02_reproduction_how_long_did_this_pregnancy_last_in_weeks"
 );
+const pregnancyPlurality = panelQuestion(
+  pregnancyPanel,
+  "pregnancy_02_reproduction_if_i_1_think_back_to_your_first_pregnancy"
+);
 const pregnancyOutcome = panelQuestion(
   pregnancyPanel,
   "pregnancy_02_reproduction_if_15_i_single_was_the_baby_born_alive_bor"
@@ -530,17 +546,73 @@ const criedMovedBreathed = panelQuestion(
   pregnancyPanel,
   "pregnancy_02_reproduction_did_the_baby_cry_move_or_breathe"
 );
+const pregnancyDeathAge = panelQuestion(pregnancyPanel, WQ_PREGNANCY_DEATH_AGE_FIELD);
 assert.equal(pregnancyOutcomeDate.isVisible, false);
 assert.equal(pregnancyDuration.isVisible, false);
-pregnancyOutcome.value = [2];
+assert.equal(
+  wq.pages
+    .flatMap((page) => page.elements || [])
+    .find((element) => element.name === "wq_pregnancy_history")?.sourceCode,
+  "14"
+);
+const pregnancyHistoryJson = wq.pages
+  .flatMap((page) => page.elements || [])
+  .find((element) => element.name === "wq_pregnancy_history");
+const pregnancyOutcomeJson = pregnancyHistoryJson.templateElements.find(
+  (element) => element.name === "pregnancy_02_reproduction_if_15_i_single_was_the_baby_born_alive_bor"
+);
+const pregnancyPluralityJson = pregnancyHistoryJson.templateElements.find(
+  (element) => element.name === "pregnancy_02_reproduction_if_i_1_think_back_to_your_first_pregnancy"
+);
+const pregnancyOutcomeCheckJson = pregnancyHistoryJson.templateElements.find(
+  (element) => element.name === WQ_PREGNANCY_OUTCOME_FIELD
+);
+assert.equal(pregnancyPluralityJson.sourceCode, "15_i");
+assert.equal(pregnancyPlurality.readOnly, false, "Q15_i must remain answerable");
+assert.equal(pregnancyOutcomeCheckJson.sourceCode, "23_i");
+assert.equal(pregnancyOutcomeCheckJson.calculated, true);
+assert.equal(pregnancyOutcome.getType(), "radiogroup");
+assert.equal(pregnancyOutcomeJson.sourceType, "select_one");
+assert.equal(pregnancyOutcomeDate.getType(), "multipletext");
+assert.deepEqual(pregnancyOutcomeDate.items.map((item) => item.name), ["day", "month", "year"]);
+assert.equal(pregnancyDuration.getType(), "multipletext");
+assert.deepEqual(pregnancyDuration.items.map((item) => item.name), ["weeks", "months"]);
+assert.equal(pregnancyDeathAge.getType(), "multipletext");
+assert.deepEqual(pregnancyDeathAge.items.map((item) => item.name), ["days", "months", "years"]);
+pregnancyOutcome.value = 2;
 assert.equal(criedMovedBreathed.isVisible, true);
 assert.equal(pregnancyOutcomeDate.isVisible, false);
 criedMovedBreathed.value = 2;
 assert.equal(pregnancyOutcomeDate.isVisible, true);
 assert.equal(pregnancyDuration.isVisible, true);
-pregnancyOutcome.value = [3];
+pregnancyOutcome.value = 3;
 assert.equal(pregnancyOutcomeDate.isVisible, true);
 assert.equal(pregnancyDuration.isVisible, true);
+pregnancyDuration.value = { months: "06" };
+applyWqPregnancyHistoryCalculations(model);
+assert.equal(panelQuestion(pregnancyPanel, WQ_PREGNANCY_OUTCOME_FIELD).value, 3);
+assert.deepEqual(pregnancyDuration.value, { months: "06", weeks: "00" });
+pregnancyDuration.value = { months: "07" };
+applyWqPregnancyHistoryCalculations(model);
+assert.equal(panelQuestion(pregnancyPanel, WQ_PREGNANCY_OUTCOME_FIELD).value, 2);
+pregnancyOutcome.value = 4;
+applyWqPregnancyHistoryCalculations(model);
+assert.equal(panelQuestion(pregnancyPanel, WQ_PREGNANCY_OUTCOME_FIELD).value, 4);
+panelQuestion(pregnancyPanel, WQ_PREGNANCY_CHILD_LIVING_WITH_FIELD).value = 2;
+applyWqPregnancyHistoryCalculations(model);
+assert.equal(panelQuestion(pregnancyPanel, WQ_PREGNANCY_CHILD_LINE_FIELD).value, "00");
+pregnancyDeathAge.value = { months: "03" };
+applyWqPregnancyHistoryCalculations(model);
+assert.deepEqual(pregnancyDeathAge.value, { months: "03", days: "00", years: "00" });
+assert.equal(
+  calculateWqPregnancyHistoryOutcomeValue({
+    [WQ_PREGNANCY_BIRTH_RESULT_FIELD]: 2,
+    [WQ_PREGNANCY_SIGN_OF_LIFE_FIELD]: 1,
+    [WQ_PREGNANCY_DURATION_FIELD]: { weeks: "08" },
+  }),
+  1
+);
+assert.equal(shouldRecalculateWqPregnancyHistory(WQ_PREGNANCY_DURATION_FIELD), true);
 
 model.setValue("wq_pregnant", 2);
 model.setValue("wq_02_reproduction_when_did_your_last_menstrual_period_start", 995);
@@ -586,6 +658,29 @@ assert.equal(
     [WQ_AGE_FIELD]: 30,
     [WQ_CURRENT_MARITAL_STATUS_FIELD]: 1,
     [WQ_LMP_FIELD]: 995,
+    [WQ_STERILIZATION_FIELD]: 4,
+  }),
+  1,
+);
+assert.equal(
+  calculateWqPregnancyTrackingEligibilityValue({
+    [WQ_AGE_FIELD]: 30,
+    [WQ_CURRENT_MARITAL_STATUS_FIELD]: 1,
+    [WQ_LMP_FIELD]: 995,
+    [WQ_LMP_MORE_THAN_SIX_MONTHS_FIELD]: 1,
+    [WQ_NOT_PREGNANT_OR_UNSURE_FIELD]: 1,
+    [WQ_HYSTERECTOMY_FIELD]: 1,
+    [WQ_STERILIZATION_FIELD]: 4,
+  }),
+  2,
+);
+assert.equal(
+  calculateWqPregnancyTrackingEligibilityValue({
+    [WQ_AGE_FIELD]: 30,
+    [WQ_CURRENT_MARITAL_STATUS_FIELD]: 1,
+    [WQ_LMP_FIELD]: 995,
+    [WQ_LMP_MORE_THAN_SIX_MONTHS_FIELD]: 1,
+    [WQ_NOT_PREGNANT_OR_UNSURE_FIELD]: 1,
     [WQ_HYSTERECTOMY_FIELD]: 2,
     [WQ_STERILIZATION_FIELD]: 4,
   }),
@@ -680,8 +775,15 @@ assert.ok(bornAlive, "Expected pregnancy-history born-alive follow-up question")
 assert.ok(diedAge, "Expected pregnancy-history death-age follow-up question");
 panel
   .getQuestionByName("pregnancy_02_reproduction_if_15_i_single_was_the_baby_born_alive_bor")
-  .value = [1];
+  .value = 1;
 assert.equal(bornAlive.isVisible, true);
+bornAlive.value = "Asha";
+assert.ok(
+  getNativeQuestionTitle(
+    panel.getQuestionByName("pregnancy_02_reproduction_is_name_a_boy_or_a_girl")
+  ).includes("Asha"),
+  "Pregnancy-history titles should replace (NAME) with Q18_i baby name"
+);
 panel
   .getQuestionByName("pregnancy_02_reproduction_check_16_17_and_21_if_16_i_1_or_17_i_1_the")
   .value = 1;

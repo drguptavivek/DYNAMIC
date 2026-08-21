@@ -10,6 +10,7 @@ const NATIVE_SURVEY_TYPES = new Set([
   "radiogroup",
   "text",
 ]);
+const WQ_PREGNANCY_BABY_NAME_FIELD = "pregnancy_02_reproduction_what_name_was_given_to_the_baby";
 
 function decodeHtmlEntities(value) {
   return String(value || "")
@@ -51,13 +52,31 @@ function localizedText(localizable, fallback = "", locale = "default") {
   return stripSurveyHtml(rendered || fallback);
 }
 
+function getQuestionValueForInterpolation(question, fieldName) {
+  const panelValue = question?.parent?.getQuestionByName?.(fieldName)?.value;
+  if (panelValue !== undefined && panelValue !== null && panelValue !== "") return panelValue;
+  const surveyValue = question?.survey?.getValue?.(fieldName);
+  if (surveyValue !== undefined && surveyValue !== null && surveyValue !== "") return surveyValue;
+  return undefined;
+}
+
 function interpolateSurveyValues(text, question) {
-  if (!text || !question?.survey || !String(text).includes("{")) return text;
-  return String(text).replace(/\{([A-Za-z0-9_]+)\}/g, (match, fieldName) => {
-    const value = question.survey.getValue?.(fieldName);
-    if (value === undefined || value === null || value === "") return match;
-    return String(value);
-  });
+  if (!text) return text;
+  let rendered = String(text);
+  if (question?.survey && rendered.includes("{")) {
+    rendered = rendered.replace(/\{([A-Za-z0-9_]+)\}/g, (match, fieldName) => {
+      const value = getQuestionValueForInterpolation(question, fieldName);
+      if (value === undefined) return match;
+      return String(value);
+    });
+  }
+  if (rendered.includes("(NAME")) {
+    const value = getQuestionValueForInterpolation(question, WQ_PREGNANCY_BABY_NAME_FIELD);
+    if (value !== undefined && value !== null && value !== "") {
+      rendered = rendered.replace(/\(NAME(?: in 18_i)?\)/g, String(value));
+    }
+  }
+  return rendered;
 }
 
 function defaultChoiceText(choice) {
