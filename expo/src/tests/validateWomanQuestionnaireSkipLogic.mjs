@@ -827,7 +827,7 @@ assert.equal(isVisible(workHusbandModel, husbandOccupation), true);
 assert.equal(isVisible(workHusbandModel, husbandCigaretteUse), false);
 
 workHusbandModel.setValue(husbandMaritalCheck, 1);
-assert.match(getNativeQuestionTitle(question(workHusbandModel, husbandOccupation)), /^What is your/);
+assert.match(getNativeQuestionTitle(question(workHusbandModel, husbandOccupation)), /^5\. What is your/);
 assert.match(getNativeQuestionTitle(question(workHusbandModel, husbandOccupation)), /does he mainly do\?$/);
 for (const [fieldName, label] of [
   [husbandAge, "husband age"],
@@ -887,7 +887,7 @@ assert.equal(isVisible(workHusbandModel, womanEarningsDecision), false);
 
 workHusbandModel.setValue(husbandMaritalCheck, 3);
 assert.equal(isVisible(workHusbandModel, husbandOccupation), true);
-assert.match(getNativeQuestionTitle(question(workHusbandModel, husbandOccupation)), /^What was your/);
+assert.match(getNativeQuestionTitle(question(workHusbandModel, husbandOccupation)), /^5\. What was your/);
 assert.match(getNativeQuestionTitle(question(workHusbandModel, husbandOccupation)), /did he mainly do\?$/);
 
 model.setValue("wq_05_domestic_violence_check_for_presence_of_others_do_not_contin", 1);

@@ -97,11 +97,19 @@ export function getNativeQuestionTitle(question, locale = "default") {
     const maritalStatus = String(
       getQuestionValueForInterpolation(question, WQ_SECTION_4_MARITAL_STATUS_CHECK_FIELD) ?? ""
     );
-    if (maritalStatus === "1") {
-      return "What is your (last) husband's occupation? That is, what kind of work does he mainly do?";
-    }
-    if (maritalStatus === "3") {
-      return "What was your (last) husband's occupation. That is, what kind of work did he mainly do?";
+    if (maritalStatus === "1" || maritalStatus === "3") {
+      // prepareSurveyJson prefixes titles with the source code ("5. ");
+      // keep that number on the marital-status-aware wording.
+      const originalTitle = interpolateSurveyValues(
+        localizedText(question?.locTitle, question?.title || "", locale),
+        question
+      );
+      const numberPrefix = (String(originalTitle).match(/^\s*\d+[a-z]?\.\s*/i) || [""])[0];
+      const occupationTitle =
+        maritalStatus === "1"
+          ? "What is your (last) husband's occupation? That is, what kind of work does he mainly do?"
+          : "What was your (last) husband's occupation. That is, what kind of work did he mainly do?";
+      return numberPrefix + occupationTitle;
     }
   }
   return interpolateSurveyValues(
