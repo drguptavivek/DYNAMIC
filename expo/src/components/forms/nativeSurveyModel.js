@@ -51,6 +51,15 @@ function localizedText(localizable, fallback = "", locale = "default") {
   return stripSurveyHtml(rendered || fallback);
 }
 
+function interpolateSurveyValues(text, question) {
+  if (!text || !question?.survey || !String(text).includes("{")) return text;
+  return String(text).replace(/\{([A-Za-z0-9_]+)\}/g, (match, fieldName) => {
+    const value = question.survey.getValue?.(fieldName);
+    if (value === undefined || value === null || value === "") return match;
+    return String(value);
+  });
+}
+
 function defaultChoiceText(choice) {
   const text = choice?.text;
   if (typeof text === "string") return text;
@@ -61,7 +70,10 @@ function defaultChoiceText(choice) {
 }
 
 export function getNativeQuestionTitle(question, locale = "default") {
-  return localizedText(question?.locTitle, question?.title || question?.name || "", locale);
+  return interpolateSurveyValues(
+    localizedText(question?.locTitle, question?.title || question?.name || "", locale),
+    question
+  );
 }
 
 export function getNativeQuestionDescription(question, locale = "default") {

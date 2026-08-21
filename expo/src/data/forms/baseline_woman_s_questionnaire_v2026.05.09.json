@@ -1970,7 +1970,7 @@
             "te": "",
             "ur": ""
           },
-          "inputType": "number",
+          "inputType": "text",
           "validators": [
             {
               "type": "numeric"
@@ -1980,7 +1980,12 @@
             "00 if none"
           ],
           "visibleIf": "{wq_02_reproduction_now_i_would_like_to_ask_about_all_the_birt} = 1 and {wq_02_reproduction_do_you_have_any_sons_or_daughters_to_whom} = 1",
-          "visibleIfSourceResolved": "Excel 02 row 6: Q2 no skips to Q4."
+          "visibleIfSourceResolved": "Excel 02 row 6: Q2 no skips to Q4.",
+          "maxLength": 2,
+          "preserveString": true,
+          "renderingHint": {
+            "render_as": "numeric_textbox"
+          }
         },
         {
           "type": "text",
@@ -2008,7 +2013,7 @@
             "te": "",
             "ur": ""
           },
-          "inputType": "number",
+          "inputType": "text",
           "validators": [
             {
               "type": "numeric"
@@ -2018,7 +2023,12 @@
             "00 if none"
           ],
           "visibleIf": "{wq_02_reproduction_now_i_would_like_to_ask_about_all_the_birt} = 1 and {wq_02_reproduction_do_you_have_any_sons_or_daughters_to_whom} = 1",
-          "visibleIfSourceResolved": "Excel 02 row 6: Q2 no skips to Q4."
+          "visibleIfSourceResolved": "Excel 02 row 6: Q2 no skips to Q4.",
+          "maxLength": 2,
+          "preserveString": true,
+          "renderingHint": {
+            "render_as": "numeric_textbox"
+          }
         },
         {
           "type": "radiogroup",
@@ -2095,7 +2105,7 @@
             "te": "",
             "ur": ""
           },
-          "inputType": "number",
+          "inputType": "text",
           "validators": [
             {
               "type": "numeric"
@@ -2105,7 +2115,12 @@
             "00 if none"
           ],
           "visibleIf": "{wq_02_reproduction_now_i_would_like_to_ask_about_all_the_birt} = 1 and {wq_02_reproduction_do_you_have_any_sons_or_daughters_to_whom_2} = 1",
-          "visibleIfSourceResolved": "Excel 02 row 10: Q4 no skips to Q6."
+          "visibleIfSourceResolved": "Excel 02 row 10: Q4 no skips to Q6.",
+          "maxLength": 2,
+          "preserveString": true,
+          "renderingHint": {
+            "render_as": "numeric_textbox"
+          }
         },
         {
           "type": "text",
@@ -2133,7 +2148,7 @@
             "te": "",
             "ur": ""
           },
-          "inputType": "number",
+          "inputType": "text",
           "validators": [
             {
               "type": "numeric"
@@ -2143,7 +2158,12 @@
             "00 if none"
           ],
           "visibleIf": "{wq_02_reproduction_now_i_would_like_to_ask_about_all_the_birt} = 1 and {wq_02_reproduction_do_you_have_any_sons_or_daughters_to_whom_2} = 1",
-          "visibleIfSourceResolved": "Excel 02 row 10: Q4 no skips to Q6."
+          "visibleIfSourceResolved": "Excel 02 row 10: Q4 no skips to Q6.",
+          "maxLength": 2,
+          "preserveString": true,
+          "renderingHint": {
+            "render_as": "numeric_textbox"
+          }
         },
         {
           "type": "radiogroup",
@@ -2219,14 +2239,19 @@
             "te": "",
             "ur": ""
           },
-          "inputType": "number",
+          "inputType": "text",
           "validators": [
             {
               "type": "numeric"
             }
           ],
           "visibleIf": "{wq_02_reproduction_have_you_ever_given_birth_to_a_boy_or_girl} = 1",
-          "visibleIfSourceResolved": "Excel 02 row 14: Q6 no skips to Q8."
+          "visibleIfSourceResolved": "Excel 02 row 14: Q6 no skips to Q8.",
+          "maxLength": 2,
+          "preserveString": true,
+          "renderingHint": {
+            "render_as": "numeric_textbox"
+          }
         },
         {
           "type": "text",
@@ -2254,14 +2279,19 @@
             "te": "",
             "ur": ""
           },
-          "inputType": "number",
+          "inputType": "text",
           "validators": [
             {
               "type": "numeric"
             }
           ],
           "visibleIf": "{wq_02_reproduction_have_you_ever_given_birth_to_a_boy_or_girl} = 1",
-          "visibleIfSourceResolved": "Excel 02 row 14: Q6 no skips to Q8."
+          "visibleIfSourceResolved": "Excel 02 row 14: Q6 no skips to Q8.",
+          "maxLength": 2,
+          "preserveString": true,
+          "renderingHint": {
+            "render_as": "numeric_textbox"
+          }
         },
         {
           "type": "text",
@@ -2278,7 +2308,7 @@
           "order": 32,
           "section_order": 2,
           "sourceCode": "8",
-          "sourceType": "integer",
+          "sourceType": "calculated_integer",
           "rawText": "SUM ANSWERS TO 3, 5, AND 7 ENTER TOTAL\nIF NONE, RECORD 00 |_|_| total live births Automatically filled, 00 if none(i.e. if for q1 the choice is 2 i.e. NO)",
           "description": {
             "default": "total live births Automatically filled, 00 if none(i.e. if for q1 the choice is 2 i.e. NO)",
@@ -2298,14 +2328,22 @@
           "validationRulesSource": [
             "Automatically filled, 00 if none(i.e. if for q1 the choice is 2 i.e. NO)"
           ],
-          "visibleIf": "{wq_02_reproduction_now_i_would_like_to_ask_about_all_the_birt} = 1",
-          "visibleIfSourceResolved": "Excel 02 row 4: Q1 no skips to Q6."
+          "visibleIf": "({wq_02_reproduction_now_i_would_like_to_ask_about_all_the_birt} = 1) or ({wq_02_reproduction_have_you_ever_given_birth_to_a_boy_or_girl} notempty)",
+          "visibleIfSourceResolved": "Excel 02 row 4: Q1 no skips to Q6.",
+          "maxLength": 2,
+          "preserveString": true,
+          "readOnly": true,
+          "calculated": true,
+          "renderingHint": {
+            "render_as": "readonly_calculated_numeric"
+          },
+          "calculationSource": "Automatically filled from WQ Section 2 Q3a, Q3b, Q5a, Q5b, Q7a, and Q7b; stores 00 when the summed count is none."
         },
         {
           "type": "radiogroup",
           "name": "wq_02_reproduction_check_8_just_to_make_sure_that_i_have_this",
           "title": {
-            "default": "CHECK 8:\nJust to make sure that I have this right: you have had in TOTAL |_|_| (Q8'S VALUE TO BE DISPLAYED) births during your life. Is that correct?",
+            "default": "CHECK 8:\nJust to make sure that I have this right: you have had in TOTAL {wq_02_reproduction_sum_answers_to_3_5_and_7_enter_total_if_no} births during your life. Is that correct?",
             "hi": "",
             "kn": "",
             "mr": "",
@@ -2317,7 +2355,7 @@
           "section_order": 2,
           "sourceCode": "9",
           "sourceType": "select_one",
-          "rawText": "CHECK 8:\nJust to make sure that I have this right: you have had in TOTAL |_|_| (Q8'S VALUE TO BE DISPLAYED) births during your life. Is that correct? 1 yes",
+          "rawText": "CHECK 8:\nJust to make sure that I have this right: you have had in TOTAL {wq_02_reproduction_sum_answers_to_3_5_and_7_enter_total_if_no} births during your life. Is that correct? 1 yes",
           "choices": [
             {
               "value": 1,
@@ -2423,14 +2461,19 @@
             "te": "",
             "ur": ""
           },
-          "inputType": "number",
+          "inputType": "text",
           "validators": [
             {
               "type": "numeric"
             }
           ],
           "visibleIf": "{wq_02_reproduction_women_sometimes_have_a_pregnancy_that_does} = 1",
-          "visibleIfSourceResolved": "Excel 02 row 21: Q10 no skips to Q12."
+          "visibleIfSourceResolved": "Excel 02 row 21: Q10 no skips to Q12.",
+          "maxLength": 2,
+          "preserveString": true,
+          "renderingHint": {
+            "render_as": "numeric_textbox"
+          }
         },
         {
           "type": "text",
@@ -2447,7 +2490,7 @@
           "order": 36,
           "section_order": 2,
           "sourceCode": "12",
-          "sourceType": "integer",
+          "sourceType": "calculated_integer",
           "rawText": "SUM ANSWERS TO 8 AND 11 AND ENTER TOTAL\nIF NONE, RECORD 00 |_|_| total pregnancy outcomes Automatically filled, 00 if none",
           "description": {
             "default": "total pregnancy outcomes Automatically filled, 00 if none",
@@ -2466,7 +2509,15 @@
           ],
           "validationRulesSource": [
             "Automatically filled, 00 if none"
-          ]
+          ],
+          "maxLength": 2,
+          "preserveString": true,
+          "readOnly": true,
+          "calculated": true,
+          "renderingHint": {
+            "render_as": "readonly_calculated_numeric"
+          },
+          "calculationSource": "Automatically filled from WQ Section 2 Q8 and Q11; stores 00 when none."
         },
         {
           "type": "radiogroup",
@@ -2513,7 +2564,10 @@
           ],
           "renderingHint": {
             "render_as": "radio"
-          }
+          },
+          "readOnly": true,
+          "calculated": true,
+          "calculationSource": "Automatically filled from WQ Section 2 Q12: one or more past pregnancies when total pregnancy outcomes is greater than 00; otherwise no past pregnancies."
         },
         {
           "type": "paneldynamic",
@@ -10156,3 +10210,4 @@
   },
   "source_workbook": "02_baseline_woman_s_questionnaire_v2026.07.28.xlsx"
 }
+

@@ -14,10 +14,13 @@ const {
   WQ_HYSTERECTOMY_FIELD,
   WQ_LMP_FIELD,
   WQ_STERILIZATION_FIELD,
+  applyWqReproductionSummary,
   buildWqHusbandPartnerChoices,
   calculateWqPregnancyTrackingEligibilityValue,
   getWqOutsideHouseholdHusbandLineNumber,
+  shouldRecalculateWqReproductionSummary,
 } = await import("../lib/womanSurveyBehaviors.js");
+const { getNativeQuestionTitle } = await import("../components/forms/nativeSurveyModel.js");
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const wqPath = path.resolve(
@@ -392,6 +395,110 @@ assert.equal(
 model.setValue("wq_02_reproduction_women_sometimes_have_a_pregnancy_that_does", 1);
 assert.equal(
   isVisible(model, "wq_02_reproduction_how_many_miscarriages_abortions_and_stillb"),
+  true
+);
+
+const reproductionSummaryModel = createWqModel();
+applyWqReproductionSummary(reproductionSummaryModel);
+assert.equal(
+  reproductionSummaryModel.getValue("wq_02_reproduction_sum_answers_to_3_5_and_7_enter_total_if_no"),
+  "00"
+);
+assert.equal(
+  reproductionSummaryModel.getValue("wq_02_reproduction_sum_answers_to_8_and_11_and_enter_total_if"),
+  "00"
+);
+assert.equal(reproductionSummaryModel.getValue("wq_02_reproduction_check_12"), 2);
+assert.equal(
+  question(
+    reproductionSummaryModel,
+    "wq_02_reproduction_sum_answers_to_3_5_and_7_enter_total_if_no"
+  ).isReadOnly,
+  true
+);
+reproductionSummaryModel.setValue("wq_02_reproduction_now_i_would_like_to_ask_about_all_the_birt", 1);
+reproductionSummaryModel.setValue("wq_02_reproduction_how_many_sons_live_with_you", "02");
+reproductionSummaryModel.setValue("wq_02_reproduction_how_many_daugthers_live_with_you", "03");
+reproductionSummaryModel.setValue(
+  "wq_02_reproduction_how_many_sons_are_alive_but_do_not_live_wi",
+  "04"
+);
+reproductionSummaryModel.setValue(
+  "wq_02_reproduction_how_many_daugthers_are_alive_but_do_not_li",
+  "05"
+);
+reproductionSummaryModel.setValue("wq_02_reproduction_how_many_boys_have_died", "01");
+reproductionSummaryModel.setValue("wq_02_reproduction_how_many_girls_have_died", "02");
+reproductionSummaryModel.setValue(
+  "wq_02_reproduction_how_many_miscarriages_abortions_and_stillb",
+  "03"
+);
+applyWqReproductionSummary(reproductionSummaryModel);
+assert.equal(
+  reproductionSummaryModel.getValue("wq_02_reproduction_sum_answers_to_3_5_and_7_enter_total_if_no"),
+  "17"
+);
+assert.match(
+  getNativeQuestionTitle(
+    question(
+      reproductionSummaryModel,
+      "wq_02_reproduction_check_8_just_to_make_sure_that_i_have_this"
+    )
+  ),
+  /TOTAL 17 births/,
+  "Q9 CHECK 8 title must display the calculated Q8 value"
+);
+assert.equal(
+  reproductionSummaryModel.getValue("wq_02_reproduction_sum_answers_to_8_and_11_and_enter_total_if"),
+  "20"
+);
+assert.equal(reproductionSummaryModel.getValue("wq_02_reproduction_check_12"), 1);
+reproductionSummaryModel.setValue("wq_02_reproduction_now_i_would_like_to_ask_about_all_the_birt", 2);
+reproductionSummaryModel.setValue("wq_02_reproduction_have_you_ever_given_birth_to_a_boy_or_girl", 2);
+applyWqReproductionSummary(reproductionSummaryModel);
+assert.equal(
+  reproductionSummaryModel.getValue("wq_02_reproduction_sum_answers_to_3_5_and_7_enter_total_if_no"),
+  "00"
+);
+assert.equal(reproductionSummaryModel.getValue("wq_02_reproduction_how_many_sons_live_with_you"), "00");
+assert.equal(reproductionSummaryModel.getValue("wq_02_reproduction_how_many_daugthers_live_with_you"), "00");
+assert.equal(
+  reproductionSummaryModel.getValue("wq_02_reproduction_how_many_sons_are_alive_but_do_not_live_wi"),
+  "00"
+);
+assert.equal(
+  reproductionSummaryModel.getValue("wq_02_reproduction_how_many_daugthers_are_alive_but_do_not_li"),
+  "00"
+);
+assert.equal(reproductionSummaryModel.getValue("wq_02_reproduction_how_many_boys_have_died"), "00");
+assert.equal(reproductionSummaryModel.getValue("wq_02_reproduction_how_many_girls_have_died"), "00");
+reproductionSummaryModel.setValue("wq_02_reproduction_have_you_ever_given_birth_to_a_boy_or_girl", 1);
+reproductionSummaryModel.setValue("wq_02_reproduction_how_many_boys_have_died", "01");
+reproductionSummaryModel.setValue("wq_02_reproduction_how_many_girls_have_died", "02");
+applyWqReproductionSummary(reproductionSummaryModel);
+assert.equal(
+  reproductionSummaryModel.getValue("wq_02_reproduction_sum_answers_to_3_5_and_7_enter_total_if_no"),
+  "03",
+  "Q8 must sum Q7 after the Excel Q1=No -> Q6 skip path"
+);
+assert.equal(
+  isVisible(reproductionSummaryModel, "wq_02_reproduction_sum_answers_to_3_5_and_7_enter_total_if_no"),
+  true,
+  "Q8 must be visible once Q6 is answered"
+);
+reproductionSummaryModel.setValue("wq_02_reproduction_women_sometimes_have_a_pregnancy_that_does", 2);
+applyWqReproductionSummary(reproductionSummaryModel);
+assert.equal(
+  reproductionSummaryModel.getValue("wq_02_reproduction_how_many_miscarriages_abortions_and_stillb"),
+  "00",
+  "Q11 must save 00 when Q10 is No"
+);
+assert.equal(
+  shouldRecalculateWqReproductionSummary("wq_02_reproduction_how_many_sons_live_with_you"),
+  true
+);
+assert.equal(
+  shouldRecalculateWqReproductionSummary("wq_02_reproduction_women_sometimes_have_a_pregnancy_that_does"),
   true
 );
 

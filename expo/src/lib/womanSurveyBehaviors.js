@@ -5,11 +5,52 @@ export const WQ_HYSTERECTOMY_FIELD = "wq_02_reproduction_some_women_undergo_an_o
 export const WQ_STERILIZATION_FIELD = "wq_02_reproduction_are_you_or_your_partner_sterilized_probe_w";
 export const WQ_PREGNANCY_TRACKING_ELIGIBLE_FIELD = "wq_pregnancy_tracking_eligible";
 export const WQ_HUSBAND_NOT_IN_HOUSEHOLD_VALUE = "Husband not in household";
+export const WQ_EVER_GIVEN_BIRTH_FIELD = "wq_02_reproduction_now_i_would_like_to_ask_about_all_the_birt";
+export const WQ_CHILDREN_AT_HOME_FIELD = "wq_02_reproduction_do_you_have_any_sons_or_daughters_to_whom";
+export const WQ_SONS_AT_HOME_FIELD = "wq_02_reproduction_how_many_sons_live_with_you";
+export const WQ_DAUGHTERS_AT_HOME_FIELD = "wq_02_reproduction_how_many_daugthers_live_with_you";
+export const WQ_CHILDREN_ELSEWHERE_FIELD = "wq_02_reproduction_do_you_have_any_sons_or_daughters_to_whom_2";
+export const WQ_SONS_ELSEWHERE_FIELD = "wq_02_reproduction_how_many_sons_are_alive_but_do_not_live_wi";
+export const WQ_DAUGHTERS_ELSEWHERE_FIELD = "wq_02_reproduction_how_many_daugthers_are_alive_but_do_not_li";
+export const WQ_BORN_ALIVE_LATER_DIED_FIELD = "wq_02_reproduction_have_you_ever_given_birth_to_a_boy_or_girl";
+export const WQ_BOYS_DEAD_FIELD = "wq_02_reproduction_how_many_boys_have_died";
+export const WQ_GIRLS_DEAD_FIELD = "wq_02_reproduction_how_many_girls_have_died";
+export const WQ_TOTAL_LIVE_BIRTHS_FIELD = "wq_02_reproduction_sum_answers_to_3_5_and_7_enter_total_if_no";
+export const WQ_NON_LIVE_BIRTH_PREGNANCY_FIELD = "wq_02_reproduction_women_sometimes_have_a_pregnancy_that_does";
+export const WQ_PREGNANCY_LOSSES_FIELD = "wq_02_reproduction_how_many_miscarriages_abortions_and_stillb";
+export const WQ_TOTAL_PREGNANCY_OUTCOMES_FIELD = "wq_02_reproduction_sum_answers_to_8_and_11_and_enter_total_if";
+export const WQ_PAST_PREGNANCY_CHECK_FIELD = "wq_02_reproduction_check_12";
+
+const WQ_REPRODUCTION_SUMMARY_SOURCE_FIELDS = [
+  WQ_EVER_GIVEN_BIRTH_FIELD,
+  WQ_CHILDREN_AT_HOME_FIELD,
+  WQ_SONS_AT_HOME_FIELD,
+  WQ_DAUGHTERS_AT_HOME_FIELD,
+  WQ_CHILDREN_ELSEWHERE_FIELD,
+  WQ_SONS_ELSEWHERE_FIELD,
+  WQ_DAUGHTERS_ELSEWHERE_FIELD,
+  WQ_BORN_ALIVE_LATER_DIED_FIELD,
+  WQ_BOYS_DEAD_FIELD,
+  WQ_GIRLS_DEAD_FIELD,
+  WQ_TOTAL_LIVE_BIRTHS_FIELD,
+  WQ_NON_LIVE_BIRTH_PREGNANCY_FIELD,
+  WQ_PREGNANCY_LOSSES_FIELD,
+];
 
 function toFiniteNumber(value) {
   if (value === undefined || value === null || value === "") return null;
   const numericValue = Number(value);
   return Number.isFinite(numericValue) ? numericValue : null;
+}
+
+function toCount(value) {
+  const numericValue = toFiniteNumber(value);
+  if (numericValue === null || numericValue < 0) return 0;
+  return Math.trunc(numericValue);
+}
+
+function toTwoDigitCount(value) {
+  return String(Math.min(Math.max(toCount(value), 0), 99)).padStart(2, "0");
 }
 
 function normalizeLineNumber(value) {
@@ -120,6 +161,105 @@ export function calculateWqPregnancyTrackingEligibilityValue(answers = {}) {
   return isEligible ? 1 : 2;
 }
 
+export function calculateWqTotalLiveBirthsValue(answers = {}) {
+  const total =
+    toCount(answers[WQ_SONS_AT_HOME_FIELD]) +
+    toCount(answers[WQ_DAUGHTERS_AT_HOME_FIELD]) +
+    toCount(answers[WQ_SONS_ELSEWHERE_FIELD]) +
+    toCount(answers[WQ_DAUGHTERS_ELSEWHERE_FIELD]) +
+    toCount(answers[WQ_BOYS_DEAD_FIELD]) +
+    toCount(answers[WQ_GIRLS_DEAD_FIELD]);
+  return toTwoDigitCount(total);
+}
+
+export function calculateWqTotalPregnancyOutcomesValue(answers = {}) {
+  const total =
+    toCount(answers[WQ_TOTAL_LIVE_BIRTHS_FIELD]) +
+    toCount(answers[WQ_PREGNANCY_LOSSES_FIELD]);
+  return toTwoDigitCount(total);
+}
+
+export function calculateWqPastPregnancyCheckValue(answers = {}) {
+  return toCount(answers[WQ_TOTAL_PREGNANCY_OUTCOMES_FIELD]) > 0 ? 1 : 2;
+}
+
+function setModelValueIfChanged(model, fieldName, nextValue) {
+  const question = model?.getQuestionByName?.(fieldName);
+  if (!question) return;
+  if (String(model.getValue(fieldName) ?? "") !== String(nextValue)) {
+    model.setValue(fieldName, nextValue);
+  }
+}
+
+function defaultCountsToZeroWhenNo(model, parentFieldName, childFieldNames = []) {
+  if (Number(model?.getValue?.(parentFieldName)) !== 2) return;
+  for (const childFieldName of childFieldNames) {
+    setModelValueIfChanged(model, childFieldName, "00");
+  }
+}
+
+export function applyWqReproductionSummary(model) {
+  if (Number(model?.getValue?.(WQ_EVER_GIVEN_BIRTH_FIELD)) === 2) {
+    for (const fieldName of [
+      WQ_SONS_AT_HOME_FIELD,
+      WQ_DAUGHTERS_AT_HOME_FIELD,
+      WQ_SONS_ELSEWHERE_FIELD,
+      WQ_DAUGHTERS_ELSEWHERE_FIELD,
+    ]) {
+      setModelValueIfChanged(model, fieldName, "00");
+    }
+  }
+  defaultCountsToZeroWhenNo(model, WQ_CHILDREN_AT_HOME_FIELD, [
+    WQ_SONS_AT_HOME_FIELD,
+    WQ_DAUGHTERS_AT_HOME_FIELD,
+  ]);
+  defaultCountsToZeroWhenNo(model, WQ_CHILDREN_ELSEWHERE_FIELD, [
+    WQ_SONS_ELSEWHERE_FIELD,
+    WQ_DAUGHTERS_ELSEWHERE_FIELD,
+  ]);
+  defaultCountsToZeroWhenNo(model, WQ_BORN_ALIVE_LATER_DIED_FIELD, [
+    WQ_BOYS_DEAD_FIELD,
+    WQ_GIRLS_DEAD_FIELD,
+  ]);
+  defaultCountsToZeroWhenNo(model, WQ_NON_LIVE_BIRTH_PREGNANCY_FIELD, [
+    WQ_PREGNANCY_LOSSES_FIELD,
+  ]);
+
+  const answers = {
+    [WQ_EVER_GIVEN_BIRTH_FIELD]: model?.getValue?.(WQ_EVER_GIVEN_BIRTH_FIELD),
+    [WQ_SONS_AT_HOME_FIELD]: model?.getValue?.(WQ_SONS_AT_HOME_FIELD),
+    [WQ_DAUGHTERS_AT_HOME_FIELD]: model?.getValue?.(WQ_DAUGHTERS_AT_HOME_FIELD),
+    [WQ_SONS_ELSEWHERE_FIELD]: model?.getValue?.(WQ_SONS_ELSEWHERE_FIELD),
+    [WQ_DAUGHTERS_ELSEWHERE_FIELD]: model?.getValue?.(WQ_DAUGHTERS_ELSEWHERE_FIELD),
+    [WQ_BOYS_DEAD_FIELD]: model?.getValue?.(WQ_BOYS_DEAD_FIELD),
+    [WQ_GIRLS_DEAD_FIELD]: model?.getValue?.(WQ_GIRLS_DEAD_FIELD),
+    [WQ_PREGNANCY_LOSSES_FIELD]: model?.getValue?.(WQ_PREGNANCY_LOSSES_FIELD),
+  };
+  const totalLiveBirths = calculateWqTotalLiveBirthsValue(answers);
+  setModelValueIfChanged(model, WQ_TOTAL_LIVE_BIRTHS_FIELD, totalLiveBirths);
+
+  const totalPregnancyOutcomes = calculateWqTotalPregnancyOutcomesValue({
+    ...answers,
+    [WQ_TOTAL_LIVE_BIRTHS_FIELD]: totalLiveBirths,
+  });
+  setModelValueIfChanged(model, WQ_TOTAL_PREGNANCY_OUTCOMES_FIELD, totalPregnancyOutcomes);
+  setModelValueIfChanged(
+    model,
+    WQ_PAST_PREGNANCY_CHECK_FIELD,
+    calculateWqPastPregnancyCheckValue({
+      [WQ_TOTAL_PREGNANCY_OUTCOMES_FIELD]: totalPregnancyOutcomes,
+    })
+  );
+  for (const fieldName of [
+    WQ_TOTAL_LIVE_BIRTHS_FIELD,
+    WQ_TOTAL_PREGNANCY_OUTCOMES_FIELD,
+    WQ_PAST_PREGNANCY_CHECK_FIELD,
+  ]) {
+    const question = model?.getQuestionByName?.(fieldName);
+    if (question) question.readOnly = true;
+  }
+}
+
 export function applyWqPregnancyTrackingEligibility(model) {
   const question = model?.getQuestionByName?.(WQ_PREGNANCY_TRACKING_ELIGIBLE_FIELD);
   if (!question) return;
@@ -145,4 +285,8 @@ export function shouldRecalculateWqPregnancyTrackingEligibility(fieldName) {
     WQ_HYSTERECTOMY_FIELD,
     WQ_STERILIZATION_FIELD,
   ].includes(fieldName);
+}
+
+export function shouldRecalculateWqReproductionSummary(fieldName) {
+  return WQ_REPRODUCTION_SUMMARY_SOURCE_FIELDS.includes(fieldName);
 }

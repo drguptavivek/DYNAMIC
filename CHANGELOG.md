@@ -18,6 +18,7 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 
 ## Unreleased
 
+- Added WQ Section 2 reproduction calculations for Q8, Q12, and CHECK 12, and made parent "No" skip paths store `00` in the related two-digit count fields from the Excel instructions.
 - Tightened WQ Section 2 Reproduction skip logic from the Excel workbook so pregnancy-history date/duration fields wait for the Q16/Q17 outcome path, Q33c waits for Q33b, and Q34 waits for both Q33b and Q33c.
 - Fixed HHQ Q60/Q62 outcome routing so skipped handwashing observations show only the correct preselected outcome option: Completed for Q60 options 2/3 and any Q62 selection, or Other specify for Q60 option 4.
 - Grouped uploaded HHQ submissions by household, backfilled server classifications once after upgrade, and displayed chronological visit numbers plus results so legitimate revisit history no longer looks like duplicate forms.
