@@ -728,6 +728,23 @@ assert.equal(
   true
 );
 
+const alcoholSkipModel = createWqModel();
+alcoholSkipModel.setValue("wq_pregnancy_tracking_eligible", 1);
+alcoholSkipModel.setValue("wq_woman_available", 1);
+alcoholSkipModel.setValue("wq_consent_study", 1);
+alcoholSkipModel.setValue("wq_current_marital_status", 1);
+const alcoholEverField = "wq_03_other_health_issues_now_i_would_like_to_ask_you_some_questions_2";
+const alcoholDaysField = "wq_03_other_health_issues_during_the_last_one_month_on_how_many_days";
+const alcoholDrinksField = "wq_03_other_health_issues_we_count_one_drink_of_alcohol_as_one_can_o";
+alcoholSkipModel.setValue(alcoholEverField, 2);
+assert.equal(isVisible(alcoholSkipModel, alcoholDaysField), false);
+assert.equal(isVisible(alcoholSkipModel, alcoholDrinksField), false);
+alcoholSkipModel.setValue(alcoholEverField, 1);
+alcoholSkipModel.setValue(alcoholDaysField, 0);
+assert.equal(isVisible(alcoholSkipModel, alcoholDrinksField), false);
+alcoholSkipModel.setValue(alcoholDaysField, 95);
+assert.equal(isVisible(alcoholSkipModel, alcoholDrinksField), true);
+
 model.setValue(
   "wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo",
   2

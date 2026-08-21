@@ -5818,8 +5818,8 @@
           "renderingHint": {
             "render_as": "radio"
           },
-          "visibleIf": "{wq_03_other_health_issues_during_the_last_one_month_on_how_many_days} != 0",
-          "visibleIfSourceResolved": "Excel 03 row 72: Q17 00 skips to next section."
+          "visibleIf": "{wq_03_other_health_issues_now_i_would_like_to_ask_you_some_questions_2} = 1 and {wq_03_other_health_issues_during_the_last_one_month_on_how_many_days} notempty and {wq_03_other_health_issues_during_the_last_one_month_on_how_many_days} != 0",
+          "visibleIfSourceResolved": "Excel 03 rows 71-72: Q16 no skips to next section; Q17 00 also skips to next section."
         }
       ],
       "visibleIf": "({wq_pregnancy_tracking_eligible} = 1) and (({wq_woman_available} empty or {wq_woman_available} = 1) and ({wq_consent_study} empty or {wq_consent_study} = 1) and ({wq_current_marital_status} empty or {wq_current_marital_status} != 7))",
