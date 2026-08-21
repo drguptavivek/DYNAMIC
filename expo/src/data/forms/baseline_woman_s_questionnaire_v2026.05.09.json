@@ -6541,6 +6541,55 @@
           "visibleIfSourceResolved": "Excel 04: ask other tobacco type only for currently married and Q10 = Every day."
         },
         {
+          "type": "text",
+          "name": "wq_04_husband_s_backgroun_what_other_type_of_tobacco_does_your_husba_other_specify",
+          "title": {
+            "default": "Specify other tobacco type",
+            "hi": "",
+            "kn": "",
+            "mr": "",
+            "ta": "",
+            "te": "",
+            "ur": ""
+          },
+          "order": 95.1,
+          "section_order": 4,
+          "sourceCode": "11_specifyother",
+          "sourceType": "text_other_specify",
+          "rawText": "Other (specify)",
+          "renderingHint": {
+            "render_as": "input"
+          },
+          "visibleIf": "({wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 1 or {wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 2) and {wq_04_husband_s_backgroun_does_your_husband_partner_currently_smoke_2} = 1 and {wq_04_husband_s_backgroun_what_other_type_of_tobacco_does_your_husba} contains 'x'",
+          "visibleIfSourceResolved": "Excel 04 row for Q11: other (specify) requires the free-text response.",
+          "isRequired": true,
+          "validators": [
+            {
+              "type": "text",
+              "minLength": 1,
+              "maxLength": 120,
+              "text": {
+                "default": "Specify the other tobacco type.",
+                "hi": "",
+                "kn": "",
+                "mr": "",
+                "ta": "",
+                "te": "",
+                "ur": ""
+              }
+            }
+          ],
+          "description": {
+            "default": "Complete only if Other (specify) is selected.",
+            "hi": "",
+            "kn": "",
+            "mr": "",
+            "ta": "",
+            "te": "",
+            "ur": ""
+          }
+        },
+        {
           "type": "radiogroup",
           "name": "wq_04_husband_s_backgroun_now_i_would_like_to_ask_you_some_questions_2",
           "title": {
@@ -6642,7 +6691,7 @@
             }
           ],
           "renderingHint": {
-            "render_as": "years_with_special_codes"
+            "render_as": "days_with_special_codes"
           },
           "validationRulesSource": [
             "Enter exactly 2 digits; 00 skips to Q15; 95 = every day/almost every day."
@@ -7146,7 +7195,8 @@
                 "ta": "",
                 "te": "",
                 "ur": ""
-              }
+              },
+              "visibleIf": "{wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 1"
             },
             {
               "value": 2,
@@ -7203,8 +7253,7 @@
           "validationRulesSource": [
             "Only for the currently married"
           ],
-          "visibleIf": "{wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 1",
-          "visibleIfSourceResolved": "Excel 04: husband/current-marriage questions only for currently married."
+          "visibleIfSourceResolved": "Excel 04: Q22 is asked of everyone; the Respondent option is only for the currently married (Q1 = 1)."
         },
         {
           "type": "radiogroup",

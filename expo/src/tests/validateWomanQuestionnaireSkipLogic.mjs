@@ -44,7 +44,11 @@ const wqSection4 = wq.pages.find((page) => page.name === "page_04_husband_backgr
 assert.ok(wqSection4, "Expected WQ Section 4 to exist");
 assert.deepEqual(
   wqSection4.elements.filter((element) => element.sourceCode).map((element) => element.sourceCode),
-  Array.from({ length: 28 }, (_, index) => String(index + 1)),
+  [
+    ...Array.from({ length: 11 }, (_, index) => String(index + 1)),
+    "11_specifyother",
+    ...Array.from({ length: 17 }, (_, index) => String(index + 12)),
+  ],
   "WQ Section 4 source codes should be sequential after correcting the duplicate Q23 typo"
 );
 
@@ -845,13 +849,13 @@ for (const [fieldName, label] of [
     `WQ Section 4 ${label} should require exactly two digits`
   );
 }
-for (const [fieldName, label, expectedSpecialCodes] of [
-  [husbandAlcoholDays, "alcohol days", ["00", "95"]],
-  [husbandAlcoholDrinks, "alcohol drinks", ["00"]],
+for (const [fieldName, label, expectedSpecialCodes, expectedEntryHint] of [
+  [husbandAlcoholDays, "alcohol days", ["00", "95"], "days_with_special_codes"],
+  [husbandAlcoholDrinks, "alcohol drinks", ["00"], "years_with_special_codes"],
 ]) {
   const item = question(workHusbandModel, fieldName);
   assert.equal(item.getType(), "radiogroup", `WQ Section 4 ${label} should keep coded special choices`);
-  assert.equal(item.renderAs, "years_with_special_codes", `WQ Section 4 ${label} should show a 2-digit entry with special codes`);
+  assert.equal(item.renderAs, expectedEntryHint, `WQ Section 4 ${label} should show a 2-digit entry with special codes`);
   assert.equal(item.jsonObj?.maxLength, 2, `WQ Section 4 ${label} should accept only two typed digits`);
   assert.deepEqual(
     item.choices.map((choice) => String(choice.value)),
@@ -866,7 +870,33 @@ workHusbandModel.setValue(husbandAlcoholEver, 1);
 workHusbandModel.setValue(husbandAlcoholDays, "00");
 assert.equal(isVisible(workHusbandModel, husbandAlcoholDrinks), false);
 workHusbandModel.setValue(husbandAlcoholDays, "95");
-assert.equal(isVisible(workHusbandModel, husbandAlcoholDrinks), true);
+assert.equal(
+  question(workHusbandModel, husbandAlcoholDays).renderAs,
+  "days_with_special_codes",
+  "WQ Section 4 Q13 alcohol-days entry must show the Days unit"
+);
+
+const husbandHealthDecision = "wq_04_husband_s_backgroun_who_usually_makes_decisions_about_health_c";
+assert.equal(
+  isVisible(workHusbandModel, husbandHealthDecision),
+  true,
+  "WQ Section 4 Q22 must stay visible regardless of marital status"
+);
+assert.deepEqual(
+  question(workHusbandModel, husbandHealthDecision).visibleChoices.map((choice) => choice.value),
+  [1, 2, 3, 4, 6],
+  "WQ Section 4 Q22 shows every option while currently married"
+);
+for (const otherMarital of [2, 3]) {
+  workHusbandModel.setValue(husbandMaritalCheck, otherMarital);
+  assert.equal(isVisible(workHusbandModel, husbandHealthDecision), true);
+  assert.deepEqual(
+    question(workHusbandModel, husbandHealthDecision).visibleChoices.map((choice) => choice.value),
+    [2, 3, 4, 6],
+    `WQ Section 4 Q22 hides only the Respondent option when marital status is ${otherMarital}`
+  );
+}
+workHusbandModel.setValue(husbandMaritalCheck, 1);
 
 workHusbandModel.setValue(womanWorkLastSevenDays, 1);
 assert.equal(isVisible(workHusbandModel, womanPaidWorkLastSevenDays), false);

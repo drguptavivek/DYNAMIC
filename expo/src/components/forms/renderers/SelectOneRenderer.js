@@ -10,7 +10,8 @@ export function SelectOneRenderer({ answerData, locale, question, onChange }) {
   const [selectedValue, setSelectedValue] = useState(value);
   const pendingValueRef = useRef(null);
   const disabled = question?.readOnly === true;
-  const usesYearsEntry = question?.renderAs === "years_with_special_codes";
+  const usesYearsEntry =
+    question?.renderAs === "years_with_special_codes" || question?.renderAs === "days_with_special_codes";
 
   useEffect(() => {
     if (
@@ -69,7 +70,7 @@ export function SelectOneRenderer({ answerData, locale, question, onChange }) {
       {usesYearsEntry ? (
         <View style={styles.yearsRow}>
           <TextInput
-            accessibilityLabel="Years"
+            accessibilityLabel="Entry"
             editable={!disabled}
             keyboardType="number-pad"
             maxLength={2}
@@ -81,7 +82,9 @@ export function SelectOneRenderer({ answerData, locale, question, onChange }) {
             style={[controlStyles.input, styles.yearsInput, disabled && controlStyles.readOnly]}
             value={yearsValue}
           />
-          <Text style={styles.yearsLabel}>Years</Text>
+          <Text style={styles.yearsLabel}>
+            {question?.renderAs === "days_with_special_codes" ? "Days" : "Years"}
+          </Text>
         </View>
       ) : null}
       <View style={controlStyles.options}>

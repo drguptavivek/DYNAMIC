@@ -6,6 +6,7 @@ Decisions:
 - DB note: device rows deleted this morning (dev-smoke-device, two dynamic-field-device-* web registrations) were all created by this session's own smoke/browser logins; dev-task-wq-1 (WQ test task inserted for browser repro) was deleted after diagnosis.
 Open:
 - Phone needs an APK rebuild to pick up the fix (JS-only change; web picks it up via HMR). No APK build per user instruction.
+- WQ Section 4 follow-ups (user reports, uncommitted->committed): Q11 other-tobacco gained a required other-specify text input (gated on choice x under the Q11 gates, mirrors outcome-specify pattern); Q13 alcohol-days entry shows a Days unit instead of Years (new days_with_special_codes hint mapped through registry+SelectOneRenderer); Q22 health-care decision question is now asked of everyone with only the Respondent option gated on currently-married (per-choice visibleIf), replacing the whole-question marital gate. Validators updated for all three; suite 24/24.
 
 ## 2026-08-20 (post-reset login and local-data fixes) [working]
 Goal: Fix stale site-2 data on mobile after DB reset, logout/login device wipes, and admin panel login failures.

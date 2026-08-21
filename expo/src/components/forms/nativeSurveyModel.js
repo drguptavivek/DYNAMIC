@@ -244,7 +244,7 @@ export function getNativeRendererKind(question) {
   if (renderAs === "gps_decimal" || renderAs === "gps_altitude") return "gps";
   if (renderAs.startsWith("grouped_")) return "grouped-coded-single-select";
   if (renderAs === "household_member_dropdown") return "household-member-dropdown";
-  if (renderAs === "years_with_special_codes") return "select-one";
+  if (renderAs === "years_with_special_codes" || renderAs === "days_with_special_codes") return "select-one";
   if (type === "radiogroup") return "select-one";
   if (type === "checkbox") return "select-many";
   if (type === "multipletext") return "multiple-text";
