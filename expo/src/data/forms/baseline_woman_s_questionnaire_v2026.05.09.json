@@ -2863,7 +2863,9 @@
                 {
                   "type": "numeric"
                 }
-              ]
+              ],
+              "visibleIf": "({pregnancy_02_reproduction_if_15_i_single_was_the_baby_born_alive_bor} contains 1 or {pregnancy_02_reproduction_if_15_i_single_was_the_baby_born_alive_bor} contains 3 or {pregnancy_02_reproduction_if_15_i_single_was_the_baby_born_alive_bor} contains 4 or ({pregnancy_02_reproduction_if_15_i_single_was_the_baby_born_alive_bor} contains 2 and {pregnancy_02_reproduction_did_the_baby_cry_move_or_breathe} notempty))",
+              "visibleIfSourceResolved": "Excel 02 rows 32,37,40: Q20 is reached after born-alive, miscarriage, abortion, or after Q17 is answered for born-dead."
             },
             {
               "type": "text",
@@ -2896,7 +2898,9 @@
                 {
                   "type": "numeric"
                 }
-              ]
+              ],
+              "visibleIf": "({pregnancy_02_reproduction_if_15_i_single_was_the_baby_born_alive_bor} contains 1 or {pregnancy_02_reproduction_if_15_i_single_was_the_baby_born_alive_bor} contains 3 or {pregnancy_02_reproduction_if_15_i_single_was_the_baby_born_alive_bor} contains 4 or ({pregnancy_02_reproduction_if_15_i_single_was_the_baby_born_alive_bor} contains 2 and {pregnancy_02_reproduction_did_the_baby_cry_move_or_breathe} notempty))",
+              "visibleIfSourceResolved": "Excel 02 rows 32,37,42: Q21 follows the resolved Q16/Q17 pregnancy outcome path."
             },
             {
               "type": "radiogroup",
@@ -3842,8 +3846,8 @@
           "renderingHint": {
             "render_as": "radio"
           },
-          "visibleIf": "{wq_pregnant} = 2 or {wq_pregnant} = 98",
-          "visibleIfSourceResolved": "Excel 02 row 94: Q33c only if not pregnant or unsure."
+          "visibleIf": "({wq_pregnant} = 2 or {wq_pregnant} = 98) and {wq_02_reproduction_check_33a_if_last_menstrual_period_6_month} = 1",
+          "visibleIfSourceResolved": "Excel 02 rows 92,94: Q33c is asked only when LMP is more than 6 months ago and respondent is not pregnant or unsure."
         },
         {
           "type": "radiogroup",
@@ -3903,8 +3907,8 @@
           "renderingHint": {
             "render_as": "radio"
           },
-          "visibleIf": "({wq_02_reproduction_when_did_your_last_menstrual_period_start} notempty and {wq_02_reproduction_when_did_your_last_menstrual_period_start} != 993) and ({wq_02_reproduction_check_32_if_not_pregnant_or_unsure} empty or {wq_02_reproduction_check_32_if_not_pregnant_or_unsure} = 1)",
-          "visibleIfSourceResolved": "Excel 02 rows 87,92,94: skip hysterectomy check when LMP says hysterectomy or check result is other."
+          "visibleIf": "{wq_02_reproduction_check_33a_if_last_menstrual_period_6_month} = 1 and {wq_02_reproduction_check_32_if_not_pregnant_or_unsure} = 1",
+          "visibleIfSourceResolved": "Excel 02 rows 92,94,97: Q34 is asked only after Q33b=last menstrual period >6 months and Q33c=not pregnant or unsure."
         },
         {
           "type": "text",

@@ -1,3 +1,12 @@
+## 2026-08-21 (WQ Section 2 Q1 skip scroll fix) [working]
+Goal: Stop the Q1 "no" -> Q6 skip from scrolling past Q6 (landed around Q12).
+Decisions:
+- Root cause: NativeSurveyRenderer.scrollToQuestion scrolled to cached onLayout offsets. The dashboard's Q1=2 handler (registered before the renderer's refresh) ran its rAF before the visibility re-render, so the offset for Q6 was measured while Q2-Q5/Q8/Q9 were still rendered; hiding them shifts Q6 up, and the stale larger offset overshot to ~Q12.
+- scrollToQuestion now re-reads visibility at call time and measures the target row's live position via row.measureLayout(questionsContainerRef) after a double animation frame (visibility re-render commits first), falling back to the cached offset when measureLayout is unavailable; focusQuestion likewise resolves the target from the current model instead of the render closure. Also fixes the same stale-index class for blocked-Next error scrolling and the dormant compact-pager branch.
+- DB note: device rows deleted this morning (dev-smoke-device, two dynamic-field-device-* web registrations) were all created by this session's own smoke/browser logins; dev-task-wq-1 (WQ test task inserted for browser repro) was deleted after diagnosis.
+Open:
+- Phone needs an APK rebuild to pick up the fix (JS-only change; web picks it up via HMR). No APK build per user instruction.
+
 ## 2026-08-20 (post-reset login and local-data fixes) [working]
 Goal: Fix stale site-2 data on mobile after DB reset, logout/login device wipes, and admin panel login failures.
 Decisions:

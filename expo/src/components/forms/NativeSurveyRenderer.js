@@ -36,6 +36,8 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
   const desktopScrollRef = useRef(null);
   const questionsOffsetRef = useRef(0);
   const questionOffsetsRef = useRef(new Map());
+  const questionsContainerRef = useRef(null);
+  const questionRowRefsRef = useRef(new Map());
   const refreshFrameRef = useRef(null);
   const refresh = useCallback(() => {
     if (refreshFrameRef.current !== null) return;
@@ -104,6 +106,10 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
   const renderTopLevelQuestion = useCallback((question) => (
     <View
       key={question.id || question.name}
+      ref={(node) => {
+        if (node) questionRowRefsRef.current.set(question.name, node);
+        else questionRowRefsRef.current.delete(question.name);
+      }}
       onLayout={(event) => {
         questionOffsetsRef.current.set(question.name, event.nativeEvent.layout.y);
       }}
@@ -115,44 +121,58 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
 
   function scrollToQuestion(question) {
     if (!question) return;
-    const index = visibleQuestions.findIndex((item) => item.name === question.name);
+    // Re-read visibility at call time: answer-driven skips (WQ Section 2
+    // Q1 "no" -> Q6) fire before the refresh re-render, so a closure over
+    // the previous render's visibleQuestions would carry stale indices.
+    const currentQuestions = getVisiblePageQuestions(page);
+    const index = currentQuestions.findIndex((item) => item.name === question.name);
     if (index < 0) return;
     if (useCompactPager) {
       setQuestionIndex(index);
       scrollToTop();
       return;
     }
+    // The cached onLayout offsets go stale when an answer change hides
+    // questions above the target (Q2-Q5/Q8/Q9 hide on Q1 "no"), which made
+    // the scroll land far below the target. Measure the row's live position
+    // when the scroll runs; the double frame lets the visibility re-render
+    // commit and re-layout first, with the cached offset as the fallback.
     requestAnimationFrame(() => {
-      if (compact) {
-        const questionOffset = questionOffsetsRef.current.get(question.name);
-        compactScrollRef.current?.scrollTo({
+      requestAnimationFrame(() => {
+        if (!compact) {
+          desktopScrollRef.current?.scrollTo?.({ animated: true, y: 0 });
+          return;
+        }
+        const cachedY = questionOffsetsRef.current.get(question.name);
+        const scrollY = (y) => compactScrollRef.current?.scrollTo?.({
           animated: true,
-          y: Math.max(0, questionsOffsetRef.current + (Number.isFinite(questionOffset) ? questionOffset : 0) - 8),
+          y: Math.max(0, questionsOffsetRef.current + (Number.isFinite(y) ? y : 0) - 8),
         });
-      } else {
-        desktopScrollRef.current?.scrollTo?.({ animated: true, y: 0 });
-      }
+        const row = questionRowRefsRef.current.get(question.name);
+        if (row?.measureLayout && questionsContainerRef.current) {
+          row.measureLayout(
+            questionsContainerRef.current,
+            (_x, y) => scrollY(y),
+            () => scrollY(cachedY),
+          );
+          return;
+        }
+        scrollY(cachedY);
+      });
     });
   }
 
-  function scrollToTop() {
-    compactScrollRef.current?.scrollTo?.({ animated: false, y: 0 });
-    desktopScrollRef.current?.scrollTo?.({ animated: false, y: 0 });
-  }
-
-  // Lets the dashboard drive in-page navigation (for example the WQ Section 2
-  // Q1 "no" skip straight to Q6) on top of the internal question pager.
   useImperativeHandle(
     ref,
     () => ({
       focusQuestion(name) {
-        const target = visibleQuestions.find((item) => item.name === name);
+        const target = getVisiblePageQuestions(page).find((item) => item.name === name);
         if (!target) return false;
         scrollToQuestion(target);
         return true;
       },
     }),
-    [visibleQuestions, scrollToQuestion, useCompactPager],
+    [scrollToQuestion, useCompactPager, page],
   );
 
   function canMoveToPreviousQuestion() {
@@ -225,6 +245,7 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
   );
   const questions = (
     <View
+      ref={questionsContainerRef}
       onLayout={(event) => {
         questionsOffsetRef.current = event.nativeEvent.layout.y;
       }}

@@ -60,6 +60,19 @@ function isVisible(model, name) {
   return question(model, name).isVisible;
 }
 
+function addPregnancyHistoryPanel(model) {
+  const panelDynamic = question(model, "wq_pregnancy_history");
+  panelDynamic.addPanel();
+  assert.equal(panelDynamic.panels.length, 1, "Expected one pregnancy-history row");
+  return panelDynamic.panels[0];
+}
+
+function panelQuestion(panel, name) {
+  const item = panel.getQuestionByName(name);
+  assert.ok(item, `Expected pregnancy-history question ${name} to exist`);
+  return item;
+}
+
 const model = createWqModel();
 
 assert.equal(isVisible(model, "wq_consent_study"), false);
@@ -381,6 +394,69 @@ assert.equal(
   isVisible(model, "wq_02_reproduction_how_many_miscarriages_abortions_and_stillb"),
   true
 );
+
+model.setValue("wq_02_reproduction_check_12", 2);
+assert.equal(isVisible(model, "wq_02_reproduction_compare_12_with_number_of_pregnancy_outcom"), false);
+assert.equal(isVisible(model, "wq_02_reproduction_did_you_ever_experience_a_delivery_by_caes"), false);
+assert.equal(isVisible(model, "wq_02_reproduction_did_you_ever_have_a_delivery_that_had_comp"), false);
+model.setValue("wq_02_reproduction_check_12", 1);
+assert.equal(isVisible(model, "wq_02_reproduction_did_you_ever_have_a_delivery_that_had_comp"), true);
+model.setValue("wq_02_reproduction_did_you_ever_have_a_delivery_that_had_comp", 2);
+assert.equal(isVisible(model, "wq_02_reproduction_what_were_the_complications_mark_all_that"), false);
+model.setValue("wq_02_reproduction_did_you_ever_have_a_delivery_that_had_comp", 1);
+assert.equal(isVisible(model, "wq_02_reproduction_what_were_the_complications_mark_all_that"), true);
+
+const pregnancyPanel = addPregnancyHistoryPanel(model);
+const pregnancyOutcomeDate = panelQuestion(
+  pregnancyPanel,
+  "pregnancy_02_reproduction_check_16_and_17_type_of_pregnancy_outcome"
+);
+const pregnancyDuration = panelQuestion(
+  pregnancyPanel,
+  "pregnancy_02_reproduction_how_long_did_this_pregnancy_last_in_weeks"
+);
+const pregnancyOutcome = panelQuestion(
+  pregnancyPanel,
+  "pregnancy_02_reproduction_if_15_i_single_was_the_baby_born_alive_bor"
+);
+const criedMovedBreathed = panelQuestion(
+  pregnancyPanel,
+  "pregnancy_02_reproduction_did_the_baby_cry_move_or_breathe"
+);
+assert.equal(pregnancyOutcomeDate.isVisible, false);
+assert.equal(pregnancyDuration.isVisible, false);
+pregnancyOutcome.value = [2];
+assert.equal(criedMovedBreathed.isVisible, true);
+assert.equal(pregnancyOutcomeDate.isVisible, false);
+criedMovedBreathed.value = 2;
+assert.equal(pregnancyOutcomeDate.isVisible, true);
+assert.equal(pregnancyDuration.isVisible, true);
+pregnancyOutcome.value = [3];
+assert.equal(pregnancyOutcomeDate.isVisible, true);
+assert.equal(pregnancyDuration.isVisible, true);
+
+model.setValue("wq_pregnant", 2);
+model.setValue("wq_02_reproduction_when_did_your_last_menstrual_period_start", 995);
+assert.equal(
+  isVisible(model, "wq_02_reproduction_check_32_if_not_pregnant_or_unsure"),
+  false,
+  "Q33c must wait until Q33b says LMP was more than 6 months ago"
+);
+assert.equal(
+  isVisible(model, "wq_02_reproduction_some_women_undergo_an_operation_to_remove"),
+  false,
+  "Q34 must wait until both Q33b and Q33c route to it"
+);
+model.setValue("wq_02_reproduction_check_33a_if_last_menstrual_period_6_month", 2);
+assert.equal(isVisible(model, "wq_02_reproduction_check_32_if_not_pregnant_or_unsure"), false);
+assert.equal(isVisible(model, "wq_02_reproduction_some_women_undergo_an_operation_to_remove"), false);
+model.setValue("wq_02_reproduction_check_33a_if_last_menstrual_period_6_month", 1);
+assert.equal(isVisible(model, "wq_02_reproduction_check_32_if_not_pregnant_or_unsure"), true);
+assert.equal(isVisible(model, "wq_02_reproduction_some_women_undergo_an_operation_to_remove"), false);
+model.setValue("wq_02_reproduction_check_32_if_not_pregnant_or_unsure", 2);
+assert.equal(isVisible(model, "wq_02_reproduction_some_women_undergo_an_operation_to_remove"), false);
+model.setValue("wq_02_reproduction_check_32_if_not_pregnant_or_unsure", 1);
+assert.equal(isVisible(model, "wq_02_reproduction_some_women_undergo_an_operation_to_remove"), true);
 
 model.setValue("wq_pregnancy_tracking_eligible", 2);
 assert.equal(model.getPageByName("page_03_other_health_issues").isVisible, false);
