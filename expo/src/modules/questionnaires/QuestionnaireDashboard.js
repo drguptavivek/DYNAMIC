@@ -38,10 +38,12 @@ import { listHouseholdMembers } from "../households/householdRepository.js";
 import { getDraftSavedMessage } from "./draftSaveMessages.js";
 import {
   WQ_CURRENT_MARITAL_STATUS_FIELD,
+  applyWqDomesticViolenceCalculations,
   applyWqPregnancyHistoryCalculations,
   applyWqPregnancyTrackingEligibility,
   applyWqReproductionSummary,
   buildWqHusbandPartnerChoices,
+  shouldRecalculateWqDomesticViolence,
   shouldRecalculateWqPregnancyHistory,
   shouldRecalculateWqPregnancyTrackingEligibility,
   shouldRecalculateWqReproductionSummary,
@@ -445,6 +447,7 @@ export function QuestionnaireDashboard({
       applyWqReproductionSummary(model);
       applyWqPregnancyHistoryCalculations(model);
       applyWqPregnancyTrackingEligibility(model);
+      applyWqDomesticViolenceCalculations(model);
     }
 
     if (isHouseholdQuestionnaire(form)) {
@@ -519,6 +522,9 @@ export function QuestionnaireDashboard({
         }
         if (shouldRecalculateWqPregnancyHistory(options.name)) {
           applyWqPregnancyHistoryCalculations(sender);
+        }
+        if (shouldRecalculateWqDomesticViolence(options.name)) {
+          applyWqDomesticViolenceCalculations(sender);
         }
       }
     });
@@ -662,6 +668,7 @@ export function QuestionnaireDashboard({
           applyWqReproductionSummary(survey);
           applyWqPregnancyHistoryCalculations(survey);
           applyWqPregnancyTrackingEligibility(survey);
+          applyWqDomesticViolenceCalculations(survey);
           routeWqStopToOutcome(survey, { navigate: false });
         }
         setPreviewConfirmed(false);

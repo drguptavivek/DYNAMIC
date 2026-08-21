@@ -23,12 +23,15 @@ const {
   WQ_PREGNANCY_OUTCOME_FIELD,
   WQ_PREGNANCY_SIGN_OF_LIFE_FIELD,
   WQ_STERILIZATION_FIELD,
+  applyWqDomesticViolenceCalculations,
   applyWqPregnancyHistoryCalculations,
   applyWqReproductionSummary,
   buildWqHusbandPartnerChoices,
+  calculateWqDomesticViolencePhysicalCheckValue,
   calculateWqPregnancyHistoryOutcomeValue,
   calculateWqPregnancyTrackingEligibilityValue,
   getWqOutsideHouseholdHusbandLineNumber,
+  shouldRecalculateWqDomesticViolence,
   shouldRecalculateWqPregnancyHistory,
   shouldRecalculateWqReproductionSummary,
 } = await import("../lib/womanSurveyBehaviors.js");
@@ -41,7 +44,9 @@ const wqPath = path.resolve(
 );
 const wq = JSON.parse(fs.readFileSync(wqPath, "utf8"));
 const wqSection4 = wq.pages.find((page) => page.name === "page_04_husband_background_woman_work");
+const wqSection5 = wq.pages.find((page) => page.name === "page_05_domestic_violence");
 assert.ok(wqSection4, "Expected WQ Section 4 to exist");
+assert.ok(wqSection5, "Expected WQ Section 5 to exist");
 assert.deepEqual(
   wqSection4.elements.filter((element) => element.sourceCode).map((element) => element.sourceCode),
   [
@@ -932,6 +937,83 @@ assert.equal(
   isVisible(model, "wq_05_domestic_violence_how_often_did_this_happen_in_the_last_12_m"),
   true
 );
+
+const domesticPrivacy = "wq_05_domestic_violence_check_for_presence_of_others_do_not_contin";
+const domesticMaritalCheck = "wq_05_domestic_violence_check_answer_to_marital_status_on_01_respo";
+const domesticJealous = "wq_05_domestic_violence_he_is_jealous_or_angry_if_you_talk_to_othe";
+const domesticPhysicalCheck =
+  "wq_05_domestic_violence_check_12a_13a_14a_15a_16a_17a_18a_19a_20a";
+const domesticPhysicalPush = "wq_05_domestic_violence_push_you_shake_you_or_throw_something_at_y";
+const domesticPhysicalTwist = "wq_05_domestic_violence_twist_your_arm_or_pull_your_hair";
+const domesticPhysicalSlap = "wq_05_domestic_violence_slap_you";
+const domesticPhysicalPunch =
+  "wq_05_domestic_violence_punch_you_with_his_fist_or_with_something";
+const domesticPhysicalKick = "wq_05_domestic_violence_kick_you_drag_you_or_beat_you_up";
+const domesticPhysicalChoke =
+  "wq_05_domestic_violence_try_to_choke_you_or_burn_you_on_purpose";
+const domesticPhysicalWeapon =
+  "wq_05_domestic_violence_threaten_or_attack_you_with_a_knife_gun_or";
+const domesticPhysicalForceAct =
+  "wq_05_domestic_violence_physically_force_you_to_perform_any_other";
+const domesticPhysicalForceThreats =
+  "wq_05_domestic_violence_force_you_with_threats_or_in_any_other_way";
+const domesticViolenceYears =
+  "wq_05_domestic_violence_how_long_after_you_first_got_married_to_yo";
+const domesticRespondentViolence =
+  "wq_05_domestic_violence_have_you_ever_hit_slapped_kicked_or_done_a";
+
+const domesticModel = createWqModel();
+domesticModel.setValue("wq_woman_available", 1);
+domesticModel.setValue("wq_consent_study", 1);
+domesticModel.setValue(WQ_CURRENT_MARITAL_STATUS_FIELD, 7);
+domesticModel.setValue(domesticPrivacy, 1);
+applyWqDomesticViolenceCalculations(domesticModel);
+assert.equal(domesticModel.getValue(domesticMaritalCheck), 2);
+assert.equal(isVisible(domesticModel, domesticJealous), false);
+
+domesticModel.setValue(WQ_CURRENT_MARITAL_STATUS_FIELD, 1);
+applyWqDomesticViolenceCalculations(domesticModel);
+assert.equal(domesticModel.getValue(domesticMaritalCheck), 1);
+assert.equal(isVisible(domesticModel, domesticJealous), true);
+assert.equal(question(domesticModel, domesticMaritalCheck).readOnly, true);
+
+for (const fieldName of [
+  domesticPhysicalPush,
+  domesticPhysicalTwist,
+  domesticPhysicalSlap,
+  domesticPhysicalPunch,
+  domesticPhysicalKick,
+  domesticPhysicalChoke,
+  domesticPhysicalWeapon,
+  domesticPhysicalForceAct,
+  domesticPhysicalForceThreats,
+]) {
+  domesticModel.setValue(fieldName, 2);
+}
+applyWqDomesticViolenceCalculations(domesticModel);
+assert.equal(domesticModel.getValue(domesticPhysicalCheck), 2);
+assert.equal(question(domesticModel, domesticPhysicalCheck).readOnly, true);
+assert.equal(isVisible(domesticModel, domesticViolenceYears), false);
+assert.equal(isVisible(domesticModel, domesticRespondentViolence), true);
+
+domesticModel.setValue(domesticPhysicalSlap, 1);
+applyWqDomesticViolenceCalculations(domesticModel);
+assert.equal(domesticModel.getValue(domesticPhysicalCheck), 1);
+assert.equal(isVisible(domesticModel, domesticViolenceYears), true);
+question(domesticModel, domesticViolenceYears);
+const domesticYearsElement = wqSection5.elements.find((element) => element.name === domesticViolenceYears);
+assert.equal(domesticYearsElement.renderingHint.render_as, "years_with_special_codes");
+assert.equal(domesticYearsElement.maxLength, 2);
+assert.equal(domesticYearsElement.preserveString, true);
+assert.deepEqual(domesticYearsElement.choices.map((choice) => String(choice.value)), ["95"]);
+assert.equal(
+  calculateWqDomesticViolencePhysicalCheckValue({
+    [domesticPhysicalPush]: 2,
+    [domesticPhysicalSlap]: 1,
+  }),
+  1
+);
+assert.equal(shouldRecalculateWqDomesticViolence(domesticPhysicalSlap), true);
 
 const panelModel = createWqModel();
 panelModel.setValue("wq_woman_available", 1);

@@ -31,6 +31,27 @@ export const WQ_PREGNANCY_OUTCOME_FIELD = "pregnancy_02_reproduction_check_16_17
 export const WQ_PREGNANCY_CHILD_LIVING_WITH_FIELD = "pregnancy_02_reproduction_if_born_alive_and_still_living_is_name_liv";
 export const WQ_PREGNANCY_CHILD_LINE_FIELD = "pregnancy_02_reproduction_if_born_alive_and_still_living_record_hous";
 export const WQ_PREGNANCY_DEATH_AGE_FIELD = "pregnancy_02_reproduction_if_born_alive_and_now_dead_if_19_i_1_boy_h";
+export const WQ_DV_MARITAL_STATUS_CHECK_FIELD =
+  "wq_05_domestic_violence_check_answer_to_marital_status_on_01_respo";
+export const WQ_DV_PHYSICAL_VIOLENCE_CHECK_FIELD =
+  "wq_05_domestic_violence_check_12a_13a_14a_15a_16a_17a_18a_19a_20a";
+export const WQ_DV_PUSH_SHAKE_THROW_FIELD =
+  "wq_05_domestic_violence_push_you_shake_you_or_throw_something_at_y";
+export const WQ_DV_TWIST_ARM_PULL_HAIR_FIELD =
+  "wq_05_domestic_violence_twist_your_arm_or_pull_your_hair";
+export const WQ_DV_SLAP_FIELD = "wq_05_domestic_violence_slap_you";
+export const WQ_DV_PUNCH_FIELD =
+  "wq_05_domestic_violence_punch_you_with_his_fist_or_with_something";
+export const WQ_DV_KICK_DRAG_BEAT_FIELD =
+  "wq_05_domestic_violence_kick_you_drag_you_or_beat_you_up";
+export const WQ_DV_CHOKE_BURN_FIELD =
+  "wq_05_domestic_violence_try_to_choke_you_or_burn_you_on_purpose";
+export const WQ_DV_WEAPON_FIELD =
+  "wq_05_domestic_violence_threaten_or_attack_you_with_a_knife_gun_or";
+export const WQ_DV_FORCE_SEX_ACT_FIELD =
+  "wq_05_domestic_violence_physically_force_you_to_perform_any_other";
+export const WQ_DV_FORCE_SEX_THREATS_FIELD =
+  "wq_05_domestic_violence_force_you_with_threats_or_in_any_other_way";
 
 const WQ_REPRODUCTION_SUMMARY_SOURCE_FIELDS = [
   WQ_EVER_GIVEN_BIRTH_FIELD,
@@ -55,6 +76,18 @@ const WQ_PREGNANCY_HISTORY_SOURCE_FIELDS = [
   WQ_PREGNANCY_DURATION_FIELD,
   WQ_PREGNANCY_CHILD_LIVING_WITH_FIELD,
   WQ_PREGNANCY_DEATH_AGE_FIELD,
+];
+
+const WQ_DV_PHYSICAL_VIOLENCE_SOURCE_FIELDS = [
+  WQ_DV_PUSH_SHAKE_THROW_FIELD,
+  WQ_DV_TWIST_ARM_PULL_HAIR_FIELD,
+  WQ_DV_SLAP_FIELD,
+  WQ_DV_PUNCH_FIELD,
+  WQ_DV_KICK_DRAG_BEAT_FIELD,
+  WQ_DV_CHOKE_BURN_FIELD,
+  WQ_DV_WEAPON_FIELD,
+  WQ_DV_FORCE_SEX_ACT_FIELD,
+  WQ_DV_FORCE_SEX_THREATS_FIELD,
 ];
 
 function toFiniteNumber(value) {
@@ -234,6 +267,25 @@ export function calculateWqPregnancyHistoryOutcomeValue(answers = {}) {
   return null;
 }
 
+export function calculateWqDomesticViolenceMaritalStatusCheckValue(answers = {}) {
+  const maritalStatus = toFiniteNumber(answers[WQ_CURRENT_MARITAL_STATUS_FIELD]);
+  if (maritalStatus === 1 || maritalStatus === 8) return 1;
+  if (maritalStatus === 2 || maritalStatus === 7) return 2;
+  if ([3, 4, 5, 6].includes(maritalStatus)) return 3;
+  return null;
+}
+
+export function calculateWqDomesticViolencePhysicalCheckValue(answers = {}) {
+  let hasAnswer = false;
+  for (const fieldName of WQ_DV_PHYSICAL_VIOLENCE_SOURCE_FIELDS) {
+    const value = toFiniteNumber(answers[fieldName]);
+    if (value === null) continue;
+    hasAnswer = true;
+    if (value === 1) return 1;
+  }
+  return hasAnswer ? 2 : null;
+}
+
 function setModelValueIfChanged(model, fieldName, nextValue) {
   const question = model?.getQuestionByName?.(fieldName);
   if (!question) return;
@@ -400,6 +452,34 @@ export function applyWqPregnancyHistoryCalculations(model) {
   }
 }
 
+export function applyWqDomesticViolenceCalculations(model) {
+  const maritalCheckQuestion = model?.getQuestionByName?.(WQ_DV_MARITAL_STATUS_CHECK_FIELD);
+  if (maritalCheckQuestion) {
+    maritalCheckQuestion.readOnly = true;
+    const maritalCheck = calculateWqDomesticViolenceMaritalStatusCheckValue({
+      [WQ_CURRENT_MARITAL_STATUS_FIELD]: model.getValue(WQ_CURRENT_MARITAL_STATUS_FIELD),
+    });
+    if (maritalCheck !== null) {
+      setModelValueIfChanged(model, WQ_DV_MARITAL_STATUS_CHECK_FIELD, maritalCheck);
+    }
+  }
+
+  const physicalCheckQuestion = model?.getQuestionByName?.(WQ_DV_PHYSICAL_VIOLENCE_CHECK_FIELD);
+  if (physicalCheckQuestion) {
+    physicalCheckQuestion.readOnly = true;
+    const answers = Object.fromEntries(
+      WQ_DV_PHYSICAL_VIOLENCE_SOURCE_FIELDS.map((fieldName) => [
+        fieldName,
+        model.getValue(fieldName),
+      ])
+    );
+    const physicalCheck = calculateWqDomesticViolencePhysicalCheckValue(answers);
+    if (physicalCheck !== null) {
+      setModelValueIfChanged(model, WQ_DV_PHYSICAL_VIOLENCE_CHECK_FIELD, physicalCheck);
+    }
+  }
+}
+
 export function shouldRecalculateWqPregnancyTrackingEligibility(fieldName) {
   return [
     WQ_AGE_FIELD,
@@ -418,4 +498,11 @@ export function shouldRecalculateWqReproductionSummary(fieldName) {
 
 export function shouldRecalculateWqPregnancyHistory(fieldName) {
   return WQ_PREGNANCY_HISTORY_SOURCE_FIELDS.includes(fieldName);
+}
+
+export function shouldRecalculateWqDomesticViolence(fieldName) {
+  return (
+    fieldName === WQ_CURRENT_MARITAL_STATUS_FIELD ||
+    WQ_DV_PHYSICAL_VIOLENCE_SOURCE_FIELDS.includes(fieldName)
+  );
 }

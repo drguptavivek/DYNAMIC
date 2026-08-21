@@ -7718,7 +7718,7 @@
           "order": 116,
           "section_order": 5,
           "sourceCode": "2",
-          "sourceType": "select_one",
+          "sourceType": "calculated_integer",
           "rawText": "Check answer to marital status on 01 - Respondent Background 1 Currently married or in live-in relationship",
           "choices": [
             {
@@ -7762,7 +7762,9 @@
             "render_as": "radio"
           },
           "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1",
-          "visibleIfSourceResolved": "Excel 05 row 5: privacy not possible stops interview."
+          "visibleIfSourceResolved": "Excel 05-DomesticViolence Q2: check Section 01 marital status; non-current/live-in stops interview.",
+          "calculated": true,
+          "readOnly": true
         },
         {
           "type": "html",
@@ -7771,8 +7773,8 @@
           "order": 117,
           "section_order": 5,
           "sourceType": "section_note",
-          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1",
-          "visibleIfSourceResolved": "Excel 05 row 5: privacy not possible stops interview."
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1 and {wq_05_domestic_violence_check_answer_to_marital_status_on_01_respo} = 1",
+          "visibleIfSourceResolved": "Excel 05-DomesticViolence: continue Domestic Violence detail only when privacy is obtained and marital check is current/live-in."
         },
         {
           "type": "radiogroup",
@@ -7832,8 +7834,8 @@
           "renderingHint": {
             "render_as": "radio"
           },
-          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1",
-          "visibleIfSourceResolved": "Excel 05 row 5: privacy not possible stops interview."
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1 and {wq_05_domestic_violence_check_answer_to_marital_status_on_01_respo} = 1",
+          "visibleIfSourceResolved": "Excel 05-DomesticViolence: continue Domestic Violence detail only when privacy is obtained and marital check is current/live-in."
         },
         {
           "type": "radiogroup",
@@ -7893,8 +7895,8 @@
           "renderingHint": {
             "render_as": "radio"
           },
-          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1",
-          "visibleIfSourceResolved": "Excel 05 row 5: privacy not possible stops interview."
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1 and {wq_05_domestic_violence_check_answer_to_marital_status_on_01_respo} = 1",
+          "visibleIfSourceResolved": "Excel 05-DomesticViolence: continue Domestic Violence detail only when privacy is obtained and marital check is current/live-in."
         },
         {
           "type": "radiogroup",
@@ -7954,8 +7956,8 @@
           "renderingHint": {
             "render_as": "radio"
           },
-          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1",
-          "visibleIfSourceResolved": "Excel 05 row 5: privacy not possible stops interview."
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1 and {wq_05_domestic_violence_check_answer_to_marital_status_on_01_respo} = 1",
+          "visibleIfSourceResolved": "Excel 05-DomesticViolence: continue Domestic Violence detail only when privacy is obtained and marital check is current/live-in."
         },
         {
           "type": "radiogroup",
@@ -8015,8 +8017,8 @@
           "renderingHint": {
             "render_as": "radio"
           },
-          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1",
-          "visibleIfSourceResolved": "Excel 05 row 5: privacy not possible stops interview."
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1 and {wq_05_domestic_violence_check_answer_to_marital_status_on_01_respo} = 1",
+          "visibleIfSourceResolved": "Excel 05-DomesticViolence: continue Domestic Violence detail only when privacy is obtained and marital check is current/live-in."
         },
         {
           "type": "radiogroup",
@@ -8076,8 +8078,8 @@
           "renderingHint": {
             "render_as": "radio"
           },
-          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1",
-          "visibleIfSourceResolved": "Excel 05 row 5: privacy not possible stops interview."
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1 and {wq_05_domestic_violence_check_answer_to_marital_status_on_01_respo} = 1",
+          "visibleIfSourceResolved": "Excel 05-DomesticViolence: continue Domestic Violence detail only when privacy is obtained and marital check is current/live-in."
         },
         {
           "type": "radiogroup",
@@ -8137,8 +8139,8 @@
           "renderingHint": {
             "render_as": "radio"
           },
-          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1",
-          "visibleIfSourceResolved": "Excel 05 row 5: privacy not possible stops interview."
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1 and {wq_05_domestic_violence_check_answer_to_marital_status_on_01_respo} = 1",
+          "visibleIfSourceResolved": "Excel 05-DomesticViolence: continue Domestic Violence detail only when privacy is obtained and marital check is current/live-in."
         },
         {
           "type": "html",
@@ -8147,8 +8149,8 @@
           "order": 124,
           "section_order": 5,
           "sourceType": "section_note",
-          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1",
-          "visibleIfSourceResolved": "Excel 05 row 5: privacy not possible stops interview."
+          "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1 and {wq_05_domestic_violence_check_answer_to_marital_status_on_01_respo} = 1",
+          "visibleIfSourceResolved": "Excel 05-DomesticViolence: continue Domestic Violence detail only when privacy is obtained and marital check is current/live-in."
         },
         {
           "type": "radiogroup",
@@ -9495,7 +9497,7 @@
           "order": 150,
           "section_order": 5,
           "sourceCode": "21",
-          "sourceType": "select_one",
+          "sourceType": "calculated_integer",
           "rawText": "CHECK 12a, 13a, 14a, 15a, 16a, 17a, 18a, 19a, 20a (EXPERIENCED PHYSICAL VIOLENCE) 1 AT LEAST ONE 'YES'",
           "choices": [
             {
@@ -9527,7 +9529,9 @@
             "render_as": "radio"
           },
           "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1 and {wq_05_domestic_violence_check_answer_to_marital_status_on_01_respo} = 1",
-          "visibleIfSourceResolved": "Excel 05 rows 5,8-9: continue DV section only with privacy and current/live-in relationship."
+          "visibleIfSourceResolved": "Excel 05-DomesticViolence Q21: check Q12a-Q20a; if no physical violence skip to Q27.",
+          "calculated": true,
+          "readOnly": true
         },
         {
           "type": "radiogroup",
@@ -9544,11 +9548,11 @@
           "order": 151,
           "section_order": 5,
           "sourceCode": "22",
-          "sourceType": "select_one",
+          "sourceType": "integer_with_special_codes",
           "rawText": "How long after you first got married to your husband/partner did (this/any of these things) first happen?\nIF LESS THAN ONE YEAR, RECORD '00' |_|_| number of years",
           "choices": [
             {
-              "value": 95,
+              "value": "95",
               "text": {
                 "default": "before marriage",
                 "hi": "",
@@ -9561,10 +9565,20 @@
             }
           ],
           "renderingHint": {
-            "render_as": "radio"
+            "render_as": "years_with_special_codes"
           },
           "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1 and {wq_05_domestic_violence_check_answer_to_marital_status_on_01_respo} = 1 and {wq_05_domestic_violence_check_12a_13a_14a_15a_16a_17a_18a_19a_20a} = 1",
-          "visibleIfSourceResolved": "Excel 05 row 92: no physical violence skips injury follow-ups to Q27."
+          "visibleIfSourceResolved": "Excel 05-DomesticViolence Q22: ask only when Q21 indicates at least one physical violence item; record 00 if less than one year or 95 before marriage.",
+          "inputType": "number",
+          "maxLength": 2,
+          "preserveString": true,
+          "validators": [
+            {
+              "type": "regex",
+              "regex": "^(?:[0-9]{2}|95)$",
+              "text": "Enter exactly 2 digits or select 95."
+            }
+          ]
         },
         {
           "type": "html",
