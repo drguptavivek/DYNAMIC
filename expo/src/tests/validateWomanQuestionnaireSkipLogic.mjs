@@ -40,6 +40,13 @@ const wqPath = path.resolve(
   "../data/forms/baseline_woman_s_questionnaire_v2026.05.09.json"
 );
 const wq = JSON.parse(fs.readFileSync(wqPath, "utf8"));
+const wqSection4 = wq.pages.find((page) => page.name === "page_04_husband_background_woman_work");
+assert.ok(wqSection4, "Expected WQ Section 4 to exist");
+assert.deepEqual(
+  wqSection4.elements.filter((element) => element.sourceCode).map((element) => element.sourceCode),
+  Array.from({ length: 28 }, (_, index) => String(index + 1)),
+  "WQ Section 4 source codes should be sequential after correcting the duplicate Q23 typo"
+);
 
 // Release bundles crash at runtime (not build time) when the WQ dashboard
 // references an undeclared module-level identifier, so pin every WQ_* symbol
@@ -761,6 +768,111 @@ assert.equal(
   isVisible(model, "wq_04_husband_s_backgroun_how_old_was_your_husband_on_his_last_birth"),
   true
 );
+
+const workHusbandModel = createWqModel();
+workHusbandModel.setValue("wq_pregnancy_tracking_eligible", 1);
+workHusbandModel.setValue("wq_woman_available", 1);
+workHusbandModel.setValue("wq_consent_study", 1);
+workHusbandModel.setValue("wq_current_marital_status", 1);
+const husbandMaritalCheck =
+  "wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo";
+const husbandAge = "wq_04_husband_s_backgroun_how_old_was_your_husband_on_his_last_birth";
+const husbandSchool = "wq_04_husband_s_backgroun_did_your_last_husband_ever_attend_school";
+const husbandOccupation =
+  "wq_04_husband_s_backgroun_if_1_1_currently_married_what_is_your_last";
+const husbandCigaretteUse =
+  "wq_04_husband_s_backgroun_now_i_would_like_to_ask_you_some_questions";
+const husbandCigaretteCount =
+  "wq_04_husband_s_backgroun_on_average_how_many_cigarettes_does_your_h";
+const husbandAlcoholEver =
+  "wq_04_husband_s_backgroun_now_i_would_like_to_ask_you_some_questions_2";
+const husbandBidiCount =
+  "wq_04_husband_s_backgroun_on_average_how_many_bidis_does_your_husban";
+const husbandAlcoholDays =
+  "wq_04_husband_s_backgroun_during_the_last_one_month_on_how_many_days";
+const husbandAlcoholDrinks =
+  "wq_04_husband_s_backgroun_we_count_one_drink_of_alcohol_as_one_can_o";
+const womanWorkLastSevenDays =
+  "wq_04_husband_s_backgroun_aside_from_your_own_housework_have_you_don";
+const womanPaidWorkLastSevenDays =
+  "wq_04_husband_s_backgroun_as_you_know_some_women_take_up_jobs_for_wh";
+const womanAbsentWork =
+  "wq_04_husband_s_backgroun_although_you_did_not_work_in_the_last_seve";
+const womanWorkLastYear =
+  "wq_04_husband_s_backgroun_have_you_done_any_work_in_the_last_12_mont";
+const womanOccupation = "wq_04_husband_s_backgroun_what_is_your_occupation_that_is_what_kind";
+const womanPaidKind = "wq_04_husband_s_backgroun_are_you_paid_in_cash_or_kind_for_this_work";
+const womanEarningsDecision =
+  "wq_04_husband_s_backgroun_who_decides_how_the_money_you_earn_will_be";
+
+workHusbandModel.setValue(husbandMaritalCheck, 2);
+assert.equal(isVisible(workHusbandModel, husbandAge), false);
+assert.equal(isVisible(workHusbandModel, husbandSchool), false);
+assert.equal(isVisible(workHusbandModel, husbandCigaretteUse), false);
+
+workHusbandModel.setValue(husbandMaritalCheck, 1);
+assert.match(getNativeQuestionTitle(question(workHusbandModel, husbandOccupation)), /^What is your/);
+assert.match(getNativeQuestionTitle(question(workHusbandModel, husbandOccupation)), /does he mainly do\?$/);
+for (const [fieldName, label] of [
+  [husbandAge, "husband age"],
+  [husbandCigaretteCount, "cigarette count"],
+  [husbandBidiCount, "bidi count"],
+]) {
+  const item = question(workHusbandModel, fieldName);
+  assert.equal(item.inputType, "text", `WQ Section 4 ${label} should preserve leading zeroes`);
+  assert.equal(item.maxLength, 2, `WQ Section 4 ${label} should accept only two typed digits`);
+  assert.equal(item.renderAs, "numeric_textbox", `WQ Section 4 ${label} should use native numeric textbox`);
+  assert.ok(
+    item.validators.some(
+      (validator) => validator.getType?.() === "regexvalidator" && validator.regex === "^\\d{2}$"
+    ),
+    `WQ Section 4 ${label} should require exactly two digits`
+  );
+}
+for (const [fieldName, label, expectedSpecialCodes] of [
+  [husbandAlcoholDays, "alcohol days", ["00", "95"]],
+  [husbandAlcoholDrinks, "alcohol drinks", ["00"]],
+]) {
+  const item = question(workHusbandModel, fieldName);
+  assert.equal(item.getType(), "radiogroup", `WQ Section 4 ${label} should keep coded special choices`);
+  assert.equal(item.renderAs, "years_with_special_codes", `WQ Section 4 ${label} should show a 2-digit entry with special codes`);
+  assert.equal(item.jsonObj?.maxLength, 2, `WQ Section 4 ${label} should accept only two typed digits`);
+  assert.deepEqual(
+    item.choices.map((choice) => String(choice.value)),
+    expectedSpecialCodes,
+    `WQ Section 4 ${label} should keep the Excel special codes`
+  );
+}
+workHusbandModel.setValue(husbandAlcoholEver, 2);
+assert.equal(isVisible(workHusbandModel, husbandAlcoholDays), false);
+assert.equal(isVisible(workHusbandModel, husbandAlcoholDrinks), false);
+workHusbandModel.setValue(husbandAlcoholEver, 1);
+workHusbandModel.setValue(husbandAlcoholDays, "00");
+assert.equal(isVisible(workHusbandModel, husbandAlcoholDrinks), false);
+workHusbandModel.setValue(husbandAlcoholDays, "95");
+assert.equal(isVisible(workHusbandModel, husbandAlcoholDrinks), true);
+
+workHusbandModel.setValue(womanWorkLastSevenDays, 1);
+assert.equal(isVisible(workHusbandModel, womanPaidWorkLastSevenDays), false);
+assert.equal(isVisible(workHusbandModel, womanOccupation), true);
+assert.equal(isVisible(workHusbandModel, womanPaidKind), true);
+workHusbandModel.setValue(womanPaidKind, 3);
+assert.equal(isVisible(workHusbandModel, womanEarningsDecision), false);
+workHusbandModel.setValue(womanPaidKind, 1);
+assert.equal(isVisible(workHusbandModel, womanEarningsDecision), true);
+
+workHusbandModel.setValue(womanWorkLastSevenDays, 2);
+workHusbandModel.setValue(womanPaidWorkLastSevenDays, 2);
+workHusbandModel.setValue(womanAbsentWork, 2);
+workHusbandModel.setValue(womanWorkLastYear, 2);
+assert.equal(isVisible(workHusbandModel, womanOccupation), false);
+assert.equal(isVisible(workHusbandModel, womanPaidKind), false);
+assert.equal(isVisible(workHusbandModel, womanEarningsDecision), false);
+
+workHusbandModel.setValue(husbandMaritalCheck, 3);
+assert.equal(isVisible(workHusbandModel, husbandOccupation), true);
+assert.match(getNativeQuestionTitle(question(workHusbandModel, husbandOccupation)), /^What was your/);
+assert.match(getNativeQuestionTitle(question(workHusbandModel, husbandOccupation)), /did he mainly do\?$/);
 
 model.setValue("wq_05_domestic_violence_check_for_presence_of_others_do_not_contin", 1);
 model.setValue("wq_05_domestic_violence_check_answer_to_marital_status_on_01_respo", 1);

@@ -11,6 +11,10 @@ const NATIVE_SURVEY_TYPES = new Set([
   "text",
 ]);
 const WQ_PREGNANCY_BABY_NAME_FIELD = "pregnancy_02_reproduction_what_name_was_given_to_the_baby";
+const WQ_SECTION_4_MARITAL_STATUS_CHECK_FIELD =
+  "wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo";
+const WQ_SECTION_4_HUSBAND_OCCUPATION_FIELD =
+  "wq_04_husband_s_backgroun_if_1_1_currently_married_what_is_your_last";
 
 function decodeHtmlEntities(value) {
   return String(value || "")
@@ -89,6 +93,17 @@ function defaultChoiceText(choice) {
 }
 
 export function getNativeQuestionTitle(question, locale = "default") {
+  if (question?.name === WQ_SECTION_4_HUSBAND_OCCUPATION_FIELD) {
+    const maritalStatus = String(
+      getQuestionValueForInterpolation(question, WQ_SECTION_4_MARITAL_STATUS_CHECK_FIELD) ?? ""
+    );
+    if (maritalStatus === "1") {
+      return "What is your (last) husband's occupation? That is, what kind of work does he mainly do?";
+    }
+    if (maritalStatus === "3") {
+      return "What was your (last) husband's occupation. That is, what kind of work did he mainly do?";
+    }
+  }
   return interpolateSurveyValues(
     localizedText(question?.locTitle, question?.title || question?.name || "", locale),
     question

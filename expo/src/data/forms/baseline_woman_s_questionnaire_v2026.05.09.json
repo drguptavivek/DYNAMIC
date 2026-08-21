@@ -1027,10 +1027,10 @@
           "sourceType": "multiple_numeric",
           "rawText": "In what month and year were you born? |_|_| month (01 to 12) |_|_|_|_| year",
           "items": [
-                {
-                  "name": "month",
-                  "title": "Month",
-                  "inputType": "number",
+            {
+              "name": "month",
+              "title": "Month",
+              "inputType": "number",
               "placeholder": "MM",
               "maxLength": 2,
               "preserveString": true,
@@ -5930,12 +5930,23 @@
             "te": "",
             "ur": ""
           },
-          "inputType": "number",
+          "inputType": "text",
+          "maxLength": 2,
           "validators": [
             {
-              "type": "numeric"
+              "type": "numeric",
+              "minValue": 0,
+              "maxValue": 99
+            },
+            {
+              "type": "regex",
+              "regex": "^\\d{2}$",
+              "text": "Enter age as exactly 2 digits."
             }
           ],
+          "renderingHint": {
+            "render_as": "numeric_textbox"
+          },
           "validationRulesSource": [
             "Only for the currently married"
           ],
@@ -6085,14 +6096,14 @@
           "renderingHint": {
             "render_as": "radio"
           },
-          "visibleIf": "{wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} != 2 and {wq_04_husband_s_backgroun_did_your_last_husband_ever_attend_school} = 1",
+          "visibleIf": "({wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 1 or {wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 3) and {wq_04_husband_s_backgroun_did_your_last_husband_ever_attend_school} = 1",
           "visibleIfSourceResolved": "Excel 04: show husband grade only if husband attended school."
         },
         {
           "type": "text",
           "name": "wq_04_husband_s_backgroun_if_1_1_currently_married_what_is_your_last",
           "title": {
-            "default": "IF 1 = 1-CURRENTLY MARRIED\nWhat is your (last) husband's occupation? That is, what kind of work does he mainly do?\nIF 1 = 3-OTHER\nWhat was your (last) husband's occupation. That is, what kind of work did he mainly do?",
+            "default": "What is your (last) husband's occupation? That is, what kind of work does he mainly do?",
             "hi": "",
             "kn": "",
             "mr": "",
@@ -6180,7 +6191,7 @@
             "render_as": "radio"
           },
           "visibleIf": "{wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 1",
-          "visibleIfSourceResolved": "Excel 04: husband/current-marriage questions only for currently married."
+          "visibleIfSourceResolved": "Excel 04: ask only if Q1 = 1 currently married."
         },
         {
           "type": "text",
@@ -6208,14 +6219,25 @@
             "te": "",
             "ur": ""
           },
-          "inputType": "number",
+          "inputType": "text",
+          "maxLength": 2,
           "validators": [
             {
-              "type": "numeric"
+              "type": "numeric",
+              "minValue": 0,
+              "maxValue": 99
+            },
+            {
+              "type": "regex",
+              "regex": "^\\d{2}$",
+              "text": "Enter number of cigarettes as exactly 2 digits."
             }
           ],
+          "renderingHint": {
+            "render_as": "numeric_textbox"
+          },
           "visibleIf": "{wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 1 and {wq_04_husband_s_backgroun_now_i_would_like_to_ask_you_some_questions} = 1",
-          "visibleIfSourceResolved": "Excel 04 rows 19-20: cigarette some days/not at all skips to Q8."
+          "visibleIfSourceResolved": "Excel 04: ask cigarette count only for currently married and Q6 = Every day."
         },
         {
           "type": "radiogroup",
@@ -6276,7 +6298,7 @@
             "render_as": "radio"
           },
           "visibleIf": "{wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 1",
-          "visibleIfSourceResolved": "Excel 04: husband/current-marriage questions only for currently married."
+          "visibleIfSourceResolved": "Excel 04: ask only if Q1 = 1 currently married."
         },
         {
           "type": "text",
@@ -6304,14 +6326,25 @@
             "te": "",
             "ur": ""
           },
-          "inputType": "number",
+          "inputType": "text",
+          "maxLength": 2,
           "validators": [
             {
-              "type": "numeric"
+              "type": "numeric",
+              "minValue": 0,
+              "maxValue": 99
+            },
+            {
+              "type": "regex",
+              "regex": "^\\d{2}$",
+              "text": "Enter number of bidis as exactly 2 digits."
             }
           ],
+          "renderingHint": {
+            "render_as": "numeric_textbox"
+          },
           "visibleIf": "{wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 1 and {wq_04_husband_s_backgroun_does_your_husband_partner_currently_smoke} = 1",
-          "visibleIfSourceResolved": "Excel 04 rows 23-24: bidi some days/not at all skips to Q10."
+          "visibleIfSourceResolved": "Excel 04: ask bidi count only for currently married and Q8 = Every day."
         },
         {
           "type": "radiogroup",
@@ -6372,7 +6405,7 @@
             "render_as": "radio"
           },
           "visibleIf": "{wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 1",
-          "visibleIfSourceResolved": "Excel 04: husband/current-marriage questions only for currently married."
+          "visibleIfSourceResolved": "Excel 04: ask only if Q1 = 1 currently married."
         },
         {
           "type": "checkbox",
@@ -6505,7 +6538,7 @@
             "render_as": "checkbox"
           },
           "visibleIf": "{wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 1 and {wq_04_husband_s_backgroun_does_your_husband_partner_currently_smoke_2} = 1",
-          "visibleIfSourceResolved": "Excel 04 rows 27-28: other tobacco some days/not at all skips to Q12."
+          "visibleIfSourceResolved": "Excel 04: ask other tobacco type only for currently married and Q10 = Every day."
         },
         {
           "type": "radiogroup",
@@ -6554,7 +6587,7 @@
             "render_as": "radio"
           },
           "visibleIf": "{wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 1",
-          "visibleIfSourceResolved": "Excel 04: husband/current-marriage questions only for currently married."
+          "visibleIfSourceResolved": "Excel 04: ask only if Q1 = 1 currently married."
         },
         {
           "type": "radiogroup",
@@ -6571,10 +6604,10 @@
           "order": 97,
           "section_order": 4,
           "sourceCode": "13",
-          "sourceType": "select_one",
+          "sourceType": "integer_with_special_codes",
           "rawText": "During the last one month, on how many days did your husband/partner have at least one drink of alcohol?\nIf non-numeric answer, probe to get an estimate. If respondent answers 'every day' or 'almost every day', code 95 00 Did not have even one drink SKIP TO 15",
           "description": {
-            "default": "Did not have even one drink SKIP TO 15",
+            "default": "Enter number of days as exactly 2 digits. Use 00 if he did not have even one drink; use 95 for every day/almost every day. 00 skips to Q15.",
             "hi": "",
             "kn": "",
             "mr": "",
@@ -6584,7 +6617,7 @@
           },
           "choices": [
             {
-              "value": 0,
+              "value": "00",
               "text": {
                 "default": "Did not have even one drink",
                 "hi": "",
@@ -6596,7 +6629,7 @@
               }
             },
             {
-              "value": 95,
+              "value": "95",
               "text": {
                 "default": "Every day/Almost every day",
                 "hi": "",
@@ -6609,13 +6642,15 @@
             }
           ],
           "renderingHint": {
-            "render_as": "radio"
+            "render_as": "years_with_special_codes"
           },
           "validationRulesSource": [
-            "SKIP TO 15"
+            "Enter exactly 2 digits; 00 skips to Q15; 95 = every day/almost every day."
           ],
           "visibleIf": "{wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 1 and {wq_04_husband_s_backgroun_now_i_would_like_to_ask_you_some_questions_2} = 1",
-          "visibleIfSourceResolved": "Excel 04 row 39: husband alcohol no skips to Q15."
+          "visibleIfSourceResolved": "Excel 04: ask husband alcohol days only for currently married and Q12 = Yes.",
+          "maxLength": 2,
+          "preserveString": true
         },
         {
           "type": "radiogroup",
@@ -6632,11 +6667,11 @@
           "order": 98,
           "section_order": 4,
           "sourceCode": "14",
-          "sourceType": "select_one",
+          "sourceType": "integer_with_special_codes",
           "rawText": "We count one drink of alcohol as one can or bottle of beer, one glass of wine, one shot of spirits, or one cup of [ADD OTHER LOCAL EXAMPLES]. In the last one month, on the days that your husband/partner drank alcohol, how many drinks did he usually have per day? 00 Less than one standard drink",
           "choices": [
             {
-              "value": 0,
+              "value": "00",
               "text": {
                 "default": "Less than one standard drink",
                 "hi": "",
@@ -6649,10 +6684,21 @@
             }
           ],
           "renderingHint": {
-            "render_as": "radio"
+            "render_as": "years_with_special_codes"
           },
-          "visibleIf": "{wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 1 and {wq_04_husband_s_backgroun_during_the_last_one_month_on_how_many_days} != 0",
-          "visibleIfSourceResolved": "Excel 04 row 40: Q13 00 skips to Q15."
+          "visibleIf": "{wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 1 and {wq_04_husband_s_backgroun_during_the_last_one_month_on_how_many_days} notempty and {wq_04_husband_s_backgroun_during_the_last_one_month_on_how_many_days} != 0 and {wq_04_husband_s_backgroun_during_the_last_one_month_on_how_many_days} != '00'",
+          "visibleIfSourceResolved": "Excel 04: ask husband drinks only for currently married and Q13 is answered non-zero/non-00.",
+          "description": {
+            "default": "Enter number of drinks as exactly 2 digits. Use 00 for less than one standard drink.",
+            "hi": "",
+            "kn": "",
+            "mr": "",
+            "ta": "",
+            "te": "",
+            "ur": ""
+          },
+          "maxLength": 2,
+          "preserveString": true
         },
         {
           "type": "radiogroup",
@@ -7221,7 +7267,7 @@
           },
           "order": 108,
           "section_order": 4,
-          "sourceCode": "23",
+          "sourceCode": "24",
           "sourceType": "select_one",
           "rawText": "Are you usually allowed to go to the market alone, only with someone else, or not at all? 1 Alone",
           "choices": [
@@ -7280,7 +7326,7 @@
           },
           "order": 109,
           "section_order": 4,
-          "sourceCode": "24",
+          "sourceCode": "25",
           "sourceType": "select_one",
           "rawText": "Are you usually allowed to go to the health facility alone, only with someone else, or not at all? 1 Alone",
           "choices": [
@@ -7339,7 +7385,7 @@
           },
           "order": 110,
           "section_order": 4,
-          "sourceCode": "25",
+          "sourceCode": "26",
           "sourceType": "select_one",
           "rawText": "Are you usually allowed to go to places outside this village/community alone, only with someone else, or not at all? 1 Alone",
           "choices": [
@@ -7398,7 +7444,7 @@
           },
           "order": 111,
           "section_order": 4,
-          "sourceCode": "26",
+          "sourceCode": "27",
           "sourceType": "select_one",
           "rawText": "Do you own this or any other house either alone or jointly with someone else? 1 Alone only",
           "choices": [
@@ -7469,7 +7515,7 @@
           },
           "order": 112,
           "section_order": 4,
-          "sourceCode": "27",
+          "sourceCode": "28",
           "sourceType": "select_one",
           "rawText": "Do you own any agricultural or non-agricultural land either alone or jointly with someone else? 1 Alone only",
           "choices": [
@@ -10335,4 +10381,3 @@
   },
   "source_workbook": "02_baseline_woman_s_questionnaire_v2026.07.28.xlsx"
 }
-

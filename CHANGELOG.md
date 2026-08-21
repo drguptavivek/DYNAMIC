@@ -18,8 +18,13 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 
 ## Unreleased
 
+- Fixed WQ Section 4 Q13 and Q14 so husband alcohol days/drinks provide a two-digit numeric entry while preserving Excel special codes `00` and `95`.
+- Fixed WQ Section 4 Q2, Q7, and Q9 so husband age, cigarette count, and bidi count accept exactly two digits and preserve leading zeroes.
+- Fixed WQ Section 4 Q5 so the husband occupation text changes from "What is..." for currently married to "What was..." for formerly married while keeping the same editable text answer field.
 - Fixed WQ Q38 pregnancy-status-tracking eligibility so hidden/skipped Q34 no longer blocks Section 3; Q34 is required only when the Q33b/Q33c skip path actually asks the hysterectomy question.
 - Fixed WQ Section 3 alcohol skip logic so Q16 = No hides Q17/Q18 and Q17 = 00 hides Q18 instead of letting a blank hidden Q17 reveal the drink-count question.
+- Fixed WQ Section 4 Work/Husband Background skip logic from the Excel workbook, including currently-married-only husband follow-ups and the Q15-Q21 woman-work branch.
+- Fixed the WQ Section 4 duplicate Q23 typo by renumbering the later mobility/property questions sequentially through Q28.
 - Fixed WQ Section 2 pregnancy-history Q14-Q28 handling so the repeated pregnancy panel uses Excel code `14`, Q15_i remains editable, Q16_i is a single-choice outcome, Q20_i/Q21_i/Q28_i render their required date/duration/age boxes, `(NAME)` labels fill from Q18_i, Q23_i is calculated from Q16_i/Q17_i/Q21_i, and applicable two-digit blanks such as Q21_i/Q27_i/Q28_i preserve `00`.
 - Added WQ Section 2 reproduction calculations for Q8, Q12, and CHECK 12, and made parent "No" skip paths store `00` in the related two-digit count fields from the Excel instructions.
 - Tightened WQ Section 2 Reproduction skip logic from the Excel workbook so pregnancy-history date/duration fields wait for the Q16/Q17 outcome path, Q33c waits for Q33b, and Q34 waits for both Q33b and Q33c.
