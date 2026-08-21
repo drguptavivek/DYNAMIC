@@ -32,6 +32,10 @@ const WQ_OUTCOME_NOT_AT_HOME_VALUE = 2;
 const WQ_OUTCOME_POSTPONED_VALUE = 3;
 const WQ_OUTCOME_INCAPACITATED_VALUE = 6;
 const WQ_OUTCOME_REFUSED_CONSENT_VALUE = 8;
+const WQ_FULL_INTERVIEW_COMPLETED_NAME = "wq_full_interview_completed";
+const WQ_OUTCOME_NO_HARD_STOP_VISIBLE_IF =
+  `({${WQ_WOMAN_AVAILABLE_NAME}} empty or {${WQ_WOMAN_AVAILABLE_NAME}} = 1) and ` +
+  `({${WQ_CONSENT_NAME}} empty or {${WQ_CONSENT_NAME}} != 2)`;
 const WQ_OUTCOME_NORMAL_VISIBLE_IF =
   `({${WQ_WOMAN_AVAILABLE_NAME}} empty or {${WQ_WOMAN_AVAILABLE_NAME}} = 1) and ` +
   `({${WQ_CONSENT_NAME}} empty or {${WQ_CONSENT_NAME}} != 2) and ` +
@@ -242,11 +246,23 @@ function applyWqOutcomeChoiceVisibility(surveyJson) {
           ...element,
           choices: element.choices.map((choice) => {
             const stopVisibleIf = WQ_STOP_OUTCOME_VISIBLE_IF[choice.value];
+            if (choice.value === WQ_OUTCOME_COMPLETED_VALUE) {
+              // After the full interview (biomarkers section completed) the
+              // outcome locks to Completed; hard stops still hide it because
+              // they force their own outcome.
+              return {
+                ...choice,
+                visibleIf:
+                  `((${WQ_OUTCOME_NORMAL_VISIBLE_IF}) or (${stopVisibleIf}) or ` +
+                  `{${WQ_FULL_INTERVIEW_COMPLETED_NAME}} = 1) and (${WQ_OUTCOME_NO_HARD_STOP_VISIBLE_IF})`,
+              };
+            }
+            const baseVisibleIf = stopVisibleIf
+              ? `((${WQ_OUTCOME_NORMAL_VISIBLE_IF}) and {${WQ_FULL_INTERVIEW_COMPLETED_NAME}} empty) or (${stopVisibleIf})`
+              : `(${WQ_OUTCOME_NORMAL_VISIBLE_IF}) and {${WQ_FULL_INTERVIEW_COMPLETED_NAME}} empty`;
             return {
               ...choice,
-              visibleIf: stopVisibleIf
-                ? `(${WQ_OUTCOME_NORMAL_VISIBLE_IF}) or (${stopVisibleIf})`
-                : WQ_OUTCOME_NORMAL_VISIBLE_IF,
+              visibleIf: baseVisibleIf,
             };
           }),
         };

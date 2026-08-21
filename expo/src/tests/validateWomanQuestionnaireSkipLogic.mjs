@@ -254,6 +254,29 @@ assert.deepEqual(
   "Q17 never married must show only the Completed outcome option"
 );
 
+const biomarkersCompletedModel = createWqModel();
+biomarkersCompletedModel.setValue("wq_interview_date", "2026-08-14");
+biomarkersCompletedModel.setValue("wq_visit_no", 1);
+biomarkersCompletedModel.setValue("wq_woman_available", 1);
+biomarkersCompletedModel.setValue("wq_consent_study", 1);
+biomarkersCompletedModel.setValue("wq_current_marital_status", 1);
+biomarkersCompletedModel.setValue("wq_full_interview_completed", 1);
+assert.deepEqual(
+  biomarkersCompletedModel
+    .getQuestionByName("wq_result_interview")
+    .visibleChoices.map((choice) => choice.value),
+  [1],
+  "full interview completion must show only the Completed outcome option"
+);
+biomarkersCompletedModel.setValue("wq_woman_available", 2);
+assert.deepEqual(
+  biomarkersCompletedModel
+    .getQuestionByName("wq_result_interview")
+    .visibleChoices.map((choice) => choice.value),
+  [6],
+  "a hard stop after completion must still force its own outcome option"
+);
+
 const section2Model = createWqModel();
 section2Model.setValue("wq_interview_date", "2026-08-14");
 section2Model.setValue("wq_visit_no", 1);

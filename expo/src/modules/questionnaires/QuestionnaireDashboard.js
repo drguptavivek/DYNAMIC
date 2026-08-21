@@ -58,10 +58,12 @@ const WQ_INTERVIEW_DATE_FIELD = "wq_interview_date";
 const WQ_WOMAN_AVAILABLE_FIELD = "wq_woman_available";
 const WQ_RESULT_INTERVIEW_FIELD = "wq_result_interview";
 const WQ_OUTCOME_PAGE_NAME = "page_outcome";
+const WQ_BIOMARKERS_PAGE_NAME = "page_06_biomarkers";
+const WQ_FULL_INTERVIEW_COMPLETED_FIELD = "wq_full_interview_completed";
 const WQ_HUSBAND_PARTNER_NAME_FIELD = "wq_husband_partner_name";
 const WQ_HUSBAND_PARTNER_LINE_NUMBER_FIELD = "wq_husband_partner_line_number";
-const WQ_RESCHEDULE_MESSAGE = "Reschedule has been setup";
 const WQ_EXCLUDED_MESSAGE = "This women is excluded from the study";
+const WQ_RESCHEDULE_MESSAGE = "Reschedule has been setup";
 
 function isHouseholdQuestionnaire(form) {
   return String(form?.form_code || "").toUpperCase() === "HHQ";
@@ -540,12 +542,29 @@ export function QuestionnaireDashboard({
         openMemberSummaryFromModel(sender);
       }
     });
-
-    model.onCurrentPageChanged.add((sender) => {
+    model.onCurrentPageChanged.add((sender, options) => {
       dirtyRef.current = true;
       setDirty(true);
       setPreviewOpen(false);
       setMemberSummaryOpen(false);
+      // Completing the biomarkers section means the whole interview ran:
+      // lock the outcome to Completed with only that option visible.
+      if (
+        isWomanQuestionnaire(form) &&
+        sender.currentPage?.name === WQ_OUTCOME_PAGE_NAME &&
+        options?.oldCurrentPage?.name === WQ_BIOMARKERS_PAGE_NAME
+      ) {
+        sender.setValue(WQ_FULL_INTERVIEW_COMPLETED_FIELD, 1);
+        if (
+          forcedWqOutcomeFor(
+            Number(sender.getValue(WQ_WOMAN_AVAILABLE_FIELD)),
+            Number(sender.getValue(WQ_CONSENT_FIELD)),
+            Number(sender.getValue(WQ_CURRENT_MARITAL_STATUS_FIELD)),
+          ) === undefined
+        ) {
+          sender.setValue(WQ_RESULT_INTERVIEW_FIELD, WQ_OUTCOME_COMPLETED_VALUE);
+        }
+      }
       updateSurveyStatus(sender);
     });
 
