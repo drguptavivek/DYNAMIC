@@ -27,6 +27,13 @@ import {
   attachHouseholdSurveyBehaviors,
   refreshHouseholdSurveyBehaviors,
 } from "../../lib/householdSurveyBehaviors.js";
+import {
+  applyHrfHouseholdContext,
+  applyHrfNewWomanEligibilityCalculations,
+  attachHouseholdRoundsSurveyBehaviors,
+  refreshHouseholdRoundsSurveyBehaviors,
+  shouldRecalculateHrfNewWomanEligibility,
+} from "../../lib/householdRoundsSurveyBehaviors.js";
 import { buildHouseholdMemberSummaryRows } from "./householdMemberSummary";
 import {
   normalizeQuestionnaireSurveyData,
@@ -71,6 +78,10 @@ function isHouseholdQuestionnaire(form) {
 
 function isWomanQuestionnaire(form) {
   return String(form?.form_code || "").toUpperCase() === "WQ";
+}
+
+function isHouseholdRoundsForm(form) {
+  return String(form?.form_code || "").toUpperCase() === "HRF";
 }
 
 function clampWqVisitNo(value) {
@@ -456,6 +467,10 @@ export function QuestionnaireDashboard({
       attachHouseholdSurveyBehaviors(model, form);
     }
 
+    if (isHouseholdRoundsForm(form)) {
+      attachHouseholdRoundsSurveyBehaviors(model, form);
+    }
+
     model.onValueChanged.add((sender, options) => {
       markDirty();
       const nextData = {
@@ -528,6 +543,14 @@ export function QuestionnaireDashboard({
         if (shouldRecalculateWqDomesticViolence(options.name)) {
           applyWqDomesticViolenceCalculations(sender);
         }
+      }
+      if (
+        isHouseholdRoundsForm(form) &&
+        shouldRecalculateHrfNewWomanEligibility(options.name)
+      ) {
+        applyHrfNewWomanEligibilityCalculations(sender);
+        answerSnapshotRef.current = { ...(sender.data || {}) };
+        setRendererAnswerData(answerSnapshotRef.current);
       }
     });
 
@@ -644,6 +667,24 @@ export function QuestionnaireDashboard({
   }, [showForm, survey, form, taskContext, prefillData]);
 
   useEffect(() => {
+    if (!showForm || !survey || !isHouseholdRoundsForm(form)) return undefined;
+    let cancelled = false;
+    const householdId = deriveHouseholdIdFromTask(taskContext, prefillData);
+    async function loadHouseholdRoster() {
+      const members = householdId ? await listHouseholdMembers(householdId) : [];
+      if (cancelled) return;
+      applyHrfHouseholdContext(survey, members);
+      answerSnapshotRef.current = { ...(survey.data || {}) };
+      setRendererAnswerData(answerSnapshotRef.current);
+      updateSurveyStatus(survey);
+    }
+    loadHouseholdRoster();
+    return () => {
+      cancelled = true;
+    };
+  }, [showForm, survey, form, taskContext, prefillData]);
+
+  useEffect(() => {
     if (!showForm || !survey || !draftContext) return undefined;
     let cancelled = false;
     const restoreKey = [
@@ -682,6 +723,9 @@ export function QuestionnaireDashboard({
         setRendererAnswerData(answerSnapshotRef.current);
         if (isHouseholdQuestionnaire(form)) {
           refreshHouseholdSurveyBehaviors(survey, form);
+        }
+        if (isHouseholdRoundsForm(form)) {
+          refreshHouseholdRoundsSurveyBehaviors(survey, form);
         }
         if (isWomanQuestionnaire(form)) {
           applyWqReproductionSummary(survey);

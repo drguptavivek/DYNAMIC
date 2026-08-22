@@ -1,5 +1,7 @@
 # Changelog
 
+- Tightened HRF Q6/Q7_i handling so Q6 accepts only two digits, Q7_i is read-only and generated from the household member sequence, and Household Head ID fills from the local roster when HRF is opened from a real task.
+- Updated the Household Rounds Form to the 04 August 2026 Excel workbook sequence, including household-round details, new-woman repeat questions, Q5 No skip-to-outcome behavior, Q14_i pregnancy-tracking eligibility auto-calculation, workbook option codes, and the outcome choices.
 - Fixed draft backup sync failing with "Draft sync rejected" after the scheduler regenerated revisit tasks: the drafts upsert now matches existing rows by draft_id or context key and updates in place, so a changed task reference no longer collides on the draft primary key and aborts the whole device sync.
 - Reworked WQ Q4 stop routing: selecting option 2 (incapacitated), 3 (postponed), or 4 (not at home) now goes to the outcome page with only the matching outcome preselected (Incapacitated, Posponed, Not at home respectively) and all other options hidden; the reschedule/exclusion notice now appears only after final submit instead of immediately on selection.
 - Added the required `wq_result_interview_other_specify` input so selecting Other (specify) on the WQ outcome shows a text box for the reason; WQ catalog count is 170 again.

@@ -1,6 +1,6 @@
 {
   "schema_version": "pretsing_surveyjs_semantic_v0.2",
-  "source_pdf": "Refs/pretsing forms/household_rounds_form_v2026.05.14.pdf",
+  "source_pdf": "C:\\Users\\jtndr\\Desktop\\aiims work\\03_household_rounds_form_v2026.08.04.xlsx",
   "form_code": "HRF",
   "title": {
     "default": "Household Rounds Form",
@@ -12,24 +12,24 @@
     "ur": ""
   },
   "description": {
-    "default": "Household Rounds Form, version 14 MAY 2026",
-    "hi": "घरेलू राउंड फॉर्म, संस्करण 14 मई 2026",
+    "default": "DYNAMIC: 03 - Household Rounds Form, version 04 August 2026",
+    "hi": "घरेलू राउंड फॉर्म, संस्करण 04 अगस्त 2026",
     "kn": "",
     "mr": "",
     "ta": "",
     "te": "",
     "ur": ""
   },
-  "version": "14 MAY 2026",
+  "version": "04 AUGUST 2026",
   "showQuestionNumbers": "on",
   "questionTitlePattern": "numTitle",
   "pages": [
     {
-      "name": "page_01_main_form",
+      "name": "page_01_household_round",
       "order": 1,
       "title": {
-        "default": "Main form",
-        "hi": "मुख्य रूप",
+        "default": "Household round",
+        "hi": "",
         "kn": "",
         "mr": "",
         "ta": "",
@@ -40,1674 +40,327 @@
         {
           "type": "text",
           "name": "hrf_household_id",
-          "title": {
-            "default": "Household ID Automatically filled",
-            "hi": "घरेलू आईडी स्वचालित रूप से भरी गई",
-            "kn": "",
-            "mr": "",
-            "ta": "",
-            "te": "",
-            "ur": ""
-          },
+          "title": { "default": "Household ID", "hi": "घरेलू आईडी", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
           "order": 1,
           "section_order": 1,
           "sourceCode": "1",
-          "sourceType": "text",
-          "renderingHint": {
-            "render_as": "input",
-            "readonly": true
-          },
-          "rawText": "Household ID Automatically filled",
-          "readOnly": true
+          "sourceType": "app_calculated",
+          "rawText": "Household ID",
+          "description": { "default": "Automatically filled.", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
+          "readOnly": true,
+          "renderingHint": { "render_as": "input", "readonly": true }
         },
         {
           "type": "text",
           "name": "hrf_household_head_name",
-          "title": {
-            "default": "Name of household head",
-            "hi": "घर के मुखिया का नाम",
-            "kn": "",
-            "mr": "",
-            "ta": "",
-            "te": "",
-            "ur": ""
-          },
+          "title": { "default": "Name of household head", "hi": "घर के मुखिया का नाम", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
           "order": 2,
           "section_order": 1,
           "sourceCode": "2",
           "sourceType": "free_text",
-          "renderingHint": {
-            "render_as": "input"
-          },
-          "rawText": "Name of household head"
+          "rawText": "Name of household head",
+          "renderingHint": { "render_as": "input" }
         },
         {
           "type": "text",
           "name": "hrf_household_head_id",
-          "title": {
-            "default": "Household head ID Automatically filled",
-            "hi": "परिवार के मुखिया की आईडी स्वचालित रूप से भर जाती है",
-            "kn": "",
-            "mr": "",
-            "ta": "",
-            "te": "",
-            "ur": ""
-          },
+          "title": { "default": "Household head ID", "hi": "परिवार के मुखिया की आईडी", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
           "order": 3,
           "section_order": 1,
           "sourceCode": "3",
-          "sourceType": "text",
-          "renderingHint": {
-            "render_as": "input",
-            "readonly": true
-          },
-          "rawText": "Household head ID Automatically filled",
-          "readOnly": true
+          "sourceType": "app_calculated",
+          "rawText": "Household head ID",
+          "description": { "default": "Automatically filled.", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
+          "readOnly": true,
+          "renderingHint": { "render_as": "input", "readonly": true }
         },
         {
           "type": "text",
           "name": "hrf_interview_date",
-          "title": {
-            "default": "Date of interview mm/dd/yyyy",
-            "hi": "साक्षात्कार की तिथि mm/dd/yyyy",
-            "kn": "",
-            "mr": "",
-            "ta": "",
-            "te": "",
-            "ur": ""
-          },
+          "title": { "default": "Date of interview", "hi": "साक्षात्कार की तिथि", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
           "order": 4,
           "section_order": 1,
           "sourceCode": "4",
           "sourceType": "date",
-          "renderingHint": {
-            "render_as": "date_picker"
-          },
           "rawText": "Date of interview mm/dd/yyyy",
           "inputType": "date",
-          "validationRulesSource": [
-            "mm/dd/yyyy"
-          ]
+          "validationRulesSource": ["mm/dd/yyyy"],
+          "renderingHint": { "render_as": "date_picker" }
         },
         {
           "type": "radiogroup",
-          "name": "hrf_round_type",
-          "title": {
-            "default": "Type of round",
-            "hi": "",
-            "kn": "",
-            "mr": "",
-            "ta": "",
-            "te": "",
-            "ur": ""
-          },
+          "name": "hrf_new_woman_joined",
+          "title": { "default": "Since our last interaction, has any new woman aged 15-49 joined your household?", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
           "order": 5,
           "section_order": 1,
           "sourceCode": "5",
           "sourceType": "select_one",
-          "renderingHint": {
-            "render_as": "radio"
-          },
-          "rawText": "Type of round 1 Eligible woman 2 Household without eligible women Skip to 15",
+          "rawText": "Since our last interaction, has any new woman aged 15-49 joined your household?",
           "choices": [
-            {
-              "value": 1,
-              "text": {
-                "default": "Eligible woman",
-                "hi": "योग्य स्त्री",
-                "kn": "",
-                "mr": "",
-                "ta": "",
-                "te": "",
-                "ur": ""
-              }
-            },
-            {
-              "value": 2,
-              "text": {
-                "default": "Household without eligible women",
-                "hi": "योग्य महिलाओं के बिना घर",
-                "kn": "",
-                "mr": "",
-                "ta": "",
-                "te": "",
-                "ur": ""
-              }
-            }
+            { "value": 1, "text": { "default": "Yes", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
+            { "value": 2, "text": { "default": "No", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } }
           ],
-          "validationRulesSource": [
-            "single coded option"
-          ]
+          "skipLogicSource": "If No, end interview.",
+          "renderingHint": { "render_as": "radio" }
         },
         {
           "type": "text",
-          "name": "hrf_eligible_woman_name",
-          "title": {
-            "default": "Name of eligible woman",
-            "hi": "पात्र महिला का नाम",
-            "kn": "",
-            "mr": "",
-            "ta": "",
-            "te": "",
-            "ur": ""
-          },
+          "name": "hrf_new_women_count",
+          "title": { "default": "How many women?", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
           "order": 6,
           "section_order": 1,
           "sourceCode": "6",
-          "sourceType": "free_text",
-          "renderingHint": {
-            "render_as": "input"
-          },
-          "rawText": "Name of eligible woman"
-        },
-        {
-          "type": "text",
-          "name": "hrf_husband_name",
-          "title": {
-            "default": "Name of husband",
-            "hi": "पति का नाम",
-            "kn": "",
-            "mr": "",
-            "ta": "",
-            "te": "",
-            "ur": ""
-          },
-          "order": 7,
-          "section_order": 1,
-          "sourceCode": "7",
-          "sourceType": "free_text",
-          "renderingHint": {
-            "render_as": "input"
-          },
-          "rawText": "Name of husband"
-        },
-        {
-          "type": "text",
-          "name": "hrf_woman_hh_member_id",
-          "title": {
-            "default": "Woman's HH member ID",
-            "hi": "",
-            "kn": "",
-            "mr": "",
-            "ta": "",
-            "te": "",
-            "ur": ""
-          },
-          "order": 8,
-          "section_order": 1,
-          "sourceCode": "8",
-          "sourceType": "text",
-          "renderingHint": {
-            "render_as": "input"
-          },
-          "rawText": "Woman's HH member ID"
-        },
-        {
-          "type": "text",
-          "name": "hrf_woman_permanent_id",
-          "title": {
-            "default": "Woman's permanent ID",
-            "hi": "",
-            "kn": "",
-            "mr": "",
-            "ta": "",
-            "te": "",
-            "ur": ""
-          },
-          "order": 9,
-          "section_order": 1,
-          "sourceCode": "9",
-          "sourceType": "text",
-          "renderingHint": {
-            "render_as": "input"
-          },
-          "rawText": "Woman's permanent ID"
-        },
-        {
-          "type": "radiogroup",
-          "name": "hrf_current_marital_status",
-          "title": {
-            "default": "What is your current marital status?",
-            "hi": "",
-            "kn": "",
-            "mr": "",
-            "ta": "",
-            "te": "",
-            "ur": ""
-          },
-          "order": 10,
-          "section_order": 1,
-          "sourceCode": "10",
-          "sourceType": "select_one",
-          "renderingHint": {
-            "render_as": "radio"
-          },
-          "rawText": "What is your current marital status? 1 currently married 2 married, gauna not performed 3 widowed Skip to 15 4 divorced Skip to 15 5 separated Skip to 15 6 deserted Skip to 15 7 never married Skip to 15 8 live-in relationship",
-          "choices": [
-            {
-              "value": 1,
-              "text": {
-                "default": "currently married",
-                "hi": "",
-                "kn": "",
-                "mr": "",
-                "ta": "",
-                "te": "",
-                "ur": ""
-              }
-            },
-            {
-              "value": 2,
-              "text": {
-                "default": "married, gauna not performed",
-                "hi": "",
-                "kn": "",
-                "mr": "",
-                "ta": "",
-                "te": "",
-                "ur": ""
-              }
-            },
-            {
-              "value": 3,
-              "text": {
-                "default": "widowed",
-                "hi": "",
-                "kn": "",
-                "mr": "",
-                "ta": "",
-                "te": "",
-                "ur": ""
-              }
-            },
-            {
-              "value": 4,
-              "text": {
-                "default": "divorced",
-                "hi": "",
-                "kn": "",
-                "mr": "",
-                "ta": "",
-                "te": "",
-                "ur": ""
-              }
-            },
-            {
-              "value": 5,
-              "text": {
-                "default": "separated",
-                "hi": "",
-                "kn": "",
-                "mr": "",
-                "ta": "",
-                "te": "",
-                "ur": ""
-              }
-            },
-            {
-              "value": 6,
-              "text": {
-                "default": "deserted",
-                "hi": "",
-                "kn": "",
-                "mr": "",
-                "ta": "",
-                "te": "",
-                "ur": ""
-              }
-            },
-            {
-              "value": 7,
-              "text": {
-                "default": "never married",
-                "hi": "",
-                "kn": "",
-                "mr": "",
-                "ta": "",
-                "te": "",
-                "ur": ""
-              }
-            },
-            {
-              "value": 8,
-              "text": {
-                "default": "live-in relationship",
-                "hi": "",
-                "kn": "",
-                "mr": "",
-                "ta": "",
-                "te": "",
-                "ur": ""
-              }
-            }
-          ],
-          "validationRulesSource": [
-            "single coded option"
-          ]
-        },
-        {
-          "type": "radiogroup",
-          "name": "hrf_partner_sterilized",
-          "title": {
-            "default": "Are you or your partner sterilized?",
-            "hi": "क्या आपने या आपके साथी ने नसबंदी करा ली है?",
-            "kn": "",
-            "mr": "",
-            "ta": "",
-            "te": "",
-            "ur": ""
-          },
-          "order": 11,
-          "section_order": 1,
-          "sourceCode": "11",
-          "sourceType": "select_one",
-          "renderingHint": {
-            "render_as": "radio"
-          },
-          "rawText": "Are you or your partner sterilized? 1 Yes, respondent sterilized only Skip to 15 PROBE: Who is sterilized, you or your 2 Yes, partner sterilized only Skip to 15 partner? 3 Yes, both sterilized Skip to 15 4 No, neither sterilized",
-          "choices": [
-            {
-              "value": 1,
-              "text": {
-                "default": "Yes, respondent sterilized only PROBE: Who is sterilized, you or your",
-                "hi": "",
-                "kn": "",
-                "mr": "",
-                "ta": "",
-                "te": "",
-                "ur": ""
-              }
-            },
-            {
-              "value": 2,
-              "text": {
-                "default": "Yes, partner sterilized only partner?",
-                "hi": "",
-                "kn": "",
-                "mr": "",
-                "ta": "",
-                "te": "",
-                "ur": ""
-              }
-            },
-            {
-              "value": 3,
-              "text": {
-                "default": "Yes, both sterilized",
-                "hi": "",
-                "kn": "",
-                "mr": "",
-                "ta": "",
-                "te": "",
-                "ur": ""
-              }
-            },
-            {
-              "value": 4,
-              "text": {
-                "default": "No, neither sterilized",
-                "hi": "नहीं, न ही निष्फल",
-                "kn": "",
-                "mr": "",
-                "ta": "",
-                "te": "",
-                "ur": ""
-              }
-            }
-          ],
-          "validationRulesSource": [
-            "single coded option"
-          ]
-        },
-        {
-          "type": "radiogroup",
-          "name": "hrf_some_women_undergo_operation",
-          "title": {
-            "default": "Some women undergo an operation to",
-            "hi": "",
-            "kn": "",
-            "mr": "",
-            "ta": "",
-            "te": "",
-            "ur": ""
-          },
-          "order": 12,
-          "section_order": 1,
-          "sourceCode": "12",
-          "sourceType": "select_one",
-          "renderingHint": {
-            "render_as": "radio"
-          },
-          "rawText": "Some women undergo an operation to 1 yes Skip to 15 remove the uterus. Have you undergone 2 no such an operation? 3 don't know",
-          "choices": [
-            {
-              "value": 1,
-              "text": {
-                "default": "yes remove the uterus. Have you undergone",
-                "hi": "",
-                "kn": "",
-                "mr": "",
-                "ta": "",
-                "te": "",
-                "ur": ""
-              }
-            },
-            {
-              "value": 2,
-              "text": {
-                "default": "no such an operation?",
-                "hi": "",
-                "kn": "",
-                "mr": "",
-                "ta": "",
-                "te": "",
-                "ur": ""
-              }
-            },
-            {
-              "value": 3,
-              "text": {
-                "default": "don't know",
-                "hi": "",
-                "kn": "",
-                "mr": "",
-                "ta": "",
-                "te": "",
-                "ur": ""
-              }
-            }
-          ],
-          "validationRulesSource": [
-            "single coded option"
-          ]
-        },
-        {
-          "type": "radiogroup",
-          "name": "hrf_pregnant",
-          "title": {
-            "default": "Are you pregnant now?",
-            "hi": "क्या आप अब गर्भवती हैं?",
-            "kn": "",
-            "mr": "",
-            "ta": "",
-            "te": "",
-            "ur": ""
-          },
-          "order": 13,
-          "section_order": 1,
-          "sourceCode": "13",
-          "sourceType": "select_one",
-          "renderingHint": {
-            "render_as": "radio"
-          },
-          "rawText": "Are you pregnant now? 1 yes Schedule in-person visit for pregnancy enrollment form 2 no 98 unsure",
-          "choices": [
-            {
-              "value": 1,
-              "text": {
-                "default": "yes",
-                "hi": "",
-                "kn": "",
-                "mr": "",
-                "ta": "",
-                "te": "",
-                "ur": ""
-              }
-            },
-            {
-              "value": 2,
-              "text": {
-                "default": "no",
-                "hi": "",
-                "kn": "",
-                "mr": "",
-                "ta": "",
-                "te": "",
-                "ur": ""
-              }
-            },
-            {
-              "value": 98,
-              "text": {
-                "default": "unsure",
-                "hi": "",
-                "kn": "",
-                "mr": "",
-                "ta": "",
-                "te": "",
-                "ur": ""
-              }
-            }
-          ],
-          "validationRulesSource": [
-            "98 unsure",
-            "single coded option"
-          ]
-        },
-        {
-          "type": "multipletext",
-          "name": "hrf_last_menstrual_period_date_given_start_days_ago",
-          "title": {
-            "default": "When did your last menstrual period start?",
-            "hi": "आपका अंतिम मासिक धर्म कब शुरू हुआ?",
-            "kn": "",
-            "mr": "",
-            "ta": "",
-            "te": "",
-            "ur": ""
-          },
-          "order": 14,
-          "section_order": 1,
-          "sourceCode": "14",
-          "sourceType": "integer_group",
-          "renderingHint": {
-            "render_as": "numeric_textboxes"
-          },
-          "rawText": "When did your last menstrual period |_|_|/|_|_|/|_|_|_|_ DATE, IF GIVEN start? |_|_| days ago IF LESS THAN 1 WEEK, RECORD DAYS |_|_| weeks ago IF LESS THAN 1 MONTH, RECORD WEEKS |_|_| months ago |_|_| yeas ago IF LESS THAN 1 YEAR, RECORD MONTHS 993 has had hysterectomy 994 in menopause 995 before last birth IF LESS THAN 1 MONTH, RECORD WEEKS IF LESS THAN 1 YEAR, RECORD MONTHS 996 never menstruated",
-          "validationRulesSource": [
-            "Record date if given; otherwise record days, weeks, months, or years ago. Special codes: 993 hysterectomy, 994 menopause, 995 before last birth, 996 never menstruated."
-          ],
-          "inputInstructionSource": [
-            {
-              "visibleIfSource": "IF LESS THAN 1 WEEK, RECORD DAYS |_|_| weeks ago IF LESS THAN 1 MONTH, RECORD WEEKS |_|_| months ago |_|_| yeas ago IF LESS THAN 1 YEAR, RECORD MONTHS 993 has had hysterectomy 994 in menopause 995 before last birth IF LESS THAN 1 MONTH, RECORD WEEKS IF LESS THAN 1 YEAR, RECORD MONTHS 996 never menstruated"
-            }
-          ],
-          "logicResolution": "input_instruction_not_skip_logic",
-          "items": [
-            {
-              "name": "date",
-              "title": {
-                "default": "Date, if given",
-                "hi": "",
-                "kn": "",
-                "mr": "",
-                "ta": "",
-                "te": "",
-                "ur": ""
-              },
-              "inputType": "date"
-            },
-            {
-              "name": "days_ago",
-              "title": {
-                "default": "Days ago",
-                "hi": "",
-                "kn": "",
-                "mr": "",
-                "ta": "",
-                "te": "",
-                "ur": ""
-              },
-              "inputType": "number"
-            },
-            {
-              "name": "weeks_ago",
-              "title": {
-                "default": "Weeks ago",
-                "hi": "",
-                "kn": "",
-                "mr": "",
-                "ta": "",
-                "te": "",
-                "ur": ""
-              },
-              "inputType": "number"
-            },
-            {
-              "name": "months_ago",
-              "title": {
-                "default": "Months ago",
-                "hi": "",
-                "kn": "",
-                "mr": "",
-                "ta": "",
-                "te": "",
-                "ur": ""
-              },
-              "inputType": "number"
-            },
-            {
-              "name": "years_ago",
-              "title": {
-                "default": "Years ago",
-                "hi": "",
-                "kn": "",
-                "mr": "",
-                "ta": "",
-                "te": "",
-                "ur": ""
-              },
-              "inputType": "number"
-            }
-          ],
-          "description": {
-            "default": "Record date if given; otherwise record days, weeks, months, or years ago. Special codes: 993 hysterectomy, 994 menopause, 995 before last birth, 996 never menstruated.",
-            "hi": "",
-            "kn": "",
-            "mr": "",
-            "ta": "",
-            "te": "",
-            "ur": ""
-          }
-        },
-        {
-          "type": "radiogroup",
-          "name": "hrf_since_last_interaction_any_new",
-          "title": {
-            "default": "Since our last interaction, has any new",
-            "hi": "",
-            "kn": "",
-            "mr": "",
-            "ta": "",
-            "te": "",
-            "ur": ""
-          },
-          "order": 15,
-          "section_order": 1,
-          "sourceCode": "15",
-          "sourceType": "select_one",
-          "renderingHint": {
-            "render_as": "radio"
-          },
-          "rawText": "Since our last interaction, has any new 1 Yes woman joined your household, for example, a woman who married into your 2 No household?",
-          "choices": [
-            {
-              "value": 1,
-              "text": {
-                "default": "Yes woman joined your household, for example, a woman who married into your",
-                "hi": "",
-                "kn": "",
-                "mr": "",
-                "ta": "",
-                "te": "",
-                "ur": ""
-              }
-            },
-            {
-              "value": 2,
-              "text": {
-                "default": "No household?",
-                "hi": "कोई घर नहीं?",
-                "kn": "",
-                "mr": "",
-                "ta": "",
-                "te": "",
-                "ur": ""
-              }
-            }
-          ],
-          "validationRulesSource": [
-            "single coded option"
-          ]
-        },
-        {
-          "type": "text",
-          "name": "hrf_many_women_enter_number_new_women",
-          "title": {
-            "default": "How many women?",
-            "hi": "कितनी महिलाएँ?",
-            "kn": "",
-            "mr": "",
-            "ta": "",
-            "te": "",
-            "ur": ""
-          },
-          "order": 16,
-          "section_order": 1,
-          "sourceCode": "16",
           "sourceType": "integer",
-          "renderingHint": {
-            "render_as": "fixed_width_numeric_boxes"
-          },
-          "rawText": "How many women? |_| Enter number of new women",
+          "rawText": "How many women?",
+          "description": { "default": "Enter number of new women.", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
           "inputType": "number",
+          "maxLength": 2,
+          "preserveString": true,
+          "visibleIf": "{hrf_new_woman_joined} = 1",
           "validators": [
-            {
-              "type": "numeric"
-            }
-          ]
+            { "type": "numeric", "minValue": 1 },
+            { "type": "regex", "regex": "^\\d{1,2}$", "text": "Enter up to 2 digits." }
+          ],
+          "renderingHint": { "render_as": "numeric_textbox" }
         },
         {
           "type": "paneldynamic",
-          "name": "hrf_new_eligible_women",
-          "title": {
-            "default": "New women joined household",
-            "hi": "घर में नई महिलाएँ शामिल हुईं",
-            "kn": "",
-            "mr": "",
-            "ta": "",
-            "te": "",
-            "ur": ""
-          },
+          "name": "hrf_new_women",
+          "title": { "default": "New women aged 15-49", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
+          "order": 7,
+          "section_order": 1,
+          "sourceCode": "7_i-14_i",
+          "sourceType": "repeat_group",
+          "rawText": "Record details for each new woman aged 15-49 who joined the household since last interaction.",
+          "visibleIf": "{hrf_new_woman_joined} = 1 and {hrf_new_women_count} > 0",
+          "minPanelCount": 1,
+          "panelCount": 1,
+          "panelAddText": "Add woman",
+          "panelRemoveText": "Remove woman",
+          "addPanelText": "Add woman",
+          "removePanelText": "Remove woman",
+          "templateTitle": "New woman {panelIndex}",
           "templateElements": [
             {
               "type": "text",
-              "name": "hrf_household_member_line_number",
-              "title": {
-                "default": "Line number",
-                "hi": "लाइन नंबर",
-                "kn": "",
-                "mr": "",
-                "ta": "",
-                "te": "",
-                "ur": ""
-              },
-              "order": 17,
+              "name": "hrf_new_woman_line_number",
+              "title": { "default": "Line number of new woman {panelIndex}", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
+              "order": 1,
               "section_order": 1,
-              "sourceCode": "17",
-              "sourceType": "integer",
-              "renderingHint": {
-                "render_as": "input"
-              },
-              "rawText": "Line number",
+              "sourceCode": "7_i",
+              "sourceType": "app_calculated",
+              "rawText": "Line number of new woman i",
+              "description": { "default": "2-digits number. Automated based on existing sequence for this household. Combined with the household ID, this represents the individual ID.", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
               "inputType": "number",
-              "validators": [
-                {
-                  "type": "numeric"
-                }
-              ]
+              "maxLength": 2,
+              "preserveString": true,
+              "readOnly": true,
+              "validators": [{ "type": "regex", "regex": "^\\d{2}$", "text": "Enter exactly 2 digits." }],
+              "renderingHint": { "render_as": "numeric_textbox", "readonly": true }
             },
             {
               "type": "text",
-              "name": "hrf_give_name_woman_these_women_starting_one_arrived",
-              "title": {
-                "default": "Please give me the name of [this woman]/ [these women, starting with the one who arrived most recently]",
-                "hi": "कृपया मुझे [इस महिला]/ [इन महिलाओं का नाम बताएं, जो सबसे हाल ही में आई हैं उससे शुरू करें]",
-                "kn": "",
-                "mr": "",
-                "ta": "",
-                "te": "",
-                "ur": ""
-              },
-              "order": 18,
+              "name": "hrf_new_woman_name",
+              "title": { "default": "Please give me the name of [this woman]/ [these women, starting with the one who arrived most recently]", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
+              "order": 2,
               "section_order": 1,
-              "sourceCode": "18",
+              "sourceCode": "8_i",
               "sourceType": "free_text",
-              "renderingHint": {
-                "render_as": "input"
-              },
-              "rawText": "Please give me the name of [this woman]/ [these women, starting with the one who arrived most recently]"
+              "rawText": "Please give me the name of [this woman]/ [these women, starting with the one who arrived most recently]",
+              "description": { "default": "Check if woman is already listed in household schedule; ignore if already listed.", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" }
             },
             {
               "type": "radiogroup",
-              "name": "hrf_relationship_head_household",
-              "title": {
-                "default": "What is the relationship of (name of person i) to the head of the household",
-                "hi": "",
-                "kn": "",
-                "mr": "",
-                "ta": "",
-                "te": "",
-                "ur": ""
-              },
-              "order": 19,
+              "name": "hrf_new_woman_relationship_to_head",
+              "title": { "default": "What is the relationship of {panel.hrf_new_woman_name} to the head of the household?", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
+              "order": 3,
               "section_order": 1,
-              "sourceCode": "19_i",
+              "sourceCode": "9_i",
               "sourceType": "select_one",
-              "renderingHint": {
-                "render_as": "radio"
-              },
-              "rawText": "What is the relationship of (name of person i) to the head of the household 2 Wife (name displayed)? 3 daughter 4 daughter-in-law 5 Grandchild 6 Parent 7 Parent-in-law 8 sister 9 sister-in-law 10 Niece 11 Other relative 12 Adopted/Foster/Step-NO 13 Domestic Servant 14 Other not related 98 Don't know",
+              "rawText": "What is the relationship of (name of person i) to the head of the household (name displayed)?",
               "choices": [
-                {
-                  "value": 2,
-                  "text": {
-                    "default": "Wife (name displayed)?",
-                    "hi": "",
-                    "kn": "",
-                    "mr": "",
-                    "ta": "",
-                    "te": "",
-                    "ur": ""
-                  }
-                },
-                {
-                  "value": 3,
-                  "text": {
-                    "default": "daughter",
-                    "hi": "",
-                    "kn": "",
-                    "mr": "",
-                    "ta": "",
-                    "te": "",
-                    "ur": ""
-                  }
-                },
-                {
-                  "value": 4,
-                  "text": {
-                    "default": "daughter-in-law",
-                    "hi": "",
-                    "kn": "",
-                    "mr": "",
-                    "ta": "",
-                    "te": "",
-                    "ur": ""
-                  }
-                },
-                {
-                  "value": 5,
-                  "text": {
-                    "default": "Grandchild",
-                    "hi": "पोता",
-                    "kn": "",
-                    "mr": "",
-                    "ta": "",
-                    "te": "",
-                    "ur": ""
-                  }
-                },
-                {
-                  "value": 6,
-                  "text": {
-                    "default": "Parent",
-                    "hi": "माता-पिता",
-                    "kn": "",
-                    "mr": "",
-                    "ta": "",
-                    "te": "",
-                    "ur": ""
-                  }
-                },
-                {
-                  "value": 7,
-                  "text": {
-                    "default": "Parent-in-law",
-                    "hi": "सास-ससुर",
-                    "kn": "",
-                    "mr": "",
-                    "ta": "",
-                    "te": "",
-                    "ur": ""
-                  }
-                },
-                {
-                  "value": 8,
-                  "text": {
-                    "default": "sister",
-                    "hi": "",
-                    "kn": "",
-                    "mr": "",
-                    "ta": "",
-                    "te": "",
-                    "ur": ""
-                  }
-                },
-                {
-                  "value": 9,
-                  "text": {
-                    "default": "sister-in-law",
-                    "hi": "",
-                    "kn": "",
-                    "mr": "",
-                    "ta": "",
-                    "te": "",
-                    "ur": ""
-                  }
-                },
-                {
-                  "value": 10,
-                  "text": {
-                    "default": "Niece",
-                    "hi": "भतीजी",
-                    "kn": "",
-                    "mr": "",
-                    "ta": "",
-                    "te": "",
-                    "ur": ""
-                  }
-                },
-                {
-                  "value": 11,
-                  "text": {
-                    "default": "Other relative",
-                    "hi": "अन्य रिश्तेदार",
-                    "kn": "",
-                    "mr": "",
-                    "ta": "",
-                    "te": "",
-                    "ur": ""
-                  }
-                },
-                {
-                  "value": 12,
-                  "text": {
-                    "default": "Adopted/Foster/Step-NO",
-                    "hi": "गोद लिया/पालन/चरण-सं",
-                    "kn": "",
-                    "mr": "",
-                    "ta": "",
-                    "te": "",
-                    "ur": ""
-                  }
-                },
-                {
-                  "value": 13,
-                  "text": {
-                    "default": "Domestic Servant",
-                    "hi": "घरेलू नौकर",
-                    "kn": "",
-                    "mr": "",
-                    "ta": "",
-                    "te": "",
-                    "ur": ""
-                  }
-                },
-                {
-                  "value": 14,
-                  "text": {
-                    "default": "Other not related",
-                    "hi": "अन्य संबंधित नहीं",
-                    "kn": "",
-                    "mr": "",
-                    "ta": "",
-                    "te": "",
-                    "ur": ""
-                  }
-                },
-                {
-                  "value": 98,
-                  "text": {
-                    "default": "Don't know",
-                    "hi": "नहीं पता",
-                    "kn": "",
-                    "mr": "",
-                    "ta": "",
-                    "te": "",
-                    "ur": ""
-                  }
-                }
+                { "value": 2, "text": { "default": "Wife", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
+                { "value": 3, "text": { "default": "daughter", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
+                { "value": 4, "text": { "default": "daughter-in-law", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
+                { "value": 5, "text": { "default": "Grandchild", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
+                { "value": 6, "text": { "default": "Parent", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
+                { "value": 7, "text": { "default": "Parent-in-law", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
+                { "value": 8, "text": { "default": "sister", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
+                { "value": 9, "text": { "default": "sister-in-law", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
+                { "value": 10, "text": { "default": "Niece", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
+                { "value": 11, "text": { "default": "Other relative", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
+                { "value": 12, "text": { "default": "Adopted/Foster/Step-NO", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
+                { "value": 13, "text": { "default": "Domestic Servant", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
+                { "value": 14, "text": { "default": "Other not related", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
+                { "value": 98, "text": { "default": "Don't know", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } }
               ],
-              "validationRulesSource": [
-                "98 Don't know",
-                "single coded option"
-              ]
+              "renderingHint": { "render_as": "radio" }
             },
             {
               "type": "radiogroup",
-              "name": "hrf_place_last_residence",
-              "title": {
-                "default": "What was the place of last residence?",
-                "hi": "",
-                "kn": "",
-                "mr": "",
-                "ta": "",
-                "te": "",
-                "ur": ""
-              },
-              "order": 20,
+              "name": "hrf_new_woman_last_residence_place",
+              "title": { "default": "What was the place of last residence?", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
+              "order": 4,
               "section_order": 1,
-              "sourceCode": "20_i",
+              "sourceCode": "10_i",
               "sourceType": "select_one",
-              "renderingHint": {
-                "render_as": "radio"
-              },
-              "rawText": "What was the place of last residence? 1 within the same district 2 within same state but not within district 3 out of state but within country 4 out of the country",
+              "rawText": "What was the place of last residence?",
               "choices": [
-                {
-                  "value": 1,
-                  "text": {
-                    "default": "within the same district",
-                    "hi": "",
-                    "kn": "",
-                    "mr": "",
-                    "ta": "",
-                    "te": "",
-                    "ur": ""
-                  }
-                },
-                {
-                  "value": 2,
-                  "text": {
-                    "default": "within same state but not within district",
-                    "hi": "",
-                    "kn": "",
-                    "mr": "",
-                    "ta": "",
-                    "te": "",
-                    "ur": ""
-                  }
-                },
-                {
-                  "value": 3,
-                  "text": {
-                    "default": "out of state but within country",
-                    "hi": "",
-                    "kn": "",
-                    "mr": "",
-                    "ta": "",
-                    "te": "",
-                    "ur": ""
-                  }
-                },
-                {
-                  "value": 4,
-                  "text": {
-                    "default": "out of the country",
-                    "hi": "",
-                    "kn": "",
-                    "mr": "",
-                    "ta": "",
-                    "te": "",
-                    "ur": ""
-                  }
-                }
+                { "value": 1, "text": { "default": "within the same district", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
+                { "value": 2, "text": { "default": "within same state but not within district", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
+                { "value": 3, "text": { "default": "out of state but within country", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
+                { "value": 4, "text": { "default": "out of the country", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } }
               ],
-              "validationRulesSource": [
-                "single coded option"
-              ]
+              "renderingHint": { "render_as": "radio" }
             },
             {
               "type": "multipletext",
-              "name": "hrf_since_long_continuously_months_living_here_years_less",
-              "title": {
-                "default": "Since how long has (name) been continuously living here?",
-                "hi": "(नाम) लगातार यहाँ कब से रह रही है?",
-                "kn": "",
-                "mr": "",
-                "ta": "",
-                "te": "",
-                "ur": ""
-              },
-              "order": 21,
+              "name": "hrf_new_woman_residence_duration",
+              "title": { "default": "Since how long is {panel.hrf_new_woman_name} continuously living here?", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
+              "order": 5,
               "section_order": 1,
-              "sourceCode": "21_i",
+              "sourceCode": "11_i",
               "sourceType": "integer_group",
-              "renderingHint": {
-                "render_as": "numeric_textboxes"
-              },
-              "rawText": "Since how long (name) is continuously |_|_| months living here? |_|_| years If less than 1 year enter in months, if less than 1 month, enter 00",
-              "validationRulesSource": [
-                "If less than 1 year enter months; if less than 1 month enter 00 months."
-              ],
-              "inputInstructionSource": [
-                {
-                  "visibleIfSource": "If less than 1 year enter in months, if less than 1 month, enter 00"
-                }
-              ],
-              "logicResolution": "input_instruction_not_skip_logic",
+              "rawText": "Since how long (name) is continuously living here? months years",
+              "description": { "default": "If less than 1 year enter in months; if less than 1 month, enter 00.", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
               "items": [
                 {
                   "name": "months",
-                  "title": {
-                    "default": "Months",
-                    "hi": "",
-                    "kn": "",
-                    "mr": "",
-                    "ta": "",
-                    "te": "",
-                    "ur": ""
-                  },
-                  "inputType": "number"
+                  "title": { "default": "Months", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
+                  "inputType": "number",
+                  "maxLength": 2,
+                  "preserveString": true,
+                  "validators": [{ "type": "regex", "regex": "^\\d{2}$", "text": "Enter exactly 2 digits." }]
                 },
                 {
                   "name": "years",
-                  "title": {
-                    "default": "Years",
-                    "hi": "",
-                    "kn": "",
-                    "mr": "",
-                    "ta": "",
-                    "te": "",
-                    "ur": ""
-                  },
-                  "inputType": "number"
+                  "title": { "default": "Years", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
+                  "inputType": "number",
+                  "maxLength": 2,
+                  "preserveString": true,
+                  "validators": [{ "type": "regex", "regex": "^\\d{2}$", "text": "Enter exactly 2 digits." }]
                 }
               ],
-              "description": {
-                "default": "If less than 1 year enter months; if less than 1 month enter 00 months. Record months and years. If less than 1 year, enter months; if less than 1 month, enter 00 months.",
-                "hi": "",
-                "kn": "",
-                "mr": "",
-                "ta": "",
-                "te": "",
-                "ur": ""
-              }
+              "renderingHint": { "render_as": "numeric_textboxes" }
             },
             {
               "type": "text",
-              "name": "hrf_old_years_digits_completed_years_date_last_birth",
-              "title": {
-                "default": "How old is (name)?",
-                "hi": "",
-                "kn": "",
-                "mr": "",
-                "ta": "",
-                "te": "",
-                "ur": ""
-              },
-              "order": 22,
+              "name": "hrf_new_woman_age_years",
+              "title": { "default": "How old is {panel.hrf_new_woman_name}?", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
+              "order": 6,
               "section_order": 1,
-              "sourceCode": "22_i",
+              "sourceCode": "12_i",
               "sourceType": "integer",
-              "renderingHint": {
-                "render_as": "numeric_textbox"
-              },
-              "rawText": "How old is (name)? |_|_| years 2-digits Record completed years based on date of last birth or on answer 00 = Age less than one year / 95 = age 95 years or more",
-              "validationRulesSource": [
-                "Record completed years. Enter 00 if less than one year; enter 95 if age is 95 years or more."
-              ],
+              "rawText": "How old is (name)?",
+              "description": { "default": "2-digits. Record completed years based on date of last birth or on answer. 00 = Age less than one year / 95 = age 95 years or more.", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
               "inputType": "number",
-              "description": {
-                "default": "Record completed years. Enter 00 if less than one year; enter 95 if age is 95 years or more.",
-                "hi": "",
-                "kn": "",
-                "mr": "",
-                "ta": "",
-                "te": "",
-                "ur": ""
-              },
-              "validators": [
-                {
-                  "type": "numeric",
-                  "minValue": 0,
-                  "maxValue": 95
-                }
-              ]
+              "maxLength": 2,
+              "preserveString": true,
+              "validators": [{ "type": "regex", "regex": "^\\d{2}$", "text": "Enter exactly 2 digits." }],
+              "renderingHint": { "render_as": "numeric_textbox" }
             },
             {
               "type": "radiogroup",
-              "name": "hrf_s_current_marital_status",
-              "title": {
-                "default": "What is (name)'s current marital status",
-                "hi": "",
-                "kn": "",
-                "mr": "",
-                "ta": "",
-                "te": "",
-                "ur": ""
-              },
-              "order": 23,
+              "name": "hrf_new_woman_current_marital_status",
+              "title": { "default": "What is {panel.hrf_new_woman_name}'s current marital status?", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
+              "order": 7,
               "section_order": 1,
-              "sourceCode": "23_i",
+              "sourceCode": "13_i",
               "sourceType": "select_one",
-              "renderingHint": {
-                "render_as": "radio"
-              },
-              "rawText": "What is (name)'s current marital status 1 Currently married Ask only if individual is age 13 or older",
+              "rawText": "What is (name)'s current marital status",
               "choices": [
-                {
-                  "value": 1,
-                  "text": {
-                    "default": "Currently married",
-                    "hi": "फिलहाल शादीशुदा हैं",
-                    "kn": "",
-                    "mr": "",
-                    "ta": "",
-                    "te": "",
-                    "ur": ""
-                  }
-                },
-                {
-                  "value": 13,
-                  "text": {
-                    "default": "or older",
-                    "hi": "",
-                    "kn": "",
-                    "mr": "",
-                    "ta": "",
-                    "te": "",
-                    "ur": ""
-                  }
-                }
+                { "value": 1, "text": { "default": "Currently married", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
+                { "value": 2, "text": { "default": "Married, but Gauna bot performed", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
+                { "value": 3, "text": { "default": "Widowed", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
+                { "value": 4, "text": { "default": "Divorced", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
+                { "value": 5, "text": { "default": "Separated", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
+                { "value": 6, "text": { "default": "Deserted", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
+                { "value": 7, "text": { "default": "Never married", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
+                { "value": 8, "text": { "default": "Live-in relationship", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
+                { "value": 98, "text": { "default": "Don't know", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } }
               ],
-              "validationRulesSource": [
-                "single coded option"
-              ],
-              "manualReview": "Repeated-row logic needs final paneldynamic rules after confirming row model and birth/pregnancy history design.",
-              "manualReviewSource": [
-                {
-                  "visibleIfSource": "Ask only if individual is age 13 or older; only if individual is age 13 or older"
-                }
-              ],
-              "logicResolution": "manual_review_repeated_row_logic"
+              "renderingHint": { "render_as": "radio" }
             },
             {
               "type": "radiogroup",
-              "name": "hrf_s_current_marital_status_ask_only_individual_age",
-              "title": {
-                "default": "What is (name)'s current marital status Ask only if individual is age",
-                "hi": "",
-                "kn": "",
-                "mr": "",
-                "ta": "",
-                "te": "",
-                "ur": ""
-              },
-              "order": 24,
+              "name": "hrf_new_woman_pregnancy_tracking_eligible",
+              "title": { "default": "Potential person eligible for pregnancy tracking", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
+              "order": 8,
               "section_order": 1,
-              "sourceCode": "23_i",
-              "sourceType": "select_one",
-              "renderingHint": {
-                "render_as": "radio"
-              },
-              "rawText": "What is (name)'s current marital status Ask only if individual is age 13 or older 2 Married, but Gauna bot performed 3 Widowed 4 Divorced 5 Separated 6 Deserted 7 Never married 8 Live-in relationship 98 Don't know",
+              "sourceCode": "14_i",
+              "sourceType": "calculated_integer",
+              "rawText": "Potential person eligible for pregnancy tracking (female, 18-44, and currently married or in live-in relationship)",
+              "description": { "default": "Automatically filled: yes if age is 18-44 and current marital status is currently married, married but gauna not performed, or live-in relationship. Schedule woman's questionnaire interview.", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
               "choices": [
-                {
-                  "value": 13,
-                  "text": {
-                    "default": "or older",
-                    "hi": "",
-                    "kn": "",
-                    "mr": "",
-                    "ta": "",
-                    "te": "",
-                    "ur": ""
-                  }
-                },
-                {
-                  "value": 2,
-                  "text": {
-                    "default": "Married, but Gauna bot performed",
-                    "hi": "शादी हो गई, लेकिन गौना बॉट ने किया",
-                    "kn": "",
-                    "mr": "",
-                    "ta": "",
-                    "te": "",
-                    "ur": ""
-                  }
-                },
-                {
-                  "value": 3,
-                  "text": {
-                    "default": "Widowed",
-                    "hi": "",
-                    "kn": "",
-                    "mr": "",
-                    "ta": "",
-                    "te": "",
-                    "ur": ""
-                  }
-                },
-                {
-                  "value": 4,
-                  "text": {
-                    "default": "Divorced",
-                    "hi": "तलाकशुदा",
-                    "kn": "",
-                    "mr": "",
-                    "ta": "",
-                    "te": "",
-                    "ur": ""
-                  }
-                },
-                {
-                  "value": 5,
-                  "text": {
-                    "default": "Separated",
-                    "hi": "",
-                    "kn": "",
-                    "mr": "",
-                    "ta": "",
-                    "te": "",
-                    "ur": ""
-                  }
-                },
-                {
-                  "value": 6,
-                  "text": {
-                    "default": "Deserted",
-                    "hi": "सुनसान",
-                    "kn": "",
-                    "mr": "",
-                    "ta": "",
-                    "te": "",
-                    "ur": ""
-                  }
-                },
-                {
-                  "value": 7,
-                  "text": {
-                    "default": "Never married",
-                    "hi": "शादी कभी नहीं की",
-                    "kn": "",
-                    "mr": "",
-                    "ta": "",
-                    "te": "",
-                    "ur": ""
-                  }
-                },
-                {
-                  "value": 8,
-                  "text": {
-                    "default": "Live-in relationship",
-                    "hi": "लिव-इन रिलेशनशिप",
-                    "kn": "",
-                    "mr": "",
-                    "ta": "",
-                    "te": "",
-                    "ur": ""
-                  }
-                },
-                {
-                  "value": 98,
-                  "text": {
-                    "default": "Don't know",
-                    "hi": "नहीं पता",
-                    "kn": "",
-                    "mr": "",
-                    "ta": "",
-                    "te": "",
-                    "ur": ""
-                  }
-                }
+                { "value": 1, "text": { "default": "yes", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
+                { "value": 2, "text": { "default": "no", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } }
               ],
-              "validationRulesSource": [
-                "98 Don't know",
-                "single coded option"
-              ],
-              "manualReview": "Repeated-row logic needs final paneldynamic rules after confirming row model and birth/pregnancy history design.",
-              "manualReviewSource": [
-                {
-                  "visibleIfSource": "Ask only if individual is age 13 or older 2 Married, but Gauna bot performed 3 Widowed 4 Divorced 5 Separated 6 Deserted 7 Never married 8 Live-in relationship 98 Don't know; only if individual is age 13 or older 2 Married, but Gauna bot performed 3 Widowed 4 Divorced 5 Separated 6 Deserted 7 Never married 8 Live-in relationship 98 Don't know"
-                }
-              ],
-              "logicResolution": "manual_review_repeated_row_logic"
-            },
-            {
-              "type": "radiogroup",
-              "name": "hrf_age",
-              "title": {
-                "default": "if age",
-                "hi": "",
-                "kn": "",
-                "mr": "",
-                "ta": "",
-                "te": "",
-                "ur": ""
-              },
-              "order": 25,
-              "section_order": 1,
-              "sourceCode": "24A_i",
-              "sourceType": "select_one",
-              "renderingHint": {
-                "render_as": "radio"
-              },
-              "rawText": "if age 5 or older 1 yes Ask only if individual is age 5 or older Has (name) ever attended school 2 no If answer is 2 (no), skip to 12_i including online classes? 8 Don't know",
-              "choices": [
-                {
-                  "value": 5,
-                  "text": {
-                    "default": "or older",
-                    "hi": "",
-                    "kn": "",
-                    "mr": "",
-                    "ta": "",
-                    "te": "",
-                    "ur": ""
-                  }
-                },
-                {
-                  "value": 1,
-                  "text": {
-                    "default": "yes",
-                    "hi": "",
-                    "kn": "",
-                    "mr": "",
-                    "ta": "",
-                    "te": "",
-                    "ur": ""
-                  }
-                },
-                {
-                  "value": 5,
-                  "text": {
-                    "default": "or older Has (name) ever attended school",
-                    "hi": "",
-                    "kn": "",
-                    "mr": "",
-                    "ta": "",
-                    "te": "",
-                    "ur": ""
-                  }
-                },
-                {
-                  "value": 2,
-                  "text": {
-                    "default": "no",
-                    "hi": "",
-                    "kn": "",
-                    "mr": "",
-                    "ta": "",
-                    "te": "",
-                    "ur": ""
-                  }
-                },
-                {
-                  "value": 2,
-                  "text": {
-                    "default": "(no), _i including online classes?",
-                    "hi": "(नहीं), _मैं ऑनलाइन कक्षाओं सहित?",
-                    "kn": "",
-                    "mr": "",
-                    "ta": "",
-                    "te": "",
-                    "ur": ""
-                  }
-                },
-                {
-                  "value": 8,
-                  "text": {
-                    "default": "Don't know",
-                    "hi": "नहीं पता",
-                    "kn": "",
-                    "mr": "",
-                    "ta": "",
-                    "te": "",
-                    "ur": ""
-                  }
-                }
-              ],
-              "validationRulesSource": [
-                "single coded option"
-              ],
-              "manualReview": "Repeated-row logic needs final paneldynamic rules after confirming row model and birth/pregnancy history design.",
-              "manualReviewSource": [
-                {
-                  "visibleIfSource": "Ask only if individual is age 5 or older Has (name) ever attended school 2 no If answer is 2 (no), skip to 12_i including online classes? 8 Don't know; only if individual is age 5 or older Has (name) ever attended school 2 no If answer is 2 (no), skip to 12_i including online classes? 8 Don't know"
-                }
-              ],
-              "logicResolution": "manual_review_repeated_row_logic"
-            },
-            {
-              "type": "radiogroup",
-              "name": "hrf_highest_grade_ever",
-              "title": {
-                "default": "What is the highest grade (name) has ever",
-                "hi": "",
-                "kn": "",
-                "mr": "",
-                "ta": "",
-                "te": "",
-                "ur": ""
-              },
-              "order": 26,
-              "section_order": 1,
-              "sourceCode": "24B_i",
-              "sourceType": "select_one",
-              "renderingHint": {
-                "render_as": "radio"
-              },
-              "rawText": "What is the highest grade (name) has ever 0 Less than one year completed completed? 1 One year completed 2 Two years completed 3 3 Years completed … 95 Pre-Primary 98 Don't know",
-              "choices": [
-                {
-                  "value": 0,
-                  "text": {
-                    "default": "Less than one year completed completed?",
-                    "hi": "एक साल से भी कम समय पूरा हुआ पूरा?",
-                    "kn": "",
-                    "mr": "",
-                    "ta": "",
-                    "te": "",
-                    "ur": ""
-                  }
-                },
-                {
-                  "value": 1,
-                  "text": {
-                    "default": "One year completed",
-                    "hi": "एक साल पूरा हो गया",
-                    "kn": "",
-                    "mr": "",
-                    "ta": "",
-                    "te": "",
-                    "ur": ""
-                  }
-                },
-                {
-                  "value": 2,
-                  "text": {
-                    "default": "Two years completed",
-                    "hi": "",
-                    "kn": "",
-                    "mr": "",
-                    "ta": "",
-                    "te": "",
-                    "ur": ""
-                  }
-                },
-                {
-                  "value": 3,
-                  "text": {
-                    "default": "3 Years completed …",
-                    "hi": "3 साल पूरे...",
-                    "kn": "",
-                    "mr": "",
-                    "ta": "",
-                    "te": "",
-                    "ur": ""
-                  }
-                },
-                {
-                  "value": 95,
-                  "text": {
-                    "default": "Pre-Primary",
-                    "hi": "प्री-प्राइमरी",
-                    "kn": "",
-                    "mr": "",
-                    "ta": "",
-                    "te": "",
-                    "ur": ""
-                  }
-                },
-                {
-                  "value": 98,
-                  "text": {
-                    "default": "Don't know",
-                    "hi": "नहीं पता",
-                    "kn": "",
-                    "mr": "",
-                    "ta": "",
-                    "te": "",
-                    "ur": ""
-                  }
-                }
-              ],
-              "validationRulesSource": [
-                "95 Pre-Primary 98 Don't know",
-                "98 Don't know",
-                "single coded option"
-              ]
-            },
-            {
-              "type": "radiogroup",
-              "name": "hrf_potential_person_eligible_pregnancy",
-              "title": {
-                "default": "Potential person eligible for pregnancy",
-                "hi": "गर्भधारण के लिए योग्य संभावित व्यक्ति",
-                "kn": "",
-                "mr": "",
-                "ta": "",
-                "te": "",
-                "ur": ""
-              },
-              "order": 27,
-              "section_order": 1,
-              "sourceCode": "25_i",
-              "sourceType": "select_one",
-              "renderingHint": {
-                "render_as": "radio",
-                "readonly": true
-              },
-              "rawText": "Potential person eligible for pregnancy 1 yes To be automatically filled if female, age 18-44, tracking (female, 18-44, and currently and currently married (1, 2 or 8); Schedule married) woman's questionnaire interview 2 no",
-              "choices": [
-                {
-                  "value": 1,
-                  "text": {
-                    "default": "yes To be if female, age 18-44, tracking (female, 18-44, and currently and currently married (1",
-                    "hi": "",
-                    "kn": "",
-                    "mr": "",
-                    "ta": "",
-                    "te": "",
-                    "ur": ""
-                  }
-                },
-                {
-                  "value": 2,
-                  "text": {
-                    "default": "or",
-                    "hi": "",
-                    "kn": "",
-                    "mr": "",
-                    "ta": "",
-                    "te": "",
-                    "ur": ""
-                  }
-                },
-                {
-                  "value": 2,
-                  "text": {
-                    "default": "no",
-                    "hi": "",
-                    "kn": "",
-                    "mr": "",
-                    "ta": "",
-                    "te": "",
-                    "ur": ""
-                  }
-                }
-              ],
-              "validationRulesSource": [
-                "18-44",
-                "single coded option"
-              ],
-              "readOnly": true
+              "readOnly": true,
+              "calculated": true,
+              "calculationSource": "Yes when Q12_i age is 18-44 and Q13_i marital status is 1, 2, or 8; otherwise No. Female is implicit because Q5 asks about new women aged 15-49.",
+              "renderingHint": { "render_as": "readonly_calculated_numeric" }
             }
-          ],
-          "minPanelCount": 0,
-          "panelCount": 1,
-          "visibleIf": "{hrf_how_many_women} > 0",
-          "order": 17,
+          ]
+        },
+        {
+          "type": "html",
+          "name": "hrf_existing_women_tracking_note",
+          "order": 8,
           "section_order": 1,
-          "logicResolution": "resolved_by_visibleif_or_workflow"
+          "sourceCode": "existing_women_note",
+          "sourceType": "instruction",
+          "visibleIf": "{hrf_new_woman_joined} = 1",
+          "html": "<div class=\"survey-note\"><strong>Existing women 18-44 not in pregnancy surveillance:</strong> If marital status changed to married/living-in, ask whether she is still living at the same address. If still in the same household, fill the women's questionnaire unless remarriage was already completed. If married/living in the study area, record details, locate/enroll if household cohort, and if shifted out stop tracking in household rounds.</div>"
         }
-      ],
-      "source_order": 1
+      ]
+    },
+    {
+      "name": "page_02_outcome",
+      "order": 2,
+      "title": {
+        "default": "Outcome",
+        "hi": "",
+        "kn": "",
+        "mr": "",
+        "ta": "",
+        "te": "",
+        "ur": ""
+      },
+      "elements": [
+        {
+          "type": "radiogroup",
+          "name": "hrf_result_interview",
+          "title": { "default": "Result of interview", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
+          "order": 9,
+          "section_order": 2,
+          "sourceCode": "outcome",
+          "sourceType": "select_one",
+          "rawText": "Outcome",
+          "choices": [
+            { "value": 1, "text": { "default": "Form Filled", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
+            { "value": 2, "text": { "default": "Household locked / no one available despite 3 visits or despite multiple phone calls", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
+            { "value": 3, "text": { "default": "Household has shifted - find new address and mark shifted within area current address to be noted for future household rounds", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
+            { "value": 4, "text": { "default": "Shifted out of study area; will have to drop from future rounds", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } }
+          ],
+          "renderingHint": { "render_as": "radio" }
+        }
+      ]
     }
   ],
   "extraction_notes": [
-    "Generated from PDF table text using conservative heuristics.",
-    "Each question preserves raw_text for manual correction of ambiguous options and skip logic.",
-    "SurveyJS question name is a semantic lower-case snake_case variable name for statistical analysis.",
-    "sourceCode preserves the PDF variable ID.",
-    "Relevance and skip logic are retained as visibleIfSource/skipLogicSource when they cannot be safely translated into SurveyJS expressions."
+    "Updated from Excel workbook 03_household_rounds_form_v2026.08.04.xlsx.",
+    "Workbook sequence and option codes are preserved.",
+    "The existing-women tracking paragraph is represented as an interviewer instruction, not a stored answer.",
+    "Q14_i eligibility is marked as a read-only calculated field and is auto-filled by the HRF runtime behavior in the app.",
+    "Q5 No is represented as an end-interview skip by hiding the new-women count and repeat group."
   ],
   "locale": "default",
-  "supportedLocales": [
-    "default",
-    "hi",
-    "kn",
-    "mr",
-    "ta",
-    "te",
-    "ur"
-  ],
+  "supportedLocales": ["default", "hi", "kn", "mr", "ta", "te", "ur"],
   "metadata": {
     "entity": "household",
     "event": "household_round",
     "formCode": "HRF",
-    "version": "14 MAY 2026",
-    "sourcePdf": "Refs/pretsing forms/household_rounds_form_v2026.05.14.pdf"
+    "version": "04 AUGUST 2026",
+    "sourceWorkbook": "C:\\Users\\jtndr\\Desktop\\aiims work\\03_household_rounds_form_v2026.08.04.xlsx"
   }
 }

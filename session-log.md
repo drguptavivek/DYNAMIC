@@ -1,3 +1,10 @@
+## 2026-08-22 (dev stack + local Android emulator) [working]
+Goal: Start full dev stack; set up a local Android emulator with big files on D:, small on C.
+Decisions:
+- HRF test round done via local emulator (WHPX, API 35 image): user tested the 04 AUGUST 2026 HRF in-emulator; draft synced (Q5/Q6/new-women panel + auto-eligibility all worked). Emulator then FULLY REMOVED at user request (AVD, D:\Android\avd + system-images, SDK emulator pkg, junction, ANDROID_AVD_HOME env var). If ever needed again: emulator pkg + image + AVD is ~15 min (see archive below for the junction-before-install gotcha).
+- TEMP HRF TASK deleted (was generation_source='dev_test_direct' in follow_up_tasks): task row + its server questionnaire_draft removed; no form_responses existed (never submitted). Emulator device registration dynamic-field-android-da71b6fcc36229fc removed via admin API (deauth then delete). Remaining devices: web reg + phone (site2), pre-existing.
+- APK variants built and kept at `D:\Android\apk\`: DYNAMIC-fieldapp-phone.apk (192.168.1.81:3310, ready to `adb install -r` on the real phone) and DYNAMIC-fieldapp-emulator.apk (10.0.2.2:3310, only useful if an emulator returns). Build gotchas recorded: EXPO_PUBLIC_API_BASE_URL inlining needs gradle daemon `--stop` + `%TEMP%\metro-cache*` clear per variant (env is not in task/cache keys; `.env.local` alone unreliable), and packageRelease wipes extra files from the outputs dir. dev-field-worker password is back to documented `dev-password` (today's seed reset it); dev-smoke-device row was deleted via admin API to free the 2-device slot (slot now free again after emulator device removal).
+
 ## 2026-08-21 (WQ Section 2 Q1 skip scroll fix) [working]
 Goal: Stop the Q1 "no" -> Q6 skip from scrolling past Q6 (landed around Q12).
 Decisions:
