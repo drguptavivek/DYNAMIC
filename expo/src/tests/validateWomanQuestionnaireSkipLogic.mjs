@@ -35,7 +35,14 @@ const {
   shouldRecalculateWqPregnancyHistory,
   shouldRecalculateWqReproductionSummary,
 } = await import("../lib/womanSurveyBehaviors.js");
-const { getNativeQuestionTitle } = await import("../components/forms/nativeSurveyModel.js");
+const {
+  getNativeQuestionTitle,
+  getWqMultipleBirthRow,
+  shouldShowWqPregnancyHistoryQuestion,
+  WQ_MULTIPLE_BIRTH_COUNT_FIELD,
+  WQ_MULTIPLE_BIRTH_INDEX_FIELD,
+  WQ_OTHER_PREGNANCIES_FIELD,
+} = await import("../components/forms/nativeSurveyModel.js");
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const wqPath = path.resolve(
@@ -608,10 +615,66 @@ const pregnancyOutcomeCheckJson = pregnancyHistoryJson.templateElements.find(
 );
 assert.equal(pregnancyPluralityJson.sourceCode, "15_i");
 assert.equal(pregnancyPlurality.readOnly, false, "Q15_i must remain answerable");
+pregnancyPlurality.__nativePanelRowNumber = 1;
+assert.match(
+  getNativeQuestionTitle(pregnancyPlurality),
+  /Think back to your first pregnancy/,
+  "Q15_i should use first-pregnancy wording for the first repeat row"
+);
+const pregnancyHistoryQuestion = question(model, "wq_pregnancy_history");
+pregnancyHistoryQuestion.addPanel();
+const secondPregnancyPlurality = panelQuestion(
+  pregnancyHistoryQuestion.panels[1],
+  "pregnancy_02_reproduction_if_i_1_think_back_to_your_first_pregnancy"
+);
+secondPregnancyPlurality.__nativePanelRowNumber = 2;
+assert.match(
+  getNativeQuestionTitle(secondPregnancyPlurality),
+  /Think back to your next pregnancy/,
+  "Q15_i should use next-pregnancy wording after the first repeat row"
+);
 assert.equal(pregnancyOutcomeCheckJson.sourceCode, "23_i");
 assert.equal(pregnancyOutcomeCheckJson.calculated, true);
 assert.equal(pregnancyOutcome.getType(), "radiogroup");
 assert.equal(pregnancyOutcomeJson.sourceType, "select_one");
+assert.deepEqual(
+  pregnancyOutcomeJson.choices.map((choice) => choice.value),
+  [1, 2, 3, 4],
+  "Every Q16_i baby row must keep all four coded outcome options"
+);
+pregnancyPlurality.value = 3;
+assert.deepEqual(getWqMultipleBirthRow(pregnancyPanel), { count: 3, index: 1, plurality: 3 });
+assert.equal(
+  shouldShowWqPregnancyHistoryQuestion(pregnancyPlurality, getWqMultipleBirthRow(pregnancyPanel)),
+  true
+);
+assert.equal(
+  shouldShowWqPregnancyHistoryQuestion(
+    panelQuestion(pregnancyPanel, WQ_OTHER_PREGNANCIES_FIELD),
+    getWqMultipleBirthRow(pregnancyPanel)
+  ),
+  false,
+  "Q22_i must wait until the final baby in a multiple pregnancy"
+);
+panelQuestion(pregnancyPanel, WQ_MULTIPLE_BIRTH_COUNT_FIELD).value = 3;
+panelQuestion(pregnancyPanel, WQ_MULTIPLE_BIRTH_INDEX_FIELD).value = 2;
+assert.equal(
+  shouldShowWqPregnancyHistoryQuestion(pregnancyPlurality, getWqMultipleBirthRow(pregnancyPanel)),
+  false,
+  "Continuation rows must start at Q16_i instead of asking Q15_i again"
+);
+panelQuestion(pregnancyPanel, WQ_MULTIPLE_BIRTH_INDEX_FIELD).value = 3;
+assert.equal(
+  shouldShowWqPregnancyHistoryQuestion(
+    panelQuestion(pregnancyPanel, WQ_OTHER_PREGNANCIES_FIELD),
+    getWqMultipleBirthRow(pregnancyPanel)
+  ),
+  true,
+  "Q22_i must appear after the final baby"
+);
+panelQuestion(pregnancyPanel, WQ_MULTIPLE_BIRTH_COUNT_FIELD).value = undefined;
+panelQuestion(pregnancyPanel, WQ_MULTIPLE_BIRTH_INDEX_FIELD).value = undefined;
+pregnancyPlurality.value = undefined;
 assert.equal(pregnancyOutcomeDate.getType(), "multipletext");
 assert.deepEqual(pregnancyOutcomeDate.items.map((item) => item.name), ["day", "month", "year"]);
 assert.equal(pregnancyDuration.getType(), "multipletext");

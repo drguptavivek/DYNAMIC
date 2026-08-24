@@ -11,6 +11,16 @@ const NATIVE_SURVEY_TYPES = new Set([
   "text",
 ]);
 const WQ_PREGNANCY_BABY_NAME_FIELD = "pregnancy_02_reproduction_what_name_was_given_to_the_baby";
+export const WQ_PREGNANCY_PLURALITY_FIELD =
+  "pregnancy_02_reproduction_if_i_1_think_back_to_your_first_pregnancy";
+export const WQ_PREGNANCY_OUTCOME_FIELD =
+  "pregnancy_02_reproduction_if_15_i_single_was_the_baby_born_alive_bor";
+export const WQ_MULTIPLE_BIRTH_INDEX_FIELD =
+  "pregnancy_02_reproduction_multiple_birth_index";
+export const WQ_MULTIPLE_BIRTH_COUNT_FIELD =
+  "pregnancy_02_reproduction_multiple_birth_count";
+export const WQ_OTHER_PREGNANCIES_FIELD =
+  "pregnancy_02_reproduction_if_row_i_1_were_there_any_other_pregnancie";
 const WQ_SECTION_4_MARITAL_STATUS_CHECK_FIELD =
   "wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo";
 const WQ_SECTION_4_HUSBAND_OCCUPATION_FIELD =
@@ -92,7 +102,45 @@ function defaultChoiceText(choice) {
   return "";
 }
 
+function getNativePanelRowNumber(question) {
+  const explicitRow = Number(question?.__nativePanelRowNumber);
+  if (Number.isFinite(explicitRow) && explicitRow > 0) return explicitRow;
+
+  const panel = question?.parent;
+  const possibleOwners = [
+    panel?.parentQuestion,
+    panel?.parent,
+    panel?.parentElement,
+    panel?.panelDynamic,
+    question?.parentQuestion,
+  ];
+  for (const owner of possibleOwners) {
+    const panels = Array.isArray(owner?.panels) ? owner.panels : [];
+    const index = panels.indexOf(panel);
+    if (index >= 0) return index + 1;
+  }
+  return null;
+}
+
+function sourcePrefixFromTitle(title) {
+  return (String(title).match(/^\s*[\dA-Za-z_]+[.)]\s*/i) || [""])[0];
+}
+
 export function getNativeQuestionTitle(question, locale = "default") {
+  if (question?.name === WQ_PREGNANCY_PLURALITY_FIELD) {
+    const rowNumber = getNativePanelRowNumber(question);
+    if (rowNumber) {
+      const originalTitle = interpolateSurveyValues(
+        localizedText(question?.locTitle, question?.title || "", locale),
+        question
+      );
+      const title =
+        rowNumber === 1
+          ? "Think back to your first pregnancy. Was that a single pregnancy, twins, or triplets?"
+          : "Think back to your next pregnancy. Was that a single pregnancy, twins, or triplets?";
+      return sourcePrefixFromTitle(originalTitle) + title;
+    }
+  }
   if (question?.name === WQ_SECTION_4_HUSBAND_OCCUPATION_FIELD) {
     const maritalStatus = String(
       getQuestionValueForInterpolation(question, WQ_SECTION_4_MARITAL_STATUS_CHECK_FIELD) ?? ""
@@ -104,12 +152,11 @@ export function getNativeQuestionTitle(question, locale = "default") {
         localizedText(question?.locTitle, question?.title || "", locale),
         question
       );
-      const numberPrefix = (String(originalTitle).match(/^\s*\d+[a-z]?\.\s*/i) || [""])[0];
       const occupationTitle =
         maritalStatus === "1"
           ? "What is your (last) husband's occupation? That is, what kind of work does he mainly do?"
           : "What was your (last) husband's occupation. That is, what kind of work did he mainly do?";
-      return numberPrefix + occupationTitle;
+      return sourcePrefixFromTitle(originalTitle) + occupationTitle;
     }
   }
   return interpolateSurveyValues(
@@ -142,6 +189,32 @@ export function getNativeQuestionChoices(question, locale = "default") {
       text: localizedText(choice.locText, defaultText || choice.text || choice.value, locale) || defaultText || String(choice.value ?? ""),
     };
   });
+}
+
+function numericPanelValue(panel, fieldName) {
+  const value = Number(panel?.getQuestionByName?.(fieldName)?.value);
+  return Number.isFinite(value) ? value : 0;
+}
+
+export function getWqMultipleBirthRow(panel) {
+  const plurality = Math.min(
+    5,
+    Math.max(1, numericPanelValue(panel, WQ_PREGNANCY_PLURALITY_FIELD) || 1)
+  );
+  const storedIndex = Math.max(1, numericPanelValue(panel, WQ_MULTIPLE_BIRTH_INDEX_FIELD) || 1);
+  const storedCount = numericPanelValue(panel, WQ_MULTIPLE_BIRTH_COUNT_FIELD);
+  const count = Math.min(5, Math.max(1, storedIndex === 1 ? plurality : storedCount || plurality));
+  const index = Math.min(count, storedIndex);
+  return { count, index, plurality };
+}
+
+export function shouldShowWqPregnancyHistoryQuestion(child, multipleBirth) {
+  if (!child || multipleBirth.count <= 1) return true;
+  if (child.name === WQ_PREGNANCY_PLURALITY_FIELD) return multipleBirth.index === 1;
+  if (child.name === WQ_OTHER_PREGNANCIES_FIELD) {
+    return multipleBirth.index === multipleBirth.count;
+  }
+  return true;
 }
 
 export function getNativeQuestionValue(question, answerData) {
@@ -334,11 +407,14 @@ function previewQuestion(question, locale = "default") {
         index: index + 1,
         questions: (panel.questions || [])
           .filter((child) => child.isVisible !== false && child.getType?.() !== "html")
-          .map((child) => ({
-            name: child.name,
-            title: getNativeQuestionTitle(child, locale),
-            value: displayValue(child),
-          })),
+          .map((child) => {
+            child.__nativePanelRowNumber = index + 1;
+            return {
+              name: child.name,
+              title: getNativeQuestionTitle(child, locale),
+              value: displayValue(child),
+            };
+          }),
       })),
     };
   }

@@ -2602,6 +2602,18 @@
           "removePanelText": "Remove pregnancy outcome",
           "templateElements": [
             {
+              "type": "text",
+              "name": "pregnancy_02_reproduction_multiple_birth_index",
+              "visible": false,
+              "readOnly": true
+            },
+            {
+              "type": "text",
+              "name": "pregnancy_02_reproduction_multiple_birth_count",
+              "visible": false,
+              "readOnly": true
+            },
+            {
               "type": "radiogroup",
               "name": "pregnancy_02_reproduction_if_i_1_think_back_to_your_first_pregnancy",
               "title": {
@@ -2688,7 +2700,7 @@
               "type": "radiogroup",
               "name": "pregnancy_02_reproduction_if_15_i_single_was_the_baby_born_alive_bor",
               "title": {
-                "default": "If 15_i = single: Was the baby born alive, born dead, or did you have a miscarriage or abortion?\nIf 15_i > 1, for the first of multiple: Was the first baby in this pregnancy born alive or born dead?\nNext of multiple: Was the next baby in this pregnancy born alive or born dead?",
+                "default": "Was this baby born alive, born dead, or did the pregnancy end in miscarriage or abortion?",
                 "hi": "",
                 "kn": "",
                 "mr": "",
@@ -2700,7 +2712,7 @@
               "section_order": 2,
               "sourceCode": "16_i",
               "sourceType": "select_one",
-              "rawText": "If 15_i = single: Was the baby born alive, born dead, or did you have a miscarriage or abortion?\nIf 15_i > 1, for the first of multiple: Was the first baby in this pregnancy born alive or born dead?\nNext of multiple: Was the next baby in this pregnancy born alive or born dead? 1 Born alive SKIP TO 18_i",
+              "rawText": "Was this baby born alive, born dead, or did the pregnancy end in miscarriage or abortion? 1 Born alive SKIP TO 18_i",
               "description": {
                 "default": "Born alive SKIP TO 18_i",
                 "hi": "",

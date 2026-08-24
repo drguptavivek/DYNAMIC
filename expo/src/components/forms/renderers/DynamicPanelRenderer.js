@@ -5,7 +5,16 @@ import React, { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
-import { getNativeQuestionErrors, getNativeQuestionTitle } from "../nativeSurveyModel.js";
+import {
+  getNativeQuestionErrors,
+  getNativeQuestionTitle,
+  getWqMultipleBirthRow,
+  shouldShowWqPregnancyHistoryQuestion,
+  WQ_MULTIPLE_BIRTH_COUNT_FIELD,
+  WQ_MULTIPLE_BIRTH_INDEX_FIELD,
+  WQ_OTHER_PREGNANCIES_FIELD,
+  WQ_PREGNANCY_PLURALITY_FIELD,
+} from "../nativeSurveyModel.js";
 import { controlStyles } from "./QuestionFrame.js";
 
 export function DynamicPanelRenderer({ locale, question, onChange, renderQuestion }) {
@@ -99,12 +108,24 @@ export function DynamicPanelRenderer({ locale, question, onChange, renderQuestio
 
   function commitEntry() {
     const activePanel = editingIndex === null ? null : panels[editingIndex];
+    const multipleBirth = getWqMultipleBirthRow(activePanel);
+    persistMultipleBirthRow(activePanel, multipleBirth);
     const visibleQuestions = (activePanel?.questions || []).filter(
-      (child) => child.isVisible !== false
+      (child) => child.isVisible !== false && shouldShowWqPregnancyHistoryQuestion(child, multipleBirth)
     );
     const valid = visibleQuestions.map((child) => child.validate?.() !== false).every(Boolean);
     onChange?.();
     if (!valid || visibleQuestions.some((child) => child.errors?.length)) return;
+    if (editorMode === "add" && multipleBirth.index < multipleBirth.count) {
+      const nextIndex = question.panelCount;
+      question.addPanel();
+      const nextPanel = question.panels[nextIndex];
+      seedMultipleBirthContinuation(nextPanel, multipleBirth.index + 1, multipleBirth.count);
+      setEditingIndex(nextIndex);
+      setEditorMode("add");
+      onChange?.();
+      return;
+    }
     setEditingIndex(null);
     setEditorMode(null);
   }
@@ -144,15 +165,21 @@ export function DynamicPanelRenderer({ locale, question, onChange, renderQuestio
         <View style={styles.panel}>
           <View style={styles.panelHeader}>
             <Text style={styles.panelTitle}>
-              {editorMode === "add" ? "New entry" : `Edit entry ${editingIndex + 1}`}
+              {getPanelEditorTitle(panels[editingIndex], editingIndex, editorMode)}
             </Text>
             <Pressable accessibilityLabel="Close entry editor" hitSlop={6} onPress={closeEditor}>
               <MaterialCommunityIcons color="#475467" name="close-circle-outline" size={22} />
             </Pressable>
           </View>
           {(panels[editingIndex].questions || [])
-            .filter((child) => child.isVisible !== false)
-            .map((child) => renderQuestion(child, `${question.name}-${editingIndex}-${child.name}`))}
+            .filter((child) => child.isVisible !== false && shouldShowWqPregnancyHistoryQuestion(
+              child,
+              getWqMultipleBirthRow(panels[editingIndex])
+            ))
+            .map((child) => {
+              child.__nativePanelRowNumber = editingIndex + 1;
+              return renderQuestion(child, `${question.name}-${editingIndex}-${child.name}`);
+            })}
           <Pressable onPress={commitEntry} style={styles.commitButton}>
             <Text style={controlStyles.buttonText}>
               {editorMode === "add" ? question.addPanelText || "Add entry" : "Update entry"}
@@ -209,4 +236,28 @@ function clearPanelValues(panel) {
     if (typeof child.clearValue === "function") child.clearValue();
     else child.value = undefined;
   });
+}
+
+function setPanelValue(panel, fieldName, value) {
+  const child = panel?.getQuestionByName?.(fieldName);
+  if (child) child.value = value;
+}
+
+function persistMultipleBirthRow(panel, multipleBirth) {
+  setPanelValue(panel, WQ_MULTIPLE_BIRTH_INDEX_FIELD, multipleBirth.index);
+  setPanelValue(panel, WQ_MULTIPLE_BIRTH_COUNT_FIELD, multipleBirth.count);
+}
+
+function seedMultipleBirthContinuation(panel, index, count) {
+  setPanelValue(panel, WQ_PREGNANCY_PLURALITY_FIELD, count);
+  setPanelValue(panel, WQ_MULTIPLE_BIRTH_INDEX_FIELD, index);
+  setPanelValue(panel, WQ_MULTIPLE_BIRTH_COUNT_FIELD, count);
+}
+
+function getPanelEditorTitle(panel, editingIndex, editorMode) {
+  const multipleBirth = getWqMultipleBirthRow(panel);
+  if (multipleBirth.count > 1) {
+    return `Baby ${multipleBirth.index} of ${multipleBirth.count}`;
+  }
+  return editorMode === "add" ? "New entry" : `Edit entry ${editingIndex + 1}`;
 }
