@@ -1,5 +1,6 @@
 # Changelog
 
+- Added WQ pregnancy-order controls that move an entire pregnancy, keep all twins/triplets and answers attached, and renumber the resulting pregnancy sequence before it is saved; each pregnancy now summarizes its children in a compact S.No., name, and sex table.
 - Kept the WQ multiple-birth workflow positioned at Q16_i after saving one child and opening the next child row, avoiding manual scrolling back through the pregnancy history.
 - Fixed the Android release crash when adding the next child in a WQ twins/triplets pregnancy by importing the multiple-birth index and count fields used by the repeat-panel commit handler, with regression coverage for undeclared WQ runtime constants.
 - Corrected the WQ pregnancy-history editor so intermediate twins/triplets advance with child-specific actions, only the final child shows `Add pregnancy outcome`, and the next child uses the actual SurveyJS panel returned during creation instead of an assumed index that could crash the app.

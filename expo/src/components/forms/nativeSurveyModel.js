@@ -321,6 +321,17 @@ export function getWqMultipleBirthRow(panel) {
   return { count, index, plurality };
 }
 
+export function getWqPregnancyChildSummary(panel) {
+  const nameQuestion = panel?.getQuestionByName?.(WQ_PREGNANCY_BABY_NAME_FIELD);
+  const sexQuestion = panel?.getQuestionByName?.(WQ_PREGNANCY_BABY_SEX_FIELD);
+  const name = String(nameQuestion?.value ?? "").trim();
+  const sex = String(displayValue(sexQuestion) ?? "").trim();
+  return {
+    name: name || "-",
+    sex: sex || "-",
+  };
+}
+
 export function groupWqPregnancyHistoryPanels(panels = []) {
   const groups = [];
   let inferredGroupIndex = 0;
@@ -344,6 +355,51 @@ export function groupWqPregnancyHistoryPanels(panels = []) {
   });
 
   return groups;
+}
+
+export function reorderWqPregnancyHistoryValues(values = [], fromPosition, toPosition) {
+  if (!Array.isArray(values) || values.length < 2) return values;
+
+  const groups = [];
+  let inferredGroupIndex = 0;
+  values.forEach((value) => {
+    const row = value && typeof value === "object" ? { ...value } : {};
+    const storedGroupIndex = Number(row[WQ_PREGNANCY_GROUP_FIELD]) || 0;
+    const birthIndex = Number(row[WQ_MULTIPLE_BIRTH_INDEX_FIELD]) || 1;
+    if (storedGroupIndex > 0) {
+      inferredGroupIndex = storedGroupIndex;
+    } else if (birthIndex === 1 || inferredGroupIndex === 0) {
+      inferredGroupIndex += 1;
+    }
+
+    let group = groups.find((item) => item.groupIndex === inferredGroupIndex);
+    if (!group) {
+      group = { groupIndex: inferredGroupIndex, rows: [] };
+      groups.push(group);
+    }
+    group.rows.push(row);
+  });
+
+  if (
+    fromPosition < 0 ||
+    fromPosition >= groups.length ||
+    toPosition < 0 ||
+    toPosition >= groups.length ||
+    fromPosition === toPosition
+  ) {
+    return values;
+  }
+
+  const reorderedGroups = [...groups];
+  const [movedGroup] = reorderedGroups.splice(fromPosition, 1);
+  reorderedGroups.splice(toPosition, 0, movedGroup);
+
+  return reorderedGroups.flatMap((group, groupPosition) =>
+    group.rows.map((row) => ({
+      ...row,
+      [WQ_PREGNANCY_GROUP_FIELD]: groupPosition + 1,
+    }))
+  );
 }
 
 export function shouldShowWqPregnancyHistoryQuestion(child, multipleBirth) {

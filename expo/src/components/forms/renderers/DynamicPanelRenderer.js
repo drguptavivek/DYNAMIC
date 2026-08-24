@@ -11,8 +11,10 @@ import {
   getNativeQuestionTitle,
   getPanelCommitLabel,
   getWqMultipleBirthRow,
+  getWqPregnancyChildSummary,
   groupWqPregnancyHistoryPanels,
   isNativeInternalPanelField,
+  reorderWqPregnancyHistoryValues,
   shouldShowWqPregnancyHistoryQuestion,
   WQ_MULTIPLE_BIRTH_COUNT_FIELD,
   WQ_MULTIPLE_BIRTH_INDEX_FIELD,
@@ -118,6 +120,18 @@ export function DynamicPanelRenderer({
     onChange?.();
   }
 
+  function movePregnancy(fromPosition, toPosition) {
+    if (editorMode !== null) return;
+    const reorderedValue = reorderWqPregnancyHistoryValues(
+      question.value,
+      fromPosition,
+      toPosition
+    );
+    if (reorderedValue === question.value) return;
+    question.value = reorderedValue;
+    onChange?.();
+  }
+
   function closeEditor() {
     const hasCommittedEntry = committedPanels.length > 0;
     if (editorMode === "add" && editingIndex !== null) {
@@ -183,22 +197,64 @@ export function DynamicPanelRenderer({
         </Text>
       </View>
       {pregnancyGroups.length ? <View style={styles.pregnancyList}>
-        {pregnancyGroups.map((group) => (
+        {pregnancyGroups.map((group, groupPosition) => (
           <View key={`pregnancy-${group.groupIndex}`} style={styles.pregnancyGroup}>
-            <Text style={styles.pregnancyTitle}>{`Pregnancy ${group.groupIndex}`}</Text>
-            {group.rows.map(({ panel, panelIndex, multipleBirth }) => (
-              <EntryRow
-                entryLabel={entryLabel(panel, panelIndex)}
-                index={panelIndex}
-                key={panel.id || panelIndex}
-                number={multipleBirth.index}
-                onDelete={removeEntry}
-                onEdit={startEditing}
-                prefixLabel={`Baby ${multipleBirth.index} of ${multipleBirth.count}`}
-                question={question}
-                selected={editorMode === "edit" && panelIndex === editingIndex}
-              />
-            ))}
+            <View style={styles.pregnancyHeadingRow}>
+              <Text style={styles.pregnancyTitle}>{`Pregnancy ${group.groupIndex}`}</Text>
+              {pregnancyGroups.length > 1 ? (
+                <View style={styles.orderControls}>
+                  <Pressable
+                    accessibilityLabel={`Move pregnancy ${group.groupIndex} earlier`}
+                    disabled={groupPosition === 0 || editorMode !== null}
+                    hitSlop={6}
+                    onPress={() => movePregnancy(groupPosition, groupPosition - 1)}
+                    style={styles.orderButton}
+                  >
+                    <MaterialCommunityIcons
+                      color={groupPosition === 0 ? "#98a2b3" : "#1f6feb"}
+                      name="arrow-up"
+                      size={20}
+                    />
+                  </Pressable>
+                  <Pressable
+                    accessibilityLabel={`Move pregnancy ${group.groupIndex} later`}
+                    disabled={groupPosition === pregnancyGroups.length - 1 || editorMode !== null}
+                    hitSlop={6}
+                    onPress={() => movePregnancy(groupPosition, groupPosition + 1)}
+                    style={styles.orderButton}
+                  >
+                    <MaterialCommunityIcons
+                      color={groupPosition === pregnancyGroups.length - 1 ? "#98a2b3" : "#1f6feb"}
+                      name="arrow-down"
+                      size={20}
+                    />
+                  </Pressable>
+                </View>
+              ) : null}
+            </View>
+            <View style={styles.childTable}>
+              <View style={styles.childTableHeader}>
+                <Text style={[styles.childHeaderText, styles.childSerialCell]}>S.No.</Text>
+                <Text style={[styles.childHeaderText, styles.childNameCell]}>Name of child</Text>
+                <Text style={[styles.childHeaderText, styles.childSexCell]}>Sex</Text>
+                <View style={styles.childActionCell} />
+              </View>
+              {group.rows.map(({ panel, panelIndex, multipleBirth }) => {
+                const child = getWqPregnancyChildSummary(panel);
+                return (
+                  <PregnancyChildRow
+                    child={child}
+                    index={panelIndex}
+                    key={panel.id || panelIndex}
+                    number={multipleBirth.index}
+                    onDelete={removeEntry}
+                    onEdit={startEditing}
+                    question={question}
+                    selected={editorMode === "edit" && panelIndex === editingIndex}
+                  />
+                );
+              })}
+            </View>
           </View>
         ))}
       </View> : committedPanels.length ? <View style={styles.entryList}>
@@ -273,7 +329,22 @@ const styles = StyleSheet.create({
   entryList: { gap: 6 },
   pregnancyList: { gap: 9 },
   pregnancyGroup: { gap: 6, padding: 8, borderWidth: 1, borderColor: "#b9cbe3", borderRadius: 8, backgroundColor: "#f8fbff" },
+  pregnancyHeadingRow: { minHeight: 36, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
   pregnancyTitle: { color: "#1f4d7a", fontSize: 15, fontWeight: "900" },
+  orderControls: { flexDirection: "row", alignItems: "center", gap: 4 },
+  orderButton: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#b9cbe3", borderRadius: 7, backgroundColor: "#ffffff" },
+  childTable: { overflow: "hidden", borderWidth: 1, borderColor: "#d0d5dd", borderRadius: 8, backgroundColor: "#ffffff" },
+  childTableHeader: { minHeight: 38, flexDirection: "row", alignItems: "center", paddingHorizontal: 6, backgroundColor: "#eef4fb" },
+  childHeaderText: { color: "#475467", fontSize: 12, fontWeight: "900" },
+  childSerialCell: { width: 46 },
+  childNameCell: { minWidth: 0, flex: 1, paddingHorizontal: 4 },
+  childSexCell: { width: 62, paddingHorizontal: 4 },
+  childActionCell: { width: 72 },
+  childRow: { minHeight: 48, flexDirection: "row", alignItems: "center", paddingHorizontal: 6, borderTopWidth: 1, borderTopColor: "#e4e7ec" },
+  childRowActive: { backgroundColor: "#eef6ff" },
+  childCellText: { color: "#18202a", fontSize: 13, fontWeight: "700" },
+  childActions: { width: 72, flexDirection: "row", alignItems: "center", justifyContent: "flex-end" },
+  childIconButton: { width: 34, height: 38, alignItems: "center", justifyContent: "center" },
   entryRow: { minHeight: 46, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 7, paddingVertical: 5, borderWidth: 1, borderColor: "#d0d5dd", borderRadius: 8, backgroundColor: "#ffffff" },
   entryRowActive: { borderColor: "#1f6feb", backgroundColor: "#eef6ff" },
   editEntryButton: { minHeight: 36, flex: 1, flexDirection: "row", alignItems: "center", gap: 8 },
@@ -369,6 +440,36 @@ function EntryRow({ entryLabel, index, number, onDelete, onEdit, prefixLabel, qu
           <MaterialCommunityIcons color="#b42318" name="delete-outline" size={21} />
         </Pressable>
       ) : null}
+    </View>
+  );
+}
+
+function PregnancyChildRow({ child, index, number, onDelete, onEdit, question, selected }) {
+  return (
+    <View style={[styles.childRow, selected && styles.childRowActive]}>
+      <Text style={[styles.childCellText, styles.childSerialCell]}>{number}</Text>
+      <Text numberOfLines={2} style={[styles.childCellText, styles.childNameCell]}>{child.name}</Text>
+      <Text numberOfLines={2} style={[styles.childCellText, styles.childSexCell]}>{child.sex}</Text>
+      <View style={styles.childActions}>
+        <Pressable
+          accessibilityLabel={`Edit child ${number}`}
+          hitSlop={4}
+          onPress={() => onEdit(index)}
+          style={styles.childIconButton}
+        >
+          <MaterialCommunityIcons color="#475467" name="pencil-outline" size={19} />
+        </Pressable>
+        {question.allowRemovePanel !== false ? (
+          <Pressable
+            accessibilityLabel={`Delete child ${number}`}
+            hitSlop={4}
+            onPress={() => onDelete(index)}
+            style={styles.childIconButton}
+          >
+            <MaterialCommunityIcons color="#b42318" name="delete-outline" size={21} />
+          </Pressable>
+        ) : null}
+      </View>
     </View>
   );
 }

@@ -42,7 +42,9 @@ const {
   getNativeQuestionTitle,
   getPanelCommitLabel,
   getWqMultipleBirthRow,
+  getWqPregnancyChildSummary,
   groupWqPregnancyHistoryPanels,
+  reorderWqPregnancyHistoryValues,
   shouldShowWqPregnancyHistoryQuestion,
   WQ_MULTIPLE_BIRTH_COUNT_FIELD,
   WQ_MULTIPLE_BIRTH_INDEX_FIELD,
@@ -890,6 +892,54 @@ assert.deepEqual(
     { babies: [1, 2, 3], groupIndex: 2 },
   ],
   "Twins and triplets must remain grouped under their own pregnancy"
+);
+const reorderedPregnancyRows = reorderWqPregnancyHistoryValues(
+  [
+    {
+      marker: "pregnancy-1-baby-1",
+      [WQ_PREGNANCY_GROUP_FIELD]: 1,
+      [WQ_MULTIPLE_BIRTH_INDEX_FIELD]: 1,
+    },
+    {
+      marker: "pregnancy-1-baby-2",
+      [WQ_PREGNANCY_GROUP_FIELD]: 1,
+      [WQ_MULTIPLE_BIRTH_INDEX_FIELD]: 2,
+    },
+    {
+      marker: "pregnancy-2-baby-1",
+      [WQ_PREGNANCY_GROUP_FIELD]: 2,
+      [WQ_MULTIPLE_BIRTH_INDEX_FIELD]: 1,
+    },
+  ],
+  1,
+  0
+);
+assert.deepEqual(
+  reorderedPregnancyRows.map((row) => ({
+    group: row[WQ_PREGNANCY_GROUP_FIELD],
+    marker: row.marker,
+  })),
+  [
+    { group: 1, marker: "pregnancy-2-baby-1" },
+    { group: 2, marker: "pregnancy-1-baby-1" },
+    { group: 2, marker: "pregnancy-1-baby-2" },
+  ],
+  "Moving Pregnancy 2 above Pregnancy 1 must renumber both pregnancies and keep twins together"
+);
+assert.deepEqual(
+  getWqPregnancyChildSummary({
+    getQuestionByName(name) {
+      if (name === "pregnancy_02_reproduction_what_name_was_given_to_the_baby") {
+        return { value: "Asha" };
+      }
+      if (name === "pregnancy_02_reproduction_is_name_a_boy_or_a_girl") {
+        return { value: 2, getDisplayValue: () => "Girl" };
+      }
+      return null;
+    },
+  }),
+  { name: "Asha", sex: "Girl" },
+  "Pregnancy summaries must show each saved child's name and coded sex label"
 );
 pregnancyHistoryQuestion.removePanel(1);
 panelQuestion(pregnancyPanel, WQ_MULTIPLE_BIRTH_COUNT_FIELD).value = undefined;
