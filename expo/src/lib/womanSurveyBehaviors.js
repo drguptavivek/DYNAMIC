@@ -430,9 +430,11 @@ export function applyWqPregnancyHistoryCalculations(model) {
       [WQ_PREGNANCY_SIGN_OF_LIFE_FIELD]: getPanelQuestionValue(panel, WQ_PREGNANCY_SIGN_OF_LIFE_FIELD),
       [WQ_PREGNANCY_DURATION_FIELD]: getPanelQuestionValue(panel, WQ_PREGNANCY_DURATION_FIELD),
     });
-    if (outcome !== null) {
-      setPanelQuestionValueIfChanged(panel, WQ_PREGNANCY_OUTCOME_FIELD, outcome);
-    }
+    setPanelQuestionValueIfChanged(
+      panel,
+      WQ_PREGNANCY_OUTCOME_FIELD,
+      outcome === null ? undefined : outcome
+    );
 
     const duration = getPanelQuestionValue(panel, WQ_PREGNANCY_DURATION_FIELD);
     const normalizedDuration = defaultMultipleTextMissingKeysToZero(duration, ["weeks", "months"]);
@@ -440,7 +442,12 @@ export function applyWqPregnancyHistoryCalculations(model) {
       setPanelQuestionValueIfChanged(panel, WQ_PREGNANCY_DURATION_FIELD, normalizedDuration);
     }
 
-    if (Number(getPanelQuestionValue(panel, WQ_PREGNANCY_CHILD_LIVING_WITH_FIELD)) === 2) {
+    const childLineQuestion = panel?.getQuestionByName?.(WQ_PREGNANCY_CHILD_LINE_FIELD);
+    const childLivesWithRespondent = Number(
+      getPanelQuestionValue(panel, WQ_PREGNANCY_CHILD_LIVING_WITH_FIELD)
+    );
+    if (childLineQuestion) childLineQuestion.readOnly = childLivesWithRespondent === 2;
+    if (childLivesWithRespondent === 2) {
       setPanelQuestionValueIfChanged(panel, WQ_PREGNANCY_CHILD_LINE_FIELD, "00");
     }
 

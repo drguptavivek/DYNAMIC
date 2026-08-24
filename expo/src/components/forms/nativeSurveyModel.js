@@ -11,6 +11,15 @@ const NATIVE_SURVEY_TYPES = new Set([
   "text",
 ]);
 const WQ_PREGNANCY_BABY_NAME_FIELD = "pregnancy_02_reproduction_what_name_was_given_to_the_baby";
+const WQ_PREGNANCY_BABY_SEX_FIELD = "pregnancy_02_reproduction_is_name_a_boy_or_a_girl";
+const WQ_PREGNANCY_SIGN_OF_LIFE_FIELD =
+  "pregnancy_02_reproduction_did_the_baby_cry_move_or_breathe";
+const WQ_PREGNANCY_OUTCOME_DATE_FIELD =
+  "pregnancy_02_reproduction_check_16_and_17_type_of_pregnancy_outcome";
+const WQ_PREGNANCY_CHILD_AGE_FIELD =
+  "pregnancy_02_reproduction_if_born_alive_and_still_living_if_18_i_1_b";
+const WQ_PREGNANCY_DEATH_AGE_FIELD =
+  "pregnancy_02_reproduction_if_born_alive_and_now_dead_if_19_i_1_boy_h";
 export const WQ_PREGNANCY_PLURALITY_FIELD =
   "pregnancy_02_reproduction_if_i_1_think_back_to_your_first_pregnancy";
 export const WQ_PREGNANCY_OUTCOME_FIELD =
@@ -126,7 +135,60 @@ function sourcePrefixFromTitle(title) {
   return (String(title).match(/^\s*[\dA-Za-z_]+[.)]\s*/i) || [""])[0];
 }
 
+function pregnancyOutcomePrompt(question) {
+  const birthResult = Number(
+    getQuestionValueForInterpolation(question, WQ_PREGNANCY_OUTCOME_FIELD)
+  );
+  const signOfLife = Number(
+    getQuestionValueForInterpolation(question, WQ_PREGNANCY_SIGN_OF_LIFE_FIELD)
+  );
+  if (birthResult === 1 || signOfLife === 1) return "Born alive";
+  if (birthResult === 2 && signOfLife === 2) return "Born dead";
+  if (birthResult === 3) return "Miscarriage";
+  if (birthResult === 4) return "Abortion";
+  return "";
+}
+
+function childName(question) {
+  return String(
+    getQuestionValueForInterpolation(question, WQ_PREGNANCY_BABY_NAME_FIELD) || "the child"
+  );
+}
+
 export function getNativeQuestionTitle(question, locale = "default") {
+  if (question?.name === WQ_PREGNANCY_OUTCOME_DATE_FIELD) {
+    const originalTitle = interpolateSurveyValues(
+      localizedText(question?.locTitle, question?.title || "", locale),
+      question
+    );
+    const outcome = pregnancyOutcomePrompt(question);
+    if (outcome) {
+      const datePrompt =
+        outcome === "Born alive"
+          ? `On what day, month, and year was ${childName(question)} born?`
+          : "On what day, month, and year did this pregnancy end?";
+      return `${sourcePrefixFromTitle(originalTitle)}${outcome}\n${datePrompt}`;
+    }
+  }
+  if (
+    question?.name === WQ_PREGNANCY_CHILD_AGE_FIELD ||
+    question?.name === WQ_PREGNANCY_DEATH_AGE_FIELD
+  ) {
+    const originalTitle = interpolateSurveyValues(
+      localizedText(question?.locTitle, question?.title || "", locale),
+      question
+    );
+    const sex = Number(getQuestionValueForInterpolation(question, WQ_PREGNANCY_BABY_SEX_FIELD));
+    if (sex === 1 || sex === 2) {
+      const pronoun = sex === 1 ? "he" : "she";
+      const possessive = sex === 1 ? "his" : "her";
+      const wording =
+        question.name === WQ_PREGNANCY_CHILD_AGE_FIELD
+          ? `How old was ${childName(question)} at ${possessive} last birthday?`
+          : `How old was ${childName(question)} when ${pronoun} died?`;
+      return sourcePrefixFromTitle(originalTitle) + wording;
+    }
+  }
   if (question?.name === WQ_PREGNANCY_PLURALITY_FIELD) {
     const rowNumber = getNativePanelRowNumber(question);
     if (rowNumber) {

@@ -1,5 +1,6 @@
 # Changelog
 
+- Completed the WQ Section 2 Q14_i-Q28_i instruction pass: Q20_i now displays the derived pregnancy outcome and correct child-name/date prompt, Q25_i and Q28_i use the recorded child's name and sex-specific wording, stale calculated outcomes are cleared when source answers change, and Q27_i locks the generated `00` when the child is not listed in the household.
 - Tightened HRF Q6/Q7_i handling so Q6 accepts only two digits, Q7_i is read-only and generated from the household member sequence, and Household Head ID fills from the local roster when HRF is opened from a real task.
 - Updated the Household Rounds Form to the 04 August 2026 Excel workbook sequence, including household-round details, new-woman repeat questions, Q5 No skip-to-outcome behavior, Q14_i pregnancy-tracking eligibility auto-calculation, workbook option codes, and the outcome choices.
 - Fixed draft backup sync failing with "Draft sync rejected" after the scheduler regenerated revisit tasks: the drafts upsert now matches existing rows by draft_id or context key and updates in place, so a changed task reference no longer collides on the draft primary key and aborts the whole device sync.

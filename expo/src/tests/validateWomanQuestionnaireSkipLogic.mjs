@@ -592,6 +592,18 @@ const criedMovedBreathed = panelQuestion(
   pregnancyPanel,
   "pregnancy_02_reproduction_did_the_baby_cry_move_or_breathe"
 );
+const pregnancyBabyName = panelQuestion(
+  pregnancyPanel,
+  "pregnancy_02_reproduction_what_name_was_given_to_the_baby"
+);
+const pregnancyBabySex = panelQuestion(
+  pregnancyPanel,
+  "pregnancy_02_reproduction_is_name_a_boy_or_a_girl"
+);
+const pregnancyChildAge = panelQuestion(
+  pregnancyPanel,
+  "pregnancy_02_reproduction_if_born_alive_and_still_living_if_18_i_1_b"
+);
 const pregnancyDeathAge = panelQuestion(pregnancyPanel, WQ_PREGNANCY_DEATH_AGE_FIELD);
 assert.equal(pregnancyOutcomeDate.isVisible, false);
 assert.equal(pregnancyDuration.isVisible, false);
@@ -724,9 +736,22 @@ assert.equal(pregnancyOutcomeDate.isVisible, false);
 criedMovedBreathed.value = 2;
 assert.equal(pregnancyOutcomeDate.isVisible, true);
 assert.equal(pregnancyDuration.isVisible, true);
+pregnancyBabyName.value = "Asha";
+assert.match(getNativeQuestionTitle(pregnancyOutcomeDate), /Born dead/);
+assert.match(getNativeQuestionTitle(pregnancyOutcomeDate), /pregnancy end/);
+pregnancyOutcome.value = 1;
+assert.match(getNativeQuestionTitle(pregnancyOutcomeDate), /Born alive/);
+assert.match(getNativeQuestionTitle(pregnancyOutcomeDate), /Asha born/);
+pregnancyBabySex.value = 1;
+assert.match(getNativeQuestionTitle(pregnancyChildAge), /Asha at his last birthday/);
+assert.match(getNativeQuestionTitle(pregnancyDeathAge), /Asha when he died/);
+pregnancyBabySex.value = 2;
+assert.match(getNativeQuestionTitle(pregnancyChildAge), /Asha at her last birthday/);
+assert.match(getNativeQuestionTitle(pregnancyDeathAge), /Asha when she died/);
 pregnancyOutcome.value = 3;
 assert.equal(pregnancyOutcomeDate.isVisible, true);
 assert.equal(pregnancyDuration.isVisible, true);
+assert.match(getNativeQuestionTitle(pregnancyOutcomeDate), /Miscarriage/);
 pregnancyDuration.value = { months: "06" };
 applyWqPregnancyHistoryCalculations(model);
 assert.equal(panelQuestion(pregnancyPanel, WQ_PREGNANCY_OUTCOME_FIELD).value, 3);
@@ -737,9 +762,19 @@ assert.equal(panelQuestion(pregnancyPanel, WQ_PREGNANCY_OUTCOME_FIELD).value, 2)
 pregnancyOutcome.value = 4;
 applyWqPregnancyHistoryCalculations(model);
 assert.equal(panelQuestion(pregnancyPanel, WQ_PREGNANCY_OUTCOME_FIELD).value, 4);
+assert.match(getNativeQuestionTitle(pregnancyOutcomeDate), /Abortion/);
 panelQuestion(pregnancyPanel, WQ_PREGNANCY_CHILD_LIVING_WITH_FIELD).value = 2;
 applyWqPregnancyHistoryCalculations(model);
 assert.equal(panelQuestion(pregnancyPanel, WQ_PREGNANCY_CHILD_LINE_FIELD).value, "00");
+assert.equal(panelQuestion(pregnancyPanel, WQ_PREGNANCY_CHILD_LINE_FIELD).readOnly, true);
+panelQuestion(pregnancyPanel, WQ_PREGNANCY_CHILD_LIVING_WITH_FIELD).value = 1;
+applyWqPregnancyHistoryCalculations(model);
+assert.equal(panelQuestion(pregnancyPanel, WQ_PREGNANCY_CHILD_LINE_FIELD).readOnly, false);
+pregnancyOutcome.value = undefined;
+criedMovedBreathed.value = undefined;
+pregnancyDuration.value = undefined;
+applyWqPregnancyHistoryCalculations(model);
+assert.equal(panelQuestion(pregnancyPanel, WQ_PREGNANCY_OUTCOME_FIELD).value, undefined);
 pregnancyDeathAge.value = { months: "03" };
 applyWqPregnancyHistoryCalculations(model);
 assert.deepEqual(pregnancyDeathAge.value, { months: "03", days: "00", years: "00" });
