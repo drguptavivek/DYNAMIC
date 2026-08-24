@@ -148,6 +148,25 @@ for (const relativePath of [
   }
 }
 
+const dynamicPanelRendererSource = fs.readFileSync(
+  path.resolve(root, "../components/forms/renderers/DynamicPanelRenderer.js"),
+  "utf8"
+);
+assert.match(
+  dynamicPanelRendererSource,
+  /onRequestTopLevelFocus\?\.\(question\.name\)/,
+  "Saving an intermediate multiple-birth child must return focus to the pregnancy-history panel"
+);
+const nativeSurveyRendererSource = fs.readFileSync(
+  path.resolve(root, "../components/forms/NativeSurveyRenderer.js"),
+  "utf8"
+);
+assert.match(
+  nativeSurveyRendererSource,
+  /onRequestTopLevelFocus=\{scrollToQuestionByName\}/,
+  "The native survey renderer must wire repeat-panel continuation focus to its scroll controller"
+);
+
 function createWqModel() {
   return new Model(prepareQuestionnaireSurveyJson(wq));
 }

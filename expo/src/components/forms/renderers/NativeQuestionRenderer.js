@@ -21,7 +21,14 @@ import { SelectManyRenderer } from "./SelectManyRenderer.js";
 import { SelectOneRenderer } from "./SelectOneRenderer.js";
 import { TextRenderer } from "./TextRenderer.js";
 
-function NativeQuestionRendererBase({ answerData, locale, question, onChange, renderQuestion }) {
+function NativeQuestionRendererBase({
+  answerData,
+  locale,
+  question,
+  onChange,
+  onRequestTopLevelFocus,
+  renderQuestion,
+}) {
   const renderer = getNativeRendererKind(question);
   const props = { answerData, locale, question, onChange };
   switch (renderer) {
@@ -30,7 +37,13 @@ function NativeQuestionRendererBase({ answerData, locale, question, onChange, re
     case "date": return <DateRenderer {...props} />;
     case "db-check": return <DbCheckRenderer {...props} />;
     case "display": return <DisplayRenderer {...props} />;
-    case "dynamic-panel": return <DynamicPanelRenderer {...props} renderQuestion={renderQuestion} />;
+    case "dynamic-panel": return (
+      <DynamicPanelRenderer
+        {...props}
+        onRequestTopLevelFocus={onRequestTopLevelFocus}
+        renderQuestion={renderQuestion}
+      />
+    );
     case "file-picker": return <FilePickerRenderer {...props} />;
     case "gps": return <GpsRenderer {...props} />;
     case "grouped-coded-single-select": return <GroupedCodedSingleSelectRenderer {...props} />;
@@ -54,6 +67,7 @@ function areQuestionRendererPropsEqual(previous, next) {
     previous.locale === next.locale &&
     previous.question === next.question &&
     previous.onChange === next.onChange &&
+    previous.onRequestTopLevelFocus === next.onRequestTopLevelFocus &&
     previous.renderQuestion === next.renderQuestion &&
     previous.renderRevision === next.renderRevision
   );

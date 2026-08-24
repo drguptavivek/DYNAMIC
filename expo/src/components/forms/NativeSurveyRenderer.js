@@ -99,10 +99,18 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
       locale={locale}
       question={question}
       onChange={refresh}
+      onRequestTopLevelFocus={scrollToQuestionByName}
       renderQuestion={renderQuestion}
       renderRevision={revision}
     />
-  ), [answerData, locale, refresh, revision]);
+  ), [answerData, locale, page?.name, refresh, revision]);
+
+  function scrollToQuestionByName(name) {
+    const target = getVisiblePageQuestions(page).find((item) => item.name === name);
+    if (!target) return false;
+    scrollToQuestion(target);
+    return true;
+  }
   const renderTopLevelQuestion = useCallback((question) => (
     <View
       key={question.id || question.name}

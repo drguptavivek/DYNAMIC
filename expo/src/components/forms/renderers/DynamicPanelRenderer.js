@@ -28,7 +28,13 @@ function isRenderablePanelQuestion(child, multipleBirth) {
   return shouldShowWqPregnancyHistoryQuestion(child, multipleBirth);
 }
 
-export function DynamicPanelRenderer({ locale, question, onChange, renderQuestion }) {
+export function DynamicPanelRenderer({
+  locale,
+  question,
+  onChange,
+  onRequestTopLevelFocus,
+  renderQuestion,
+}) {
   const [editingIndex, setEditingIndex] = useState(null);
   const [editorMode, setEditorMode] = useState(null);
   const [initialAddOpened, setInitialAddOpened] = useState(false);
@@ -159,6 +165,7 @@ export function DynamicPanelRenderer({ locale, question, onChange, renderQuestio
       setEditingIndex(nextIndex);
       setEditorMode("add");
       onChange?.();
+      onRequestTopLevelFocus?.(question.name);
       return;
     }
     setEditingIndex(null);
