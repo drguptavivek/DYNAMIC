@@ -1,5 +1,10 @@
 # Changelog
 
+- Kept the three WQ Reproduction mobile pages for Q1-Q13, Q14-Q21 pregnancy history, and Q22 onward while presenting and counting all three as one logical `02-Reproduction` section in navigation and progress.
+
+- Updated the WQ pregnancy child summary table to show `S.No.`, born status, child name, sex, and the Q21 pregnancy duration in weeks/months, with horizontal scrolling on narrow mobile screens.
+
+- Split WQ Reproduction into focused mobile sections: Q1-Q13 remains in Reproduction, Q14-Q21 and the submitted pregnancy/child table now occupy a dedicated Pregnancy History section, and the following section starts at Q22_i; respondents with no past pregnancies skip the pregnancy-history section.
 - Added WQ pregnancy-order controls that move an entire pregnancy, keep all twins/triplets and answers attached, and renumber the resulting pregnancy sequence before it is saved; each pregnancy now summarizes its children in a compact S.No., name, and sex table.
 - Kept the WQ multiple-birth workflow positioned at Q16_i after saving one child and opening the next child row, avoiding manual scrolling back through the pregnancy history.
 - Fixed the Android release crash when adding the next child in a WQ twins/triplets pregnancy by importing the multiple-birth index and count fields used by the repeat-panel commit handler, with regression coverage for undeclared WQ runtime constants.

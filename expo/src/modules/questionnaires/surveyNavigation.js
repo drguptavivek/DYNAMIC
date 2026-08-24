@@ -6,6 +6,29 @@ export const HOUSEHOLD_MEMBER_SUMMARY_SECTION_TITLE = "02B-HOUSEHOLD MEMBER SUMM
 export const COMPACT_PREVIEW_SECTION_NAME = "compact_preview";
 export const COMPACT_PREVIEW_SECTION_TITLE = "PREVIEW";
 
+const LOGICAL_SECTION_BY_PAGE_NAME = Object.freeze({
+  page_02_reproduction: "page_02_reproduction",
+  page_02a_pregnancy_history: "page_02_reproduction",
+  page_02b_reproduction_follow_up: "page_02_reproduction",
+});
+
+export function getLogicalSurveySectionName(pageName) {
+  return LOGICAL_SECTION_BY_PAGE_NAME[pageName] || pageName;
+}
+
+export function getLogicalSurveySectionPosition(model, page = model?.currentPage) {
+  const logicalPageNames = [];
+  (model?.visiblePages || []).forEach((visiblePage) => {
+    const logicalName = getLogicalSurveySectionName(visiblePage.name);
+    if (!logicalPageNames.includes(logicalName)) logicalPageNames.push(logicalName);
+  });
+  const currentLogicalName = getLogicalSurveySectionName(page?.name);
+  return {
+    index: Math.max(logicalPageNames.indexOf(currentLogicalName), 0),
+    total: logicalPageNames.length,
+  };
+}
+
 function getQuestionValue(model, question) {
   if (!question?.name) return undefined;
   if (question.value !== undefined) return question.value;
@@ -78,7 +101,8 @@ export function goToSurveySection(model, pageName) {
 export function buildSurveySections(model, options = {}) {
   if (!model?.pages) return [];
   const currentPageName = getCurrentPageName(model);
-  const sections = model.pages.map((page, index) => {
+  const currentLogicalSectionName = getLogicalSurveySectionName(currentPageName);
+  const pageSections = model.pages.map((page, index) => {
     const questions = getSectionQuestions(page);
     const answered = questions.filter((question) => hasAnswer(getQuestionValue(model, question))).length;
     const hasErrors = questions.some(
@@ -98,8 +122,44 @@ export function buildSurveySections(model, options = {}) {
       hasErrors,
       applicable,
       status: getSectionStatus({ applicable, answered, total: questions.length, hasErrors }),
-      isCurrent: page.name === currentPageName,
+      isCurrent: getLogicalSurveySectionName(page.name) === currentLogicalSectionName,
     };
+  });
+  const sections = [];
+  const logicalSections = new Map();
+
+  pageSections.forEach((pageSection) => {
+    const logicalName = getLogicalSurveySectionName(pageSection.name);
+    if (logicalName === pageSection.name && !LOGICAL_SECTION_BY_PAGE_NAME[pageSection.name]) {
+      sections.push(pageSection);
+      return;
+    }
+
+    const existing = logicalSections.get(logicalName);
+    if (!existing) {
+      const logicalSection = {
+        ...pageSection,
+        name: logicalName,
+        title: pageSection.title,
+        answered: pageSection.applicable ? pageSection.answered : 0,
+        total: pageSection.applicable ? pageSection.total : 0,
+      };
+      logicalSections.set(logicalName, logicalSection);
+      sections.push(logicalSection);
+      return;
+    }
+
+    if (pageSection.applicable) {
+      existing.answered += pageSection.answered;
+      existing.total += pageSection.total;
+    }
+    existing.applicable = existing.applicable || pageSection.applicable;
+    existing.hasErrors = existing.hasErrors || pageSection.hasErrors;
+    existing.isCurrent = existing.isCurrent || pageSection.isCurrent;
+  });
+
+  logicalSections.forEach((section) => {
+    section.status = getSectionStatus(section);
   });
 
   if (options.includeHouseholdMemberSummary) {

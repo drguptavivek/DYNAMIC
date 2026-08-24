@@ -8,6 +8,7 @@ const {
   buildSurveySections,
   calculateSurveyProgress,
   getCurrentPageName,
+  getLogicalSurveySectionPosition,
   goToSurveySection,
 } = await import("../modules/questionnaires/surveyNavigation.js");
 
@@ -192,5 +193,45 @@ assert.equal(buildSurveySections(repeatModel)[0].status, "pending");
 assert.equal(buildSurveySections(repeatModel)[0].total, 1);
 repeatModel.getQuestionByName("members").panels[0].getQuestionByName("member_name").value = "Asha";
 assert.equal(buildSurveySections(repeatModel)[0].status, "complete");
+
+const womanReproductionModel = new Model({
+  pages: [
+    {
+      name: "page_01_respondent_background",
+      title: "01-Respondent's Background",
+      elements: [{ type: "text", name: "woman_name", title: "Name" }],
+    },
+    {
+      name: "page_02_reproduction",
+      title: "02-Reproduction",
+      elements: [{ type: "text", name: "pregnancy_total", title: "Pregnancy total" }],
+    },
+    {
+      name: "page_02a_pregnancy_history",
+      title: "02-Reproduction",
+      elements: [{ type: "text", name: "pregnancy_history", title: "Pregnancy history" }],
+    },
+    {
+      name: "page_02b_reproduction_follow_up",
+      title: "02-Reproduction",
+      elements: [{ type: "text", name: "pregnancy_follow_up", title: "Pregnancy follow-up" }],
+    },
+    {
+      name: "page_03_other_health_issues",
+      title: "03-Other Health Issues",
+      elements: [{ type: "text", name: "health_issue", title: "Health issue" }],
+    },
+  ],
+});
+womanReproductionModel.currentPage = womanReproductionModel.pages[2];
+const womanSections = buildSurveySections(womanReproductionModel);
+assert.deepEqual(
+  womanSections.map((section) => section.name),
+  ["page_01_respondent_background", "page_02_reproduction", "page_03_other_health_issues"]
+);
+assert.equal(womanSections[1].title, "02-Reproduction");
+assert.equal(womanSections[1].isCurrent, true);
+assert.equal(womanSections[1].total, 3);
+assert.deepEqual(getLogicalSurveySectionPosition(womanReproductionModel), { index: 1, total: 3 });
 
 console.log("Validated SurveyJS navigation helpers.");

@@ -2,7 +2,7 @@
  * Renders repeat entries with a count, explicit row selection, editing, addition, and deletion.
  */
 import React, { useEffect, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
 import {
@@ -232,29 +232,33 @@ export function DynamicPanelRenderer({
                 </View>
               ) : null}
             </View>
-            <View style={styles.childTable}>
-              <View style={styles.childTableHeader}>
-                <Text style={[styles.childHeaderText, styles.childSerialCell]}>S.No.</Text>
-                <Text style={[styles.childHeaderText, styles.childNameCell]}>Name of child</Text>
-                <Text style={[styles.childHeaderText, styles.childSexCell]}>Sex</Text>
-                <View style={styles.childActionCell} />
+            <ScrollView horizontal nestedScrollEnabled showsHorizontalScrollIndicator>
+              <View style={styles.childTable}>
+                <View style={styles.childTableHeader}>
+                  <Text style={[styles.childHeaderText, styles.childSerialCell]}>S.No.</Text>
+                  <Text style={[styles.childHeaderText, styles.childStatusCell]}>Born status</Text>
+                  <Text style={[styles.childHeaderText, styles.childNameCell]}>Name of child</Text>
+                  <Text style={[styles.childHeaderText, styles.childSexCell]}>Sex</Text>
+                  <Text style={[styles.childHeaderText, styles.childDurationCell]}>Pregnancy lasts</Text>
+                  <View style={styles.childActionCell} />
+                </View>
+                {group.rows.map(({ panel, panelIndex, multipleBirth }) => {
+                  const child = getWqPregnancyChildSummary(panel);
+                  return (
+                    <PregnancyChildRow
+                      child={child}
+                      index={panelIndex}
+                      key={panel.id || panelIndex}
+                      number={multipleBirth.index}
+                      onDelete={removeEntry}
+                      onEdit={startEditing}
+                      question={question}
+                      selected={editorMode === "edit" && panelIndex === editingIndex}
+                    />
+                  );
+                })}
               </View>
-              {group.rows.map(({ panel, panelIndex, multipleBirth }) => {
-                const child = getWqPregnancyChildSummary(panel);
-                return (
-                  <PregnancyChildRow
-                    child={child}
-                    index={panelIndex}
-                    key={panel.id || panelIndex}
-                    number={multipleBirth.index}
-                    onDelete={removeEntry}
-                    onEdit={startEditing}
-                    question={question}
-                    selected={editorMode === "edit" && panelIndex === editingIndex}
-                  />
-                );
-              })}
-            </View>
+            </ScrollView>
           </View>
         ))}
       </View> : committedPanels.length ? <View style={styles.entryList}>
@@ -333,12 +337,14 @@ const styles = StyleSheet.create({
   pregnancyTitle: { color: "#1f4d7a", fontSize: 15, fontWeight: "900" },
   orderControls: { flexDirection: "row", alignItems: "center", gap: 4 },
   orderButton: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#b9cbe3", borderRadius: 7, backgroundColor: "#ffffff" },
-  childTable: { overflow: "hidden", borderWidth: 1, borderColor: "#d0d5dd", borderRadius: 8, backgroundColor: "#ffffff" },
+  childTable: { minWidth: 570, overflow: "hidden", borderWidth: 1, borderColor: "#d0d5dd", borderRadius: 8, backgroundColor: "#ffffff" },
   childTableHeader: { minHeight: 38, flexDirection: "row", alignItems: "center", paddingHorizontal: 6, backgroundColor: "#eef4fb" },
   childHeaderText: { color: "#475467", fontSize: 12, fontWeight: "900" },
-  childSerialCell: { width: 46 },
-  childNameCell: { minWidth: 0, flex: 1, paddingHorizontal: 4 },
-  childSexCell: { width: 62, paddingHorizontal: 4 },
+  childSerialCell: { width: 48 },
+  childStatusCell: { width: 100, paddingHorizontal: 4 },
+  childNameCell: { width: 130, paddingHorizontal: 4 },
+  childSexCell: { width: 66, paddingHorizontal: 4 },
+  childDurationCell: { width: 140, paddingHorizontal: 4 },
   childActionCell: { width: 72 },
   childRow: { minHeight: 48, flexDirection: "row", alignItems: "center", paddingHorizontal: 6, borderTopWidth: 1, borderTopColor: "#e4e7ec" },
   childRowActive: { backgroundColor: "#eef6ff" },
@@ -448,8 +454,10 @@ function PregnancyChildRow({ child, index, number, onDelete, onEdit, question, s
   return (
     <View style={[styles.childRow, selected && styles.childRowActive]}>
       <Text style={[styles.childCellText, styles.childSerialCell]}>{number}</Text>
+      <Text numberOfLines={2} style={[styles.childCellText, styles.childStatusCell]}>{child.bornStatus}</Text>
       <Text numberOfLines={2} style={[styles.childCellText, styles.childNameCell]}>{child.name}</Text>
       <Text numberOfLines={2} style={[styles.childCellText, styles.childSexCell]}>{child.sex}</Text>
+      <Text numberOfLines={2} style={[styles.childCellText, styles.childDurationCell]}>{child.pregnancyLasts}</Text>
       <View style={styles.childActions}>
         <Pressable
           accessibilityLabel={`Edit child ${number}`}

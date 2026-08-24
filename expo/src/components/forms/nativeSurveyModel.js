@@ -14,6 +14,8 @@ const WQ_PREGNANCY_BABY_NAME_FIELD = "pregnancy_02_reproduction_what_name_was_gi
 const WQ_PREGNANCY_BABY_SEX_FIELD = "pregnancy_02_reproduction_is_name_a_boy_or_a_girl";
 const WQ_PREGNANCY_SIGN_OF_LIFE_FIELD =
   "pregnancy_02_reproduction_did_the_baby_cry_move_or_breathe";
+const WQ_PREGNANCY_DURATION_FIELD =
+  "pregnancy_02_reproduction_how_long_did_this_pregnancy_last_in_weeks";
 const WQ_PREGNANCY_OUTCOME_DATE_FIELD =
   "pregnancy_02_reproduction_check_16_and_17_type_of_pregnancy_outcome";
 const WQ_PREGNANCY_CHILD_AGE_FIELD =
@@ -324,10 +326,33 @@ export function getWqMultipleBirthRow(panel) {
 export function getWqPregnancyChildSummary(panel) {
   const nameQuestion = panel?.getQuestionByName?.(WQ_PREGNANCY_BABY_NAME_FIELD);
   const sexQuestion = panel?.getQuestionByName?.(WQ_PREGNANCY_BABY_SEX_FIELD);
+  const birthResultQuestion = panel?.getQuestionByName?.(WQ_PREGNANCY_OUTCOME_FIELD);
+  const signOfLifeQuestion = panel?.getQuestionByName?.(WQ_PREGNANCY_SIGN_OF_LIFE_FIELD);
+  const durationQuestion = panel?.getQuestionByName?.(WQ_PREGNANCY_DURATION_FIELD);
   const name = String(nameQuestion?.value ?? "").trim();
   const sex = String(displayValue(sexQuestion) ?? "").trim();
+  const birthResult = Number(birthResultQuestion?.value);
+  const signOfLife = Number(signOfLifeQuestion?.value);
+  const outcomeCode = birthResult === 1 || signOfLife === 1
+    ? 1
+    : birthResult;
+  const bornStatus = {
+    1: "Born Alive",
+    2: "Born Dead",
+    3: "Miscarriage",
+    4: "Abortion",
+  }[outcomeCode] || "-";
+  const duration = durationQuestion?.value;
+  const weeks = String(duration?.weeks ?? "").trim();
+  const months = String(duration?.months ?? "").trim();
+  const pregnancyLasts = [
+    weeks ? `${weeks} weeks` : "",
+    months ? `${months} months` : "",
+  ].filter(Boolean).join(", ");
   return {
+    bornStatus,
     name: name || "-",
+    pregnancyLasts: pregnancyLasts || "-",
     sex: sex || "-",
   };
 }

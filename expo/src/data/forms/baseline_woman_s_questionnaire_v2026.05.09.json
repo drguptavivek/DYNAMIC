@@ -2568,7 +2568,23 @@
           "readOnly": true,
           "calculated": true,
           "calculationSource": "Automatically filled from WQ Section 2 Q12: one or more past pregnancies when total pregnancy outcomes is greater than 00; otherwise no past pregnancies."
-        },
+        }
+      ],
+      "visibleIf": "({wq_woman_available} empty or {wq_woman_available} = 1) and ({wq_consent_study} empty or {wq_consent_study} = 1) and ({wq_current_marital_status} empty or {wq_current_marital_status} != 7)",
+      "visibleIfSourceResolved": "Excel 01: unavailable/no consent/never married stops remaining questionnaire pages."
+    },
+    {
+      "name": "page_02a_pregnancy_history",
+      "title": {
+        "default": "02-Reproduction",
+        "hi": "",
+        "kn": "",
+        "mr": "",
+        "ta": "",
+        "te": "",
+        "ur": ""
+      },
+      "elements": [
         {
           "type": "paneldynamic",
           "name": "wq_pregnancy_history",
@@ -3045,7 +3061,23 @@
           "rawText": "Now I would like to record all your pregnancies including live births, stillbirths, miscarriages, and abortions, starting with your first pregnancy\nAnswer the questions 14 to 21, and 23 to 28 for each ith pregnancy, RECORD ALL PREGNANCIES. RECORD TWINS AND TRIPLETS ON SEPARATE LINES.",
           "visibleIf": "{wq_02_reproduction_check_12} = 1",
           "visibleIfSourceResolved": "Excel 02 row 25: Q13 no past pregnancies skips to Q32."
-        },
+        }
+      ],
+      "visibleIf": "({wq_02_reproduction_check_12} = 1) and (({wq_woman_available} empty or {wq_woman_available} = 1) and ({wq_consent_study} empty or {wq_consent_study} = 1) and ({wq_current_marital_status} empty or {wq_current_marital_status} != 7))",
+      "visibleIfSourceResolved": "Excel 02 row 25: Q13 no past pregnancies skips the Q14-Q21 pregnancy-history section and continues at Q32."
+    },
+    {
+      "name": "page_02b_reproduction_follow_up",
+      "title": {
+        "default": "02-Reproduction",
+        "hi": "",
+        "kn": "",
+        "mr": "",
+        "ta": "",
+        "te": "",
+        "ur": ""
+      },
+      "elements": [
         {
           "type": "radiogroup",
           "name": "pregnancy_02_reproduction_if_row_i_1_were_there_any_other_pregnancie",

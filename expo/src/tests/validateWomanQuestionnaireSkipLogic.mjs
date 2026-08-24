@@ -708,11 +708,40 @@ const pregnancyPluralityJson = pregnancyHistoryJson.templateElements.find(
   (element) => element.name === "pregnancy_02_reproduction_if_i_1_think_back_to_your_first_pregnancy"
 );
 const reproductionPageJson = wq.pages.find((page) => page.name === "page_02_reproduction");
-const pregnancyOutcomeCheckJson = reproductionPageJson.elements.find(
+const pregnancyHistoryPageJson = wq.pages.find((page) => page.name === "page_02a_pregnancy_history");
+const reproductionFollowUpPageJson = wq.pages.find(
+  (page) => page.name === "page_02b_reproduction_follow_up"
+);
+const pregnancyOutcomeCheckJson = reproductionFollowUpPageJson.elements.find(
   (element) => element.name === WQ_PREGNANCY_OUTCOME_FIELD
 );
-const otherPregnanciesJson = reproductionPageJson.elements.find(
+const otherPregnanciesJson = reproductionFollowUpPageJson.elements.find(
   (element) => element.name === WQ_OTHER_PREGNANCIES_FIELD
+);
+assert.deepEqual(
+  wq.pages.slice(1, 4).map((page) => page.name),
+  ["page_02_reproduction", "page_02a_pregnancy_history", "page_02b_reproduction_follow_up"],
+  "WQ reproduction must flow from Q1-Q13 to pregnancy history and then Q22 onward"
+);
+assert.deepEqual(
+  wq.pages.slice(1, 4).map((page) => page.title?.default),
+  ["02-Reproduction", "02-Reproduction", "02-Reproduction"],
+  "All three internal reproduction pages must display as one logical 02-Reproduction section"
+);
+assert.equal(
+  reproductionPageJson.elements.at(-1)?.sourceCode,
+  "13",
+  "The first reproduction section must end at Q13"
+);
+assert.deepEqual(
+  pregnancyHistoryPageJson.elements.map((element) => element.sourceCode),
+  ["14"],
+  "The pregnancy-history section must contain only the Q14-Q21 repeat workflow"
+);
+assert.equal(
+  reproductionFollowUpPageJson.elements[0]?.sourceCode,
+  "22_i",
+  "The reproduction follow-up section must begin at Q22_i"
 );
 const pregnancyGroupJson = pregnancyHistoryJson.templateElements.find(
   (element) => element.name === WQ_PREGNANCY_GROUP_FIELD
@@ -759,15 +788,16 @@ assert.deepEqual(
   "Q22_i must retain the Excel Yes and No option codes"
 );
 assert.ok(
-  reproductionPageJson.elements.indexOf(otherPregnanciesJson)
-    === reproductionPageJson.elements.indexOf(pregnancyHistoryJson) + 1,
-  "Q22_i must immediately follow the completed pregnancy editor"
+  pregnancyHistoryPageJson.elements.length === 1
+    && pregnancyHistoryPageJson.elements[0] === pregnancyHistoryJson
+    && reproductionFollowUpPageJson.elements[0] === otherPregnanciesJson,
+  "Q14 pregnancy history must occupy its own page and Q22_i must start the following page"
 );
 assert.deepEqual(
-  reproductionPageJson.elements
+  reproductionFollowUpPageJson.elements
     .slice(
-      reproductionPageJson.elements.indexOf(otherPregnanciesJson),
-      reproductionPageJson.elements.indexOf(otherPregnanciesJson) + 7
+      reproductionFollowUpPageJson.elements.indexOf(otherPregnanciesJson),
+      reproductionFollowUpPageJson.elements.indexOf(otherPregnanciesJson) + 7
     )
     .map((element) => element.sourceCode),
   ["22_i", "23_i", "24_i", "25_i", "26_i", "27_i", "28_i"],
@@ -935,11 +965,25 @@ assert.deepEqual(
       if (name === "pregnancy_02_reproduction_is_name_a_boy_or_a_girl") {
         return { value: 2, getDisplayValue: () => "Girl" };
       }
+      if (name === WQ_PREGNANCY_BIRTH_RESULT_FIELD) {
+        return { value: 2 };
+      }
+      if (name === WQ_PREGNANCY_SIGN_OF_LIFE_FIELD) {
+        return { value: 2 };
+      }
+      if (name === WQ_PREGNANCY_DURATION_FIELD) {
+        return { value: { weeks: "08", months: "02" } };
+      }
       return null;
     },
   }),
-  { name: "Asha", sex: "Girl" },
-  "Pregnancy summaries must show each saved child's name and coded sex label"
+  {
+    bornStatus: "Born Dead",
+    name: "Asha",
+    pregnancyLasts: "08 weeks, 02 months",
+    sex: "Girl",
+  },
+  "Pregnancy summaries must show each saved child's status, name, sex, and duration"
 );
 pregnancyHistoryQuestion.removePanel(1);
 panelQuestion(pregnancyPanel, WQ_MULTIPLE_BIRTH_COUNT_FIELD).value = undefined;

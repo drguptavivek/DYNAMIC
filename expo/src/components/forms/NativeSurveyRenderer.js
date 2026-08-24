@@ -13,6 +13,7 @@ import {
 } from "./nativeSurveyModel.js";
 import { NativeQuestionRenderer } from "./renderers/NativeQuestionRenderer.js";
 import { SectionNavigator } from "./SectionNavigator.js";
+import { getLogicalSurveySectionPosition } from "../../modules/questionnaires/surveyNavigation.js";
 
 export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
   model,
@@ -73,7 +74,7 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
   }
 
   const page = model.currentPage || model.firstVisiblePage;
-  const pageIndex = model.visiblePages.indexOf(page);
+  const logicalSectionPosition = getLogicalSurveySectionPosition(model, page);
   const visibleQuestions = useMemo(() => getVisiblePageQuestions(page), [page, revision]);
   const useCompactPager = compact && compactPager && visibleQuestions.length > 1;
   const activeQuestionIndex = Math.min(questionIndex, Math.max(visibleQuestions.length - 1, 0));
@@ -248,7 +249,9 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
               "Questionnaire"
           )}
         </Text>
-        <Text style={styles.pageCount}>{`Section ${pageIndex + 1} of ${model.visiblePages.length}`}</Text>
+        <Text style={styles.pageCount}>
+          {`Section ${logicalSectionPosition.index + 1} of ${logicalSectionPosition.total}`}
+        </Text>
     </View>
   );
   const questions = (
