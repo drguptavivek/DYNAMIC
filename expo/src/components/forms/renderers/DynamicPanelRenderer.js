@@ -6,8 +6,10 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
 import {
+  appendDynamicPanel,
   getNativeQuestionErrors,
   getNativeQuestionTitle,
+  getPanelCommitLabel,
   getWqMultipleBirthRow,
   groupWqPregnancyHistoryPanels,
   isNativeInternalPanelField,
@@ -100,8 +102,9 @@ export function DynamicPanelRenderer({ locale, question, onChange, renderQuestio
     if (emptyPanelIndex >= 0) {
       setEditingIndex(emptyPanelIndex);
     } else {
-      question.addPanel();
-      setEditingIndex(question.panelCount - 1);
+      const { index } = appendDynamicPanel(question);
+      if (index < 0) return;
+      setEditingIndex(index);
     }
     setEditorMode("add");
     onChange?.();
@@ -126,6 +129,11 @@ export function DynamicPanelRenderer({ locale, question, onChange, renderQuestio
 
   function commitEntry() {
     const activePanel = editingIndex === null ? null : panels[editingIndex];
+    if (!activePanel) {
+      setEditingIndex(null);
+      setEditorMode(null);
+      return;
+    }
     const multipleBirth = getWqMultipleBirthRow(activePanel);
     const pregnancyGroupIndex = isWqPregnancyHistory
       ? getPregnancyGroupIndex(panels, editingIndex)
@@ -138,9 +146,8 @@ export function DynamicPanelRenderer({ locale, question, onChange, renderQuestio
     onChange?.();
     if (!valid || visibleQuestions.some((child) => child.errors?.length)) return;
     if (editorMode === "add" && multipleBirth.index < multipleBirth.count) {
-      const nextIndex = question.panelCount;
-      question.addPanel();
-      const nextPanel = question.panels[nextIndex];
+      const { panel: nextPanel, index: nextIndex } = appendDynamicPanel(question);
+      if (!nextPanel || nextIndex < 0) return;
       seedMultipleBirthContinuation(
         nextPanel,
         multipleBirth.index + 1,
@@ -225,7 +232,12 @@ export function DynamicPanelRenderer({ locale, question, onChange, renderQuestio
             })}
           <Pressable onPress={commitEntry} style={styles.commitButton}>
             <Text style={controlStyles.buttonText}>
-              {editorMode === "add" ? question.addPanelText || "Add entry" : "Update entry"}
+              {getPanelCommitLabel(
+                question,
+                panels[editingIndex],
+                editorMode,
+                isWqPregnancyHistory
+              )}
             </Text>
           </Pressable>
         </View>

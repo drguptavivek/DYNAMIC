@@ -47,6 +47,24 @@ export function isNativeInternalPanelField(name) {
   return NATIVE_INTERNAL_PANEL_FIELDS.has(String(name || ""));
 }
 
+export function getPanelCommitLabel(question, panel, editorMode, isWqPregnancyHistory) {
+  if (isWqPregnancyHistory) {
+    const { count, index } = getWqMultipleBirthRow(panel);
+    if (editorMode !== "add") return `Update child ${index}`;
+    return index < count ? `Add child ${index}` : question?.addPanelText || "Add pregnancy outcome";
+  }
+  return editorMode === "add" ? question?.addPanelText || "Add entry" : "Update entry";
+}
+
+export function appendDynamicPanel(question) {
+  const panel = question?.addPanel?.(-1);
+  const panels = question?.panels || [];
+  return {
+    panel: panel || null,
+    index: panel ? panels.indexOf(panel) : -1,
+  };
+}
+
 function decodeHtmlEntities(value) {
   return String(value || "")
     .replace(/&nbsp;/gi, " ")

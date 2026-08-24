@@ -38,14 +38,70 @@ const {
   shouldRecalculateWqReproductionSummary,
 } = await import("../lib/womanSurveyBehaviors.js");
 const {
+  appendDynamicPanel,
   getNativeQuestionTitle,
+  getPanelCommitLabel,
   getWqMultipleBirthRow,
   groupWqPregnancyHistoryPanels,
   shouldShowWqPregnancyHistoryQuestion,
   WQ_MULTIPLE_BIRTH_COUNT_FIELD,
   WQ_MULTIPLE_BIRTH_INDEX_FIELD,
   WQ_PREGNANCY_GROUP_FIELD,
+  WQ_PREGNANCY_PLURALITY_FIELD,
 } = await import("../components/forms/nativeSurveyModel.js");
+
+const pregnancyActionQuestion = { addPanelText: "Add pregnancy outcome" };
+const pregnancyActionPanel = {
+  getQuestionByName(name) {
+    return {
+      value:
+        name === WQ_MULTIPLE_BIRTH_COUNT_FIELD || name === WQ_PREGNANCY_PLURALITY_FIELD
+          ? 2
+          : 1,
+    };
+  },
+};
+assert.equal(
+  getPanelCommitLabel(pregnancyActionQuestion, pregnancyActionPanel, "add", true),
+  "Add child 1"
+);
+const finalPregnancyActionPanel = {
+  getQuestionByName(name) {
+    return {
+      value:
+        name === WQ_MULTIPLE_BIRTH_COUNT_FIELD ||
+        name === WQ_PREGNANCY_PLURALITY_FIELD ||
+        name === WQ_MULTIPLE_BIRTH_INDEX_FIELD
+          ? 2
+          : 1,
+    };
+  },
+};
+assert.equal(
+  getPanelCommitLabel(pregnancyActionQuestion, finalPregnancyActionPanel, "add", true),
+  "Add pregnancy outcome"
+);
+assert.equal(
+  getPanelCommitLabel(pregnancyActionQuestion, pregnancyActionPanel, "edit", true),
+  "Update child 1"
+);
+assert.equal(
+  getPanelCommitLabel(pregnancyActionQuestion, pregnancyActionPanel, "add", false),
+  "Add pregnancy outcome"
+);
+const appendedPanels = [];
+const appendedQuestion = {
+  panels: appendedPanels,
+  addPanel(index) {
+    assert.equal(index, -1, "Dynamic panels should be appended explicitly");
+    const panel = { id: `panel-${appendedPanels.length + 1}` };
+    appendedPanels.push(panel);
+    return panel;
+  },
+};
+const appended = appendDynamicPanel(appendedQuestion);
+assert.equal(appended.panel, appendedPanels[0]);
+assert.equal(appended.index, 0);
 const { normalizeMultipleTextInputValue } = await import(
   "../components/forms/renderers/multipleTextValue.js"
 );

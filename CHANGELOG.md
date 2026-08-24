@@ -1,5 +1,6 @@
 # Changelog
 
+- Corrected the WQ pregnancy-history editor so intermediate twins/triplets advance with child-specific actions, only the final child shows `Add pregnancy outcome`, and the next child uses the actual SurveyJS panel returned during creation instead of an assumed index that could crash the app.
 - Corrected the WQ Section 2 pregnancy-history boundary: each pregnancy now records only Q15_i-Q21_i for every baby, groups those baby rows under the pregnancy summary, and continues with Q22_i-Q28_i once outside the repeat editor; Q22_i Yes then opens the next pregnancy entry.
 - Prevented WQ pregnancy-history bookkeeping fields, including the pregnancy group index, from rendering as editable questions in the native repeat-row editor.
 - Grouped WQ pregnancy-history babies under their pregnancy: Single creates one baby/outcome row, Twins create two, Triplets create three, each baby retains separate Q16_i-Q28_i answers, and pregnancy-level Q22_i appears only after the final baby before another pregnancy can begin.
