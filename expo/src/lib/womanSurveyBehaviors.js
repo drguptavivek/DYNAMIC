@@ -423,14 +423,6 @@ export function applyWqPregnancyTrackingEligibility(model) {
 export function applyWqPregnancyHistoryCalculations(model) {
   const panelDynamic = model?.getQuestionByName?.(WQ_PREGNANCY_HISTORY_FIELD);
   const panels = Array.isArray(panelDynamic?.panels) ? panelDynamic.panels : [];
-  for (const panel of panels) {
-    const duration = getPanelQuestionValue(panel, WQ_PREGNANCY_DURATION_FIELD);
-    const normalizedDuration = defaultMultipleTextMissingKeysToZero(duration, ["weeks", "months"]);
-    if (normalizedDuration !== duration) {
-      setPanelQuestionValueIfChanged(panel, WQ_PREGNANCY_DURATION_FIELD, normalizedDuration);
-    }
-
-  }
 
   const latestPanel = [...panels].reverse().find((panel) =>
     [WQ_PREGNANCY_BIRTH_RESULT_FIELD, WQ_PREGNANCY_SIGN_OF_LIFE_FIELD, WQ_PREGNANCY_DURATION_FIELD]

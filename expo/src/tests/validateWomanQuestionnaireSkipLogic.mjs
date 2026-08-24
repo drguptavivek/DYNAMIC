@@ -980,10 +980,10 @@ assert.deepEqual(
   {
     bornStatus: "Born Dead",
     name: "Asha",
-    pregnancyLasts: "08 weeks, 02 months",
+    pregnancyLasts: "08 weeks",
     sex: "Girl",
   },
-  "Pregnancy summaries must show each saved child's status, name, sex, and duration"
+  "Pregnancy summaries must show one saved duration unit for each child"
 );
 pregnancyHistoryQuestion.removePanel(1);
 panelQuestion(pregnancyPanel, WQ_MULTIPLE_BIRTH_COUNT_FIELD).value = undefined;
@@ -1002,6 +1002,7 @@ assert.equal(
   "Q20_i month must retain its leading zero through the native input pipeline"
 );
 assert.equal(pregnancyDuration.getType(), "multipletext");
+assert.equal(pregnancyDuration.name, WQ_PREGNANCY_DURATION_FIELD);
 assert.deepEqual(pregnancyDuration.items.map((item) => item.name), ["weeks", "months"]);
 assert.deepEqual(
   pregnancyDuration.items.map((item) => ({
@@ -1012,9 +1013,9 @@ assert.deepEqual(
     { inputType: "text", maxLength: 2 },
     { inputType: "text", maxLength: 2 },
   ],
-  "Q21_i weeks and months must preserve two-digit entries while using the numeric keyboard"
+  "Q21_i selected duration value must preserve two-digit entries while using the numeric keyboard"
 );
-pregnancyDuration.value = { weeks: "01", months: "02" };
+pregnancyDuration.value = { weeks: "01" };
 assert.equal(
   normalizeMultipleTextInputValue(pregnancyDuration.items[0], "01").value,
   "01",
@@ -1022,8 +1023,8 @@ assert.equal(
 );
 assert.deepEqual(
   pregnancyDuration.value,
-  { weeks: "01", months: "02" },
-  "Q21_i must retain leading zeroes in weeks and months"
+  { weeks: "01" },
+  "Q21_i must retain the selected unit and its leading zero"
 );
 pregnancyDuration.value = undefined;
 assert.equal(pregnancyDeathAge.getType(), "multipletext");
@@ -1053,7 +1054,7 @@ assert.match(getNativeQuestionTitle(pregnancyOutcomeDate), /Miscarriage/);
 pregnancyDuration.value = { months: "06" };
 applyWqPregnancyHistoryCalculations(model);
 assert.equal(question(model, WQ_PREGNANCY_OUTCOME_FIELD).value, 3);
-assert.deepEqual(pregnancyDuration.value, { months: "06", weeks: "00" });
+assert.deepEqual(pregnancyDuration.value, { months: "06" });
 pregnancyDuration.value = { months: "07" };
 applyWqPregnancyHistoryCalculations(model);
 assert.equal(question(model, WQ_PREGNANCY_OUTCOME_FIELD).value, 2);

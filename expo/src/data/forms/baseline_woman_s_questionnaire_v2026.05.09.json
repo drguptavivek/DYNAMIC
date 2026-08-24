@@ -3012,6 +3012,7 @@
               "section_order": 2,
               "sourceCode": "21_i",
               "sourceType": "multiple_numeric",
+              "renderingHint": "pregnancy-duration",
               "rawText": "How long did this pregnancy last in weeks or months? \nRECORD IN COMPLETED WEEKS OR MONTHS |_|_| WEEKS |_|_| MONTHS",
               "description": {
                 "default": "WEEKS / MONTHS",

@@ -1,5 +1,9 @@
 # Changelog
 
+- Updated WQ Q21_i to capture either completed weeks or completed months through a unit selector and one two-digit input, and opened Q14 pregnancy entry in a dedicated view that returns to the pregnancy summary tables with the selected duration displayed.
+
+- Moved the WQ Reproduction `Add pregnancy outcome` action above the submitted pregnancy tables so the next pregnancy can be started without scrolling to the bottom; other repeat-panel layouts remain unchanged.
+
 - Kept the three WQ Reproduction mobile pages for Q1-Q13, Q14-Q21 pregnancy history, and Q22 onward while presenting and counting all three as one logical `02-Reproduction` section in navigation and progress.
 
 - Updated the WQ pregnancy child summary table to show `S.No.`, born status, child name, sex, and the Q21 pregnancy duration in weeks/months, with horizontal scrolling on narrow mobile screens.

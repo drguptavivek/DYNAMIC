@@ -80,6 +80,11 @@ export function DynamicPanelRenderer({
     startAdding();
   }, [committedPanels.length, editorMode, initialAddOpened, question.dynamicAutoOpenFirstEntry]);
 
+  useEffect(() => {
+    if (!isWqPregnancyHistory || editingIndex === null) return;
+    onRequestTopLevelFocus?.(question.name);
+  }, [editingIndex, isWqPregnancyHistory, onRequestTopLevelFocus, question.name]);
+
   function entryLabel(panel, index) {
     const memberName = panel.getQuestionByName?.("member_name")?.value;
     if (memberName !== undefined && memberName !== null && memberName !== "") {
@@ -186,6 +191,47 @@ export function DynamicPanelRenderer({
     setEditorMode(null);
   }
 
+  if (isWqPregnancyHistory && editingIndex !== null && panels[editingIndex]) {
+    const activePanel = panels[editingIndex];
+    const multipleBirth = getWqMultipleBirthRow(activePanel);
+    return (
+      <View style={[styles.wrap, styles.dedicatedEditor]}>
+        <View style={styles.dedicatedEditorHeader}>
+          <View style={styles.dedicatedEditorHeading}>
+            <Text style={styles.dedicatedEditorEyebrow}>Pregnancy entry</Text>
+            <Text style={styles.dedicatedEditorTitle}>
+              {getPanelEditorTitle(panels, editingIndex, editorMode, true)}
+            </Text>
+          </View>
+          <Pressable
+            accessibilityLabel="Close pregnancy entry"
+            hitSlop={6}
+            onPress={closeEditor}
+            style={styles.dedicatedCloseButton}
+          >
+            <MaterialCommunityIcons color="#475467" name="close" size={24} />
+          </Pressable>
+        </View>
+        <View style={styles.panel}>
+          {(activePanel.questions || [])
+            .filter((child) => isRenderablePanelQuestion(child, multipleBirth))
+            .map((child) => {
+              child.__nativePanelRowNumber = editingIndex + 1;
+              return renderQuestion(child, `${question.name}-${editingIndex}-${child.name}`);
+            })}
+          <Pressable onPress={commitEntry} style={styles.commitButton}>
+            <Text style={controlStyles.buttonText}>
+              {getPanelCommitLabel(question, activePanel, editorMode, true)}
+            </Text>
+          </Pressable>
+        </View>
+        {errors.map((error, index) => (
+          <Text key={`${error}-${index}`} style={styles.error}>{error}</Text>
+        ))}
+      </View>
+    );
+  }
+
   return (
     <View style={styles.wrap}>
       <View style={styles.titleRow}>
@@ -196,6 +242,18 @@ export function DynamicPanelRenderer({
             : `${committedPanels.length} ${committedPanels.length === 1 ? "entry" : "entries"} added`}
         </Text>
       </View>
+      {isWqPregnancyHistory
+        && question.allowAddPanel !== false
+        && !question.dynamicHideAddButton
+        && editorMode === null ? (
+        <Pressable
+          onPress={startAdding}
+          style={styles.addButton}
+        >
+          <MaterialCommunityIcons color="#ffffff" name="plus" size={20} />
+          <Text style={controlStyles.buttonText}>{question.addPanelText || "Add row"}</Text>
+        </Pressable>
+      ) : null}
       {pregnancyGroups.length ? <View style={styles.pregnancyList}>
         {pregnancyGroups.map((group, groupPosition) => (
           <View key={`pregnancy-${group.groupIndex}`} style={styles.pregnancyGroup}>
@@ -312,7 +370,10 @@ export function DynamicPanelRenderer({
         </View>
       ) : null}
       {errors.map((error, index) => <Text key={`${error}-${index}`} style={styles.error}>{error}</Text>)}
-      {question.allowAddPanel !== false && !question.dynamicHideAddButton && editorMode === null ? (
+      {!isWqPregnancyHistory
+        && question.allowAddPanel !== false
+        && !question.dynamicHideAddButton
+        && editorMode === null ? (
         <Pressable
           onPress={startAdding}
           style={styles.addButton}
@@ -327,6 +388,12 @@ export function DynamicPanelRenderer({
 
 const styles = StyleSheet.create({
   wrap: { gap: 8 },
+  dedicatedEditor: { paddingBottom: 8 },
+  dedicatedEditorHeader: { minHeight: 58, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, paddingHorizontal: 2, paddingBottom: 4, borderBottomWidth: 1, borderBottomColor: "#d0d5dd" },
+  dedicatedEditorHeading: { minWidth: 0, flex: 1, gap: 2 },
+  dedicatedEditorEyebrow: { color: "#667085", fontSize: 12, fontWeight: "800", textTransform: "uppercase" },
+  dedicatedEditorTitle: { color: "#1f4d7a", fontSize: 19, fontWeight: "900" },
+  dedicatedCloseButton: { width: 42, height: 42, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#d0d5dd", borderRadius: 7, backgroundColor: "#ffffff" },
   titleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
   title: { color: "#18202a", fontSize: 18, fontWeight: "800" },
   count: { color: "#1f6feb", fontSize: 13, fontWeight: "800" },

@@ -13,6 +13,7 @@ const {
   getNativeQuestionTitle,
   getNativeQuestionValue,
   getNativeRendererKind,
+  getWqPregnancyDurationSummary,
   getVisiblePageQuestions,
   isNativeInternalPanelField,
   setNativeQuestionValue,
@@ -48,6 +49,13 @@ assert.equal(isNativeInternalPanelField("pregnancy_02_reproduction_pregnancy_gro
 assert.equal(isNativeInternalPanelField("pregnancy_02_reproduction_multiple_birth_index"), true);
 assert.equal(isNativeInternalPanelField("pregnancy_02_reproduction_multiple_birth_count"), true);
 assert.equal(isNativeInternalPanelField("pregnancy_02_reproduction_if_i_1_think_back_to_your_first_pregnancy"), false);
+assert.equal(getWqPregnancyDurationSummary({ weeks: "38" }), "38 weeks");
+assert.equal(getWqPregnancyDurationSummary({ months: "09" }), "09 months");
+assert.equal(
+  getWqPregnancyDurationSummary({ weeks: "00", months: "09" }),
+  "09 months",
+  "Legacy drafts with two duration keys should display the meaningful value"
+);
 const model = new Model(prepareQuestionnaireSurveyJson(hhq));
 attachHouseholdSurveyBehaviors(model, hhq);
 
