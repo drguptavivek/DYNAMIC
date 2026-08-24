@@ -30,6 +30,11 @@ export const WQ_MULTIPLE_BIRTH_COUNT_FIELD =
   "pregnancy_02_reproduction_multiple_birth_count";
 export const WQ_PREGNANCY_GROUP_FIELD =
   "pregnancy_02_reproduction_pregnancy_group_index";
+const NATIVE_INTERNAL_PANEL_FIELDS = new Set([
+  WQ_PREGNANCY_GROUP_FIELD,
+  WQ_MULTIPLE_BIRTH_INDEX_FIELD,
+  WQ_MULTIPLE_BIRTH_COUNT_FIELD,
+]);
 export const WQ_PREGNANCY_HISTORY_PANEL_FIELD = "wq_pregnancy_history";
 export const WQ_OTHER_PREGNANCIES_FIELD =
   "pregnancy_02_reproduction_if_row_i_1_were_there_any_other_pregnancie";
@@ -37,6 +42,10 @@ const WQ_SECTION_4_MARITAL_STATUS_CHECK_FIELD =
   "wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo";
 const WQ_SECTION_4_HUSBAND_OCCUPATION_FIELD =
   "wq_04_husband_s_backgroun_if_1_1_currently_married_what_is_your_last";
+
+export function isNativeInternalPanelField(name) {
+  return NATIVE_INTERNAL_PANEL_FIELDS.has(String(name || ""));
+}
 
 function decodeHtmlEntities(value) {
   return String(value || "")
@@ -83,6 +92,13 @@ function getQuestionValueForInterpolation(question, fieldName) {
   if (panelValue !== undefined && panelValue !== null && panelValue !== "") return panelValue;
   const surveyValue = question?.survey?.getValue?.(fieldName);
   if (surveyValue !== undefined && surveyValue !== null && surveyValue !== "") return surveyValue;
+  const pregnancyRows = question?.survey?.getValue?.(WQ_PREGNANCY_HISTORY_PANEL_FIELD);
+  if (Array.isArray(pregnancyRows)) {
+    for (let index = pregnancyRows.length - 1; index >= 0; index -= 1) {
+      const value = pregnancyRows[index]?.[fieldName];
+      if (value !== undefined && value !== null && value !== "") return value;
+    }
+  }
   return undefined;
 }
 
@@ -315,9 +331,6 @@ export function groupWqPregnancyHistoryPanels(panels = []) {
 export function shouldShowWqPregnancyHistoryQuestion(child, multipleBirth) {
   if (!child || multipleBirth.count <= 1) return true;
   if (child.name === WQ_PREGNANCY_PLURALITY_FIELD) return multipleBirth.index === 1;
-  if (child.name === WQ_OTHER_PREGNANCIES_FIELD) {
-    return multipleBirth.index === multipleBirth.count;
-  }
   return true;
 }
 

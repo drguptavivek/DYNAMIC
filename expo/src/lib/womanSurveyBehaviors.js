@@ -24,6 +24,8 @@ export const WQ_PREGNANCY_LOSSES_FIELD = "wq_02_reproduction_how_many_miscarriag
 export const WQ_TOTAL_PREGNANCY_OUTCOMES_FIELD = "wq_02_reproduction_sum_answers_to_8_and_11_and_enter_total_if";
 export const WQ_PAST_PREGNANCY_CHECK_FIELD = "wq_02_reproduction_check_12";
 export const WQ_PREGNANCY_HISTORY_FIELD = "wq_pregnancy_history";
+export const WQ_OTHER_PREGNANCIES_FIELD =
+  "pregnancy_02_reproduction_if_row_i_1_were_there_any_other_pregnancie";
 export const WQ_PREGNANCY_BIRTH_RESULT_FIELD = "pregnancy_02_reproduction_if_15_i_single_was_the_baby_born_alive_bor";
 export const WQ_PREGNANCY_SIGN_OF_LIFE_FIELD = "pregnancy_02_reproduction_did_the_baby_cry_move_or_breathe";
 export const WQ_PREGNANCY_DURATION_FIELD = "pregnancy_02_reproduction_how_long_did_this_pregnancy_last_in_weeks";
@@ -422,41 +424,52 @@ export function applyWqPregnancyHistoryCalculations(model) {
   const panelDynamic = model?.getQuestionByName?.(WQ_PREGNANCY_HISTORY_FIELD);
   const panels = Array.isArray(panelDynamic?.panels) ? panelDynamic.panels : [];
   for (const panel of panels) {
-    const outcomeQuestion = panel?.getQuestionByName?.(WQ_PREGNANCY_OUTCOME_FIELD);
-    if (outcomeQuestion) outcomeQuestion.readOnly = true;
-
-    const outcome = calculateWqPregnancyHistoryOutcomeValue({
-      [WQ_PREGNANCY_BIRTH_RESULT_FIELD]: getPanelQuestionValue(panel, WQ_PREGNANCY_BIRTH_RESULT_FIELD),
-      [WQ_PREGNANCY_SIGN_OF_LIFE_FIELD]: getPanelQuestionValue(panel, WQ_PREGNANCY_SIGN_OF_LIFE_FIELD),
-      [WQ_PREGNANCY_DURATION_FIELD]: getPanelQuestionValue(panel, WQ_PREGNANCY_DURATION_FIELD),
-    });
-    setPanelQuestionValueIfChanged(
-      panel,
-      WQ_PREGNANCY_OUTCOME_FIELD,
-      outcome === null ? undefined : outcome
-    );
-
     const duration = getPanelQuestionValue(panel, WQ_PREGNANCY_DURATION_FIELD);
     const normalizedDuration = defaultMultipleTextMissingKeysToZero(duration, ["weeks", "months"]);
     if (normalizedDuration !== duration) {
       setPanelQuestionValueIfChanged(panel, WQ_PREGNANCY_DURATION_FIELD, normalizedDuration);
     }
 
-    const childLineQuestion = panel?.getQuestionByName?.(WQ_PREGNANCY_CHILD_LINE_FIELD);
-    const childLivesWithRespondent = Number(
-      getPanelQuestionValue(panel, WQ_PREGNANCY_CHILD_LIVING_WITH_FIELD)
-    );
-    if (childLineQuestion) childLineQuestion.readOnly = childLivesWithRespondent === 2;
-    if (childLivesWithRespondent === 2) {
-      setPanelQuestionValueIfChanged(panel, WQ_PREGNANCY_CHILD_LINE_FIELD, "00");
-    }
-
-    const deathAge = getPanelQuestionValue(panel, WQ_PREGNANCY_DEATH_AGE_FIELD);
-    const normalizedDeathAge = defaultMultipleTextMissingKeysToZero(deathAge, ["days", "months", "years"]);
-    if (normalizedDeathAge !== deathAge) {
-      setPanelQuestionValueIfChanged(panel, WQ_PREGNANCY_DEATH_AGE_FIELD, normalizedDeathAge);
-    }
   }
+
+  const latestPanel = [...panels].reverse().find((panel) =>
+    [WQ_PREGNANCY_BIRTH_RESULT_FIELD, WQ_PREGNANCY_SIGN_OF_LIFE_FIELD, WQ_PREGNANCY_DURATION_FIELD]
+      .some((fieldName) => {
+        const value = getPanelQuestionValue(panel, fieldName);
+        return value !== undefined && value !== null && value !== "";
+      })
+  );
+  const outcomeQuestion = model?.getQuestionByName?.(WQ_PREGNANCY_OUTCOME_FIELD);
+  if (outcomeQuestion) outcomeQuestion.readOnly = true;
+  const outcome = latestPanel
+    ? calculateWqPregnancyHistoryOutcomeValue({
+        [WQ_PREGNANCY_BIRTH_RESULT_FIELD]: getPanelQuestionValue(latestPanel, WQ_PREGNANCY_BIRTH_RESULT_FIELD),
+        [WQ_PREGNANCY_SIGN_OF_LIFE_FIELD]: getPanelQuestionValue(latestPanel, WQ_PREGNANCY_SIGN_OF_LIFE_FIELD),
+        [WQ_PREGNANCY_DURATION_FIELD]: getPanelQuestionValue(latestPanel, WQ_PREGNANCY_DURATION_FIELD),
+      })
+    : null;
+  setModelValueIfChanged(model, WQ_PREGNANCY_OUTCOME_FIELD, outcome === null ? undefined : outcome);
+
+  const childLineQuestion = model?.getQuestionByName?.(WQ_PREGNANCY_CHILD_LINE_FIELD);
+  const childLivesWithRespondent = Number(model?.getValue?.(WQ_PREGNANCY_CHILD_LIVING_WITH_FIELD));
+  if (childLineQuestion) childLineQuestion.readOnly = childLivesWithRespondent === 2;
+  if (childLivesWithRespondent === 2) {
+    setModelValueIfChanged(model, WQ_PREGNANCY_CHILD_LINE_FIELD, "00");
+  }
+
+  const deathAge = model?.getValue?.(WQ_PREGNANCY_DEATH_AGE_FIELD);
+  const normalizedDeathAge = defaultMultipleTextMissingKeysToZero(deathAge, ["days", "months", "years"]);
+  if (normalizedDeathAge !== deathAge) {
+    setModelValueIfChanged(model, WQ_PREGNANCY_DEATH_AGE_FIELD, normalizedDeathAge);
+  }
+}
+
+export function requestNextWqPregnancy(model) {
+  const pregnancyHistory = model?.getQuestionByName?.(WQ_PREGNANCY_HISTORY_FIELD);
+  if (!pregnancyHistory) return false;
+  pregnancyHistory.dynamicAddRequestToken = Date.now();
+  model.setValue(WQ_OTHER_PREGNANCIES_FIELD, undefined);
+  return true;
 }
 
 export function applyWqDomesticViolenceCalculations(model) {

@@ -10,10 +10,8 @@ import {
   getNativeQuestionTitle,
   getWqMultipleBirthRow,
   groupWqPregnancyHistoryPanels,
+  isNativeInternalPanelField,
   shouldShowWqPregnancyHistoryQuestion,
-  WQ_MULTIPLE_BIRTH_COUNT_FIELD,
-  WQ_MULTIPLE_BIRTH_INDEX_FIELD,
-  WQ_OTHER_PREGNANCIES_FIELD,
   WQ_PREGNANCY_GROUP_FIELD,
   WQ_PREGNANCY_HISTORY_PANEL_FIELD,
   WQ_PREGNANCY_PLURALITY_FIELD,
@@ -22,12 +20,7 @@ import { controlStyles } from "./QuestionFrame.js";
 
 function isRenderablePanelQuestion(child, multipleBirth) {
   if (child?.visible === false || child?.isVisible === false) return false;
-  if (
-    child?.name === WQ_MULTIPLE_BIRTH_INDEX_FIELD ||
-    child?.name === WQ_MULTIPLE_BIRTH_COUNT_FIELD
-  ) {
-    return false;
-  }
+  if (isNativeInternalPanelField(child?.name)) return false;
   return shouldShowWqPregnancyHistoryQuestion(child, multipleBirth);
 }
 
@@ -154,18 +147,6 @@ export function DynamicPanelRenderer({ locale, question, onChange, renderQuestio
         multipleBirth.count,
         pregnancyGroupIndex
       );
-      setEditingIndex(nextIndex);
-      setEditorMode("add");
-      onChange?.();
-      return;
-    }
-    const hasAnotherPregnancy = Number(
-      activePanel?.getQuestionByName?.(WQ_OTHER_PREGNANCIES_FIELD)?.value
-    ) === 1;
-    if (editorMode === "add" && hasAnotherPregnancy) {
-      question.addPanel();
-      const nextIndex = question.panelCount - 1;
-      seedNextPregnancy(question.panels[nextIndex], pregnancyGroupIndex + 1);
       setEditingIndex(nextIndex);
       setEditorMode("add");
       onChange?.();
@@ -323,12 +304,6 @@ function seedMultipleBirthContinuation(panel, index, count, pregnancyGroupIndex)
   setPanelValue(panel, WQ_PREGNANCY_PLURALITY_FIELD, count);
   setPanelValue(panel, WQ_MULTIPLE_BIRTH_INDEX_FIELD, index);
   setPanelValue(panel, WQ_MULTIPLE_BIRTH_COUNT_FIELD, count);
-}
-
-function seedNextPregnancy(panel, pregnancyGroupIndex) {
-  setPanelValue(panel, WQ_PREGNANCY_GROUP_FIELD, pregnancyGroupIndex);
-  setPanelValue(panel, WQ_MULTIPLE_BIRTH_INDEX_FIELD, 1);
-  setPanelValue(panel, WQ_MULTIPLE_BIRTH_COUNT_FIELD, 1);
 }
 
 function getPregnancyGroupIndex(panels, editingIndex) {

@@ -45,11 +45,13 @@ import { listHouseholdMembers } from "../households/householdRepository.js";
 import { getDraftSavedMessage } from "./draftSaveMessages.js";
 import {
   WQ_CURRENT_MARITAL_STATUS_FIELD,
+  WQ_OTHER_PREGNANCIES_FIELD,
   applyWqDomesticViolenceCalculations,
   applyWqPregnancyHistoryCalculations,
   applyWqPregnancyTrackingEligibility,
   applyWqReproductionSummary,
   buildWqHusbandPartnerChoices,
+  requestNextWqPregnancy,
   shouldRecalculateWqDomesticViolence,
   shouldRecalculateWqPregnancyHistory,
   shouldRecalculateWqPregnancyTrackingEligibility,
@@ -529,6 +531,15 @@ export function QuestionnaireDashboard({
           // by their visibleIf rules.
           requestAnimationFrame(() => {
             rendererRef.current?.focusQuestion(WQ_BORN_ALIVE_LATER_DIED_FIELD);
+          });
+        }
+        if (
+          options.name === WQ_OTHER_PREGNANCIES_FIELD &&
+          Number(options.value) === 1 &&
+          requestNextWqPregnancy(sender)
+        ) {
+          requestAnimationFrame(() => {
+            rendererRef.current?.focusQuestion("wq_pregnancy_history");
           });
         }
         if (shouldRecalculateWqPregnancyTrackingEligibility(options.name)) {

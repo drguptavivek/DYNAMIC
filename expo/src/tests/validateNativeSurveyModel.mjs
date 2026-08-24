@@ -14,6 +14,7 @@ const {
   getNativeQuestionValue,
   getNativeRendererKind,
   getVisiblePageQuestions,
+  isNativeInternalPanelField,
   setNativeQuestionValue,
 } = await import("../components/forms/nativeSurveyModel.js");
 const { prepareQuestionnaireSurveyJson } = await import(
@@ -43,6 +44,10 @@ const wqPath = path.resolve(
   "../data/forms/baseline_woman_s_questionnaire_v2026.05.09.json"
 );
 const wq = JSON.parse(fs.readFileSync(wqPath, "utf8"));
+assert.equal(isNativeInternalPanelField("pregnancy_02_reproduction_pregnancy_group_index"), true);
+assert.equal(isNativeInternalPanelField("pregnancy_02_reproduction_multiple_birth_index"), true);
+assert.equal(isNativeInternalPanelField("pregnancy_02_reproduction_multiple_birth_count"), true);
+assert.equal(isNativeInternalPanelField("pregnancy_02_reproduction_if_i_1_think_back_to_your_first_pregnancy"), false);
 const model = new Model(prepareQuestionnaireSurveyJson(hhq));
 attachHouseholdSurveyBehaviors(model, hhq);
 

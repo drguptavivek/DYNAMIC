@@ -15,6 +15,7 @@ const {
   WQ_LMP_MORE_THAN_SIX_MONTHS_FIELD,
   WQ_LMP_FIELD,
   WQ_NOT_PREGNANT_OR_UNSURE_FIELD,
+  WQ_OTHER_PREGNANCIES_FIELD,
   WQ_PREGNANCY_BIRTH_RESULT_FIELD,
   WQ_PREGNANCY_CHILD_LINE_FIELD,
   WQ_PREGNANCY_CHILD_LIVING_WITH_FIELD,
@@ -31,6 +32,7 @@ const {
   calculateWqPregnancyHistoryOutcomeValue,
   calculateWqPregnancyTrackingEligibilityValue,
   getWqOutsideHouseholdHusbandLineNumber,
+  requestNextWqPregnancy,
   shouldRecalculateWqDomesticViolence,
   shouldRecalculateWqPregnancyHistory,
   shouldRecalculateWqReproductionSummary,
@@ -42,7 +44,6 @@ const {
   shouldShowWqPregnancyHistoryQuestion,
   WQ_MULTIPLE_BIRTH_COUNT_FIELD,
   WQ_MULTIPLE_BIRTH_INDEX_FIELD,
-  WQ_OTHER_PREGNANCIES_FIELD,
   WQ_PREGNANCY_GROUP_FIELD,
 } = await import("../components/forms/nativeSurveyModel.js");
 const { normalizeMultipleTextInputValue } = await import(
@@ -605,11 +606,11 @@ const pregnancyBabySex = panelQuestion(
   pregnancyPanel,
   "pregnancy_02_reproduction_is_name_a_boy_or_a_girl"
 );
-const pregnancyChildAge = panelQuestion(
-  pregnancyPanel,
+const pregnancyChildAge = question(
+  model,
   "pregnancy_02_reproduction_if_born_alive_and_still_living_if_18_i_1_b"
 );
-const pregnancyDeathAge = panelQuestion(pregnancyPanel, WQ_PREGNANCY_DEATH_AGE_FIELD);
+const pregnancyDeathAge = question(model, WQ_PREGNANCY_DEATH_AGE_FIELD);
 assert.equal(pregnancyOutcomeDate.isVisible, false);
 assert.equal(pregnancyDuration.isVisible, false);
 assert.equal(
@@ -627,10 +628,11 @@ const pregnancyOutcomeJson = pregnancyHistoryJson.templateElements.find(
 const pregnancyPluralityJson = pregnancyHistoryJson.templateElements.find(
   (element) => element.name === "pregnancy_02_reproduction_if_i_1_think_back_to_your_first_pregnancy"
 );
-const pregnancyOutcomeCheckJson = pregnancyHistoryJson.templateElements.find(
+const reproductionPageJson = wq.pages.find((page) => page.name === "page_02_reproduction");
+const pregnancyOutcomeCheckJson = reproductionPageJson.elements.find(
   (element) => element.name === WQ_PREGNANCY_OUTCOME_FIELD
 );
-const otherPregnanciesJson = pregnancyHistoryJson.templateElements.find(
+const otherPregnanciesJson = reproductionPageJson.elements.find(
   (element) => element.name === WQ_OTHER_PREGNANCIES_FIELD
 );
 const pregnancyGroupJson = pregnancyHistoryJson.templateElements.find(
@@ -642,6 +644,11 @@ assert.deepEqual(
   "Pregnancy group metadata must remain hidden and read-only"
 );
 assert.equal(pregnancyPluralityJson.sourceCode, "15_i");
+assert.deepEqual(
+  pregnancyHistoryJson.templateElements.filter((element) => element.sourceCode).map((element) => element.sourceCode),
+  ["15_i", "16_i", "17_i", "18_i", "19_i", "20_i", "21_i"],
+  "Each repeated pregnancy must contain only Q15_i through Q21_i"
+);
 assert.equal(pregnancyPlurality.readOnly, false, "Q15_i must remain answerable");
 pregnancyPlurality.__nativePanelRowNumber = 1;
 assert.match(
@@ -650,6 +657,10 @@ assert.match(
   "Q15_i should use first-pregnancy wording for the first repeat row"
 );
 const pregnancyHistoryQuestion = question(model, "wq_pregnancy_history");
+model.setValue(WQ_OTHER_PREGNANCIES_FIELD, 1);
+assert.equal(requestNextWqPregnancy(model), true);
+assert.equal(Number.isFinite(pregnancyHistoryQuestion.dynamicAddRequestToken), true);
+assert.equal(model.getValue(WQ_OTHER_PREGNANCIES_FIELD), undefined);
 pregnancyHistoryQuestion.addPanel();
 const secondPregnancyPlurality = panelQuestion(
   pregnancyHistoryQuestion.panels[1],
@@ -669,9 +680,19 @@ assert.deepEqual(
   "Q22_i must retain the Excel Yes and No option codes"
 );
 assert.ok(
-  pregnancyHistoryJson.templateElements.indexOf(otherPregnanciesJson)
-    < pregnancyHistoryJson.templateElements.indexOf(pregnancyOutcomeCheckJson),
-  "Q22_i must remain immediately before Q23_i in pregnancy-history order"
+  reproductionPageJson.elements.indexOf(otherPregnanciesJson)
+    === reproductionPageJson.elements.indexOf(pregnancyHistoryJson) + 1,
+  "Q22_i must immediately follow the completed pregnancy editor"
+);
+assert.deepEqual(
+  reproductionPageJson.elements
+    .slice(
+      reproductionPageJson.elements.indexOf(otherPregnanciesJson),
+      reproductionPageJson.elements.indexOf(otherPregnanciesJson) + 7
+    )
+    .map((element) => element.sourceCode),
+  ["22_i", "23_i", "24_i", "25_i", "26_i", "27_i", "28_i"],
+  "Q22_i through Q28_i must remain outside the repeat in questionnaire order"
 );
 assert.equal(pregnancyOutcomeCheckJson.calculated, true);
 assert.equal(pregnancyOutcome.getType(), "radiogroup");
@@ -712,14 +733,6 @@ assert.equal(
   shouldShowWqPregnancyHistoryQuestion(pregnancyPlurality, getWqMultipleBirthRow(pregnancyPanel)),
   true
 );
-assert.equal(
-  shouldShowWqPregnancyHistoryQuestion(
-    panelQuestion(pregnancyPanel, WQ_OTHER_PREGNANCIES_FIELD),
-    getWqMultipleBirthRow(pregnancyPanel)
-  ),
-  false,
-  "Q22_i must stay hidden until the final baby in a multiple pregnancy"
-);
 panelQuestion(pregnancyPanel, WQ_MULTIPLE_BIRTH_COUNT_FIELD).value = 3;
 panelQuestion(pregnancyPanel, WQ_MULTIPLE_BIRTH_INDEX_FIELD).value = 2;
 const secondBabyOutcome = panelQuestion(
@@ -751,27 +764,11 @@ assert.equal(
   "Baby 2 must store its Q16_i answer separately in the same repeat-column field"
 );
 assert.equal(
-  shouldShowWqPregnancyHistoryQuestion(
-    panelQuestion(pregnancyHistoryQuestion.panels[1], WQ_OTHER_PREGNANCIES_FIELD),
-    getWqMultipleBirthRow(pregnancyHistoryQuestion.panels[1])
-  ),
-  false,
-  "Q22_i must remain hidden for an intermediate baby"
-);
-assert.equal(
   shouldShowWqPregnancyHistoryQuestion(pregnancyPlurality, getWqMultipleBirthRow(pregnancyPanel)),
   false,
   "Continuation rows must start at Q16_i instead of asking Q15_i again"
 );
 panelQuestion(pregnancyPanel, WQ_MULTIPLE_BIRTH_INDEX_FIELD).value = 3;
-assert.equal(
-  shouldShowWqPregnancyHistoryQuestion(
-    panelQuestion(pregnancyPanel, WQ_OTHER_PREGNANCIES_FIELD),
-    getWqMultipleBirthRow(pregnancyPanel)
-  ),
-  true,
-  "Q22_i must remain visible after Q21_i for the final baby"
-);
 function mockPregnancyRow(values) {
   return {
     getQuestionByName(name) {
@@ -817,6 +814,7 @@ assert.deepEqual(
   ],
   "Twins and triplets must remain grouped under their own pregnancy"
 );
+pregnancyHistoryQuestion.removePanel(1);
 panelQuestion(pregnancyPanel, WQ_MULTIPLE_BIRTH_COUNT_FIELD).value = undefined;
 panelQuestion(pregnancyPanel, WQ_MULTIPLE_BIRTH_INDEX_FIELD).value = undefined;
 pregnancyPlurality.value = undefined;
@@ -883,27 +881,27 @@ assert.equal(pregnancyDuration.isVisible, true);
 assert.match(getNativeQuestionTitle(pregnancyOutcomeDate), /Miscarriage/);
 pregnancyDuration.value = { months: "06" };
 applyWqPregnancyHistoryCalculations(model);
-assert.equal(panelQuestion(pregnancyPanel, WQ_PREGNANCY_OUTCOME_FIELD).value, 3);
+assert.equal(question(model, WQ_PREGNANCY_OUTCOME_FIELD).value, 3);
 assert.deepEqual(pregnancyDuration.value, { months: "06", weeks: "00" });
 pregnancyDuration.value = { months: "07" };
 applyWqPregnancyHistoryCalculations(model);
-assert.equal(panelQuestion(pregnancyPanel, WQ_PREGNANCY_OUTCOME_FIELD).value, 2);
+assert.equal(question(model, WQ_PREGNANCY_OUTCOME_FIELD).value, 2);
 pregnancyOutcome.value = 4;
 applyWqPregnancyHistoryCalculations(model);
-assert.equal(panelQuestion(pregnancyPanel, WQ_PREGNANCY_OUTCOME_FIELD).value, 4);
+assert.equal(question(model, WQ_PREGNANCY_OUTCOME_FIELD).value, 4);
 assert.match(getNativeQuestionTitle(pregnancyOutcomeDate), /Abortion/);
-panelQuestion(pregnancyPanel, WQ_PREGNANCY_CHILD_LIVING_WITH_FIELD).value = 2;
+question(model, WQ_PREGNANCY_CHILD_LIVING_WITH_FIELD).value = 2;
 applyWqPregnancyHistoryCalculations(model);
-assert.equal(panelQuestion(pregnancyPanel, WQ_PREGNANCY_CHILD_LINE_FIELD).value, "00");
-assert.equal(panelQuestion(pregnancyPanel, WQ_PREGNANCY_CHILD_LINE_FIELD).readOnly, true);
-panelQuestion(pregnancyPanel, WQ_PREGNANCY_CHILD_LIVING_WITH_FIELD).value = 1;
+assert.equal(question(model, WQ_PREGNANCY_CHILD_LINE_FIELD).value, "00");
+assert.equal(question(model, WQ_PREGNANCY_CHILD_LINE_FIELD).readOnly, true);
+question(model, WQ_PREGNANCY_CHILD_LIVING_WITH_FIELD).value = 1;
 applyWqPregnancyHistoryCalculations(model);
-assert.equal(panelQuestion(pregnancyPanel, WQ_PREGNANCY_CHILD_LINE_FIELD).readOnly, false);
+assert.equal(question(model, WQ_PREGNANCY_CHILD_LINE_FIELD).readOnly, false);
 pregnancyOutcome.value = undefined;
 criedMovedBreathed.value = undefined;
 pregnancyDuration.value = undefined;
 applyWqPregnancyHistoryCalculations(model);
-assert.equal(panelQuestion(pregnancyPanel, WQ_PREGNANCY_OUTCOME_FIELD).value, undefined);
+assert.equal(question(model, WQ_PREGNANCY_OUTCOME_FIELD).value, undefined);
 pregnancyDeathAge.value = { months: "03" };
 applyWqPregnancyHistoryCalculations(model);
 assert.deepEqual(pregnancyDeathAge.value, { months: "03", days: "00", years: "00" });
@@ -1312,7 +1310,7 @@ const panel = history.panels[0];
 const bornAlive = panel.getQuestionByName(
   "pregnancy_02_reproduction_what_name_was_given_to_the_baby"
 );
-const diedAge = panel.getQuestionByName(
+const diedAge = panelModel.getQuestionByName(
   "pregnancy_02_reproduction_if_born_alive_and_now_dead_if_19_i_1_boy_h"
 );
 assert.ok(bornAlive, "Expected pregnancy-history born-alive follow-up question");
@@ -1328,10 +1326,8 @@ assert.ok(
   ).includes("Asha"),
   "Pregnancy-history titles should replace (NAME) with Q18_i baby name"
 );
-panel
-  .getQuestionByName("pregnancy_02_reproduction_check_16_17_and_21_if_16_i_1_or_17_i_1_the")
-  .value = 1;
-panel.getQuestionByName("pregnancy_02_reproduction_is_name_still_alive").value = 2;
+applyWqPregnancyHistoryCalculations(panelModel);
+panelModel.getQuestionByName("pregnancy_02_reproduction_is_name_still_alive").value = 2;
 assert.equal(diedAge.isVisible, true);
 
 await import("../polyfills/surveyCoreNative.js");
