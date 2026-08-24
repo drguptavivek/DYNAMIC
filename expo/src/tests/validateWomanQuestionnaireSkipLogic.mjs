@@ -38,11 +38,16 @@ const {
 const {
   getNativeQuestionTitle,
   getWqMultipleBirthRow,
+  groupWqPregnancyHistoryPanels,
   shouldShowWqPregnancyHistoryQuestion,
   WQ_MULTIPLE_BIRTH_COUNT_FIELD,
   WQ_MULTIPLE_BIRTH_INDEX_FIELD,
   WQ_OTHER_PREGNANCIES_FIELD,
+  WQ_PREGNANCY_GROUP_FIELD,
 } = await import("../components/forms/nativeSurveyModel.js");
+const { normalizeMultipleTextInputValue } = await import(
+  "../components/forms/renderers/multipleTextValue.js"
+);
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const wqPath = path.resolve(
@@ -628,6 +633,14 @@ const pregnancyOutcomeCheckJson = pregnancyHistoryJson.templateElements.find(
 const otherPregnanciesJson = pregnancyHistoryJson.templateElements.find(
   (element) => element.name === WQ_OTHER_PREGNANCIES_FIELD
 );
+const pregnancyGroupJson = pregnancyHistoryJson.templateElements.find(
+  (element) => element.name === WQ_PREGNANCY_GROUP_FIELD
+);
+assert.deepEqual(
+  { readOnly: pregnancyGroupJson?.readOnly, visible: pregnancyGroupJson?.visible },
+  { readOnly: true, visible: false },
+  "Pregnancy group metadata must remain hidden and read-only"
+);
 assert.equal(pregnancyPluralityJson.sourceCode, "15_i");
 assert.equal(pregnancyPlurality.readOnly, false, "Q15_i must remain answerable");
 pregnancyPlurality.__nativePanelRowNumber = 1;
@@ -704,8 +717,8 @@ assert.equal(
     panelQuestion(pregnancyPanel, WQ_OTHER_PREGNANCIES_FIELD),
     getWqMultipleBirthRow(pregnancyPanel)
   ),
-  true,
-  "Q22_i must remain visible after Q21_i for each pregnancy-history row"
+  false,
+  "Q22_i must stay hidden until the final baby in a multiple pregnancy"
 );
 panelQuestion(pregnancyPanel, WQ_MULTIPLE_BIRTH_COUNT_FIELD).value = 3;
 panelQuestion(pregnancyPanel, WQ_MULTIPLE_BIRTH_INDEX_FIELD).value = 2;
@@ -738,6 +751,14 @@ assert.equal(
   "Baby 2 must store its Q16_i answer separately in the same repeat-column field"
 );
 assert.equal(
+  shouldShowWqPregnancyHistoryQuestion(
+    panelQuestion(pregnancyHistoryQuestion.panels[1], WQ_OTHER_PREGNANCIES_FIELD),
+    getWqMultipleBirthRow(pregnancyHistoryQuestion.panels[1])
+  ),
+  false,
+  "Q22_i must remain hidden for an intermediate baby"
+);
+assert.equal(
   shouldShowWqPregnancyHistoryQuestion(pregnancyPlurality, getWqMultipleBirthRow(pregnancyPanel)),
   false,
   "Continuation rows must start at Q16_i instead of asking Q15_i again"
@@ -751,11 +772,66 @@ assert.equal(
   true,
   "Q22_i must remain visible after Q21_i for the final baby"
 );
+function mockPregnancyRow(values) {
+  return {
+    getQuestionByName(name) {
+      return { value: values[name] };
+    },
+  };
+}
+const groupedPregnancyRows = groupWqPregnancyHistoryPanels([
+  mockPregnancyRow({
+    [WQ_PREGNANCY_GROUP_FIELD]: 1,
+    [WQ_MULTIPLE_BIRTH_INDEX_FIELD]: 1,
+    [WQ_MULTIPLE_BIRTH_COUNT_FIELD]: 2,
+  }),
+  mockPregnancyRow({
+    [WQ_PREGNANCY_GROUP_FIELD]: 1,
+    [WQ_MULTIPLE_BIRTH_INDEX_FIELD]: 2,
+    [WQ_MULTIPLE_BIRTH_COUNT_FIELD]: 2,
+  }),
+  mockPregnancyRow({
+    [WQ_PREGNANCY_GROUP_FIELD]: 2,
+    [WQ_MULTIPLE_BIRTH_INDEX_FIELD]: 1,
+    [WQ_MULTIPLE_BIRTH_COUNT_FIELD]: 3,
+  }),
+  mockPregnancyRow({
+    [WQ_PREGNANCY_GROUP_FIELD]: 2,
+    [WQ_MULTIPLE_BIRTH_INDEX_FIELD]: 2,
+    [WQ_MULTIPLE_BIRTH_COUNT_FIELD]: 3,
+  }),
+  mockPregnancyRow({
+    [WQ_PREGNANCY_GROUP_FIELD]: 2,
+    [WQ_MULTIPLE_BIRTH_INDEX_FIELD]: 3,
+    [WQ_MULTIPLE_BIRTH_COUNT_FIELD]: 3,
+  }),
+]);
+assert.deepEqual(
+  groupedPregnancyRows.map((group) => ({
+    babies: group.rows.map((row) => row.multipleBirth.index),
+    groupIndex: group.groupIndex,
+  })),
+  [
+    { babies: [1, 2], groupIndex: 1 },
+    { babies: [1, 2, 3], groupIndex: 2 },
+  ],
+  "Twins and triplets must remain grouped under their own pregnancy"
+);
 panelQuestion(pregnancyPanel, WQ_MULTIPLE_BIRTH_COUNT_FIELD).value = undefined;
 panelQuestion(pregnancyPanel, WQ_MULTIPLE_BIRTH_INDEX_FIELD).value = undefined;
 pregnancyPlurality.value = undefined;
 assert.equal(pregnancyOutcomeDate.getType(), "multipletext");
 assert.deepEqual(pregnancyOutcomeDate.items.map((item) => item.name), ["day", "month", "year"]);
+assert.deepEqual(
+  pregnancyOutcomeDate.items.map((item) => item.inputType),
+  ["text", "text", "text"],
+  "Q20_i date components must use text storage so leading zeroes survive native entry"
+);
+assert.equal(
+  normalizeMultipleTextInputValue(pregnancyOutcomeDate.items[1], "02").value,
+  "02",
+  "Q20_i month must retain its leading zero through the native input pipeline"
+);
 assert.equal(pregnancyDuration.getType(), "multipletext");
 assert.deepEqual(pregnancyDuration.items.map((item) => item.name), ["weeks", "months"]);
 assert.deepEqual(
@@ -770,6 +846,11 @@ assert.deepEqual(
   "Q21_i weeks and months must preserve two-digit entries while using the numeric keyboard"
 );
 pregnancyDuration.value = { weeks: "01", months: "02" };
+assert.equal(
+  normalizeMultipleTextInputValue(pregnancyDuration.items[0], "01").value,
+  "01",
+  "Q21_i weeks must retain its leading zero through the native input pipeline"
+);
 assert.deepEqual(
   pregnancyDuration.value,
   { weeks: "01", months: "02" },

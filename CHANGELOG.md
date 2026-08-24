@@ -1,5 +1,7 @@
 # Changelog
 
+- Grouped WQ pregnancy-history babies under their pregnancy: Single creates one baby/outcome row, Twins create two, Triplets create three, each baby retains separate Q16_i-Q28_i answers, and pregnancy-level Q22_i appears only after the final baby before another pregnancy can begin.
+- Fixed WQ pregnancy-history Q20_i and Q21_i native inputs so exact two-digit day, month, and week values retain leading zeroes such as `01` and `02` instead of being converted to `1` and `2`; missing Q21_i week/month counterparts continue to use `00`.
 - Fixed WQ Section 2 Q16_i wording so Q15_i Single shows the single-pregnancy outcome question, while twins and higher multiples show the Excel-defined first-baby and next-baby prompts during one-baby-at-a-time entry.
 - Hid the WQ pregnancy-history multiple-birth index and count metadata from the native repeat-row editor while retaining those values for Baby 1/Baby 2 iteration and validation logic.
 - Fixed WQ pregnancy-history Q21_i so two-digit Weeks and Months entries retain leading zeroes such as `01` and `02` while continuing to use the numeric mobile keyboard.

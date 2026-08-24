@@ -128,6 +128,8 @@ A repeated panel is not rendered as one long anonymous list.
 - Preserve Survey Core panel order as the row sequence.
 - Generate stable semantic entity IDs outside the generic repeat renderer.
 
+For WQ pregnancy history, each pregnancy is a displayed group. Single, twin, and triplet pregnancies contain one, two, or three baby/outcome rows respectively; every baby keeps separate Q16_i-Q28_i answers, while pregnancy-level Q22_i is asked only after the final baby in that group.
+
 For HHQ, the member row number is the roster sequence and the displayed member ID is:
 
 ```text

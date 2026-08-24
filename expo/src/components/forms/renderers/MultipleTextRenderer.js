@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
 import { getNativeQuestionErrors, getNativeQuestionValue, setNativeQuestionValue } from "../nativeSurveyModel.js";
+import { normalizeMultipleTextInputValue } from "./multipleTextValue.js";
 
 function localizedItemText(text, locale = "default") {
   if (typeof text === "string") return text;
@@ -94,12 +95,7 @@ function MultipleTextItemInput({ item, itemValue, question, unknownSelected, onC
   const externalText =
     itemValue === undefined || itemValue === null || unknownSelected ? "" : String(itemValue);
   const [textValue, setTextValue] = useState(externalText);
-  const usesNumericKeyboard =
-    item.inputType === "number" ||
-    (item.validators || []).some((validator) => {
-      const regex = String(validator.regex || validator.jsonObj?.regex || "");
-      return validator.getType?.() === "numeric" || validator.type === "numeric" || /\\d|\[0-9\]/.test(regex);
-    });
+  const { usesNumericKeyboard } = normalizeMultipleTextInputValue(item, externalText);
 
   useEffect(() => {
     setTextValue(externalText);
@@ -114,16 +110,10 @@ function MultipleTextItemInput({ item, itemValue, question, unknownSelected, onC
       maxLength={item.maxLength > 0 ? item.maxLength : item.jsonObj?.maxLength}
       placeholder={unknownSelected ? "" : item.placeholder}
       onChangeText={(value) => {
-        const sanitized = usesNumericKeyboard ? value.replace(/[^0-9.-]/g, "") : value;
+        const normalized = normalizeMultipleTextInputValue(item, value);
+        const { sanitized } = normalized;
         setTextValue(sanitized);
-        const preserveString = item.preserveString === true || item.jsonObj?.preserveString === true;
-        const nextItemValue =
-          sanitized === ""
-            ? undefined
-            : item.inputType === "number" && !preserveString
-              ? Number(sanitized)
-              : sanitized;
-        onCommit(nextItemValue);
+        onCommit(normalized.value);
       }}
       onBlur={() => {
         question.validate?.();

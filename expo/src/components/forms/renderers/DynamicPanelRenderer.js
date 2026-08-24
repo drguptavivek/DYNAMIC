@@ -9,10 +9,13 @@ import {
   getNativeQuestionErrors,
   getNativeQuestionTitle,
   getWqMultipleBirthRow,
+  groupWqPregnancyHistoryPanels,
   shouldShowWqPregnancyHistoryQuestion,
   WQ_MULTIPLE_BIRTH_COUNT_FIELD,
   WQ_MULTIPLE_BIRTH_INDEX_FIELD,
   WQ_OTHER_PREGNANCIES_FIELD,
+  WQ_PREGNANCY_GROUP_FIELD,
+  WQ_PREGNANCY_HISTORY_PANEL_FIELD,
   WQ_PREGNANCY_PLURALITY_FIELD,
 } from "../nativeSurveyModel.js";
 import { controlStyles } from "./QuestionFrame.js";
@@ -39,6 +42,17 @@ export function DynamicPanelRenderer({ locale, question, onChange, renderQuestio
     .filter(({ panel, index }) =>
       panelHasAnswer(panel) && (editorMode !== "add" || index !== editingIndex)
     );
+  const isWqPregnancyHistory = question.name === WQ_PREGNANCY_HISTORY_PANEL_FIELD;
+  const pregnancyGroups = isWqPregnancyHistory
+    ? groupWqPregnancyHistoryPanels(panels)
+        .map((group) => ({
+          ...group,
+          rows: group.rows.filter(({ panel, panelIndex }) =>
+            panelHasAnswer(panel) && (editorMode !== "add" || panelIndex !== editingIndex)
+          ),
+        }))
+        .filter((group) => group.rows.length > 0)
+    : [];
 
   useEffect(() => {
     if (editingIndex !== null && editingIndex >= panels.length) {
@@ -120,7 +134,10 @@ export function DynamicPanelRenderer({ locale, question, onChange, renderQuestio
   function commitEntry() {
     const activePanel = editingIndex === null ? null : panels[editingIndex];
     const multipleBirth = getWqMultipleBirthRow(activePanel);
-    persistMultipleBirthRow(activePanel, multipleBirth);
+    const pregnancyGroupIndex = isWqPregnancyHistory
+      ? getPregnancyGroupIndex(panels, editingIndex)
+      : 0;
+    persistMultipleBirthRow(activePanel, multipleBirth, pregnancyGroupIndex);
     const visibleQuestions = (activePanel?.questions || []).filter(
       (child) => isRenderablePanelQuestion(child, multipleBirth)
     );
@@ -131,7 +148,12 @@ export function DynamicPanelRenderer({ locale, question, onChange, renderQuestio
       const nextIndex = question.panelCount;
       question.addPanel();
       const nextPanel = question.panels[nextIndex];
-      seedMultipleBirthContinuation(nextPanel, multipleBirth.index + 1, multipleBirth.count);
+      seedMultipleBirthContinuation(
+        nextPanel,
+        multipleBirth.index + 1,
+        multipleBirth.count,
+        pregnancyGroupIndex
+      );
       setEditingIndex(nextIndex);
       setEditorMode("add");
       onChange?.();
@@ -142,7 +164,9 @@ export function DynamicPanelRenderer({ locale, question, onChange, renderQuestio
     ) === 1;
     if (editorMode === "add" && hasAnotherPregnancy) {
       question.addPanel();
-      setEditingIndex(question.panelCount - 1);
+      const nextIndex = question.panelCount - 1;
+      seedNextPregnancy(question.panels[nextIndex], pregnancyGroupIndex + 1);
+      setEditingIndex(nextIndex);
       setEditorMode("add");
       onChange?.();
       return;
@@ -155,38 +179,55 @@ export function DynamicPanelRenderer({ locale, question, onChange, renderQuestio
     <View style={styles.wrap}>
       <View style={styles.titleRow}>
         <Text style={styles.title}>{getNativeQuestionTitle(question, locale)}</Text>
-        <Text style={styles.count}>{`${committedPanels.length} ${committedPanels.length === 1 ? "entry" : "entries"} added`}</Text>
+        <Text style={styles.count}>
+          {isWqPregnancyHistory
+            ? `${pregnancyGroups.length} ${pregnancyGroups.length === 1 ? "pregnancy" : "pregnancies"}, ${committedPanels.length} ${committedPanels.length === 1 ? "baby/outcome" : "babies/outcomes"}`
+            : `${committedPanels.length} ${committedPanels.length === 1 ? "entry" : "entries"} added`}
+        </Text>
       </View>
-      {committedPanels.length ? <View style={styles.entryList}>
-        {committedPanels.map(({ panel, index }) => (
-          <View key={panel.id || index} style={[styles.entryRow, editorMode === "edit" && index === editingIndex && styles.entryRowActive]}>
-            <Pressable
-              accessibilityLabel={`Edit entry ${index + 1}`}
-              onPress={() => startEditing(index)}
-              style={styles.editEntryButton}
-            >
-              <Text style={styles.entryNumber}>{index + 1}</Text>
-              <Text style={styles.entryLabel} numberOfLines={1}>{entryLabel(panel, index)}</Text>
-              <MaterialCommunityIcons color="#475467" name="pencil-outline" size={19} />
-            </Pressable>
-            {question.allowRemovePanel !== false ? (
-              <Pressable
-                accessibilityLabel={`Delete entry ${index + 1}`}
-                hitSlop={6}
-                onPress={() => removeEntry(index)}
-                style={styles.deleteButton}
-              >
-                <MaterialCommunityIcons color="#b42318" name="delete-outline" size={21} />
-              </Pressable>
-            ) : null}
+      {pregnancyGroups.length ? <View style={styles.pregnancyList}>
+        {pregnancyGroups.map((group) => (
+          <View key={`pregnancy-${group.groupIndex}`} style={styles.pregnancyGroup}>
+            <Text style={styles.pregnancyTitle}>{`Pregnancy ${group.groupIndex}`}</Text>
+            {group.rows.map(({ panel, panelIndex, multipleBirth }) => (
+              <EntryRow
+                entryLabel={entryLabel(panel, panelIndex)}
+                index={panelIndex}
+                key={panel.id || panelIndex}
+                number={multipleBirth.index}
+                onDelete={removeEntry}
+                onEdit={startEditing}
+                prefixLabel={`Baby ${multipleBirth.index} of ${multipleBirth.count}`}
+                question={question}
+                selected={editorMode === "edit" && panelIndex === editingIndex}
+              />
+            ))}
           </View>
+        ))}
+      </View> : committedPanels.length ? <View style={styles.entryList}>
+        {committedPanels.map(({ panel, index }) => (
+          <EntryRow
+            entryLabel={entryLabel(panel, index)}
+            index={index}
+            key={panel.id || index}
+            number={index + 1}
+            onDelete={removeEntry}
+            onEdit={startEditing}
+            question={question}
+            selected={editorMode === "edit" && index === editingIndex}
+          />
         ))}
       </View> : null}
       {editingIndex !== null && panels[editingIndex] ? (
         <View style={styles.panel}>
           <View style={styles.panelHeader}>
             <Text style={styles.panelTitle}>
-              {getPanelEditorTitle(panels[editingIndex], editingIndex, editorMode)}
+              {getPanelEditorTitle(
+                panels,
+                editingIndex,
+                editorMode,
+                isWqPregnancyHistory
+              )}
             </Text>
             <Pressable accessibilityLabel="Close entry editor" hitSlop={6} onPress={closeEditor}>
               <MaterialCommunityIcons color="#475467" name="close-circle-outline" size={22} />
@@ -228,10 +269,15 @@ const styles = StyleSheet.create({
   title: { color: "#18202a", fontSize: 18, fontWeight: "800" },
   count: { color: "#1f6feb", fontSize: 13, fontWeight: "800" },
   entryList: { gap: 6 },
+  pregnancyList: { gap: 9 },
+  pregnancyGroup: { gap: 6, padding: 8, borderWidth: 1, borderColor: "#b9cbe3", borderRadius: 8, backgroundColor: "#f8fbff" },
+  pregnancyTitle: { color: "#1f4d7a", fontSize: 15, fontWeight: "900" },
   entryRow: { minHeight: 46, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 7, paddingVertical: 5, borderWidth: 1, borderColor: "#d0d5dd", borderRadius: 8, backgroundColor: "#ffffff" },
   entryRowActive: { borderColor: "#1f6feb", backgroundColor: "#eef6ff" },
   editEntryButton: { minHeight: 36, flex: 1, flexDirection: "row", alignItems: "center", gap: 8 },
   entryNumber: { width: 26, height: 26, paddingTop: 3, borderRadius: 13, textAlign: "center", color: "#ffffff", backgroundColor: "#1f6feb", fontWeight: "800" },
+  entryText: { minWidth: 0, flex: 1 },
+  entryKind: { color: "#1f4d7a", fontSize: 13, fontWeight: "900" },
   entryLabel: { color: "#18202a", fontSize: 14, fontWeight: "800" },
   deleteButton: { width: 38, minHeight: 36, alignItems: "center", justifyContent: "center", borderLeftWidth: 1, borderLeftColor: "#d0d5dd" },
   panel: { gap: 8, padding: 9, borderWidth: 1, borderColor: "#b9cbe3", borderRadius: 9, backgroundColor: "#f8fbff" },
@@ -264,21 +310,69 @@ function setPanelValue(panel, fieldName, value) {
   if (child) child.value = value;
 }
 
-function persistMultipleBirthRow(panel, multipleBirth) {
+function persistMultipleBirthRow(panel, multipleBirth, pregnancyGroupIndex) {
+  if (pregnancyGroupIndex > 0) {
+    setPanelValue(panel, WQ_PREGNANCY_GROUP_FIELD, pregnancyGroupIndex);
+  }
   setPanelValue(panel, WQ_MULTIPLE_BIRTH_INDEX_FIELD, multipleBirth.index);
   setPanelValue(panel, WQ_MULTIPLE_BIRTH_COUNT_FIELD, multipleBirth.count);
 }
 
-function seedMultipleBirthContinuation(panel, index, count) {
+function seedMultipleBirthContinuation(panel, index, count, pregnancyGroupIndex) {
+  setPanelValue(panel, WQ_PREGNANCY_GROUP_FIELD, pregnancyGroupIndex);
   setPanelValue(panel, WQ_PREGNANCY_PLURALITY_FIELD, count);
   setPanelValue(panel, WQ_MULTIPLE_BIRTH_INDEX_FIELD, index);
   setPanelValue(panel, WQ_MULTIPLE_BIRTH_COUNT_FIELD, count);
 }
 
-function getPanelEditorTitle(panel, editingIndex, editorMode) {
+function seedNextPregnancy(panel, pregnancyGroupIndex) {
+  setPanelValue(panel, WQ_PREGNANCY_GROUP_FIELD, pregnancyGroupIndex);
+  setPanelValue(panel, WQ_MULTIPLE_BIRTH_INDEX_FIELD, 1);
+  setPanelValue(panel, WQ_MULTIPLE_BIRTH_COUNT_FIELD, 1);
+}
+
+function getPregnancyGroupIndex(panels, editingIndex) {
+  const group = groupWqPregnancyHistoryPanels(panels).find((item) =>
+    item.rows.some((row) => row.panelIndex === editingIndex)
+  );
+  return group?.groupIndex || 1;
+}
+
+function getPanelEditorTitle(panels, editingIndex, editorMode, isWqPregnancyHistory) {
+  const panel = panels[editingIndex];
   const multipleBirth = getWqMultipleBirthRow(panel);
-  if (multipleBirth.count > 1) {
-    return `Baby ${multipleBirth.index} of ${multipleBirth.count}`;
+  if (isWqPregnancyHistory) {
+    const groupIndex = getPregnancyGroupIndex(panels, editingIndex);
+    return `Pregnancy ${groupIndex} - Baby ${multipleBirth.index} of ${multipleBirth.count}`;
   }
   return editorMode === "add" ? "New entry" : `Edit entry ${editingIndex + 1}`;
+}
+
+function EntryRow({ entryLabel, index, number, onDelete, onEdit, prefixLabel, question, selected }) {
+  return (
+    <View style={[styles.entryRow, selected && styles.entryRowActive]}>
+      <Pressable
+        accessibilityLabel={`Edit entry ${index + 1}`}
+        onPress={() => onEdit(index)}
+        style={styles.editEntryButton}
+      >
+        <Text style={styles.entryNumber}>{number}</Text>
+        <View style={styles.entryText}>
+          {prefixLabel ? <Text style={styles.entryKind}>{prefixLabel}</Text> : null}
+          <Text style={styles.entryLabel} numberOfLines={1}>{entryLabel}</Text>
+        </View>
+        <MaterialCommunityIcons color="#475467" name="pencil-outline" size={19} />
+      </Pressable>
+      {question.allowRemovePanel !== false ? (
+        <Pressable
+          accessibilityLabel={`Delete entry ${index + 1}`}
+          hitSlop={6}
+          onPress={() => onDelete(index)}
+          style={styles.deleteButton}
+        >
+          <MaterialCommunityIcons color="#b42318" name="delete-outline" size={21} />
+        </Pressable>
+      ) : null}
+    </View>
+  );
 }

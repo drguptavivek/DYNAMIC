@@ -2603,6 +2603,12 @@
           "templateElements": [
             {
               "type": "text",
+              "name": "pregnancy_02_reproduction_pregnancy_group_index",
+              "visible": false,
+              "readOnly": true
+            },
+            {
+              "type": "text",
               "name": "pregnancy_02_reproduction_multiple_birth_index",
               "visible": false,
               "readOnly": true
@@ -2928,7 +2934,7 @@
                 {
                   "name": "day",
                   "title": "Day",
-                  "inputType": "number",
+                  "inputType": "text",
                   "placeholder": "DD",
                   "maxLength": 2,
                   "preserveString": true,
@@ -2943,7 +2949,7 @@
                 {
                   "name": "month",
                   "title": "Month",
-                  "inputType": "number",
+                  "inputType": "text",
                   "placeholder": "MM",
                   "maxLength": 2,
                   "preserveString": true,
@@ -2958,7 +2964,7 @@
                 {
                   "name": "year",
                   "title": "Year",
-                  "inputType": "number",
+                  "inputType": "text",
                   "placeholder": "YYYY",
                   "maxLength": 4,
                   "preserveString": true,

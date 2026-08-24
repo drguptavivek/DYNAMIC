@@ -28,6 +28,9 @@ export const WQ_MULTIPLE_BIRTH_INDEX_FIELD =
   "pregnancy_02_reproduction_multiple_birth_index";
 export const WQ_MULTIPLE_BIRTH_COUNT_FIELD =
   "pregnancy_02_reproduction_multiple_birth_count";
+export const WQ_PREGNANCY_GROUP_FIELD =
+  "pregnancy_02_reproduction_pregnancy_group_index";
+export const WQ_PREGNANCY_HISTORY_PANEL_FIELD = "wq_pregnancy_history";
 export const WQ_OTHER_PREGNANCIES_FIELD =
   "pregnancy_02_reproduction_if_row_i_1_were_there_any_other_pregnancie";
 const WQ_SECTION_4_MARITAL_STATUS_CHECK_FIELD =
@@ -284,9 +287,37 @@ export function getWqMultipleBirthRow(panel) {
   return { count, index, plurality };
 }
 
+export function groupWqPregnancyHistoryPanels(panels = []) {
+  const groups = [];
+  let inferredGroupIndex = 0;
+
+  panels.forEach((panel, panelIndex) => {
+    const multipleBirth = getWqMultipleBirthRow(panel);
+    const storedGroupIndex = numericPanelValue(panel, WQ_PREGNANCY_GROUP_FIELD);
+    if (storedGroupIndex > 0) {
+      inferredGroupIndex = storedGroupIndex;
+    } else if (multipleBirth.index === 1 || inferredGroupIndex === 0) {
+      inferredGroupIndex += 1;
+    }
+
+    const groupIndex = Math.max(1, inferredGroupIndex);
+    let group = groups.find((item) => item.groupIndex === groupIndex);
+    if (!group) {
+      group = { groupIndex, rows: [] };
+      groups.push(group);
+    }
+    group.rows.push({ panel, panelIndex, multipleBirth });
+  });
+
+  return groups;
+}
+
 export function shouldShowWqPregnancyHistoryQuestion(child, multipleBirth) {
   if (!child || multipleBirth.count <= 1) return true;
   if (child.name === WQ_PREGNANCY_PLURALITY_FIELD) return multipleBirth.index === 1;
+  if (child.name === WQ_OTHER_PREGNANCIES_FIELD) {
+    return multipleBirth.index === multipleBirth.count;
+  }
   return true;
 }
 
