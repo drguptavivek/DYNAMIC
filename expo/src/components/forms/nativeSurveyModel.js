@@ -203,6 +203,20 @@ export function getNativeQuestionTitle(question, locale = "default") {
       return sourcePrefixFromTitle(originalTitle) + title;
     }
   }
+  if (question?.name === WQ_PREGNANCY_OUTCOME_FIELD) {
+    const originalTitle = interpolateSurveyValues(
+      localizedText(question?.locTitle, question?.title || "", locale),
+      question
+    );
+    const multipleBirth = getWqMultipleBirthRow(question?.parent);
+    const title =
+      multipleBirth.count <= 1
+        ? "Was the baby born alive, born dead, or did you have a miscarriage or abortion?"
+        : multipleBirth.index === 1
+          ? "Was the first baby in this pregnancy born alive or born dead?"
+          : "Was the next baby in this pregnancy born alive or born dead?";
+    return sourcePrefixFromTitle(originalTitle) + title;
+  }
   if (question?.name === WQ_SECTION_4_HUSBAND_OCCUPATION_FIELD) {
     const maritalStatus = String(
       getQuestionValueForInterpolation(question, WQ_SECTION_4_MARITAL_STATUS_CHECK_FIELD) ?? ""

@@ -668,6 +668,12 @@ assert.deepEqual(
   [1, 2, 3, 4],
   "Every Q16_i baby row must keep all four coded outcome options"
 );
+pregnancyPlurality.value = 1;
+assert.match(
+  getNativeQuestionTitle(pregnancyOutcome),
+  /Was the baby born alive, born dead, or did you have a miscarriage or abortion\?/,
+  "Q16_i must use the single-pregnancy wording when Q15_i is Single"
+);
 pregnancyOutcome.value = 1;
 assert.equal(
   criedMovedBreathed.isVisible,
@@ -684,6 +690,11 @@ assert.equal(
 );
 pregnancyPlurality.value = 3;
 assert.deepEqual(getWqMultipleBirthRow(pregnancyPanel), { count: 3, index: 1, plurality: 3 });
+assert.match(
+  getNativeQuestionTitle(pregnancyOutcome),
+  /Was the first baby in this pregnancy born alive or born dead\?/,
+  "Q16_i must use first-baby wording for the first baby of a multiple pregnancy"
+);
 assert.equal(
   shouldShowWqPregnancyHistoryQuestion(pregnancyPlurality, getWqMultipleBirthRow(pregnancyPanel)),
   true
@@ -700,7 +711,7 @@ panelQuestion(pregnancyPanel, WQ_MULTIPLE_BIRTH_COUNT_FIELD).value = 3;
 panelQuestion(pregnancyPanel, WQ_MULTIPLE_BIRTH_INDEX_FIELD).value = 2;
 const secondBabyOutcome = panelQuestion(
   pregnancyHistoryQuestion.panels[1],
-  WQ_PREGNANCY_OUTCOME_FIELD
+  "pregnancy_02_reproduction_if_15_i_single_was_the_baby_born_alive_bor"
 );
 panelQuestion(
   pregnancyHistoryQuestion.panels[1],
@@ -711,6 +722,11 @@ panelQuestion(
   WQ_MULTIPLE_BIRTH_INDEX_FIELD
 ).value = 2;
 secondBabyOutcome.value = 2;
+assert.match(
+  getNativeQuestionTitle(secondBabyOutcome),
+  /Was the next baby in this pregnancy born alive or born dead\?/,
+  "Q16_i must use next-baby wording for later babies of a multiple pregnancy"
+);
 assert.equal(
   pregnancyOutcome.value,
   1,
