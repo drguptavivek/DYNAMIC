@@ -642,6 +642,20 @@ assert.deepEqual(
   [1, 2, 3, 4],
   "Every Q16_i baby row must keep all four coded outcome options"
 );
+pregnancyOutcome.value = 1;
+assert.equal(
+  criedMovedBreathed.isVisible,
+  false,
+  "Q16_i born alive must skip Q17_i for that baby"
+);
+assert.equal(
+  panelQuestion(
+    pregnancyPanel,
+    "pregnancy_02_reproduction_what_name_was_given_to_the_baby"
+  ).isVisible,
+  true,
+  "Q16_i born alive must continue at Q18_i for that baby"
+);
 pregnancyPlurality.value = 3;
 assert.deepEqual(getWqMultipleBirthRow(pregnancyPanel), { count: 3, index: 1, plurality: 3 });
 assert.equal(
@@ -658,6 +672,29 @@ assert.equal(
 );
 panelQuestion(pregnancyPanel, WQ_MULTIPLE_BIRTH_COUNT_FIELD).value = 3;
 panelQuestion(pregnancyPanel, WQ_MULTIPLE_BIRTH_INDEX_FIELD).value = 2;
+const secondBabyOutcome = panelQuestion(
+  pregnancyHistoryQuestion.panels[1],
+  WQ_PREGNANCY_OUTCOME_FIELD
+);
+panelQuestion(
+  pregnancyHistoryQuestion.panels[1],
+  WQ_MULTIPLE_BIRTH_COUNT_FIELD
+).value = 3;
+panelQuestion(
+  pregnancyHistoryQuestion.panels[1],
+  WQ_MULTIPLE_BIRTH_INDEX_FIELD
+).value = 2;
+secondBabyOutcome.value = 2;
+assert.equal(
+  pregnancyOutcome.value,
+  1,
+  "Baby 1 must retain its own Q16_i answer when baby 2 is recorded"
+);
+assert.equal(
+  secondBabyOutcome.value,
+  2,
+  "Baby 2 must store its Q16_i answer separately in the same repeat-column field"
+);
 assert.equal(
   shouldShowWqPregnancyHistoryQuestion(pregnancyPlurality, getWqMultipleBirthRow(pregnancyPanel)),
   false,

@@ -20,7 +20,7 @@ The format follows the principles of [Keep a Changelog](https://keepachangelog.c
 
 ## Unreleased
 
-- Updated WQ Section 2 Q16_i so single and multiple pregnancies use the same four coded outcomes; twins, triplets, and higher multiples are recorded one baby at a time on separate pregnancy-history rows under the same Q16_i column, with Q22 shown only after the final baby.
+- Updated WQ Section 2 Q16_i so single and multiple pregnancies use the same four coded outcomes; twins, triplets, and higher multiples complete the applicable Q16_i-Q28_i path one baby at a time on separate pregnancy-history rows under the same question columns, with Q16_i born-alive responses skipping Q17_i, and Q22 shown only after the final baby.
 - Fixed WQ Section 2 Q15_i pregnancy-history wording so the first pregnancy row asks the i=1 first-pregnancy question and later rows ask the i>1 next-pregnancy question while keeping the same stored field and option codes.
 - Fixed WQ Section 5 Domestic Violence skip and check logic from the Excel workbook: Q3-Q8 now require privacy plus current/live-in marital status, Q2 and Q21 are read-only calculated CHECK fields, and Q22 now accepts two-digit years while preserving special code `95`.
 - Fixed WQ Section 4 Q13 and Q14 so husband alcohol days/drinks provide a two-digit numeric entry while preserving Excel special codes `00` and `95`.
