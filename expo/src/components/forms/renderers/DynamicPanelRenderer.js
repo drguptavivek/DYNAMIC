@@ -17,6 +17,17 @@ import {
 } from "../nativeSurveyModel.js";
 import { controlStyles } from "./QuestionFrame.js";
 
+function isRenderablePanelQuestion(child, multipleBirth) {
+  if (child?.visible === false || child?.isVisible === false) return false;
+  if (
+    child?.name === WQ_MULTIPLE_BIRTH_INDEX_FIELD ||
+    child?.name === WQ_MULTIPLE_BIRTH_COUNT_FIELD
+  ) {
+    return false;
+  }
+  return shouldShowWqPregnancyHistoryQuestion(child, multipleBirth);
+}
+
 export function DynamicPanelRenderer({ locale, question, onChange, renderQuestion }) {
   const [editingIndex, setEditingIndex] = useState(null);
   const [editorMode, setEditorMode] = useState(null);
@@ -111,7 +122,7 @@ export function DynamicPanelRenderer({ locale, question, onChange, renderQuestio
     const multipleBirth = getWqMultipleBirthRow(activePanel);
     persistMultipleBirthRow(activePanel, multipleBirth);
     const visibleQuestions = (activePanel?.questions || []).filter(
-      (child) => child.isVisible !== false && shouldShowWqPregnancyHistoryQuestion(child, multipleBirth)
+      (child) => isRenderablePanelQuestion(child, multipleBirth)
     );
     const valid = visibleQuestions.map((child) => child.validate?.() !== false).every(Boolean);
     onChange?.();
@@ -182,7 +193,7 @@ export function DynamicPanelRenderer({ locale, question, onChange, renderQuestio
             </Pressable>
           </View>
           {(panels[editingIndex].questions || [])
-            .filter((child) => child.isVisible !== false && shouldShowWqPregnancyHistoryQuestion(
+            .filter((child) => isRenderablePanelQuestion(
               child,
               getWqMultipleBirthRow(panels[editingIndex])
             ))

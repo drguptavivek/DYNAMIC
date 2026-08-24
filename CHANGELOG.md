@@ -1,5 +1,6 @@
 # Changelog
 
+- Hid the WQ pregnancy-history multiple-birth index and count metadata from the native repeat-row editor while retaining those values for Baby 1/Baby 2 iteration and validation logic.
 - Fixed WQ pregnancy-history Q21_i so two-digit Weeks and Months entries retain leading zeroes such as `01` and `02` while continuing to use the numeric mobile keyboard.
 - Restored WQ Section 2 Q22_i immediately after Q21_i in the native pregnancy-history flow and made its Yes response continue into a new pregnancy entry after the current entry is completed.
 - Completed the WQ Section 2 Q14_i-Q28_i instruction pass: Q20_i now displays the derived pregnancy outcome and correct child-name/date prompt, Q25_i and Q28_i use the recorded child's name and sex-specific wording, stale calculated outcomes are cleared when source answers change, and Q27_i locks the generated `00` when the child is not listed in the household.
