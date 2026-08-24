@@ -126,24 +126,26 @@ assert.deepEqual(
   "WQ Section 4 source codes should be sequential after correcting the duplicate Q23 typo"
 );
 
-// Release bundles crash at runtime (not build time) when the WQ dashboard
+// Release bundles crash at runtime (not build time) when questionnaire code
 // references an undeclared module-level identifier, so pin every WQ_* symbol
-// to a declaration or an import.
-const dashboardPath = path.resolve(
-  root,
-  "../modules/questionnaires/QuestionnaireDashboard.js"
-);
-const dashboardSource = fs.readFileSync(dashboardPath, "utf8");
-const dashboardDeclared = new Set(
-  (dashboardSource.match(/(?:const|let|var|function)\s+(WQ_[A-Z0-9_]+)/g) || []).map(
-    (statement) => statement.split(/\s+/)[1]
-  )
-);
-for (const identifier of new Set(dashboardSource.match(/\bWQ_[A-Z0-9_]+\b/g) || [])) {
-  assert.ok(
-    dashboardDeclared.has(identifier) || dashboardSource.includes(`  ${identifier},`),
-    `QuestionnaireDashboard.js must declare or import "${identifier}"; undeclared identifiers crash release builds`
+// to a declaration or an import in the modules that coordinate WQ behavior.
+for (const relativePath of [
+  "../modules/questionnaires/QuestionnaireDashboard.js",
+  "../components/forms/renderers/DynamicPanelRenderer.js",
+]) {
+  const sourcePath = path.resolve(root, relativePath);
+  const source = fs.readFileSync(sourcePath, "utf8");
+  const declared = new Set(
+    (source.match(/(?:const|let|var|function)\s+(WQ_[A-Z0-9_]+)/g) || []).map(
+      (statement) => statement.split(/\s+/)[1]
+    )
   );
+  for (const identifier of new Set(source.match(/\bWQ_[A-Z0-9_]+\b/g) || [])) {
+    assert.ok(
+      declared.has(identifier) || source.includes(`  ${identifier},`),
+      `${path.basename(sourcePath)} must declare or import "${identifier}"; undeclared identifiers crash release builds`
+    );
+  }
 }
 
 function createWqModel() {

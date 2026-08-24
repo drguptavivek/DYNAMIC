@@ -14,6 +14,8 @@ import {
   groupWqPregnancyHistoryPanels,
   isNativeInternalPanelField,
   shouldShowWqPregnancyHistoryQuestion,
+  WQ_MULTIPLE_BIRTH_COUNT_FIELD,
+  WQ_MULTIPLE_BIRTH_INDEX_FIELD,
   WQ_PREGNANCY_GROUP_FIELD,
   WQ_PREGNANCY_HISTORY_PANEL_FIELD,
   WQ_PREGNANCY_PLURALITY_FIELD,
