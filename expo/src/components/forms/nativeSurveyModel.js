@@ -273,9 +273,6 @@ export function getWqMultipleBirthRow(panel) {
 export function shouldShowWqPregnancyHistoryQuestion(child, multipleBirth) {
   if (!child || multipleBirth.count <= 1) return true;
   if (child.name === WQ_PREGNANCY_PLURALITY_FIELD) return multipleBirth.index === 1;
-  if (child.name === WQ_OTHER_PREGNANCIES_FIELD) {
-    return multipleBirth.index === multipleBirth.count;
-  }
   return true;
 }
 

@@ -126,6 +126,16 @@ export function DynamicPanelRenderer({ locale, question, onChange, renderQuestio
       onChange?.();
       return;
     }
+    const hasAnotherPregnancy = Number(
+      activePanel?.getQuestionByName?.(WQ_OTHER_PREGNANCIES_FIELD)?.value
+    ) === 1;
+    if (editorMode === "add" && hasAnotherPregnancy) {
+      question.addPanel();
+      setEditingIndex(question.panelCount - 1);
+      setEditorMode("add");
+      onChange?.();
+      return;
+    }
     setEditingIndex(null);
     setEditorMode(null);
   }

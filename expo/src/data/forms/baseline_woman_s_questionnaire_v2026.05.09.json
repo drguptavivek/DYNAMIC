@@ -3004,7 +3004,7 @@
                 {
                   "name": "weeks",
                   "title": "Weeks",
-                  "inputType": "number",
+                  "inputType": "text",
                   "placeholder": "WW",
                   "maxLength": 2,
                   "preserveString": true,
@@ -3019,7 +3019,7 @@
                 {
                   "name": "months",
                   "title": "Months",
-                  "inputType": "number",
+                  "inputType": "text",
                   "placeholder": "MM",
                   "maxLength": 2,
                   "preserveString": true,

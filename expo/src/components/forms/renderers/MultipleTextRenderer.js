@@ -94,6 +94,12 @@ function MultipleTextItemInput({ item, itemValue, question, unknownSelected, onC
   const externalText =
     itemValue === undefined || itemValue === null || unknownSelected ? "" : String(itemValue);
   const [textValue, setTextValue] = useState(externalText);
+  const usesNumericKeyboard =
+    item.inputType === "number" ||
+    (item.validators || []).some((validator) => {
+      const regex = String(validator.regex || validator.jsonObj?.regex || "");
+      return validator.getType?.() === "numeric" || validator.type === "numeric" || /\\d|\[0-9\]/.test(regex);
+    });
 
   useEffect(() => {
     setTextValue(externalText);
@@ -104,11 +110,11 @@ function MultipleTextItemInput({ item, itemValue, question, unknownSelected, onC
       accessibilityLabel={`${question.name}.${item.name}`}
       value={textValue}
       editable={!question.isReadOnly && !unknownSelected}
-      keyboardType={item.inputType === "number" ? "numeric" : "default"}
+      keyboardType={usesNumericKeyboard ? "numeric" : "default"}
       maxLength={item.maxLength > 0 ? item.maxLength : item.jsonObj?.maxLength}
       placeholder={unknownSelected ? "" : item.placeholder}
       onChangeText={(value) => {
-        const sanitized = item.inputType === "number" ? value.replace(/[^0-9.-]/g, "") : value;
+        const sanitized = usesNumericKeyboard ? value.replace(/[^0-9.-]/g, "") : value;
         setTextValue(sanitized);
         const preserveString = item.preserveString === true || item.jsonObj?.preserveString === true;
         const nextItemValue =

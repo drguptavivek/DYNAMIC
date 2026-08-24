@@ -1,5 +1,7 @@
 # Changelog
 
+- Fixed WQ pregnancy-history Q21_i so two-digit Weeks and Months entries retain leading zeroes such as `01` and `02` while continuing to use the numeric mobile keyboard.
+- Restored WQ Section 2 Q22_i immediately after Q21_i in the native pregnancy-history flow and made its Yes response continue into a new pregnancy entry after the current entry is completed.
 - Completed the WQ Section 2 Q14_i-Q28_i instruction pass: Q20_i now displays the derived pregnancy outcome and correct child-name/date prompt, Q25_i and Q28_i use the recorded child's name and sex-specific wording, stale calculated outcomes are cleared when source answers change, and Q27_i locks the generated `00` when the child is not listed in the household.
 - Tightened HRF Q6/Q7_i handling so Q6 accepts only two digits, Q7_i is read-only and generated from the household member sequence, and Household Head ID fills from the local roster when HRF is opened from a real task.
 - Updated the Household Rounds Form to the 04 August 2026 Excel workbook sequence, including household-round details, new-woman repeat questions, Q5 No skip-to-outcome behavior, Q14_i pregnancy-tracking eligibility auto-calculation, workbook option codes, and the outcome choices.

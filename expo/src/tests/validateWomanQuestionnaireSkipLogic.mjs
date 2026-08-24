@@ -625,6 +625,9 @@ const pregnancyPluralityJson = pregnancyHistoryJson.templateElements.find(
 const pregnancyOutcomeCheckJson = pregnancyHistoryJson.templateElements.find(
   (element) => element.name === WQ_PREGNANCY_OUTCOME_FIELD
 );
+const otherPregnanciesJson = pregnancyHistoryJson.templateElements.find(
+  (element) => element.name === WQ_OTHER_PREGNANCIES_FIELD
+);
 assert.equal(pregnancyPluralityJson.sourceCode, "15_i");
 assert.equal(pregnancyPlurality.readOnly, false, "Q15_i must remain answerable");
 pregnancyPlurality.__nativePanelRowNumber = 1;
@@ -646,6 +649,17 @@ assert.match(
   "Q15_i should use next-pregnancy wording after the first repeat row"
 );
 assert.equal(pregnancyOutcomeCheckJson.sourceCode, "23_i");
+assert.equal(otherPregnanciesJson.sourceCode, "22_i");
+assert.deepEqual(
+  otherPregnanciesJson.choices.map((choice) => choice.value),
+  [1, 2],
+  "Q22_i must retain the Excel Yes and No option codes"
+);
+assert.ok(
+  pregnancyHistoryJson.templateElements.indexOf(otherPregnanciesJson)
+    < pregnancyHistoryJson.templateElements.indexOf(pregnancyOutcomeCheckJson),
+  "Q22_i must remain immediately before Q23_i in pregnancy-history order"
+);
 assert.equal(pregnancyOutcomeCheckJson.calculated, true);
 assert.equal(pregnancyOutcome.getType(), "radiogroup");
 assert.equal(pregnancyOutcomeJson.sourceType, "select_one");
@@ -679,8 +693,8 @@ assert.equal(
     panelQuestion(pregnancyPanel, WQ_OTHER_PREGNANCIES_FIELD),
     getWqMultipleBirthRow(pregnancyPanel)
   ),
-  false,
-  "Q22_i must wait until the final baby in a multiple pregnancy"
+  true,
+  "Q22_i must remain visible after Q21_i for each pregnancy-history row"
 );
 panelQuestion(pregnancyPanel, WQ_MULTIPLE_BIRTH_COUNT_FIELD).value = 3;
 panelQuestion(pregnancyPanel, WQ_MULTIPLE_BIRTH_INDEX_FIELD).value = 2;
@@ -719,7 +733,7 @@ assert.equal(
     getWqMultipleBirthRow(pregnancyPanel)
   ),
   true,
-  "Q22_i must appear after the final baby"
+  "Q22_i must remain visible after Q21_i for the final baby"
 );
 panelQuestion(pregnancyPanel, WQ_MULTIPLE_BIRTH_COUNT_FIELD).value = undefined;
 panelQuestion(pregnancyPanel, WQ_MULTIPLE_BIRTH_INDEX_FIELD).value = undefined;
@@ -728,6 +742,24 @@ assert.equal(pregnancyOutcomeDate.getType(), "multipletext");
 assert.deepEqual(pregnancyOutcomeDate.items.map((item) => item.name), ["day", "month", "year"]);
 assert.equal(pregnancyDuration.getType(), "multipletext");
 assert.deepEqual(pregnancyDuration.items.map((item) => item.name), ["weeks", "months"]);
+assert.deepEqual(
+  pregnancyDuration.items.map((item) => ({
+    inputType: item.inputType,
+    maxLength: item.maxLength,
+  })),
+  [
+    { inputType: "text", maxLength: 2 },
+    { inputType: "text", maxLength: 2 },
+  ],
+  "Q21_i weeks and months must preserve two-digit entries while using the numeric keyboard"
+);
+pregnancyDuration.value = { weeks: "01", months: "02" };
+assert.deepEqual(
+  pregnancyDuration.value,
+  { weeks: "01", months: "02" },
+  "Q21_i must retain leading zeroes in weeks and months"
+);
+pregnancyDuration.value = undefined;
 assert.equal(pregnancyDeathAge.getType(), "multipletext");
 assert.deepEqual(pregnancyDeathAge.items.map((item) => item.name), ["days", "months", "years"]);
 pregnancyOutcome.value = 2;
