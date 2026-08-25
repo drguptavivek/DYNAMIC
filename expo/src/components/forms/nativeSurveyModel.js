@@ -554,6 +554,7 @@ export function getNativeRendererKind(question) {
   const type = question.getType?.() || question.type;
   const renderAs = question.renderAs || "";
   const isWqPregnancyGapReview = question.name === WQ_OTHER_PREGNANCIES_FIELD;
+  const isWqPregnancySinceLast = question.name === WQ_PREGNANCY_FOLLOW_UP_FIELD;
   if (renderAs === "readonly_calculated_numeric") return "calculate";
   if (renderAs === "readonly_summary") return "display";
   if (renderAs === "db_check") return "db-check";
@@ -565,6 +566,9 @@ export function getNativeRendererKind(question) {
   if (renderAs === "household_member_dropdown") return "household-member-dropdown";
   if (renderAs === "wq_pregnancy_gap_review" || isWqPregnancyGapReview) {
     return "wq-pregnancy-gap-review";
+  }
+  if (renderAs === "wq_pregnancy_since_last" || isWqPregnancySinceLast) {
+    return "wq-pregnancy-since-last";
   }
   if (renderAs === "years_with_special_codes" || renderAs === "days_with_special_codes") return "select-one";
   if (type === "radiogroup") return "select-one";

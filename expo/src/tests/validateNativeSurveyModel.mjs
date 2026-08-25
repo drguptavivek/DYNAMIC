@@ -283,6 +283,14 @@ assert.ok(
   wqModel.getQuestionByName("wq_02_reproduction_have_you_had_any_pregnancies_that_ended_si"),
   "WQ Q22_i final No must have a Q22a follow-up target"
 );
+const pregnancySinceLast = wqModel.getQuestionByName(
+  "wq_02_reproduction_have_you_had_any_pregnancies_that_ended_si"
+);
+assert.equal(
+  getNativeRendererKind(pregnancySinceLast),
+  "wq-pregnancy-since-last",
+  "WQ Q22a must use the append-pregnancy renderer"
+);
 pregnancyGapReview.renderAs = "";
 assert.equal(
   getNativeRendererKind(pregnancyGapReview),

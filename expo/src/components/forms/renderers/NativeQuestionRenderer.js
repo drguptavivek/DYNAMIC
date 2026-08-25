@@ -21,6 +21,7 @@ import { SelectManyRenderer } from "./SelectManyRenderer.js";
 import { SelectOneRenderer } from "./SelectOneRenderer.js";
 import { TextRenderer } from "./TextRenderer.js";
 import { WqPregnancyGapReviewRenderer } from "./WqPregnancyGapReviewRenderer.js";
+import { WqPregnancySinceLastRenderer } from "./WqPregnancySinceLastRenderer.js";
 
 function NativeQuestionRendererBase({
   answerData,
@@ -62,6 +63,7 @@ function NativeQuestionRendererBase({
         onRequestTopLevelFocus={onRequestTopLevelFocus}
       />
     );
+    case "wq-pregnancy-since-last": return <WqPregnancySinceLastRenderer {...props} />;
     default: throw new Error(`Native renderer registry returned unknown renderer: ${renderer}`);
   }
 }

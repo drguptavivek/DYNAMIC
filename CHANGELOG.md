@@ -1,5 +1,7 @@
 # Changelog
 
+- Added the WQ Q22a append-pregnancy workflow: Yes opens Q14-Q21 for a new pregnancy at the end, refreshes both pregnancy tables, and returns to Q22a; No continues to Q22b.
+
 - Corrected WQ Section 2 follow-up order so Q22a and Q22b appear immediately after the Q22_i pregnancy-gap review, before Q23_i through Q28_i, with regression coverage for the canonical sequence.
 
 - Fixed the WQ Q22_i pregnancy-gap review so the question number is visible and the final `No` response is selectable, saved, and advances directly to Q22a.

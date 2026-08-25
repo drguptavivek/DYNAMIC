@@ -192,6 +192,7 @@ export function DynamicPanelRenderer({
       return;
     }
     const returnPageName = question.dynamicReturnPageName;
+    const returnFocusQuestionName = question.dynamicReturnFocusQuestionName;
     if (
       editorMode === "add" &&
       isWqPregnancyHistory &&
@@ -204,6 +205,7 @@ export function DynamicPanelRenderer({
     }
     question.dynamicInsertGroupPosition = undefined;
     question.dynamicReturnPageName = undefined;
+    question.dynamicReturnFocusQuestionName = undefined;
     setEditingIndex(null);
     setEditorMode(null);
     onChange?.();
@@ -212,6 +214,9 @@ export function DynamicPanelRenderer({
         const returnPage = question.survey?.getPageByName?.(returnPageName);
         if (returnPage) question.survey.currentPage = returnPage;
         onChange?.();
+        if (returnFocusQuestionName) {
+          requestAnimationFrame(() => onRequestTopLevelFocus?.(returnFocusQuestionName));
+        }
       });
     }
   }

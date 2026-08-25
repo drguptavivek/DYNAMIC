@@ -3194,6 +3194,7 @@
           "renderingHint": {
             "render_as": "radio"
           },
+          "renderAs": "wq_pregnancy_since_last",
           "validationRulesSource": [
             "ADD TO TABLE"
           ],

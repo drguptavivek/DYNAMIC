@@ -805,6 +805,19 @@ assert.equal(
   "wq_pregnancy_gap_review",
   "Q22_i must use the ordered pregnancy-gap review renderer"
 );
+const pregnancySinceLastJson = reproductionFollowUpPageJson.elements.find(
+  (element) => element.sourceCode === "22a"
+);
+assert.equal(
+  pregnancySinceLastJson.renderAs,
+  "wq_pregnancy_since_last",
+  "Q22a must append a pregnancy through its dedicated renderer"
+);
+assert.deepEqual(
+  pregnancySinceLastJson.choices.map((choice) => choice.value),
+  [1, 2],
+  "Q22a must retain the Excel Yes and No option codes"
+);
 assert.ok(
   pregnancyHistoryPageJson.elements.length === 1
     && pregnancyHistoryPageJson.elements[0] === pregnancyHistoryJson
