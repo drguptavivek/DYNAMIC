@@ -815,11 +815,11 @@ assert.deepEqual(
   reproductionFollowUpPageJson.elements
     .slice(
       reproductionFollowUpPageJson.elements.indexOf(otherPregnanciesJson),
-      reproductionFollowUpPageJson.elements.indexOf(otherPregnanciesJson) + 7
+      reproductionFollowUpPageJson.elements.indexOf(otherPregnanciesJson) + 9
     )
     .map((element) => element.sourceCode),
-  ["22_i", "23_i", "24_i", "25_i", "26_i", "27_i", "28_i"],
-  "Q22_i through Q28_i must remain outside the repeat in questionnaire order"
+  ["22_i", "22a", "22b", "23_i", "24_i", "25_i", "26_i", "27_i", "28_i"],
+  "Q22a and Q22b must follow Q22_i before Q23_i through Q28_i"
 );
 assert.equal(pregnancyOutcomeCheckJson.calculated, true);
 assert.equal(pregnancyOutcome.getType(), "radiogroup");

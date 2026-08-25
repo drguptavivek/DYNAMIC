@@ -1,5 +1,7 @@
 # Changelog
 
+- Corrected WQ Section 2 follow-up order so Q22a and Q22b appear immediately after the Q22_i pregnancy-gap review, before Q23_i through Q28_i, with regression coverage for the canonical sequence.
+
 - Fixed the WQ Q22_i pregnancy-gap review so the question number is visible and the final `No` response is selectable, saved, and advances directly to Q22a.
 
 - Fixed the WQ Q22_i pregnancy review table so twins and triplets remain separate child rows but the pregnancy label appears only once per pregnancy, avoiding a false duplicate pregnancy count.

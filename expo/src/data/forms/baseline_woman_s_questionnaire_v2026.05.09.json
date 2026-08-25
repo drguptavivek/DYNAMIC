@@ -3141,6 +3141,88 @@
         },
         {
           "type": "radiogroup",
+          "name": "wq_02_reproduction_have_you_had_any_pregnancies_that_ended_si",
+          "title": {
+            "default": "Have you had any pregnancies that ended since the last pregnancy?",
+            "hi": "",
+            "kn": "",
+            "mr": "",
+            "ta": "",
+            "te": "",
+            "ur": ""
+          },
+          "order": 40,
+          "section_order": 2,
+          "sourceCode": "22a",
+          "sourceType": "select_one",
+          "rawText": "Have you had any pregnancies that ended since the last pregnancy? 1 yes ADD TO TABLE",
+          "description": {
+            "default": "yes ADD TO TABLE",
+            "hi": "",
+            "kn": "",
+            "mr": "",
+            "ta": "",
+            "te": "",
+            "ur": ""
+          },
+          "choices": [
+            {
+              "value": 1,
+              "text": {
+                "default": "yes",
+                "hi": "",
+                "kn": "",
+                "mr": "",
+                "ta": "",
+                "te": "",
+                "ur": ""
+              }
+            },
+            {
+              "value": 2,
+              "text": {
+                "default": "no",
+                "hi": "",
+                "kn": "",
+                "mr": "",
+                "ta": "",
+                "te": "",
+                "ur": ""
+              }
+            }
+          ],
+          "renderingHint": {
+            "render_as": "radio"
+          },
+          "validationRulesSource": [
+            "ADD TO TABLE"
+          ],
+          "visibleIf": "{wq_02_reproduction_check_12} = 1",
+          "visibleIfSourceResolved": "Excel 02 row 25: no past pregnancies skips pregnancy history follow-up to Q32."
+        },
+        {
+          "type": "text",
+          "name": "wq_02_reproduction_read_the_list_of_pregnancy_outcomes_in_ord",
+          "title": {
+            "default": "READ THE LIST OF PREGNANCY OUTCOMES IN ORDER TO THE RESPONDENT AND ASK IF THEY ARE ALL THAT SHE HAS EVER HAD, AND IF THEY ARE LISTED IN ORDER STARTED FROM THE FIRST ONE.\n\nDOES THE RESPONDENT AGREE? \nIF NOT, PROBE FOR THE CORRECT INFORMATION AND REVISE THE PREGNANCY HISTORY ACCORDINGLY.",
+            "hi": "",
+            "kn": "",
+            "mr": "",
+            "ta": "",
+            "te": "",
+            "ur": ""
+          },
+          "order": 41,
+          "section_order": 2,
+          "sourceCode": "22b",
+          "sourceType": "text",
+          "rawText": "READ THE LIST OF PREGNANCY OUTCOMES IN ORDER TO THE RESPONDENT AND ASK IF THEY ARE ALL THAT SHE HAS EVER HAD, AND IF THEY ARE LISTED IN ORDER STARTED FROM THE FIRST ONE.\n\nDOES THE RESPONDENT AGREE? \nIF NOT, PROBE FOR THE CORRECT INFORMATION AND REVISE THE PREGNANCY HISTORY ACCORDINGLY.",
+          "inputType": "text",
+          "visibleIf": "{wq_02_reproduction_check_12} = 1",
+          "visibleIfSourceResolved": "Excel 02 row 25: no past pregnancies skips pregnancy history follow-up to Q32."
+        },
+        {
+          "type": "radiogroup",
           "name": "pregnancy_02_reproduction_check_16_17_and_21_if_16_i_1_or_17_i_1_the",
           "title": {
             "default": "CHECK 16, 17, and 21:\n\nIF 16_i = 1 OR 17_i = 1, THEN PREGNANCY OUTCOME = BORN ALIVE\n\nIF 16_i = 2 OR 3, THEN CHECK 21_i\n   IF 21_i  >= 7 MONTHS OR 28 WEEKS, THEN PREGNANCY OUTCOME = BORN DEAD\n   IF 21_i < 7 MONTHS OR 28 WEEKS, THEN PREGNANCY OUTCOME = MISCARRIAGE\n\nIF 16_i = 4, THEN PREGNANCY OUTCOME = ABORTION",
@@ -3151,7 +3233,7 @@
             "te": "",
             "ur": ""
           },
-          "order": 40,
+          "order": 42,
           "section_order": 2,
           "sourceCode": "23_i",
           "sourceType": "select_one",
@@ -3225,7 +3307,7 @@
             "te": "",
             "ur": ""
           },
-          "order": 41,
+          "order": 43,
           "section_order": 2,
           "sourceCode": "24_i",
           "sourceType": "select_one",
@@ -3274,7 +3356,7 @@
             "te": "",
             "ur": ""
           },
-          "order": 42,
+          "order": 44,
           "section_order": 2,
           "sourceCode": "25_i",
           "sourceType": "integer",
@@ -3316,7 +3398,7 @@
             "te": "",
             "ur": ""
           },
-          "order": 43,
+          "order": 45,
           "section_order": 2,
           "sourceCode": "26_i",
           "sourceType": "select_one",
@@ -3365,7 +3447,7 @@
             "te": "",
             "ur": ""
           },
-          "order": 44,
+          "order": 46,
           "section_order": 2,
           "sourceCode": "27_i",
           "sourceType": "integer",
@@ -3410,7 +3492,7 @@
             "te": "",
             "ur": ""
           },
-          "order": 45,
+          "order": 47,
           "section_order": 2,
           "sourceCode": "28_i",
           "sourceType": "multiple_numeric",
@@ -3476,88 +3558,6 @@
           ],
           "visibleIf": "{pregnancy_02_reproduction_check_16_17_and_21_if_16_i_1_or_17_i_1_the} = 1 and {pregnancy_02_reproduction_is_name_still_alive} = 2",
           "visibleIfSourceResolved": "Excel 02 row 56: Q28 only for born alive and now dead."
-        },
-        {
-          "type": "radiogroup",
-          "name": "wq_02_reproduction_have_you_had_any_pregnancies_that_ended_si",
-          "title": {
-            "default": "Have you had any pregnancies that ended since the last pregnancy?",
-            "hi": "",
-            "kn": "",
-            "mr": "",
-            "ta": "",
-            "te": "",
-            "ur": ""
-          },
-          "order": 46,
-          "section_order": 2,
-          "sourceCode": "22a",
-          "sourceType": "select_one",
-          "rawText": "Have you had any pregnancies that ended since the last pregnancy? 1 yes ADD TO TABLE",
-          "description": {
-            "default": "yes ADD TO TABLE",
-            "hi": "",
-            "kn": "",
-            "mr": "",
-            "ta": "",
-            "te": "",
-            "ur": ""
-          },
-          "choices": [
-            {
-              "value": 1,
-              "text": {
-                "default": "yes",
-                "hi": "",
-                "kn": "",
-                "mr": "",
-                "ta": "",
-                "te": "",
-                "ur": ""
-              }
-            },
-            {
-              "value": 2,
-              "text": {
-                "default": "no",
-                "hi": "",
-                "kn": "",
-                "mr": "",
-                "ta": "",
-                "te": "",
-                "ur": ""
-              }
-            }
-          ],
-          "renderingHint": {
-            "render_as": "radio"
-          },
-          "validationRulesSource": [
-            "ADD TO TABLE"
-          ],
-          "visibleIf": "{wq_02_reproduction_check_12} = 1",
-          "visibleIfSourceResolved": "Excel 02 row 25: no past pregnancies skips pregnancy history follow-up to Q32."
-        },
-        {
-          "type": "text",
-          "name": "wq_02_reproduction_read_the_list_of_pregnancy_outcomes_in_ord",
-          "title": {
-            "default": "READ THE LIST OF PREGNANCY OUTCOMES IN ORDER TO THE RESPONDENT AND ASK IF THEY ARE ALL THAT SHE HAS EVER HAD, AND IF THEY ARE LISTED IN ORDER STARTED FROM THE FIRST ONE.\n\nDOES THE RESPONDENT AGREE? \nIF NOT, PROBE FOR THE CORRECT INFORMATION AND REVISE THE PREGNANCY HISTORY ACCORDINGLY.",
-            "hi": "",
-            "kn": "",
-            "mr": "",
-            "ta": "",
-            "te": "",
-            "ur": ""
-          },
-          "order": 47,
-          "section_order": 2,
-          "sourceCode": "22b",
-          "sourceType": "text",
-          "rawText": "READ THE LIST OF PREGNANCY OUTCOMES IN ORDER TO THE RESPONDENT AND ASK IF THEY ARE ALL THAT SHE HAS EVER HAD, AND IF THEY ARE LISTED IN ORDER STARTED FROM THE FIRST ONE.\n\nDOES THE RESPONDENT AGREE? \nIF NOT, PROBE FOR THE CORRECT INFORMATION AND REVISE THE PREGNANCY HISTORY ACCORDINGLY.",
-          "inputType": "text",
-          "visibleIf": "{wq_02_reproduction_check_12} = 1",
-          "visibleIfSourceResolved": "Excel 02 row 25: no past pregnancies skips pregnancy history follow-up to Q32."
         },
         {
           "type": "radiogroup",
