@@ -276,6 +276,19 @@ for (const formMeta of formCatalog) {
 }
 
 const wqModel = new Model(prepareQuestionnaireSurveyJson(wq));
+const pregnancyGapReview = wqModel.getQuestionByName(
+  "pregnancy_02_reproduction_if_row_i_1_were_there_any_other_pregnancie"
+);
+assert.ok(
+  wqModel.getQuestionByName("wq_02_reproduction_have_you_had_any_pregnancies_that_ended_si"),
+  "WQ Q22_i final No must have a Q22a follow-up target"
+);
+pregnancyGapReview.renderAs = "";
+assert.equal(
+  getNativeRendererKind(pregnancyGapReview),
+  "wq-pregnancy-gap-review",
+  "WQ Q22_i must retain its pregnancy review renderer when synced metadata omits renderAs"
+);
 const womanAvailable = wqModel.getQuestionByName("wq_woman_available");
 assert.equal(womanAvailable.readOnly || womanAvailable.isReadOnly, false);
 assert.equal(getNativeRendererKind(womanAvailable), "select-one");

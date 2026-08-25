@@ -1,5 +1,17 @@
 # Changelog
 
+- Fixed the WQ Q22_i pregnancy-gap review so the question number is visible and the final `No` response is selectable, saved, and advances directly to Q22a.
+
+- Fixed the WQ Q22_i pregnancy review table so twins and triplets remain separate child rows but the pregnancy label appears only once per pregnancy, avoiding a false duplicate pregnancy count.
+
+- Fixed questionnaire screens recreating their SurveyJS model during ordinary UI state updates, which could clear restored WQ draft answers, make radio choices unresponsive, and block section navigation.
+
+- Fixed the Expo WQ Q22_i pregnancy-gap review so synced questionnaire definitions cannot replace its table-and-insert workflow with a generic radio question when older server metadata lacks the native renderer marker.
+
+- Added an ordered WQ Q22_i pregnancy-history review: it displays each pregnancy with its children, checks for missing pregnancies before or between recorded pregnancies, and inserts newly recorded pregnancies at the selected chronological position while preserving child grouping and renumbering later pregnancies.
+
+- Fixed WQ pregnancy-entry forms jumping back to the top after every radio selection or typed value; opening or advancing a pregnancy child can still focus the entry once without repeated answer-driven scrolling.
+
 - Updated WQ Q21_i to capture either completed weeks or completed months through a unit selector and one two-digit input, and opened Q14 pregnancy entry in a dedicated view that returns to the pregnancy summary tables with the selected duration displayed.
 
 - Moved the WQ Reproduction `Add pregnancy outcome` action above the submitted pregnancy tables so the next pregnancy can be started without scrolling to the bottom; other repeat-panel layouts remain unchanged.

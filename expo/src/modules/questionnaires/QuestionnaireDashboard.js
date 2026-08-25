@@ -256,7 +256,10 @@ export function QuestionnaireDashboard({
   const [sectionDrawerOpen, setSectionDrawerOpen] = useState(false);
   const { width } = useWindowDimensions();
   const compact = Platform.OS !== "web" || width < 700;
-  const form = getRuntimeFormByCode(formCode);
+  // Keep one form definition for the lifetime of this questionnaire screen.
+  // Re-cloning a cached definition on each state update recreates SurveyJS and
+  // disconnects restored answers and native input handlers from the UI.
+  const form = useMemo(() => getRuntimeFormByCode(formCode), [formCode]);
   const showForm = mode === "new";
   const draftIdRef = useRef(null);
   const restoredDraftKeyRef = useRef(null);

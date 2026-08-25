@@ -1,7 +1,7 @@
 /**
  * Renders repeat entries with a count, explicit row selection, editing, addition, and deletion.
  */
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
@@ -13,6 +13,7 @@ import {
   getWqMultipleBirthRow,
   getWqPregnancyChildSummary,
   groupWqPregnancyHistoryPanels,
+  insertLatestWqPregnancyGroupAt,
   isNativeInternalPanelField,
   reorderWqPregnancyHistoryValues,
   shouldShowWqPregnancyHistoryQuestion,
@@ -40,6 +41,8 @@ export function DynamicPanelRenderer({
   const [editingIndex, setEditingIndex] = useState(null);
   const [editorMode, setEditorMode] = useState(null);
   const [initialAddOpened, setInitialAddOpened] = useState(false);
+  const topLevelFocusRef = useRef(onRequestTopLevelFocus);
+  topLevelFocusRef.current = onRequestTopLevelFocus;
   const errors = getNativeQuestionErrors(question);
   const panels = question.panels || [];
   const committedPanels = panels
@@ -82,8 +85,8 @@ export function DynamicPanelRenderer({
 
   useEffect(() => {
     if (!isWqPregnancyHistory || editingIndex === null) return;
-    onRequestTopLevelFocus?.(question.name);
-  }, [editingIndex, isWqPregnancyHistory, onRequestTopLevelFocus, question.name]);
+    topLevelFocusRef.current?.(question.name);
+  }, [editingIndex, isWqPregnancyHistory, question.name]);
 
   function entryLabel(panel, index) {
     const memberName = panel.getQuestionByName?.("member_name")?.value;
@@ -113,6 +116,7 @@ export function DynamicPanelRenderer({
   }
 
   function startAdding() {
+    question.dynamicAddRequestToken = undefined;
     const emptyPanelIndex = panels.findIndex((panel) => !panelHasAnswer(panel));
     if (emptyPanelIndex >= 0) {
       setEditingIndex(emptyPanelIndex);
@@ -187,8 +191,29 @@ export function DynamicPanelRenderer({
       onRequestTopLevelFocus?.(question.name);
       return;
     }
+    const returnPageName = question.dynamicReturnPageName;
+    if (
+      editorMode === "add" &&
+      isWqPregnancyHistory &&
+      Number.isInteger(question.dynamicInsertGroupPosition)
+    ) {
+      question.value = insertLatestWqPregnancyGroupAt(
+        question.value,
+        question.dynamicInsertGroupPosition
+      );
+    }
+    question.dynamicInsertGroupPosition = undefined;
+    question.dynamicReturnPageName = undefined;
     setEditingIndex(null);
     setEditorMode(null);
+    onChange?.();
+    if (returnPageName) {
+      requestAnimationFrame(() => {
+        const returnPage = question.survey?.getPageByName?.(returnPageName);
+        if (returnPage) question.survey.currentPage = returnPage;
+        onChange?.();
+      });
+    }
   }
 
   if (isWqPregnancyHistory && editingIndex !== null && panels[editingIndex]) {

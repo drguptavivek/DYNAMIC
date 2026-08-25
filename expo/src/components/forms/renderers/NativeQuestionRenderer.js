@@ -20,6 +20,7 @@ import { NumberRenderer } from "./NumberRenderer.js";
 import { SelectManyRenderer } from "./SelectManyRenderer.js";
 import { SelectOneRenderer } from "./SelectOneRenderer.js";
 import { TextRenderer } from "./TextRenderer.js";
+import { WqPregnancyGapReviewRenderer } from "./WqPregnancyGapReviewRenderer.js";
 
 function NativeQuestionRendererBase({
   answerData,
@@ -55,6 +56,12 @@ function NativeQuestionRendererBase({
     case "select-many": return <SelectManyRenderer {...props} />;
     case "select-one": return <SelectOneRenderer {...props} />;
     case "text": return <TextRenderer {...props} />;
+    case "wq-pregnancy-gap-review": return (
+      <WqPregnancyGapReviewRenderer
+        {...props}
+        onRequestTopLevelFocus={onRequestTopLevelFocus}
+      />
+    );
     default: throw new Error(`Native renderer registry returned unknown renderer: ${renderer}`);
   }
 }

@@ -40,6 +40,8 @@ const NATIVE_INTERNAL_PANEL_FIELDS = new Set([
 export const WQ_PREGNANCY_HISTORY_PANEL_FIELD = "wq_pregnancy_history";
 export const WQ_OTHER_PREGNANCIES_FIELD =
   "pregnancy_02_reproduction_if_row_i_1_were_there_any_other_pregnancie";
+export const WQ_PREGNANCY_FOLLOW_UP_FIELD =
+  "wq_02_reproduction_have_you_had_any_pregnancies_that_ended_si";
 const WQ_SECTION_4_MARITAL_STATUS_CHECK_FIELD =
   "wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo";
 const WQ_SECTION_4_HUSBAND_OCCUPATION_FIELD =
@@ -386,6 +388,10 @@ export function groupWqPregnancyHistoryPanels(panels = []) {
   return groups;
 }
 
+export function getWqPregnancyReviewLabel(groupPosition, childPosition) {
+  return childPosition === 0 ? `Pregnancy ${groupPosition + 1}` : "";
+}
+
 export function reorderWqPregnancyHistoryValues(values = [], fromPosition, toPosition) {
   if (!Array.isArray(values) || values.length < 2) return values;
 
@@ -429,6 +435,25 @@ export function reorderWqPregnancyHistoryValues(values = [], fromPosition, toPos
       [WQ_PREGNANCY_GROUP_FIELD]: groupPosition + 1,
     }))
   );
+}
+
+export function insertLatestWqPregnancyGroupAt(values = [], toPosition) {
+  if (!Array.isArray(values) || values.length < 2) return values;
+
+  const groupCount = new Set(
+    values.map((row) => Number(row?.[WQ_PREGNANCY_GROUP_FIELD]) || 0)
+  ).size;
+  if (groupCount < 2) return values;
+
+  const targetPosition = Math.max(0, Math.min(groupCount - 1, Number(toPosition) || 0));
+  return reorderWqPregnancyHistoryValues(values, groupCount - 1, targetPosition);
+}
+
+export function getWqPregnancyGapPrompt(groupCount, gapPosition) {
+  if (groupCount <= 1 || gapPosition <= 0) {
+    return "Were there any other pregnancies before Pregnancy 1?";
+  }
+  return `Were there any other pregnancies between Pregnancy ${gapPosition} and Pregnancy ${gapPosition + 1}?`;
 }
 
 export function shouldShowWqPregnancyHistoryQuestion(child, multipleBirth) {
@@ -528,6 +553,7 @@ export function setNativeQuestionValue(question, value) {
 export function getNativeRendererKind(question) {
   const type = question.getType?.() || question.type;
   const renderAs = question.renderAs || "";
+  const isWqPregnancyGapReview = question.name === WQ_OTHER_PREGNANCIES_FIELD;
   if (renderAs === "readonly_calculated_numeric") return "calculate";
   if (renderAs === "readonly_summary") return "display";
   if (renderAs === "db_check") return "db-check";
@@ -537,6 +563,9 @@ export function getNativeRendererKind(question) {
   if (renderAs === "gps_decimal" || renderAs === "gps_altitude") return "gps";
   if (renderAs.startsWith("grouped_")) return "grouped-coded-single-select";
   if (renderAs === "household_member_dropdown") return "household-member-dropdown";
+  if (renderAs === "wq_pregnancy_gap_review" || isWqPregnancyGapReview) {
+    return "wq-pregnancy-gap-review";
+  }
   if (renderAs === "years_with_special_codes" || renderAs === "days_with_special_codes") return "select-one";
   if (type === "radiogroup") return "select-one";
   if (type === "checkbox") return "select-many";

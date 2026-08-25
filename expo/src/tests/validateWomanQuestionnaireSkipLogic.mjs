@@ -43,7 +43,10 @@ const {
   getPanelCommitLabel,
   getWqMultipleBirthRow,
   getWqPregnancyChildSummary,
+  getWqPregnancyGapPrompt,
+  getWqPregnancyReviewLabel,
   groupWqPregnancyHistoryPanels,
+  insertLatestWqPregnancyGroupAt,
   reorderWqPregnancyHistoryValues,
   shouldShowWqPregnancyHistoryQuestion,
   WQ_MULTIPLE_BIRTH_COUNT_FIELD,
@@ -158,6 +161,16 @@ assert.match(
   dynamicPanelRendererSource,
   /onRequestTopLevelFocus\?\.\(question\.name\)/,
   "Saving an intermediate multiple-birth child must return focus to the pregnancy-history panel"
+);
+assert.match(
+  dynamicPanelRendererSource,
+  /const topLevelFocusRef = useRef\(onRequestTopLevelFocus\)/,
+  "Pregnancy-history editor focus must use a stable callback reference"
+);
+assert.doesNotMatch(
+  dynamicPanelRendererSource,
+  /\[editingIndex,\s*isWqPregnancyHistory,\s*onRequestTopLevelFocus,/,
+  "Answer updates must not retrigger pregnancy-history editor focus"
 );
 const nativeSurveyRendererSource = fs.readFileSync(
   path.resolve(root, "../components/forms/NativeSurveyRenderer.js"),
@@ -787,6 +800,11 @@ assert.deepEqual(
   [1, 2],
   "Q22_i must retain the Excel Yes and No option codes"
 );
+assert.equal(
+  otherPregnanciesJson.renderAs,
+  "wq_pregnancy_gap_review",
+  "Q22_i must use the ordered pregnancy-gap review renderer"
+);
 assert.ok(
   pregnancyHistoryPageJson.elements.length === 1
     && pregnancyHistoryPageJson.elements[0] === pregnancyHistoryJson
@@ -923,6 +941,15 @@ assert.deepEqual(
   ],
   "Twins and triplets must remain grouped under their own pregnancy"
 );
+assert.deepEqual(
+  groupedPregnancyRows.flatMap((group, groupPosition) =>
+    group.rows.map((_, childPosition) =>
+      getWqPregnancyReviewLabel(groupPosition, childPosition)
+    )
+  ),
+  ["Pregnancy 1", "", "Pregnancy 2", "", ""],
+  "The pregnancy review must label each pregnancy once instead of presenting each baby as another pregnancy"
+);
 const reorderedPregnancyRows = reorderWqPregnancyHistoryValues(
   [
     {
@@ -955,6 +982,35 @@ assert.deepEqual(
     { group: 2, marker: "pregnancy-1-baby-2" },
   ],
   "Moving Pregnancy 2 above Pregnancy 1 must renumber both pregnancies and keep twins together"
+);
+const insertedPregnancyRows = insertLatestWqPregnancyGroupAt(
+  [
+    { marker: "pregnancy-1-baby-1", [WQ_PREGNANCY_GROUP_FIELD]: 1 },
+    { marker: "pregnancy-1-baby-2", [WQ_PREGNANCY_GROUP_FIELD]: 1 },
+    { marker: "pregnancy-2-baby-1", [WQ_PREGNANCY_GROUP_FIELD]: 2 },
+    { marker: "new-pregnancy-baby-1", [WQ_PREGNANCY_GROUP_FIELD]: 3 },
+    { marker: "new-pregnancy-baby-2", [WQ_PREGNANCY_GROUP_FIELD]: 3 },
+  ],
+  1
+);
+assert.deepEqual(
+  insertedPregnancyRows.map((row) => [row[WQ_PREGNANCY_GROUP_FIELD], row.marker]),
+  [
+    [1, "pregnancy-1-baby-1"],
+    [1, "pregnancy-1-baby-2"],
+    [2, "new-pregnancy-baby-1"],
+    [2, "new-pregnancy-baby-2"],
+    [3, "pregnancy-2-baby-1"],
+  ],
+  "A pregnancy added at a Q22_i gap must be inserted there with all children attached"
+);
+assert.equal(
+  getWqPregnancyGapPrompt(1, 0),
+  "Were there any other pregnancies before Pregnancy 1?"
+);
+assert.equal(
+  getWqPregnancyGapPrompt(3, 1),
+  "Were there any other pregnancies between Pregnancy 1 and Pregnancy 2?"
 );
 assert.deepEqual(
   getWqPregnancyChildSummary({

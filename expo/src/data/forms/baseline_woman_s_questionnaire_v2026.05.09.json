@@ -3082,6 +3082,7 @@
         {
           "type": "radiogroup",
           "name": "pregnancy_02_reproduction_if_row_i_1_were_there_any_other_pregnancie",
+          "renderAs": "wq_pregnancy_gap_review",
           "title": {
             "default": "IF ROW i = 1: were there any other pregnancies before this pregnancy?\nIF ROW i > 1: were there any other pregnancies between the previous pregnancy and this pregnancy?\nIF 15_i > 1 AND THIS IS NOT THE FIRST BIRTH OF THE PREGNANCY, SKIP TO 16_i IN THE NEXT ROW",
             "hi": "",

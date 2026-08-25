@@ -1,3 +1,10 @@
+## 2026-08-25 (dev stack start) [working]
+Goal: Start the full dev stack on this Windows host (no `make` installed).
+Decisions:
+- WinNAT excluded ranges shifted again this boot: 55432 falls in 55374-55473 and both 56379 and the prior 56279 fall in 56190-56389, so both host binds were refused. Moved both ports below the Windows dynamic range (49152+, where WinNAT never reserves): Postgres `55432` -> `45432`, Redis `56379` -> `46379`. These are reboot-stable; use `DYNAMIC_POSTGRES_PORT=45432 DYNAMIC_REDIS_PORT=46379` on every `docker compose up` and `DATABASE_URL=postgresql://dynamic:dynamic_dev_password@localhost:45432/dynamic_dev` for db-push/seed/smoke and the backend env. Edge stays `58080` (free; still inside dynamic range, may need the same treatment one day). Hardcoded `localhost:55432` in api test scripts is unaffected unless integration tests are run (they would need `TEST_DATABASE_URL` with 45432).
+- Replicated `make dev-up` targets directly again (same as 2026-08-20 entry): db-up -> db-push -> db-seed -> edge-up, then backend (3310), admin Vite (5317), Expo web (8088) as supervised `cmd.exe /c npm ...` processes.
+- Verified: db-smoke green (dev-field-worker login, 11 forms, 1 pulled task), edge `/health` ok, edge root serves DYNAMIC Admin title, Expo 8088 returns 200.
+
 ## 2026-08-22 (dev stack + local Android emulator) [working]
 Goal: Start full dev stack; set up a local Android emulator with big files on D:, small on C.
 Decisions:
