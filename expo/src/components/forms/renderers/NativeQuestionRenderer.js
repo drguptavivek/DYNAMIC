@@ -20,8 +20,10 @@ import { NumberRenderer } from "./NumberRenderer.js";
 import { SelectManyRenderer } from "./SelectManyRenderer.js";
 import { SelectOneRenderer } from "./SelectOneRenderer.js";
 import { TextRenderer } from "./TextRenderer.js";
+import { WqBornAliveChildFollowupsRenderer } from "./WqBornAliveChildFollowupsRenderer.js";
 import { WqPregnancyGapReviewRenderer } from "./WqPregnancyGapReviewRenderer.js";
 import { WqPregnancyHistoryConfirmationRenderer } from "./WqPregnancyHistoryConfirmationRenderer.js";
+import { WqPregnancyOutcomeReviewRenderer } from "./WqPregnancyOutcomeReviewRenderer.js";
 import { WqPregnancySinceLastRenderer } from "./WqPregnancySinceLastRenderer.js";
 
 function NativeQuestionRendererBase({
@@ -68,6 +70,14 @@ function NativeQuestionRendererBase({
       <WqPregnancyHistoryConfirmationRenderer
         {...props}
         onRequestTopLevelFocus={onRequestTopLevelFocus}
+      />
+    );
+    case "wq-pregnancy-outcome-review": return <WqPregnancyOutcomeReviewRenderer {...props} />;
+    case "wq-born-alive-child-followups": return (
+      <WqBornAliveChildFollowupsRenderer
+        {...props}
+        onRequestTopLevelFocus={onRequestTopLevelFocus}
+        renderQuestion={renderQuestion}
       />
     );
     case "wq-pregnancy-since-last": return <WqPregnancySinceLastRenderer {...props} />;

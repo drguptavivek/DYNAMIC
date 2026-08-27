@@ -305,6 +305,26 @@ assert.equal(
   "wq-pregnancy-history-confirmation",
   "WQ Q22b must retain its confirmation renderer when synced metadata omits renderAs"
 );
+const pregnancyOutcomeReview = wqModel.getQuestionByName(
+  "pregnancy_02_reproduction_check_16_17_and_21_if_16_i_1_or_17_i_1_the"
+);
+assert.equal(
+  getNativeRendererKind(pregnancyOutcomeReview),
+  "wq-pregnancy-outcome-review",
+  "WQ Q23_i must use the ordered child-outcome table renderer"
+);
+pregnancyOutcomeReview.renderAs = "";
+assert.equal(
+  getNativeRendererKind(pregnancyOutcomeReview),
+  "wq-pregnancy-outcome-review",
+  "WQ Q23_i must retain its outcome table when synced metadata omits renderAs"
+);
+const bornAliveChildFollowups = wqModel.getQuestionByName("wq_born_alive_child_followups");
+assert.equal(
+  getNativeRendererKind(bornAliveChildFollowups),
+  "wq-born-alive-child-followups",
+  "WQ Q24_i-Q28_i must use the fixed born-alive-child loop renderer"
+);
 pregnancyGapReview.renderAs = "";
 assert.equal(
   getNativeRendererKind(pregnancyGapReview),

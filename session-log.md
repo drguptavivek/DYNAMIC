@@ -1,12 +1,32 @@
 ## 2026-08-27 (WQ Q22b pregnancy-history confirmation) [working]
 Goal: Verify/finish the Q22b task after Codex hit its limit: ordered pregnancy+child table, Yes/No below it; Yes continues, No returns to Q14.
 Decisions:
+- Programmatic page changes now reset both native questionnaire scroll containers at the next animation frame; Q22b No therefore lands at the top of the Q14 page without manual scrolling.
 - Codex had the renderer, dispatch, and Q22b JSON choices mostly right but left two real defects: (1) it flipped `wq_enter_structure_id_woman` (read-only prefilled 11-digit ID, `sourceType: app_prefilled`) from `text` to `radiogroup` - a prefilled string ID can never render/store in a choice-less radiogroup; (2) Q22b itself was left `type: text` while its `sourceType` became `select_one`. Reverted the ID question to text, set Q22b to radiogroup.
 - Q22b No branch now mirrors the Q22a-yes precedent: clears the transient value (`setValue(name, undefined)`) then jumps `survey.currentPage` to `page_02a_pregnancy_history` (whose sole element is the Q14 `wq_pregnancy_history` panel, so landing = Q14 in both desktop and compact pager). Dropped Codex's `onRequestTopLevelFocus` rAF - stale page closure made it a guaranteed no-op across the page jump. No is never stored as the terminal answer; the revised list must be re-confirmed.
 - Tests: renderer-kind + renderAs-omitted fallback (validateNativeSurveyModel), Q22b radiogroup/choices/renderAs + structure-ID-stays-text regression guard + renderer source assertions (skip-logic), new renderer added to the WQ_* release-crash guard list. Full `npm --workspace expo test` suite green.
 - Phone APK rebuilt with the Q22b change (2m49s, assembleRelease): `D:\Android\apk\DYNAMIC-fieldapp-phone.apk` (133,341,911 bytes, md5 5854f796e0461fa67511c47ad04c2522), embedding `EXPO_PUBLIC_API_BASE_URL=http://192.168.1.51:3310/api/v1` - host LAN IP moved .81 -> .51 since the 08-22 build, so the old APK pointed at a dead URL. Applied the recorded gotcha recipe (gradle daemon --stop + %TEMP%\metro-cache* clear); verified in-bundle: .51 present, .81 absent, Q22b renderer strings present. Installed same day on the realme 5 (serial 55102a94, `adb install -r`, Success in 22s; dumpsys confirms versionCode 1 / 0.1.0, lastUpdateTime 2026-08-27 14:54) and launched; the phone initially showed up only as MTP until USB debugging was enabled/authorized. Emulator APK still the stale 08-22 build (emulator removed, left as-is).
 Open:
 - Dev stack restarted this session (hub names `backend-api`/`admin-web` - the old `backend`/`admin` hub names are stuck with unacknowledged completion notifications and refuse re-registration): Docker Desktop user-install at `$LOCALAPPDATA/Programs/DockerDesktop`; compose auto-started on default ports 55432/56379 this boot (binds happened to succeed) but was recreated on the stable 45432/46379 per the 08-25 decision; nginx edge up on 58080; backend 3310 (env per Makefile backend-up) login-verified; admin 5317 serving. Phone (realme 5) verified reaching `192.168.1.51:3310` over Wi-Fi via adb nc HTTP probe (401 = API answering).
+
+## 2026-08-27 (WQ Q23_i outcome table) [working]
+Goal: Show the ordered pregnancies and children at Q23_i with a calculated outcome for every child.
+Decisions:
+- Q23_i now uses a read-only native table; each row derives Born Alive, Born Dead, Miscarriage, or Abortion from that child's Q16_i, Q17_i, and Q21_i answers.
+- The existing calculated Q23_i stored value remains intact for compatibility; this change only expands the interviewer-facing display to all pregnancy rows.
+
+## 2026-08-27 (WQ Q24_i-Q28_i born-alive child loop) [working]
+Goal: Ask Q24_i-Q28_i once for every Q23_i Born Alive child without overwriting another child's answers.
+Decisions:
+- Runtime questionnaire preparation wraps the source Q24_i-Q28_i definitions in a fixed derived repeat; the original top-level fields remain hidden for source compatibility.
+- Loop rows are generated only from Q23_i outcome 1 and retain pregnancy/child order and per-child answers in `wq_born_alive_child_followups`.
+- Q24_i Yes shows Q25_i, Q26_i, and Q27_i; Q24_i No shows Q28_i. Q26_i No forces read-only Q27_i = `00`.
+- Correction after phone review: the renderer no longer exposes every child's questions simultaneously. It opens one eligible child editor, requires all visible branch questions, commits that child to a summary table, and advances to the next Born Alive child; table rows can be reopened for editing.
+- The data model now also retains only committed rows plus the first incomplete Born Alive child; the next child record is created only after the active child is committed.
+- Phone screenshot correction: removed duplicate top-level Q24_i-Q28_i fields, made the commit marker trigger the next ordered child, scrolls back to the loop after commit, blocks forward page navigation while any Born Alive child is uncommitted, and auto-generates read-only Q27_i in reverse sequence after the husband/partner line number.
+- Follow-up correction: Q25_i/Q28_i values normalize to two digits before validation; the renderer tracks eligible total separately from active panels, shows explicit Edit/Delete actions, and deletion clears the saved follow-up so that child returns to the ordered queue.
+- Current phone correction: commit now validates the exact visible Q24_i branch directly instead of relying on stale SurveyJS panel errors, and the generated Q27_i value is shown in a dedicated read-only box before Add child details.
+- Q27_i phone proof: reverse numbering previously clamped at `01`, causing Piku and Rohu to share `01`; allocator now wraps across the two-digit boundary (`02, 01, 00, 99, 98`) and has an exact three-child regression test.
 
 ## 2026-08-25 (dev stack start) [working]
 Goal: Start the full dev stack on this Windows host (no `make` installed).

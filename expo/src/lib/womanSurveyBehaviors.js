@@ -33,6 +33,18 @@ export const WQ_PREGNANCY_OUTCOME_FIELD = "pregnancy_02_reproduction_check_16_17
 export const WQ_PREGNANCY_CHILD_LIVING_WITH_FIELD = "pregnancy_02_reproduction_if_born_alive_and_still_living_is_name_liv";
 export const WQ_PREGNANCY_CHILD_LINE_FIELD = "pregnancy_02_reproduction_if_born_alive_and_still_living_record_hous";
 export const WQ_PREGNANCY_DEATH_AGE_FIELD = "pregnancy_02_reproduction_if_born_alive_and_now_dead_if_19_i_1_boy_h";
+export const WQ_PREGNANCY_CHILD_ALIVE_FIELD = "pregnancy_02_reproduction_is_name_still_alive";
+export const WQ_PREGNANCY_CHILD_AGE_FIELD =
+  "pregnancy_02_reproduction_if_born_alive_and_still_living_if_18_i_1_b";
+export const WQ_BORN_ALIVE_CHILD_FOLLOWUPS_FIELD = "wq_born_alive_child_followups";
+export const WQ_FOLLOWUP_PREGNANCY_INDEX_FIELD = "wq_followup_pregnancy_index";
+export const WQ_FOLLOWUP_CHILD_INDEX_FIELD = "wq_followup_child_index";
+export const WQ_FOLLOWUP_COMPLETED_FIELD = "wq_followup_completed";
+const WQ_HUSBAND_PARTNER_LINE_NUMBER_FIELD = "wq_husband_partner_line_number";
+const WQ_PREGNANCY_GROUP_FIELD = "pregnancy_02_reproduction_pregnancy_group_index";
+const WQ_MULTIPLE_BIRTH_INDEX_FIELD = "pregnancy_02_reproduction_multiple_birth_index";
+const WQ_PREGNANCY_BABY_NAME_FIELD = "pregnancy_02_reproduction_what_name_was_given_to_the_baby";
+const WQ_PREGNANCY_BABY_SEX_FIELD = "pregnancy_02_reproduction_is_name_a_boy_or_a_girl";
 export const WQ_DV_MARITAL_STATUS_CHECK_FIELD =
   "wq_05_domestic_violence_check_answer_to_marital_status_on_01_respo";
 export const WQ_DV_PHYSICAL_VIOLENCE_CHECK_FIELD =
@@ -77,7 +89,10 @@ const WQ_PREGNANCY_HISTORY_SOURCE_FIELDS = [
   WQ_PREGNANCY_SIGN_OF_LIFE_FIELD,
   WQ_PREGNANCY_DURATION_FIELD,
   WQ_PREGNANCY_CHILD_LIVING_WITH_FIELD,
+  WQ_PREGNANCY_CHILD_ALIVE_FIELD,
+  WQ_PREGNANCY_CHILD_LINE_FIELD,
   WQ_PREGNANCY_DEATH_AGE_FIELD,
+  WQ_FOLLOWUP_COMPLETED_FIELD,
 ];
 
 const WQ_DV_PHYSICAL_VIOLENCE_SOURCE_FIELDS = [
@@ -317,6 +332,15 @@ function surveyValuesEqual(a, b) {
   return String(a ?? "") === String(b ?? "");
 }
 
+function nextReverseHouseholdLineNumber(baseValue, childOffset) {
+  const base = toFiniteNumber(baseValue);
+  const start = base === null ? 0 : Math.trunc(base);
+  // Household line numbers are two-digit reverse counters. They continue
+  // through zero and wrap, for example 02 -> 01 -> 00 -> 99 -> 98.
+  const next = ((start - childOffset - 1) % 100 + 100) % 100;
+  return String(next).padStart(2, "0");
+}
+
 function defaultMultipleTextMissingKeysToZero(value, keys = []) {
   if (!value || typeof value !== "object") return value;
   const hasAnyAnswer = keys.some((key) => String(value[key] ?? "") !== "");
@@ -442,6 +466,90 @@ export function applyWqPregnancyHistoryCalculations(model) {
     : null;
   setModelValueIfChanged(model, WQ_PREGNANCY_OUTCOME_FIELD, outcome === null ? undefined : outcome);
 
+  const followupQuestion = model?.getQuestionByName?.(WQ_BORN_ALIVE_CHILD_FOLLOWUPS_FIELD);
+  if (followupQuestion) {
+    const currentRows = Array.isArray(model?.getValue?.(WQ_BORN_ALIVE_CHILD_FOLLOWUPS_FIELD))
+      ? model.getValue(WQ_BORN_ALIVE_CHILD_FOLLOWUPS_FIELD)
+      : [];
+    const currentByKey = new Map(currentRows.map((row) => [
+      `${row?.[WQ_FOLLOWUP_PREGNANCY_INDEX_FIELD]}:${row?.[WQ_FOLLOWUP_CHILD_INDEX_FIELD]}:${row?.[WQ_PREGNANCY_BABY_NAME_FIELD] || ""}`,
+      row || {},
+    ]));
+    let livingChildOffset = 0;
+    const eligibleRows = panels.flatMap((panel, panelIndex) => {
+      const childOutcome = calculateWqPregnancyHistoryOutcomeValue({
+        [WQ_PREGNANCY_BIRTH_RESULT_FIELD]: getPanelQuestionValue(panel, WQ_PREGNANCY_BIRTH_RESULT_FIELD),
+        [WQ_PREGNANCY_SIGN_OF_LIFE_FIELD]: getPanelQuestionValue(panel, WQ_PREGNANCY_SIGN_OF_LIFE_FIELD),
+        [WQ_PREGNANCY_DURATION_FIELD]: getPanelQuestionValue(panel, WQ_PREGNANCY_DURATION_FIELD),
+      });
+      if (childOutcome !== 1) return [];
+
+      const pregnancyIndex = Number(getPanelQuestionValue(panel, WQ_PREGNANCY_GROUP_FIELD)) || panelIndex + 1;
+      const childIndex = Number(getPanelQuestionValue(panel, WQ_MULTIPLE_BIRTH_INDEX_FIELD)) || 1;
+      const babyName = getPanelQuestionValue(panel, WQ_PREGNANCY_BABY_NAME_FIELD);
+      const previous = currentByKey.get(`${pregnancyIndex}:${childIndex}:${babyName || ""}`) || {};
+      const next = {
+        [WQ_FOLLOWUP_PREGNANCY_INDEX_FIELD]: pregnancyIndex,
+        [WQ_FOLLOWUP_CHILD_INDEX_FIELD]: childIndex,
+        [WQ_PREGNANCY_BABY_NAME_FIELD]: babyName,
+        [WQ_PREGNANCY_BABY_SEX_FIELD]: getPanelQuestionValue(panel, WQ_PREGNANCY_BABY_SEX_FIELD),
+      };
+      for (const fieldName of [
+        WQ_PREGNANCY_CHILD_ALIVE_FIELD,
+        WQ_PREGNANCY_CHILD_AGE_FIELD,
+        WQ_PREGNANCY_CHILD_LIVING_WITH_FIELD,
+        WQ_PREGNANCY_CHILD_LINE_FIELD,
+        WQ_PREGNANCY_DEATH_AGE_FIELD,
+        WQ_FOLLOWUP_COMPLETED_FIELD,
+      ]) {
+        if (previous[fieldName] !== undefined) next[fieldName] = previous[fieldName];
+      }
+      if (Number(next[WQ_PREGNANCY_CHILD_ALIVE_FIELD]) === 1) {
+        delete next[WQ_PREGNANCY_DEATH_AGE_FIELD];
+        if (Number(next[WQ_PREGNANCY_CHILD_LIVING_WITH_FIELD]) === 2) {
+          next[WQ_PREGNANCY_CHILD_LINE_FIELD] = "00";
+        } else {
+          next[WQ_PREGNANCY_CHILD_LINE_FIELD] = nextReverseHouseholdLineNumber(
+            model?.getValue?.(WQ_HUSBAND_PARTNER_LINE_NUMBER_FIELD),
+            livingChildOffset
+          );
+          livingChildOffset += 1;
+        }
+      } else if (Number(next[WQ_PREGNANCY_CHILD_ALIVE_FIELD]) === 2) {
+        delete next[WQ_PREGNANCY_CHILD_AGE_FIELD];
+        delete next[WQ_PREGNANCY_CHILD_LIVING_WITH_FIELD];
+        delete next[WQ_PREGNANCY_CHILD_LINE_FIELD];
+        const deathAge = next[WQ_PREGNANCY_DEATH_AGE_FIELD];
+        if (deathAge && typeof deathAge === "object") {
+          next[WQ_PREGNANCY_DEATH_AGE_FIELD] =
+            defaultMultipleTextMissingKeysToZero(deathAge, ["days", "months", "years"]);
+        }
+      }
+      return [next];
+    });
+    // Keep committed rows as the table and expose only the first unfinished
+    // Born Alive child as the active Q24_i-Q28_i editor.  In particular, do
+    // not pre-create one visible/editable panel for every eligible child.
+    const firstIncompleteIndex = eligibleRows.findIndex(
+      (row) => Number(row?.[WQ_FOLLOWUP_COMPLETED_FIELD]) !== 1
+    );
+    const nextRows = eligibleRows.filter((row, index) =>
+      Number(row?.[WQ_FOLLOWUP_COMPLETED_FIELD]) === 1 || index === firstIncompleteIndex
+    );
+    followupQuestion.wqEligibleChildCount = eligibleRows.length;
+    if (JSON.stringify(currentRows) !== JSON.stringify(nextRows)) {
+      model.setValue(WQ_BORN_ALIVE_CHILD_FOLLOWUPS_FIELD, nextRows);
+    }
+    for (const followupPanel of followupQuestion.panels || []) {
+      const livingWith = Number(getPanelQuestionValue(
+        followupPanel,
+        WQ_PREGNANCY_CHILD_LIVING_WITH_FIELD
+      ));
+      const lineQuestion = followupPanel.getQuestionByName?.(WQ_PREGNANCY_CHILD_LINE_FIELD);
+      if (lineQuestion) lineQuestion.readOnly = true;
+    }
+  }
+
   const childLineQuestion = model?.getQuestionByName?.(WQ_PREGNANCY_CHILD_LINE_FIELD);
   const childLivesWithRespondent = Number(model?.getValue?.(WQ_PREGNANCY_CHILD_LIVING_WITH_FIELD));
   if (childLineQuestion) childLineQuestion.readOnly = childLivesWithRespondent === 2;
@@ -454,6 +562,22 @@ export function applyWqPregnancyHistoryCalculations(model) {
   if (normalizedDeathAge !== deathAge) {
     setModelValueIfChanged(model, WQ_PREGNANCY_DEATH_AGE_FIELD, normalizedDeathAge);
   }
+}
+
+export function hasIncompleteWqBornAliveChildFollowups(model) {
+  const history = model?.getQuestionByName?.(WQ_PREGNANCY_HISTORY_FIELD);
+  const eligibleCount = (history?.panels || []).filter((panel) =>
+    calculateWqPregnancyHistoryOutcomeValue({
+      [WQ_PREGNANCY_BIRTH_RESULT_FIELD]: getPanelQuestionValue(panel, WQ_PREGNANCY_BIRTH_RESULT_FIELD),
+      [WQ_PREGNANCY_SIGN_OF_LIFE_FIELD]: getPanelQuestionValue(panel, WQ_PREGNANCY_SIGN_OF_LIFE_FIELD),
+      [WQ_PREGNANCY_DURATION_FIELD]: getPanelQuestionValue(panel, WQ_PREGNANCY_DURATION_FIELD),
+    }) === 1
+  ).length;
+  const followups = model?.getValue?.(WQ_BORN_ALIVE_CHILD_FOLLOWUPS_FIELD) || [];
+  const completedCount = Array.isArray(followups)
+    ? followups.filter((row) => Number(row?.[WQ_FOLLOWUP_COMPLETED_FIELD]) === 1).length
+    : 0;
+  return completedCount < eligibleCount;
 }
 
 export function requestNextWqPregnancy(model) {

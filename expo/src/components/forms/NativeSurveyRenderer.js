@@ -40,6 +40,10 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
   const questionsContainerRef = useRef(null);
   const questionRowRefsRef = useRef(new Map());
   const refreshFrameRef = useRef(null);
+  const scrollToTop = useCallback(() => {
+    compactScrollRef.current?.scrollTo?.({ animated: false, y: 0 });
+    desktopScrollRef.current?.scrollTo?.({ animated: false, y: 0 });
+  }, []);
   const refresh = useCallback(() => {
     if (refreshFrameRef.current !== null) return;
     refreshFrameRef.current = requestAnimationFrame(() => {
@@ -85,7 +89,9 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
   useEffect(() => {
     questionOffsetsRef.current = new Map();
     setQuestionIndex(0);
-  }, [page?.name]);
+    const frame = requestAnimationFrame(scrollToTop);
+    return () => cancelAnimationFrame(frame);
+  }, [page?.name, scrollToTop]);
 
   useEffect(() => {
     if (questionIndex >= visibleQuestions.length) {

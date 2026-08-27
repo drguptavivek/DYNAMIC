@@ -33,6 +33,30 @@ const WQ_OUTCOME_POSTPONED_VALUE = 3;
 const WQ_OUTCOME_INCAPACITATED_VALUE = 6;
 const WQ_OUTCOME_REFUSED_CONSENT_VALUE = 8;
 const WQ_FULL_INTERVIEW_COMPLETED_NAME = "wq_full_interview_completed";
+export const WQ_BORN_ALIVE_CHILD_FOLLOWUPS_NAME = "wq_born_alive_child_followups";
+export const WQ_FOLLOWUP_PREGNANCY_INDEX_NAME = "wq_followup_pregnancy_index";
+export const WQ_FOLLOWUP_CHILD_INDEX_NAME = "wq_followup_child_index";
+export const WQ_FOLLOWUP_COMPLETED_NAME = "wq_followup_completed";
+const WQ_PREGNANCY_BABY_NAME_NAME =
+  "pregnancy_02_reproduction_what_name_was_given_to_the_baby";
+const WQ_PREGNANCY_BABY_SEX_NAME =
+  "pregnancy_02_reproduction_is_name_a_boy_or_a_girl";
+const WQ_CHILD_ALIVE_NAME = "pregnancy_02_reproduction_is_name_still_alive";
+const WQ_CHILD_AGE_NAME =
+  "pregnancy_02_reproduction_if_born_alive_and_still_living_if_18_i_1_b";
+const WQ_CHILD_LIVING_WITH_NAME =
+  "pregnancy_02_reproduction_if_born_alive_and_still_living_is_name_liv";
+const WQ_CHILD_LINE_NAME =
+  "pregnancy_02_reproduction_if_born_alive_and_still_living_record_hous";
+const WQ_CHILD_DEATH_AGE_NAME =
+  "pregnancy_02_reproduction_if_born_alive_and_now_dead_if_19_i_1_boy_h";
+const WQ_CHILD_FOLLOWUP_NAMES = [
+  WQ_CHILD_ALIVE_NAME,
+  WQ_CHILD_AGE_NAME,
+  WQ_CHILD_LIVING_WITH_NAME,
+  WQ_CHILD_LINE_NAME,
+  WQ_CHILD_DEATH_AGE_NAME,
+];
 const WQ_OUTCOME_NO_HARD_STOP_VISIBLE_IF =
   `({${WQ_WOMAN_AVAILABLE_NAME}} empty or {${WQ_WOMAN_AVAILABLE_NAME}} = 1) and ` +
   `({${WQ_CONSENT_NAME}} empty or {${WQ_CONSENT_NAME}} != 2)`;
@@ -270,6 +294,55 @@ function applyWqOutcomeChoiceVisibility(surveyJson) {
     })),
   };
 }
+
+function applyWqBornAliveChildFollowupLoop(surveyJson) {
+  return {
+    ...surveyJson,
+    pages: surveyJson.pages.map((page) => {
+      const followupQuestions = WQ_CHILD_FOLLOWUP_NAMES
+        .map((name) => page.elements.find((element) => element.name === name))
+        .filter(Boolean);
+      if (followupQuestions.length !== WQ_CHILD_FOLLOWUP_NAMES.length) return page;
+
+      const firstIndex = page.elements.findIndex((element) => element.name === WQ_CHILD_ALIVE_NAME);
+      const panelQuestions = followupQuestions.map((element) => {
+        if (element.name === WQ_CHILD_ALIVE_NAME) return { ...element, visibleIf: undefined };
+        if (element.name === WQ_CHILD_DEATH_AGE_NAME) {
+          return { ...element, visibleIf: `{panel.${WQ_CHILD_ALIVE_NAME}} = 2` };
+        }
+        return { ...element, visibleIf: `{panel.${WQ_CHILD_ALIVE_NAME}} = 1` };
+      });
+      const loop = {
+        type: "paneldynamic",
+        name: WQ_BORN_ALIVE_CHILD_FOLLOWUPS_NAME,
+        title: "Born-alive child follow-up (Q24_i-Q28_i)",
+        description: "Complete this loop once for every child classified as Born Alive in Q23_i.",
+        minPanelCount: 0,
+        panelCount: 0,
+        renderAs: "wq_born_alive_child_followups",
+        templateElements: [
+          { type: "text", name: WQ_FOLLOWUP_PREGNANCY_INDEX_NAME, visible: false, readOnly: true },
+          { type: "text", name: WQ_FOLLOWUP_CHILD_INDEX_NAME, visible: false, readOnly: true },
+          { type: "text", name: WQ_FOLLOWUP_COMPLETED_NAME, visible: false, readOnly: true },
+          { type: "text", name: WQ_PREGNANCY_BABY_NAME_NAME, visible: false, readOnly: true },
+          { type: "text", name: WQ_PREGNANCY_BABY_SEX_NAME, visible: false, readOnly: true },
+          ...panelQuestions,
+        ],
+      };
+      // The source Q24_i-Q28_i fields now render only inside the sequential
+      // child loop. Survey Core lets visibleIf override visible=false, so an
+      // always-false expression is required to prevent duplicate top-level
+      // Q24_i-Q28_i controls while preserving their source definitions.
+      const elements = page.elements.map((element) =>
+        WQ_CHILD_FOLLOWUP_NAMES.includes(element.name)
+          ? { ...element, visible: false, visibleIf: "1 = 0" }
+          : element
+      );
+      elements.splice(firstIndex, 0, loop);
+      return { ...page, elements };
+    }),
+  };
+}
 export function normalizeQuestionnaireSurveyData(form, data) {
   if (!isHhqForm(form) || !data || typeof data !== "object") {
     return data || {};
@@ -298,6 +371,7 @@ export function prepareQuestionnaireSurveyJson(form) {
   }
   if (isWqForm(form)) {
     surveyJson = applyWqOutcomeChoiceVisibility(surveyJson);
+    surveyJson = applyWqBornAliveChildFollowupLoop(surveyJson);
   }
   return surveyJson;
 }

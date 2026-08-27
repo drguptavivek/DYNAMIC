@@ -10,6 +10,8 @@ const { prepareQuestionnaireSurveyJson } = await import(
 );
 const {
   WQ_AGE_FIELD,
+  WQ_BORN_ALIVE_CHILD_FOLLOWUPS_FIELD,
+  WQ_FOLLOWUP_COMPLETED_FIELD,
   WQ_CURRENT_MARITAL_STATUS_FIELD,
   WQ_HYSTERECTOMY_FIELD,
   WQ_LMP_MORE_THAN_SIX_MONTHS_FIELD,
@@ -17,6 +19,8 @@ const {
   WQ_NOT_PREGNANT_OR_UNSURE_FIELD,
   WQ_OTHER_PREGNANCIES_FIELD,
   WQ_PREGNANCY_BIRTH_RESULT_FIELD,
+  WQ_PREGNANCY_CHILD_ALIVE_FIELD,
+  WQ_PREGNANCY_CHILD_AGE_FIELD,
   WQ_PREGNANCY_CHILD_LINE_FIELD,
   WQ_PREGNANCY_CHILD_LIVING_WITH_FIELD,
   WQ_PREGNANCY_DEATH_AGE_FIELD,
@@ -26,6 +30,7 @@ const {
   WQ_STERILIZATION_FIELD,
   applyWqDomesticViolenceCalculations,
   applyWqPregnancyHistoryCalculations,
+  hasIncompleteWqBornAliveChildFollowups,
   applyWqReproductionSummary,
   buildWqHusbandPartnerChoices,
   calculateWqDomesticViolencePhysicalCheckValue,
@@ -47,6 +52,7 @@ const {
   getWqPregnancyReviewLabel,
   groupWqPregnancyHistoryPanels,
   insertLatestWqPregnancyGroupAt,
+  isNativeInternalPanelField,
   reorderWqPregnancyHistoryValues,
   shouldShowWqPregnancyHistoryQuestion,
   WQ_MULTIPLE_BIRTH_COUNT_FIELD,
@@ -54,6 +60,17 @@ const {
   WQ_PREGNANCY_GROUP_FIELD,
   WQ_PREGNANCY_PLURALITY_FIELD,
 } = await import("../components/forms/nativeSurveyModel.js");
+
+assert.equal(
+  isNativeInternalPanelField("pregnancy_02_reproduction_what_name_was_given_to_the_baby"),
+  false,
+  "Q18_i child name must remain visible in the Q14 pregnancy editor"
+);
+assert.equal(
+  isNativeInternalPanelField("pregnancy_02_reproduction_is_name_a_boy_or_a_girl"),
+  false,
+  "Q19_i child sex must remain visible in the Q14 pregnancy editor"
+);
 
 const pregnancyActionQuestion = { addPanelText: "Add pregnancy outcome" };
 const pregnancyActionPanel = {
@@ -181,6 +198,11 @@ assert.match(
   nativeSurveyRendererSource,
   /onRequestTopLevelFocus=\{scrollToQuestionByName\}/,
   "The native survey renderer must wire repeat-panel continuation focus to its scroll controller"
+);
+assert.match(
+  nativeSurveyRendererSource,
+  /requestAnimationFrame\(scrollToTop\)/,
+  "Every programmatic page change must reset the native questionnaire scroll position to the top"
 );
 const historyConfirmationRendererSource = fs.readFileSync(
   path.resolve(root, "../components/forms/renderers/WqPregnancyHistoryConfirmationRenderer.js"),
@@ -872,6 +894,11 @@ assert.deepEqual(
   "Q22a and Q22b must follow Q22_i before Q23_i through Q28_i"
 );
 assert.equal(pregnancyOutcomeCheckJson.calculated, true);
+assert.equal(
+  pregnancyOutcomeCheckJson.renderAs,
+  "wq_pregnancy_outcome_review",
+  "Q23_i must display the calculated outcome for every ordered pregnancy child row"
+);
 assert.equal(pregnancyOutcome.getType(), "radiogroup");
 assert.equal(pregnancyOutcomeJson.sourceType, "select_one");
 assert.deepEqual(
@@ -1086,6 +1113,7 @@ assert.deepEqual(
   {
     bornStatus: "Born Dead",
     name: "Asha",
+    outcome: "Miscarriage",
     pregnancyLasts: "08 weeks",
     sex: "Girl",
   },
@@ -1192,6 +1220,122 @@ assert.equal(
   1
 );
 assert.equal(shouldRecalculateWqPregnancyHistory(WQ_PREGNANCY_DURATION_FIELD), true);
+
+const childLoopModel = createWqModel();
+childLoopModel.setValue("wq_husband_partner_line_number", "97");
+const childLoopHistory = question(childLoopModel, "wq_pregnancy_history");
+function addChildLoopHistoryRow({ birthResult, childIndex = 1, duration, groupIndex, name, signOfLife }) {
+  childLoopHistory.addPanel();
+  const panel = childLoopHistory.panels.at(-1);
+  panel.getQuestionByName(WQ_PREGNANCY_GROUP_FIELD).value = groupIndex;
+  panel.getQuestionByName(WQ_MULTIPLE_BIRTH_INDEX_FIELD).value = childIndex;
+  panel.getQuestionByName(WQ_MULTIPLE_BIRTH_COUNT_FIELD).value = 1;
+  panel.getQuestionByName(WQ_PREGNANCY_BIRTH_RESULT_FIELD).value = birthResult;
+  panel.getQuestionByName("pregnancy_02_reproduction_what_name_was_given_to_the_baby").value = name;
+  if (signOfLife !== undefined) {
+    panel.getQuestionByName(WQ_PREGNANCY_SIGN_OF_LIFE_FIELD).value = signOfLife;
+  }
+  if (duration !== undefined) {
+    panel.getQuestionByName(WQ_PREGNANCY_DURATION_FIELD).value = duration;
+  }
+}
+addChildLoopHistoryRow({ birthResult: 1, groupIndex: 1, name: "Asha" });
+addChildLoopHistoryRow({ birthResult: 2, groupIndex: 2, name: "Ravi", signOfLife: 1 });
+addChildLoopHistoryRow({ birthResult: 2, duration: { months: "08" }, groupIndex: 3, name: "Stillborn", signOfLife: 2 });
+applyWqPregnancyHistoryCalculations(childLoopModel);
+const childLoop = question(childLoopModel, WQ_BORN_ALIVE_CHILD_FOLLOWUPS_FIELD);
+assert.equal(childLoop.panels.length, 1, "Q24_i-Q28_i must expose only the first Born Alive child");
+assert.equal(hasIncompleteWqBornAliveChildFollowups(childLoopModel), true);
+assert.deepEqual(
+  childLoop.panels.map((panel) =>
+    panel.getQuestionByName("pregnancy_02_reproduction_what_name_was_given_to_the_baby").value
+  ),
+  ["Asha"],
+  "The born-alive loop must begin with the first child in pregnancy order"
+);
+const firstChildFollowup = childLoop.panels[0];
+const firstChildAlive = firstChildFollowup.getQuestionByName(WQ_PREGNANCY_CHILD_ALIVE_FIELD);
+const firstChildAge = firstChildFollowup.getQuestionByName(WQ_PREGNANCY_CHILD_AGE_FIELD);
+const firstChildLivingWith = firstChildFollowup.getQuestionByName(WQ_PREGNANCY_CHILD_LIVING_WITH_FIELD);
+const firstChildLine = firstChildFollowup.getQuestionByName(WQ_PREGNANCY_CHILD_LINE_FIELD);
+const firstChildDeathAge = firstChildFollowup.getQuestionByName(WQ_PREGNANCY_DEATH_AGE_FIELD);
+firstChildAlive.value = 1;
+assert.equal(firstChildAge.isVisible, true, "Q24_i Yes must show Q25_i");
+assert.equal(firstChildLivingWith.isVisible, true, "Q24_i Yes must show Q26_i");
+assert.equal(firstChildLine.isVisible, true, "Q24_i Yes must show Q27_i");
+assert.equal(firstChildDeathAge.isVisible, false, "Q24_i Yes must skip Q28_i");
+firstChildLivingWith.value = 2;
+applyWqPregnancyHistoryCalculations(childLoopModel);
+assert.equal(childLoop.panels[0].getQuestionByName(WQ_PREGNANCY_CHILD_LINE_FIELD).value, "00");
+assert.equal(childLoop.panels[0].getQuestionByName(WQ_PREGNANCY_CHILD_LINE_FIELD).readOnly, true);
+childLoop.panels[0].getQuestionByName(WQ_PREGNANCY_CHILD_LIVING_WITH_FIELD).value = 1;
+applyWqPregnancyHistoryCalculations(childLoopModel);
+assert.equal(
+  childLoop.panels[0].getQuestionByName(WQ_PREGNANCY_CHILD_LINE_FIELD).value,
+  "96",
+  "The first resident child must continue after husband line 97"
+);
+childLoop.panels[0].getQuestionByName(WQ_FOLLOWUP_COMPLETED_FIELD).value = 1;
+applyWqPregnancyHistoryCalculations(childLoopModel);
+assert.equal(
+  childLoop.panels[0].getQuestionByName(WQ_FOLLOWUP_COMPLETED_FIELD).value,
+  1,
+  "Adding one child's details to the table must persist its committed state"
+);
+assert.equal(
+  childLoop.panels[0].getQuestionByName(WQ_PREGNANCY_CHILD_LINE_FIELD).readOnly,
+  true,
+  "Q27_i must be app-generated and read-only"
+);
+assert.equal(childLoop.panels.length, 2, "Saving the first child must activate exactly one next child");
+assert.equal(
+  childLoop.panels[1].getQuestionByName("pregnancy_02_reproduction_what_name_was_given_to_the_baby").value,
+  "Ravi",
+  "The next Born Alive child must open only after the prior child is committed"
+);
+const secondChildFollowup = childLoop.panels[1];
+secondChildFollowup.getQuestionByName(WQ_PREGNANCY_CHILD_ALIVE_FIELD).value = 1;
+secondChildFollowup.getQuestionByName(WQ_PREGNANCY_CHILD_LIVING_WITH_FIELD).value = 1;
+applyWqPregnancyHistoryCalculations(childLoopModel);
+assert.equal(
+  childLoop.panels[1].getQuestionByName(WQ_PREGNANCY_CHILD_LINE_FIELD).value,
+  "95",
+  "Each later resident child must receive the next distinct reverse Q27_i number"
+);
+childLoop.panels[1].getQuestionByName(WQ_FOLLOWUP_COMPLETED_FIELD).value = 1;
+applyWqPregnancyHistoryCalculations(childLoopModel);
+assert.equal(hasIncompleteWqBornAliveChildFollowups(childLoopModel), false);
+
+const wrappedChildLineModel = createWqModel();
+wrappedChildLineModel.setValue("wq_husband_partner_line_number", "02");
+const wrappedHistory = question(wrappedChildLineModel, "wq_pregnancy_history");
+for (const [index, name] of ["Piku", "Rohu", "Rk"].entries()) {
+  wrappedHistory.addPanel();
+  const panel = wrappedHistory.panels.at(-1);
+  panel.getQuestionByName(WQ_PREGNANCY_GROUP_FIELD).value = index + 1;
+  panel.getQuestionByName(WQ_MULTIPLE_BIRTH_INDEX_FIELD).value = 1;
+  panel.getQuestionByName(WQ_MULTIPLE_BIRTH_COUNT_FIELD).value = 1;
+  panel.getQuestionByName(WQ_PREGNANCY_BIRTH_RESULT_FIELD).value = 1;
+  panel.getQuestionByName("pregnancy_02_reproduction_what_name_was_given_to_the_baby").value = name;
+}
+applyWqPregnancyHistoryCalculations(wrappedChildLineModel);
+const wrappedLoop = question(wrappedChildLineModel, WQ_BORN_ALIVE_CHILD_FOLLOWUPS_FIELD);
+for (const expectedLine of ["01", "00", "99"]) {
+  const active = wrappedLoop.panels.at(-1);
+  active.getQuestionByName(WQ_PREGNANCY_CHILD_ALIVE_FIELD).value = 1;
+  active.getQuestionByName(WQ_PREGNANCY_CHILD_LIVING_WITH_FIELD).value = 1;
+  applyWqPregnancyHistoryCalculations(wrappedChildLineModel);
+  assert.equal(
+    wrappedLoop.panels.at(-1).getQuestionByName(WQ_PREGNANCY_CHILD_LINE_FIELD).value,
+    expectedLine,
+    `Reverse Q27_i numbering must allocate ${expectedLine} without repeating 01`
+  );
+  wrappedLoop.panels.at(-1).getQuestionByName(WQ_FOLLOWUP_COMPLETED_FIELD).value = 1;
+  applyWqPregnancyHistoryCalculations(wrappedChildLineModel);
+}
+childLoop.panels[0].getQuestionByName(WQ_PREGNANCY_CHILD_ALIVE_FIELD).value = 2;
+assert.equal(childLoop.panels[0].getQuestionByName(WQ_PREGNANCY_CHILD_AGE_FIELD).isVisible, false);
+assert.equal(childLoop.panels[0].getQuestionByName(WQ_PREGNANCY_DEATH_AGE_FIELD).isVisible, true, "Q24_i No must skip to Q28_i");
 
 model.setValue("wq_pregnant", 2);
 model.setValue("wq_02_reproduction_when_did_your_last_menstrual_period_start", 995);
@@ -1606,7 +1750,7 @@ assert.ok(
 );
 applyWqPregnancyHistoryCalculations(panelModel);
 panelModel.getQuestionByName("pregnancy_02_reproduction_is_name_still_alive").value = 2;
-assert.equal(diedAge.isVisible, true);
+assert.equal(diedAge.isVisible, false, "The obsolete top-level Q28_i copy must remain hidden");
 
 await import("../polyfills/surveyCoreNative.js");
 

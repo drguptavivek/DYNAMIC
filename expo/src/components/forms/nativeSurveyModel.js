@@ -10,7 +10,7 @@ const NATIVE_SURVEY_TYPES = new Set([
   "radiogroup",
   "text",
 ]);
-const WQ_PREGNANCY_BABY_NAME_FIELD = "pregnancy_02_reproduction_what_name_was_given_to_the_baby";
+export const WQ_PREGNANCY_BABY_NAME_FIELD = "pregnancy_02_reproduction_what_name_was_given_to_the_baby";
 const WQ_PREGNANCY_BABY_SEX_FIELD = "pregnancy_02_reproduction_is_name_a_boy_or_a_girl";
 const WQ_PREGNANCY_SIGN_OF_LIFE_FIELD =
   "pregnancy_02_reproduction_did_the_baby_cry_move_or_breathe";
@@ -32,10 +32,17 @@ export const WQ_MULTIPLE_BIRTH_COUNT_FIELD =
   "pregnancy_02_reproduction_multiple_birth_count";
 export const WQ_PREGNANCY_GROUP_FIELD =
   "pregnancy_02_reproduction_pregnancy_group_index";
+export const WQ_BORN_ALIVE_CHILD_FOLLOWUPS_FIELD = "wq_born_alive_child_followups";
+export const WQ_FOLLOWUP_PREGNANCY_INDEX_FIELD = "wq_followup_pregnancy_index";
+export const WQ_FOLLOWUP_CHILD_INDEX_FIELD = "wq_followup_child_index";
+export const WQ_FOLLOWUP_COMPLETED_FIELD = "wq_followup_completed";
 const NATIVE_INTERNAL_PANEL_FIELDS = new Set([
   WQ_PREGNANCY_GROUP_FIELD,
   WQ_MULTIPLE_BIRTH_INDEX_FIELD,
   WQ_MULTIPLE_BIRTH_COUNT_FIELD,
+  WQ_FOLLOWUP_PREGNANCY_INDEX_FIELD,
+  WQ_FOLLOWUP_CHILD_INDEX_FIELD,
+  WQ_FOLLOWUP_COMPLETED_FIELD,
 ]);
 export const WQ_PREGNANCY_HISTORY_PANEL_FIELD = "wq_pregnancy_history";
 export const WQ_OTHER_PREGNANCIES_FIELD =
@@ -44,6 +51,8 @@ export const WQ_PREGNANCY_FOLLOW_UP_FIELD =
   "wq_02_reproduction_have_you_had_any_pregnancies_that_ended_si";
 export const WQ_PREGNANCY_HISTORY_CONFIRMATION_FIELD =
   "wq_02_reproduction_read_the_list_of_pregnancy_outcomes_in_ord";
+export const WQ_PREGNANCY_OUTCOME_REVIEW_FIELD =
+  "pregnancy_02_reproduction_check_16_17_and_21_if_16_i_1_or_17_i_1_the";
 const WQ_SECTION_4_MARITAL_STATUS_CHECK_FIELD =
   "wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo";
 const WQ_SECTION_4_HUSBAND_OCCUPATION_FIELD =
@@ -347,9 +356,31 @@ export function getWqPregnancyChildSummary(panel) {
     4: "Abortion",
   }[outcomeCode] || "-";
   const duration = durationQuestion?.value;
+  const numericDuration = (value) => {
+    if (value === undefined || value === null || String(value).trim() === "") return null;
+    const numericValue = Number(value);
+    return Number.isFinite(numericValue) ? numericValue : null;
+  };
+  const durationWeeks = numericDuration(duration?.weeks);
+  const durationMonths = numericDuration(duration?.months);
+  const hasDuration = durationWeeks !== null || durationMonths !== null;
+  const calculatedOutcomeCode = birthResult === 1 || signOfLife === 1
+    ? 1
+    : birthResult === 4
+      ? 4
+      : (birthResult === 2 || birthResult === 3) && hasDuration
+        ? ((durationMonths !== null && durationMonths >= 7) ||
+          (durationWeeks !== null && durationWeeks >= 28) ? 2 : 3)
+        : null;
   return {
     bornStatus,
     name: name || "-",
+    outcome: {
+      1: "Born Alive",
+      2: "Born Dead",
+      3: "Miscarriage",
+      4: "Abortion",
+    }[calculatedOutcomeCode] || "-",
     pregnancyLasts: getWqPregnancyDurationSummary(duration),
     sex: sex || "-",
   };
@@ -559,6 +590,8 @@ export function getNativeRendererKind(question) {
   const isWqPregnancySinceLast = question.name === WQ_PREGNANCY_FOLLOW_UP_FIELD;
   const isWqPregnancyHistoryConfirmation =
     question.name === WQ_PREGNANCY_HISTORY_CONFIRMATION_FIELD;
+  const isWqPregnancyOutcomeReview = question.name === WQ_PREGNANCY_OUTCOME_REVIEW_FIELD;
+  const isWqBornAliveChildFollowups = question.name === WQ_BORN_ALIVE_CHILD_FOLLOWUPS_FIELD;
   if (renderAs === "readonly_calculated_numeric") return "calculate";
   if (renderAs === "readonly_summary") return "display";
   if (renderAs === "db_check") return "db-check";
@@ -579,6 +612,12 @@ export function getNativeRendererKind(question) {
     isWqPregnancyHistoryConfirmation
   ) {
     return "wq-pregnancy-history-confirmation";
+  }
+  if (renderAs === "wq_pregnancy_outcome_review" || isWqPregnancyOutcomeReview) {
+    return "wq-pregnancy-outcome-review";
+  }
+  if (renderAs === "wq_born_alive_child_followups" || isWqBornAliveChildFollowups) {
+    return "wq-born-alive-child-followups";
   }
   if (renderAs === "years_with_special_codes" || renderAs === "days_with_special_codes") return "select-one";
   if (type === "radiogroup") return "select-one";

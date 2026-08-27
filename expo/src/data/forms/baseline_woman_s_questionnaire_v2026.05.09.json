@@ -3320,7 +3320,8 @@
           },
           "readOnly": true,
           "calculated": true,
-          "calculationSource": "Automatically filled from Q16, Q17, and Q21 according to Excel Section 2 Q23."
+          "calculationSource": "Automatically filled from Q16, Q17, and Q21 according to Excel Section 2 Q23.",
+          "renderAs": "wq_pregnancy_outcome_review"
         },
         {
           "type": "radiogroup",

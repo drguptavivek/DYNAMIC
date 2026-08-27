@@ -51,6 +51,7 @@ import {
   applyWqPregnancyTrackingEligibility,
   applyWqReproductionSummary,
   buildWqHusbandPartnerChoices,
+  hasIncompleteWqBornAliveChildFollowups,
   requestNextWqPregnancy,
   shouldRecalculateWqDomesticViolence,
   shouldRecalculateWqPregnancyHistory,
@@ -569,6 +570,25 @@ export function QuestionnaireDashboard({
     });
 
     model.onCurrentPageChanging.add((sender, options) => {
+      const oldPageIndex = sender.pages.indexOf(options.oldCurrentPage);
+      const newPageIndex = sender.pages.indexOf(options.newCurrentPage);
+      if (
+        isWomanQuestionnaire(form) &&
+        newPageIndex > oldPageIndex &&
+        options.oldCurrentPage?.getQuestionByName?.("wq_born_alive_child_followups") &&
+        hasIncompleteWqBornAliveChildFollowups(sender)
+      ) {
+        options.allow = false;
+        setSaveMessage("Add details for every Born Alive child before continuing.");
+        Alert.alert(
+          "Born Alive child details incomplete",
+          "Add and save Q24_i-Q28_i for every child shown as Born Alive before continuing."
+        );
+        requestAnimationFrame(() => {
+          rendererRef.current?.focusQuestion("wq_born_alive_child_followups");
+        });
+        return;
+      }
       if (
         isHouseholdQuestionnaire(form) &&
         options.oldCurrentPage?.name === HOUSEHOLD_SCHEDULE_PAGE_NAME &&

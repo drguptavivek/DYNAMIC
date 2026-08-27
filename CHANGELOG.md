@@ -1,5 +1,21 @@
 # Changelog
 
+- Fixed Q27_i reverse household child numbering at the two-digit boundary so `02 → 01 → 00 → 99 → 98` instead of repeatedly clamping children to `01`.
+
+- Replaced generic WQ child-panel validation with explicit Q24_i-Q28_i branch validation and added a prominent live display of the automatically generated Q27_i household child number.
+
+- Fixed WQ child follow-up validation by normalizing two-digit age fields, made completion depend on the full Born Alive count, made reverse Q27_i numbers distinct, and added explicit Edit/Delete row actions.
+
+- Fixed WQ Q24_i-Q28_i sequencing so saving a child opens the next Born Alive child in order and scrolls back to Q24_i; removed the duplicate standalone Q24_i, blocked forward navigation until all Born Alive children are committed, and made Q27_i a read-only reverse-generated household line number.
+
+- Corrected the Q24_i-Q28_i Born Alive workflow to collect one child at a time, add each completed child to a summary table, and then automatically open the next eligible child; completed rows remain editable.
+
+- Added a fixed WQ Q24_i-Q28_i loop for every child classified Born Alive at Q23_i, preserving pregnancy/child order and the source skips: Q24_i Yes asks Q25_i-Q27_i, while No asks Q28_i.
+
+- Added an ordered Q23_i pregnancy/child table that calculates and displays each child's outcome as Born Alive, Born Dead, Miscarriage, or Abortion from that row's Q16_i, Q17_i, and Q21_i answers.
+
+- Fixed programmatic questionnaire page jumps so Q22b No opens the Q14 pregnancy-history page at the top instead of retaining the previous page's scroll position.
+
 - Added the WQ Q22b ordered pregnancy-and-child confirmation table: Yes continues the questionnaire, while No returns the interviewer to the editable Q14 pregnancy history.
 
 - Added the WQ Q22a append-pregnancy workflow: Yes opens Q14-Q21 for a new pregnancy at the end, refreshes both pregnancy tables, and returns to Q22a; No continues to Q22b.
