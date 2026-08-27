@@ -3202,7 +3202,7 @@
           "visibleIfSourceResolved": "Excel 02 row 25: no past pregnancies skips pregnancy history follow-up to Q32."
         },
         {
-          "type": "text",
+          "type": "radiogroup",
           "name": "wq_02_reproduction_read_the_list_of_pregnancy_outcomes_in_ord",
           "title": {
             "default": "READ THE LIST OF PREGNANCY OUTCOMES IN ORDER TO THE RESPONDENT AND ASK IF THEY ARE ALL THAT SHE HAS EVER HAD, AND IF THEY ARE LISTED IN ORDER STARTED FROM THE FIRST ONE.\n\nDOES THE RESPONDENT AGREE? \nIF NOT, PROBE FOR THE CORRECT INFORMATION AND REVISE THE PREGNANCY HISTORY ACCORDINGLY.",
@@ -3216,9 +3216,35 @@
           "order": 41,
           "section_order": 2,
           "sourceCode": "22b",
-          "sourceType": "text",
+          "sourceType": "select_one",
           "rawText": "READ THE LIST OF PREGNANCY OUTCOMES IN ORDER TO THE RESPONDENT AND ASK IF THEY ARE ALL THAT SHE HAS EVER HAD, AND IF THEY ARE LISTED IN ORDER STARTED FROM THE FIRST ONE.\n\nDOES THE RESPONDENT AGREE? \nIF NOT, PROBE FOR THE CORRECT INFORMATION AND REVISE THE PREGNANCY HISTORY ACCORDINGLY.",
-          "inputType": "text",
+          "choices": [
+            {
+              "value": 1,
+              "text": {
+                "default": "Yes",
+                "hi": "",
+                "kn": "",
+                "mr": "",
+                "ta": "",
+                "te": "",
+                "ur": ""
+              }
+            },
+            {
+              "value": 2,
+              "text": {
+                "default": "No",
+                "hi": "",
+                "kn": "",
+                "mr": "",
+                "ta": "",
+                "te": "",
+                "ur": ""
+              }
+            }
+          ],
+          "renderAs": "wq_pregnancy_history_confirmation",
           "visibleIf": "{wq_02_reproduction_check_12} = 1",
           "visibleIfSourceResolved": "Excel 02 row 25: no past pregnancies skips pregnancy history follow-up to Q32."
         },

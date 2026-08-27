@@ -1,5 +1,7 @@
 # Changelog
 
+- Added the WQ Q22b ordered pregnancy-and-child confirmation table: Yes continues the questionnaire, while No returns the interviewer to the editable Q14 pregnancy history.
+
 - Added the WQ Q22a append-pregnancy workflow: Yes opens Q14-Q21 for a new pregnancy at the end, refreshes both pregnancy tables, and returns to Q22a; No continues to Q22b.
 
 - Corrected WQ Section 2 follow-up order so Q22a and Q22b appear immediately after the Q22_i pregnancy-gap review, before Q23_i through Q28_i, with regression coverage for the canonical sequence.

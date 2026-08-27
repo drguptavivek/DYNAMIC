@@ -21,6 +21,7 @@ import { SelectManyRenderer } from "./SelectManyRenderer.js";
 import { SelectOneRenderer } from "./SelectOneRenderer.js";
 import { TextRenderer } from "./TextRenderer.js";
 import { WqPregnancyGapReviewRenderer } from "./WqPregnancyGapReviewRenderer.js";
+import { WqPregnancyHistoryConfirmationRenderer } from "./WqPregnancyHistoryConfirmationRenderer.js";
 import { WqPregnancySinceLastRenderer } from "./WqPregnancySinceLastRenderer.js";
 
 function NativeQuestionRendererBase({
@@ -59,6 +60,12 @@ function NativeQuestionRendererBase({
     case "text": return <TextRenderer {...props} />;
     case "wq-pregnancy-gap-review": return (
       <WqPregnancyGapReviewRenderer
+        {...props}
+        onRequestTopLevelFocus={onRequestTopLevelFocus}
+      />
+    );
+    case "wq-pregnancy-history-confirmation": return (
+      <WqPregnancyHistoryConfirmationRenderer
         {...props}
         onRequestTopLevelFocus={onRequestTopLevelFocus}
       />

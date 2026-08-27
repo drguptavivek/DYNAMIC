@@ -291,6 +291,20 @@ assert.equal(
   "wq-pregnancy-since-last",
   "WQ Q22a must use the append-pregnancy renderer"
 );
+const pregnancyHistoryConfirmation = wqModel.getQuestionByName(
+  "wq_02_reproduction_read_the_list_of_pregnancy_outcomes_in_ord"
+);
+assert.equal(
+  getNativeRendererKind(pregnancyHistoryConfirmation),
+  "wq-pregnancy-history-confirmation",
+  "WQ Q22b must use the ordered pregnancy-history confirmation renderer"
+);
+pregnancyHistoryConfirmation.renderAs = "";
+assert.equal(
+  getNativeRendererKind(pregnancyHistoryConfirmation),
+  "wq-pregnancy-history-confirmation",
+  "WQ Q22b must retain its confirmation renderer when synced metadata omits renderAs"
+);
 pregnancyGapReview.renderAs = "";
 assert.equal(
   getNativeRendererKind(pregnancyGapReview),

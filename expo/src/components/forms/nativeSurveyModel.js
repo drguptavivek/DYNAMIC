@@ -42,6 +42,8 @@ export const WQ_OTHER_PREGNANCIES_FIELD =
   "pregnancy_02_reproduction_if_row_i_1_were_there_any_other_pregnancie";
 export const WQ_PREGNANCY_FOLLOW_UP_FIELD =
   "wq_02_reproduction_have_you_had_any_pregnancies_that_ended_si";
+export const WQ_PREGNANCY_HISTORY_CONFIRMATION_FIELD =
+  "wq_02_reproduction_read_the_list_of_pregnancy_outcomes_in_ord";
 const WQ_SECTION_4_MARITAL_STATUS_CHECK_FIELD =
   "wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo";
 const WQ_SECTION_4_HUSBAND_OCCUPATION_FIELD =
@@ -555,6 +557,8 @@ export function getNativeRendererKind(question) {
   const renderAs = question.renderAs || "";
   const isWqPregnancyGapReview = question.name === WQ_OTHER_PREGNANCIES_FIELD;
   const isWqPregnancySinceLast = question.name === WQ_PREGNANCY_FOLLOW_UP_FIELD;
+  const isWqPregnancyHistoryConfirmation =
+    question.name === WQ_PREGNANCY_HISTORY_CONFIRMATION_FIELD;
   if (renderAs === "readonly_calculated_numeric") return "calculate";
   if (renderAs === "readonly_summary") return "display";
   if (renderAs === "db_check") return "db-check";
@@ -569,6 +573,12 @@ export function getNativeRendererKind(question) {
   }
   if (renderAs === "wq_pregnancy_since_last" || isWqPregnancySinceLast) {
     return "wq-pregnancy-since-last";
+  }
+  if (
+    renderAs === "wq_pregnancy_history_confirmation" ||
+    isWqPregnancyHistoryConfirmation
+  ) {
+    return "wq-pregnancy-history-confirmation";
   }
   if (renderAs === "years_with_special_codes" || renderAs === "days_with_special_codes") return "select-one";
   if (type === "radiogroup") return "select-one";

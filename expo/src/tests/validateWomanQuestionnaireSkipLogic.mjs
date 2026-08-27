@@ -137,6 +137,7 @@ assert.deepEqual(
 for (const relativePath of [
   "../modules/questionnaires/QuestionnaireDashboard.js",
   "../components/forms/renderers/DynamicPanelRenderer.js",
+  "../components/forms/renderers/WqPregnancyHistoryConfirmationRenderer.js",
 ]) {
   const sourcePath = path.resolve(root, relativePath);
   const source = fs.readFileSync(sourcePath, "utf8");
@@ -180,6 +181,20 @@ assert.match(
   nativeSurveyRendererSource,
   /onRequestTopLevelFocus=\{scrollToQuestionByName\}/,
   "The native survey renderer must wire repeat-panel continuation focus to its scroll controller"
+);
+const historyConfirmationRendererSource = fs.readFileSync(
+  path.resolve(root, "../components/forms/renderers/WqPregnancyHistoryConfirmationRenderer.js"),
+  "utf8"
+);
+assert.match(
+  historyConfirmationRendererSource,
+  /page_02a_pregnancy_history/,
+  "Q22b No must return the interviewer to the editable Q14 pregnancy-history page"
+);
+assert.match(
+  historyConfirmationRendererSource,
+  /setValue\?\.\(question\.name, undefined\)/,
+  "Q22b No must clear the transient disagreement so the revised list is re-confirmed"
 );
 
 function createWqModel() {
@@ -817,6 +832,28 @@ assert.deepEqual(
   pregnancySinceLastJson.choices.map((choice) => choice.value),
   [1, 2],
   "Q22a must retain the Excel Yes and No option codes"
+);
+const pregnancyHistoryConfirmationJson = reproductionFollowUpPageJson.elements.find(
+  (element) => element.sourceCode === "22b"
+);
+assert.equal(pregnancyHistoryConfirmationJson.type, "radiogroup");
+assert.equal(
+  pregnancyHistoryConfirmationJson.renderAs,
+  "wq_pregnancy_history_confirmation",
+  "Q22b must review the ordered pregnancy table through its dedicated renderer"
+);
+assert.deepEqual(
+  pregnancyHistoryConfirmationJson.choices.map((choice) => choice.value),
+  [1, 2],
+  "Q22b must retain the Excel Yes and No option codes"
+);
+const structureIdJson = wq.pages
+  .find((page) => page.name === "page_01_respondent_background")
+  .elements.find((element) => element.name === "wq_enter_structure_id_woman");
+assert.equal(
+  structureIdJson.type,
+  "text",
+  "The prefilled 11-digit structure-ID question must stay a text field so prefill writes render"
 );
 assert.ok(
   pregnancyHistoryPageJson.elements.length === 1
