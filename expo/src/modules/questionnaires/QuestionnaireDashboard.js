@@ -47,14 +47,15 @@ import {
   WQ_CURRENT_MARITAL_STATUS_FIELD,
   WQ_OTHER_PREGNANCIES_FIELD,
   applyWqDomesticViolenceCalculations,
-  applyWqPregnancyHistoryCalculations,
-  applyWqPregnancyTrackingEligibility,
-  applyWqReproductionSummary,
+  applyWqLmpTimingChecks,
+   applyWqPregnancyHistoryCalculations,
+   applyWqPregnancyTrackingEligibility,
+   applyWqReproductionSummary,
   buildWqHusbandPartnerChoices,
   hasIncompleteWqBornAliveChildFollowups,
   requestNextWqPregnancy,
   shouldRecalculateWqDomesticViolence,
-  shouldRecalculateWqPregnancyHistory,
+  shouldRecalculateWqLmpTimingChecks,
   shouldRecalculateWqPregnancyTrackingEligibility,
   shouldRecalculateWqReproductionSummary,
 } from "../../lib/womanSurveyBehaviors.js";
@@ -464,8 +465,9 @@ export function QuestionnaireDashboard({
     if (isWomanQuestionnaire(form)) {
       applyWqVisitNo(model, taskContext);
       applyWqReproductionSummary(model);
-      applyWqPregnancyHistoryCalculations(model);
-      applyWqPregnancyTrackingEligibility(model);
+       applyWqPregnancyHistoryCalculations(model);
+      applyWqLmpTimingChecks(model);
+       applyWqPregnancyTrackingEligibility(model);
       applyWqDomesticViolenceCalculations(model);
     }
 
@@ -545,6 +547,9 @@ export function QuestionnaireDashboard({
           requestAnimationFrame(() => {
             rendererRef.current?.focusQuestion("wq_pregnancy_history");
           });
+        }
+        if (shouldRecalculateWqLmpTimingChecks(options.name)) {
+          applyWqLmpTimingChecks(sender);
         }
         if (shouldRecalculateWqPregnancyTrackingEligibility(options.name)) {
           applyWqPregnancyTrackingEligibility(sender);
@@ -763,8 +768,9 @@ export function QuestionnaireDashboard({
         }
         if (isWomanQuestionnaire(form)) {
           applyWqReproductionSummary(survey);
-          applyWqPregnancyHistoryCalculations(survey);
-          applyWqPregnancyTrackingEligibility(survey);
+           applyWqPregnancyHistoryCalculations(survey);
+          applyWqLmpTimingChecks(survey);
+           applyWqPregnancyTrackingEligibility(survey);
           applyWqDomesticViolenceCalculations(survey);
           routeWqStopToOutcome(survey, { navigate: false });
         }

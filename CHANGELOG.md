@@ -1,5 +1,7 @@
 # Changelog
 
+- Made WQ Q33b (CHECK 33a) auto-calculated: the Q33a date or relative Days/Weeks/Months/Years answer is converted to days and compared against 180, storing 1 (over six months) or 2, with hysterectomy (993) skipping the check and menopause/before-last-birth/never-menstruated storing 1.
+- Made WQ Q33c (CHECK 32) auto-calculated from Q32: not-pregnant or unsure stores 1 (leading to Q34), pregnant stores 2 (skipping to Q35).
 - Made WQ Q32=Yes the authoritative trigger for a post-submission PEF task, and replaced Q33a with a mixed Date / relative-unit dropdown plus two-digit value / four special-radio control.
 
 - Fixed WQ Born Alive child details being cleared after deleting a pregnancy by linking follow-ups to a stable hidden pregnancy-row ID; only children belonging to the deleted pregnancy are now removed.

@@ -6,7 +6,9 @@ export const WQ_LMP_MORE_THAN_SIX_MONTHS_FIELD =
 export const WQ_NOT_PREGNANT_OR_UNSURE_FIELD = "wq_02_reproduction_check_32_if_not_pregnant_or_unsure";
 export const WQ_HYSTERECTOMY_FIELD = "wq_02_reproduction_some_women_undergo_an_operation_to_remove";
 export const WQ_STERILIZATION_FIELD = "wq_02_reproduction_are_you_or_your_partner_sterilized_probe_w";
-export const WQ_PREGNANCY_TRACKING_ELIGIBLE_FIELD = "wq_pregnancy_tracking_eligible";
+export const WQ_PREGNANT_FIELD = "wq_pregnant";
+export const WQ_INTERVIEW_DATE_FIELD = "wq_interview_date";
+ export const WQ_PREGNANCY_TRACKING_ELIGIBLE_FIELD = "wq_pregnancy_tracking_eligible";
 export const WQ_HUSBAND_NOT_IN_HOUSEHOLD_VALUE = "Husband not in household";
 export const WQ_EVER_GIVEN_BIRTH_FIELD = "wq_02_reproduction_now_i_would_like_to_ask_about_all_the_birt";
 export const WQ_CHILDREN_AT_HOME_FIELD = "wq_02_reproduction_do_you_have_any_sons_or_daughters_to_whom";
@@ -242,6 +244,62 @@ export function calculateWqPregnancyTrackingEligibilityValue(answers = {}) {
   return isEligible ? 1 : 2;
 }
 
+const WQ_LMP_SIX_MONTH_DAYS = 180;
+const WQ_LMP_RELATIVE_UNIT_DAYS = { days: 1, weeks: 7, months: 30, years: 365 };
+const WQ_LMP_DAY_MS = 86400000;
+
+function wqLmpReferenceDate(interviewDateValue) {
+  const match = typeof interviewDateValue === "string" ? interviewDateValue.match(/^(\d{4})-(\d{2})-(\d{2})/) : null;
+  if (match) return new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+}
+
+function wqLmpDaysAgo(lmpAnswer, referenceDate) {
+  if (!lmpAnswer || typeof lmpAnswer !== "object") return null;
+  if (lmpAnswer.mode === "date") {
+    const day = toFiniteNumber(lmpAnswer.day);
+    const month = toFiniteNumber(lmpAnswer.month);
+    const year = toFiniteNumber(lmpAnswer.year);
+    if (day === null || month === null || year === null) return null;
+    const lmpDate = new Date(Date.UTC(year, month - 1, day));
+    if (Number.isNaN(lmpDate.getTime())) return null;
+    return Math.floor((referenceDate.getTime() - lmpDate.getTime()) / WQ_LMP_DAY_MS);
+  }
+  if (lmpAnswer.mode === "relative") {
+    const amount = toFiniteNumber(lmpAnswer.value);
+    const unitDays = WQ_LMP_RELATIVE_UNIT_DAYS[lmpAnswer.unit];
+    if (amount === null || !unitDays) return null;
+    return amount * unitDays;
+  }
+  return null;
+}
+
+export function calculateWqLmpMoreThanSixMonthsValue(answers = {}) {
+  const lmpAnswer = answers[WQ_LMP_FIELD];
+  if (lmpAnswer === undefined || lmpAnswer === null || lmpAnswer === "") return null;
+  let daysAgo = null;
+  if (lmpAnswer && typeof lmpAnswer === "object") {
+    daysAgo = wqLmpDaysAgo(lmpAnswer, wqLmpReferenceDate(answers[WQ_INTERVIEW_DATE_FIELD]));
+  } else {
+    const special = toFiniteNumber(lmpAnswer);
+    // Q33a=993 (hysterectomy) skips Q33b entirely per the source skip logic.
+    if (special === 993) return null;
+    // Menopause, before-last-birth, and never-menstruated all mean the LMP
+    // was not within the last 6 months.
+    if (special === 994 || special === 995 || special === 996) return 1;
+    return null;
+  }
+  if (daysAgo === null) return null;
+  return daysAgo > WQ_LMP_SIX_MONTH_DAYS ? 1 : 2;
+}
+
+export function calculateWqNotPregnantOrUnsureValue(answers = {}) {
+  const pregnant = toFiniteNumber(answers[WQ_PREGNANT_FIELD]);
+  if (pregnant === null) return null;
+  return pregnant === 2 || pregnant === 98 ? 1 : 2;
+}
+
 export function calculateWqTotalLiveBirthsValue(answers = {}) {
   const total =
     toCount(answers[WQ_SONS_AT_HOME_FIELD]) +
@@ -463,6 +521,35 @@ export function applyWqPregnancyTrackingEligibility(model) {
     model.setValue(WQ_PREGNANCY_TRACKING_ELIGIBLE_FIELD, nextValue);
   }
   question.readOnly = true;
+}
+
+export function applyWqLmpTimingChecks(model) {
+  const checkQuestion = model?.getQuestionByName?.(WQ_LMP_MORE_THAN_SIX_MONTHS_FIELD);
+  if (!checkQuestion) return;
+  const answers = {
+    [WQ_LMP_FIELD]: model.getValue(WQ_LMP_FIELD),
+    [WQ_PREGNANT_FIELD]: model.getValue(WQ_PREGNANT_FIELD),
+    [WQ_INTERVIEW_DATE_FIELD]: model.getValue(WQ_INTERVIEW_DATE_FIELD),
+  };
+  const moreThanSixMonths = calculateWqLmpMoreThanSixMonthsValue(answers);
+  checkQuestion.readOnly = true;
+  const notPregnantQuestion = model?.getQuestionByName?.(WQ_NOT_PREGNANT_OR_UNSURE_FIELD);
+  if (notPregnantQuestion) notPregnantQuestion.readOnly = true;
+  if (moreThanSixMonths === null) {
+    setModelValueIfChanged(model, WQ_LMP_MORE_THAN_SIX_MONTHS_FIELD, undefined);
+  } else {
+    setModelValueIfChanged(model, WQ_LMP_MORE_THAN_SIX_MONTHS_FIELD, moreThanSixMonths);
+  }
+  if (moreThanSixMonths === 1) {
+    const notPregnantOrUnsure = calculateWqNotPregnantOrUnsureValue(answers);
+    setModelValueIfChanged(
+      model,
+      WQ_NOT_PREGNANT_OR_UNSURE_FIELD,
+      notPregnantOrUnsure === null ? undefined : notPregnantOrUnsure
+    );
+  } else {
+    setModelValueIfChanged(model, WQ_NOT_PREGNANT_OR_UNSURE_FIELD, undefined);
+  }
 }
 
 export function applyWqPregnancyHistoryCalculations(model) {
@@ -709,6 +796,14 @@ export function shouldRecalculateWqPregnancyTrackingEligibility(fieldName) {
     WQ_HYSTERECTOMY_FIELD,
     WQ_STERILIZATION_FIELD,
   ].includes(fieldName);
+}
+
+export function shouldRecalculateWqLmpTimingChecks(fieldName) {
+  return (
+    fieldName === WQ_LMP_FIELD ||
+    fieldName === WQ_PREGNANT_FIELD ||
+    fieldName === WQ_INTERVIEW_DATE_FIELD
+  );
 }
 
 export function shouldRecalculateWqReproductionSummary(fieldName) {

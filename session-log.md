@@ -1,3 +1,14 @@
+## 2026-08-29 (WQ Q33b/Q33c auto-checks + ship) [working]
+Goal: Auto-calculate WQ Q33b (CHECK 33a >6 months) and Q33c (CHECK 32 not-pregnant/unsure) from the mixed Q33a control; commit, push, rebuild APK, install on the phone.
+Decisions:
+- Q33b converts Q33a to days (date: interview date minus DD/MM/YYYY, relative: value x 1/7/30/365 per Days/Weeks/Months/Years Ago) and stores 1 when > 180 days, else 2. Reference date is `wq_interview_date` (falls back to today). Specials: 993 hysterectomy clears Q33b (source skip logic hides it), 994/995/996 store 1 (LMP not within 6 months). Partial dates store nothing.
+- Q33c stores 1 when Q32 is 2/98 (no/unsure) and 2 when Q32 is 1; it is cleared whenever Q33b is not 1. Both fields are read-only; values flow to the backend in answers_json exactly like Q29/Q38, and the existing JSON visibleIf routes Q33b=2 or Q33c=2 to Q35, Q33c=1 to Q34.
+- Implementation follows the Q38 convention: `calculateWq*` pure functions + `applyWqLmpTimingChecks` applier + `shouldRecalculateWqLmpTimingChecks` predicate in womanSurveyBehaviors, wired in QuestionnaireDashboard at model creation, onValueChanged (before tracking-eligibility, which consumes Q33b/Q33c), and draft restore. Skip-logic validator covers conversion boundaries (180/181 days, 99-day two-digit cap, 1 year), specials, clearing, readOnly, and Q34/Q35 routing; full expo suite green.
+- Verified the Q32/Q33a Codex work was complete (no fixes needed), committed everything as 7348b55, pushed.
+- Build blockers fixed: default JVM was 8 (set JAVA_HOME to Android Studio jbr 21); C: had 68 MB free so clang died on the reanimated PCH ("No space left on device") - moved ~/.gradle/caches (7 GB) to D:\Android\gradle\caches with a junction back; phone dropped off adb during the 13-minute build, reconnected after the user replugged. APK built, in-bundle .51 URL + Q33a renderer strings verified, installed on 55102a94, launched.
+Open:
+- None.
+
 ## 2026-08-27 (WQ Q22b pregnancy-history confirmation) [working]
 Goal: Verify/finish the Q22b task after Codex hit its limit: ordered pregnancy+child table, Yes/No below it; Yes continues, No returns to Q14.
 Decisions:

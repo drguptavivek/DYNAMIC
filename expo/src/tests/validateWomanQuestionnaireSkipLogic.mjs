@@ -30,16 +30,19 @@ const {
   WQ_PREGNANCY_SIGN_OF_LIFE_FIELD,
   WQ_REPRODUCTION_COMPARISON_RESULT_FIELD,
   WQ_STERILIZATION_FIELD,
-  applyWqDomesticViolenceCalculations,
-  applyWqPregnancyHistoryCalculations,
-  applyWqReproductionComparisonResult,
-  calculateWqReproductionComparison,
+   applyWqDomesticViolenceCalculations,
+  applyWqLmpTimingChecks,
+   applyWqPregnancyHistoryCalculations,
+   applyWqReproductionComparisonResult,
+   calculateWqReproductionComparison,
   hasIncompleteWqBornAliveChildFollowups,
   applyWqReproductionSummary,
   buildWqHusbandPartnerChoices,
-  calculateWqDomesticViolencePhysicalCheckValue,
+   calculateWqDomesticViolencePhysicalCheckValue,
   calculateWqPregnancyHistoryOutcomeValue,
-  calculateWqPregnancyTrackingEligibilityValue,
+   calculateWqPregnancyTrackingEligibilityValue,
+  calculateWqLmpMoreThanSixMonthsValue,
+  calculateWqNotPregnantOrUnsureValue,
   getWqOutsideHouseholdHusbandLineNumber,
   requestNextWqPregnancy,
   shouldRecalculateWqDomesticViolence,
@@ -1596,6 +1599,164 @@ assert.equal(
     [WQ_STERILIZATION_FIELD]: 4,
   }),
   2,
+);
+
+// Q33b converts the mixed Q33a control into days and compares against 180.
+const Q33A_INTERVIEW_DATE = { wq_interview_date: "2026-08-29" };
+assert.equal(
+  calculateWqLmpMoreThanSixMonthsValue({
+    ...Q33A_INTERVIEW_DATE,
+    [WQ_LMP_FIELD]: { mode: "date", day: "01", month: "01", year: "2026" },
+  }),
+  1,
+);
+assert.equal(
+  calculateWqLmpMoreThanSixMonthsValue({
+    ...Q33A_INTERVIEW_DATE,
+    [WQ_LMP_FIELD]: { mode: "date", day: "02", month: "03", year: "2026" },
+  }),
+  2,
+  "A Q33a date 180 days before the interview is not greater than 6 months"
+);
+assert.equal(
+  calculateWqLmpMoreThanSixMonthsValue({
+    ...Q33A_INTERVIEW_DATE,
+    [WQ_LMP_FIELD]: { mode: "date", day: "31", month: "01", year: "2026" },
+  }),
+  1,
+  "A Q33a date 181 days before the interview must store Q33b=1"
+);
+assert.equal(
+  calculateWqLmpMoreThanSixMonthsValue({
+    ...Q33A_INTERVIEW_DATE,
+    [WQ_LMP_FIELD]: { mode: "relative", unit: "months", value: "07" },
+  }),
+  1,
+  "Seven months ago (210 days) must store Q33b=1"
+);
+assert.equal(
+  calculateWqLmpMoreThanSixMonthsValue({
+    ...Q33A_INTERVIEW_DATE,
+    [WQ_LMP_FIELD]: { mode: "relative", unit: "months", value: "05" },
+  }),
+  2,
+  "Five months ago (150 days) must store Q33b=2"
+);
+assert.equal(
+  calculateWqLmpMoreThanSixMonthsValue({
+    ...Q33A_INTERVIEW_DATE,
+    [WQ_LMP_FIELD]: { mode: "relative", unit: "days", value: "99" },
+  }),
+  2,
+  "99 days ago must store Q33b=2 at the two-digit entry limit"
+);
+assert.equal(
+  calculateWqLmpMoreThanSixMonthsValue({
+    ...Q33A_INTERVIEW_DATE,
+    [WQ_LMP_FIELD]: { mode: "relative", unit: "years", value: "01" },
+  }),
+  1,
+  "One year ago (365 days) must store Q33b=1"
+);
+assert.equal(
+  calculateWqLmpMoreThanSixMonthsValue({ ...Q33A_INTERVIEW_DATE, [WQ_LMP_FIELD]: 993 }),
+  null,
+  "Q33a hysterectomy (993) skips Q33b entirely"
+);
+assert.equal(
+  calculateWqLmpMoreThanSixMonthsValue({ ...Q33A_INTERVIEW_DATE, [WQ_LMP_FIELD]: 994 }),
+  1,
+  "Q33a menopause (994) means LMP was not within 6 months"
+);
+assert.equal(
+  calculateWqLmpMoreThanSixMonthsValue({ ...Q33A_INTERVIEW_DATE, [WQ_LMP_FIELD]: 995 }),
+  1,
+  "Q33a before-last-birth (995) means LMP was not within 6 months"
+);
+assert.equal(
+  calculateWqLmpMoreThanSixMonthsValue({ ...Q33A_INTERVIEW_DATE, [WQ_LMP_FIELD]: 996 }),
+  1,
+  "Q33a never-menstruated (996) means LMP was not within 6 months"
+);
+assert.equal(
+  calculateWqLmpMoreThanSixMonthsValue({}),
+  null,
+  "An unanswered Q33a must not store Q33b"
+);
+assert.equal(
+  calculateWqLmpMoreThanSixMonthsValue({
+    ...Q33A_INTERVIEW_DATE,
+    [WQ_LMP_FIELD]: { mode: "date", day: "15", month: "", year: "2026" },
+  }),
+  null,
+  "A partially entered Q33a date must not store Q33b"
+);
+
+// Q33c mirrors Q32: not pregnant or unsure stores 1, pregnant stores 2.
+assert.equal(calculateWqNotPregnantOrUnsureValue({ wq_pregnant: 2 }), 1);
+assert.equal(calculateWqNotPregnantOrUnsureValue({ wq_pregnant: 98 }), 1);
+assert.equal(calculateWqNotPregnantOrUnsureValue({ wq_pregnant: 1 }), 2);
+assert.equal(calculateWqNotPregnantOrUnsureValue({}), null);
+
+// The dashboard applier stores both checks automatically and routes the flow.
+const lmpChecksModel = createWqModel();
+lmpChecksModel.setValue("wq_woman_available", 1);
+lmpChecksModel.setValue("wq_consent_study", 1);
+lmpChecksModel.setValue("wq_current_marital_status", 1);
+lmpChecksModel.setValue("wq_pregnancy_tracking_eligible", 1);
+lmpChecksModel.setValue("wq_interview_date", "2026-08-29");
+lmpChecksModel.setValue(
+  WQ_LMP_FIELD,
+  { mode: "date", day: "01", month: "01", year: "2026" }
+);
+applyWqLmpTimingChecks(lmpChecksModel);
+assert.equal(
+  lmpChecksModel.getValue(WQ_LMP_MORE_THAN_SIX_MONTHS_FIELD),
+  1,
+  "Q33b must be auto-stored as 1 for an LMP over 6 months ago"
+);
+assert.equal(question(lmpChecksModel, WQ_LMP_MORE_THAN_SIX_MONTHS_FIELD).readOnly, true);
+assert.equal(question(lmpChecksModel, WQ_NOT_PREGNANT_OR_UNSURE_FIELD).readOnly, true);
+assert.equal(
+  lmpChecksModel.getValue(WQ_NOT_PREGNANT_OR_UNSURE_FIELD),
+  undefined,
+  "Q33c must wait until Q32 is answered"
+);
+lmpChecksModel.setValue("wq_pregnant", 2);
+applyWqLmpTimingChecks(lmpChecksModel);
+assert.equal(lmpChecksModel.getValue(WQ_NOT_PREGNANT_OR_UNSURE_FIELD), 1);
+assert.equal(
+  isVisible(lmpChecksModel, "wq_02_reproduction_some_women_undergo_an_operation_to_remove"),
+  true,
+  "Q33b=1 with Q32=no must reach Q34"
+);
+lmpChecksModel.setValue("wq_pregnant", 1);
+applyWqLmpTimingChecks(lmpChecksModel);
+assert.equal(lmpChecksModel.getValue(WQ_NOT_PREGNANT_OR_UNSURE_FIELD), 2);
+assert.equal(
+  isVisible(lmpChecksModel, "wq_02_reproduction_some_women_undergo_an_operation_to_remove"),
+  false,
+  "Q33c=2 (pregnant) must skip Q34 and continue at Q35"
+);
+lmpChecksModel.setValue(WQ_LMP_FIELD, { mode: "relative", unit: "months", value: "05" });
+applyWqLmpTimingChecks(lmpChecksModel);
+assert.equal(lmpChecksModel.getValue(WQ_LMP_MORE_THAN_SIX_MONTHS_FIELD), 2);
+assert.equal(
+  lmpChecksModel.getValue(WQ_NOT_PREGNANT_OR_UNSURE_FIELD),
+  undefined,
+  "Q33c must be cleared when Q33b is not 1"
+);
+lmpChecksModel.setValue(WQ_LMP_FIELD, 993);
+applyWqLmpTimingChecks(lmpChecksModel);
+assert.equal(
+  lmpChecksModel.getValue(WQ_LMP_MORE_THAN_SIX_MONTHS_FIELD),
+  undefined,
+  "Q33b must be cleared for the hysterectomy special response"
+);
+assert.equal(
+  isVisible(lmpChecksModel, WQ_LMP_MORE_THAN_SIX_MONTHS_FIELD),
+  false,
+  "Q33a=993 keeps Q33b hidden per the source skip logic"
 );
 
 model.setValue("wq_03_other_health_issues_do_you_currently_have_diabetes", 2);
