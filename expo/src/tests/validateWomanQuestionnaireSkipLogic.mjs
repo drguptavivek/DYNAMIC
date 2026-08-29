@@ -156,8 +156,11 @@ assert.deepEqual(
 );
 
 // Release bundles crash at runtime (not build time) when questionnaire code
-// references an undeclared module-level identifier, so pin every WQ_* symbol
-// to a declaration or an import in the modules that coordinate WQ behavior.
+// references an undeclared module-level identifier (Metro does not scope-check
+// globals), so pin every WQ_* symbol and every WQ/HRF behavior-helper call to
+// a declaration or an import in the modules that coordinate WQ behavior.
+const WQ_HELPER_CALL_PATTERN =
+  /\b((?:shouldRecalculate|applyWq|applyHrf|applyHousehold|calculateWq|calculateHrf|requestNext|hasIncomplete|buildWq|routeWq|getWq|normalizeWq)[A-Za-z0-9]*)\s*\(/g;
 for (const relativePath of [
   "../modules/questionnaires/QuestionnaireDashboard.js",
   "../components/forms/renderers/DynamicPanelRenderer.js",
@@ -166,13 +169,23 @@ for (const relativePath of [
   const sourcePath = path.resolve(root, relativePath);
   const source = fs.readFileSync(sourcePath, "utf8");
   const declared = new Set(
-    (source.match(/(?:const|let|var|function)\s+(WQ_[A-Z0-9_]+)/g) || []).map(
+    (source.match(/(?:const|let|var|function)\s+([A-Za-z0-9_]+)/g) || []).map(
       (statement) => statement.split(/\s+/)[1]
     )
   );
-  for (const identifier of new Set(source.match(/\bWQ_[A-Z0-9_]+\b/g) || [])) {
+  for (const importClause of source.matchAll(/import\s*\{([^}]*)\}/g)) {
+    for (const name of importClause[1].split(",")) {
+      const identifier = name.trim().split(/\s+as\s+/)[0].trim();
+      if (identifier) declared.add(identifier);
+    }
+  }
+  const required = new Set(source.match(/\bWQ_[A-Z0-9_]+\b/g) || []);
+  for (const helperCall of source.matchAll(WQ_HELPER_CALL_PATTERN)) {
+    required.add(helperCall[1]);
+  }
+  for (const identifier of required) {
     assert.ok(
-      declared.has(identifier) || source.includes(`  ${identifier},`),
+      declared.has(identifier),
       `${path.basename(sourcePath)} must declare or import "${identifier}"; undeclared identifiers crash release builds`
     );
   }

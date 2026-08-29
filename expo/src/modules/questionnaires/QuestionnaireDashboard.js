@@ -54,9 +54,10 @@ import {
   buildWqHusbandPartnerChoices,
   hasIncompleteWqBornAliveChildFollowups,
   requestNextWqPregnancy,
-  shouldRecalculateWqDomesticViolence,
-  shouldRecalculateWqLmpTimingChecks,
-  shouldRecalculateWqPregnancyTrackingEligibility,
+   shouldRecalculateWqDomesticViolence,
+   shouldRecalculateWqLmpTimingChecks,
+  shouldRecalculateWqPregnancyHistory,
+   shouldRecalculateWqPregnancyTrackingEligibility,
   shouldRecalculateWqReproductionSummary,
 } from "../../lib/womanSurveyBehaviors.js";
 
