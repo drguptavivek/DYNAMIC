@@ -27,6 +27,18 @@ Decisions:
 - Follow-up correction: Q25_i/Q28_i values normalize to two digits before validation; the renderer tracks eligible total separately from active panels, shows explicit Edit/Delete actions, and deletion clears the saved follow-up so that child returns to the ordered queue.
 - Current phone correction: commit now validates the exact visible Q24_i branch directly instead of relying on stale SurveyJS panel errors, and the generated Q27_i value is shown in a dedicated read-only box before Add child details.
 - Q27_i phone proof: reverse numbering previously clamped at `01`, causing Piku and Rohu to share `01`; allocator now wraps across the two-digit boundary (`02, 01, 00, 99, 98`) and has an exact three-child regression test.
+- After second-child phone proof, Add child details now invokes follow-up reconciliation synchronously; it no longer waits indefinitely at `Preparing the next Born Alive child...` when nested marker events do not reach the top-level handler.
+- Q27_i nested-answer correction: the active editor now explicitly reconciles a missing generated line as soon as Q24_i is Born Alive and Q26_i is answered, preventing the dedicated display from remaining at `Generating...`.
+- Q27_i duplicate-00 correction: Q26_i No no longer forces every still-alive child to line `00`; the reverse allocator now advances for every still-alive child in pregnancy/child order, with regression coverage for `01 -> 00 -> 99`.
+- Added an eight-column read-only comparison table immediately above Q29: four earlier summary buckets (Q3a+3b, Q5a+5b, Q7a+7b, Q11) against matching detailed pregnancy-history buckets.
+- Layout correction: the pre-Q29 table now presents four vertical left-versus-right comparison rows instead of all eight totals in one horizontal row.
+- Total-row addition: the pre-Q29 table now sums and displays all four categories separately at the bottom of both the earlier-answer and detailed-history sections.
+- Compact-layout correction: the pre-Q29 comparison now fits the phone width with smaller type/spacing and no horizontal ScrollView; the redundant Earlier question totals / Matching detailed totals header row was removed.
+- Q29 automation: hidden/read-only Q29 stores 1 when the detailed total is >= the earlier-summary total and 2 when it is lower; the lower case shows a red warning with direct Q3/Q14 correction buttons. The runtime definition splits after Q29 so Q30 always starts the next internal reproduction page.
+- Section 2 page split: page 02b now ends before Q22b; Q22b and subsequent detailed-history checks begin page 02c; the comparison/Q29 occupies page 02d alone; Q30 continues on page 02e. All remain one logical Reproduction section.
+- WQ table density: compacted the Q14 pregnancy table, Q22_i/Q22b review tables, Q23_i outcome table, and Born Alive child-details table using smaller text, tighter rows/actions, and reduced widths; the four-column Q23_i table now fits the available width.
+- Pregnancy-delete preservation: Q14 pregnancy rows and their Born Alive follow-ups now share a hidden stable `wq_pregnancy_row_id`; reconciliation uses it instead of displayed pregnancy order, so deleting/renumbering one pregnancy removes only that pregnancy's child details and retains every other completed child row.
+- Q32/Q33a: WQ completion now creates PEF work strictly from Q32 `wq_pregnant=1` in both shared promotion and backend promotion. Q33a uses a dedicated mixed renderer: Date opens DD/MM/YYYY, Relative time opens a Days/Weeks/Months/Years Ago dropdown plus a two-digit entry, followed by the four source special radio responses.
 
 ## 2026-08-25 (dev stack start) [working]
 Goal: Start the full dev stack on this Windows host (no `make` installed).

@@ -1,5 +1,29 @@
 # Changelog
 
+- Made WQ Q32=Yes the authoritative trigger for a post-submission PEF task, and replaced Q33a with a mixed Date / relative-unit dropdown plus two-digit value / four special-radio control.
+
+- Fixed WQ Born Alive child details being cleared after deleting a pregnancy by linking follow-ups to a stable hidden pregnancy-row ID; only children belonging to the deleted pregnancy are now removed.
+
+- Compacted all WQ pregnancy/history tables with smaller fonts, tighter rows and reduced column widths so more information is visible on phone screens with substantially less scrolling.
+
+- Split WQ Section 2 so Q22b begins a new internal page and the Reproductive History comparison/Q29 occupies another dedicated page before the Q30 page.
+
+- Made WQ Q29 app-calculated from the pre-Q29 totals (`1` when detailed is greater than or equal to earlier summary, otherwise `2`), added a red re-verification warning with Q3/Q14 correction buttons, and moved Q30 to the next page.
+
+- Compacted the WQ pre-Q29 comparison table to fit the phone width without horizontal scrolling and removed its redundant second header row.
+
+- Added a final Total row to both the earlier-answer and detailed-history sides of the WQ pre-Q29 comparison table.
+
+- Fixed WQ Q27_i assigning `00` to every still-alive child whose Q26_i answer is No; all still-alive children now receive distinct reverse household numbers in pregnancy/child order.
+
+- Changed the WQ pre-Q29 reconciliation table from one eight-column row to four vertical comparison rows, each pairing the earlier total on the left with its matching detailed total on the right.
+
+- Added a live reconciliation table above WQ Q29 comparing Q3a/Q3b, Q5a/Q5b, Q7a/Q7b, and Q11 totals with matching detailed Q23_i/Q24_i/Q26_i history totals.
+
+- Fixed Q27_i remaining on `Generating...` by synchronously requesting its reverse household-line calculation after the active child's Q24_i and Q26_i answers are available.
+
+- Fixed the WQ child-loop commit race by reconciling the next ordered Born Alive child synchronously from the Add child details action.
+
 - Fixed Q27_i reverse household child numbering at the two-digit boundary so `02 → 01 → 00 → 99 → 98` instead of repeatedly clamping children to `01`.
 
 - Replaced generic WQ child-panel validation with explicit Q24_i-Q28_i branch validation and added a prominent live display of the automatically generated Q27_i household child number.

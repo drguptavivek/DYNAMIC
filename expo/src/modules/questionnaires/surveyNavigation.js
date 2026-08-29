@@ -10,6 +10,9 @@ const LOGICAL_SECTION_BY_PAGE_NAME = Object.freeze({
   page_02_reproduction: "page_02_reproduction",
   page_02a_pregnancy_history: "page_02_reproduction",
   page_02b_reproduction_follow_up: "page_02_reproduction",
+  page_02c_reproduction_confirmation: "page_02_reproduction",
+  page_02d_reproduction_comparison: "page_02_reproduction",
+  page_02e_reproduction_after_comparison: "page_02_reproduction",
 });
 
 export function getLogicalSurveySectionName(pageName) {

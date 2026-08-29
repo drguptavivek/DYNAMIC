@@ -33,10 +33,13 @@ export const WQ_MULTIPLE_BIRTH_COUNT_FIELD =
 export const WQ_PREGNANCY_GROUP_FIELD =
   "pregnancy_02_reproduction_pregnancy_group_index";
 export const WQ_BORN_ALIVE_CHILD_FOLLOWUPS_FIELD = "wq_born_alive_child_followups";
+export const WQ_REPRODUCTION_COMPARISON_FIELD = "wq_reproduction_comparison_table";
 export const WQ_FOLLOWUP_PREGNANCY_INDEX_FIELD = "wq_followup_pregnancy_index";
 export const WQ_FOLLOWUP_CHILD_INDEX_FIELD = "wq_followup_child_index";
 export const WQ_FOLLOWUP_COMPLETED_FIELD = "wq_followup_completed";
+export const WQ_PREGNANCY_ROW_ID_FIELD = "wq_pregnancy_row_id";
 const NATIVE_INTERNAL_PANEL_FIELDS = new Set([
+  WQ_PREGNANCY_ROW_ID_FIELD,
   WQ_PREGNANCY_GROUP_FIELD,
   WQ_MULTIPLE_BIRTH_INDEX_FIELD,
   WQ_MULTIPLE_BIRTH_COUNT_FIELD,
@@ -51,6 +54,8 @@ export const WQ_PREGNANCY_FOLLOW_UP_FIELD =
   "wq_02_reproduction_have_you_had_any_pregnancies_that_ended_si";
 export const WQ_PREGNANCY_HISTORY_CONFIRMATION_FIELD =
   "wq_02_reproduction_read_the_list_of_pregnancy_outcomes_in_ord";
+export const WQ_LMP_TIMING_FIELD =
+  "wq_02_reproduction_when_did_your_last_menstrual_period_start";
 export const WQ_PREGNANCY_OUTCOME_REVIEW_FIELD =
   "pregnancy_02_reproduction_check_16_17_and_21_if_16_i_1_or_17_i_1_the";
 const WQ_SECTION_4_MARITAL_STATUS_CHECK_FIELD =
@@ -592,6 +597,8 @@ export function getNativeRendererKind(question) {
     question.name === WQ_PREGNANCY_HISTORY_CONFIRMATION_FIELD;
   const isWqPregnancyOutcomeReview = question.name === WQ_PREGNANCY_OUTCOME_REVIEW_FIELD;
   const isWqBornAliveChildFollowups = question.name === WQ_BORN_ALIVE_CHILD_FOLLOWUPS_FIELD;
+  const isWqReproductionComparison = question.name === WQ_REPRODUCTION_COMPARISON_FIELD;
+  const isWqLmpTiming = question.name === WQ_LMP_TIMING_FIELD;
   if (renderAs === "readonly_calculated_numeric") return "calculate";
   if (renderAs === "readonly_summary") return "display";
   if (renderAs === "db_check") return "db-check";
@@ -619,6 +626,10 @@ export function getNativeRendererKind(question) {
   if (renderAs === "wq_born_alive_child_followups" || isWqBornAliveChildFollowups) {
     return "wq-born-alive-child-followups";
   }
+  if (renderAs === "wq_reproduction_comparison" || isWqReproductionComparison) {
+    return "wq-reproduction-comparison";
+  }
+  if (renderAs === "wq_lmp_timing" || isWqLmpTiming) return "wq-lmp-timing";
   if (renderAs === "years_with_special_codes" || renderAs === "days_with_special_codes") return "select-one";
   if (type === "radiogroup") return "select-one";
   if (type === "checkbox") return "select-many";

@@ -104,7 +104,7 @@ function triggerWq(input: FormSubmissionTriggerInput): EventPromotionResult<unkn
   return fieldEventRegistry.WQ.promoteEvidence({
     ...input,
     woman_id: requireValue(input.context?.woman_id ?? input.subject_id, "woman_id"),
-    wq_pregnant: answerTruthy(answers.wq_pregnancy_tracking_eligible),
+    wq_pregnant: answerTruthy(answers.wq_pregnant),
     completed_date: dateFrom(input, ["wq_interview_date", "wq_completed_date"]),
   });
 }

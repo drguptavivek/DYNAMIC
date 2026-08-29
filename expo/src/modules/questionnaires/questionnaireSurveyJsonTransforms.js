@@ -37,6 +37,15 @@ export const WQ_BORN_ALIVE_CHILD_FOLLOWUPS_NAME = "wq_born_alive_child_followups
 export const WQ_FOLLOWUP_PREGNANCY_INDEX_NAME = "wq_followup_pregnancy_index";
 export const WQ_FOLLOWUP_CHILD_INDEX_NAME = "wq_followup_child_index";
 export const WQ_FOLLOWUP_COMPLETED_NAME = "wq_followup_completed";
+export const WQ_PREGNANCY_ROW_ID_NAME = "wq_pregnancy_row_id";
+export const WQ_REPRODUCTION_COMPARISON_NAME = "wq_reproduction_comparison_table";
+const WQ_Q29_NAME = "wq_02_reproduction_compare_12_with_number_of_pregnancy_outcom";
+const WQ_Q30_NAME = "wq_02_reproduction_did_you_ever_experience_a_delivery_by_caes";
+const WQ_Q33A_NAME = "wq_02_reproduction_when_did_your_last_menstrual_period_start";
+const WQ_Q22B_NAME = "wq_02_reproduction_read_the_list_of_pregnancy_outcomes_in_ord";
+const WQ_Q22B_PAGE_NAME = "page_02c_reproduction_confirmation";
+const WQ_COMPARISON_PAGE_NAME = "page_02d_reproduction_comparison";
+const WQ_POST_COMPARISON_PAGE_NAME = "page_02e_reproduction_after_comparison";
 const WQ_PREGNANCY_BABY_NAME_NAME =
   "pregnancy_02_reproduction_what_name_was_given_to_the_baby";
 const WQ_PREGNANCY_BABY_SEX_NAME =
@@ -57,6 +66,7 @@ const WQ_CHILD_FOLLOWUP_NAMES = [
   WQ_CHILD_LINE_NAME,
   WQ_CHILD_DEATH_AGE_NAME,
 ];
+const WQ_PREGNANCY_HISTORY_NAME = "wq_pregnancy_history";
 const WQ_OUTCOME_NO_HARD_STOP_VISIBLE_IF =
   `({${WQ_WOMAN_AVAILABLE_NAME}} empty or {${WQ_WOMAN_AVAILABLE_NAME}} = 1) and ` +
   `({${WQ_CONSENT_NAME}} empty or {${WQ_CONSENT_NAME}} != 2)`;
@@ -321,6 +331,7 @@ function applyWqBornAliveChildFollowupLoop(surveyJson) {
         panelCount: 0,
         renderAs: "wq_born_alive_child_followups",
         templateElements: [
+          { type: "text", name: WQ_PREGNANCY_ROW_ID_NAME, visible: false, readOnly: true },
           { type: "text", name: WQ_FOLLOWUP_PREGNANCY_INDEX_NAME, visible: false, readOnly: true },
           { type: "text", name: WQ_FOLLOWUP_CHILD_INDEX_NAME, visible: false, readOnly: true },
           { type: "text", name: WQ_FOLLOWUP_COMPLETED_NAME, visible: false, readOnly: true },
@@ -340,6 +351,97 @@ function applyWqBornAliveChildFollowupLoop(surveyJson) {
       );
       elements.splice(firstIndex, 0, loop);
       return { ...page, elements };
+    }),
+  };
+}
+
+function addWqStablePregnancyRowId(surveyJson) {
+  return {
+    ...surveyJson,
+    pages: surveyJson.pages.map((page) => ({
+      ...page,
+      elements: page.elements.map((element) => {
+        if (
+          element.name !== WQ_PREGNANCY_HISTORY_NAME ||
+          !Array.isArray(element.templateElements) ||
+          element.templateElements.some((child) => child.name === WQ_PREGNANCY_ROW_ID_NAME)
+        ) {
+          return element;
+        }
+        return {
+          ...element,
+          templateElements: [
+            { type: "text", name: WQ_PREGNANCY_ROW_ID_NAME, visible: false, readOnly: true },
+            ...element.templateElements,
+          ],
+        };
+      }),
+    })),
+  };
+}
+
+function markWqLmpTimingControl(surveyJson) {
+  return {
+    ...surveyJson,
+    pages: surveyJson.pages.map((page) => ({
+      ...page,
+      elements: page.elements.map((element) =>
+        element.name === WQ_Q33A_NAME
+          ? { ...element, renderAs: "wq_lmp_timing" }
+          : element
+      ),
+    })),
+  };
+}
+
+function applyWqReproductionComparisonTable(surveyJson) {
+  return {
+    ...surveyJson,
+    pages: surveyJson.pages.flatMap((page) => {
+      const q29Index = page.elements.findIndex((element) => element.name === WQ_Q29_NAME);
+      if (q29Index < 0) return [page];
+      const elements = [...page.elements];
+      elements.splice(q29Index, 0, {
+        type: "html",
+        name: WQ_REPRODUCTION_COMPARISON_NAME,
+        title: "Reproductive history comparison",
+        html: "Reproductive history comparison",
+        renderAs: "wq_reproduction_comparison",
+        visibleIf: page.elements[q29Index].visibleIf,
+      });
+      const transformedQ29Index = q29Index + 1;
+      elements[transformedQ29Index] = {
+        ...elements[transformedQ29Index],
+        readOnly: true,
+        visible: false,
+        visibleIf: "1 = 0",
+      };
+      const q22bIndex = elements.findIndex((element) => element.name === WQ_Q22B_NAME);
+      const comparisonIndex = elements.findIndex(
+        (element) => element.name === WQ_REPRODUCTION_COMPARISON_NAME
+      );
+      const q30Index = elements.findIndex((element) => element.name === WQ_Q30_NAME);
+      if (q22bIndex < 0 || comparisonIndex < 0 || q30Index < 0) {
+        return [{ ...page, elements }];
+      }
+      return [
+        { ...page, elements: elements.slice(0, q22bIndex) },
+        {
+          ...page,
+          name: WQ_Q22B_PAGE_NAME,
+          elements: elements.slice(q22bIndex, comparisonIndex),
+        },
+        {
+          ...page,
+          name: WQ_COMPARISON_PAGE_NAME,
+          elements: elements.slice(comparisonIndex, q30Index),
+        },
+        {
+          ...page,
+          name: WQ_POST_COMPARISON_PAGE_NAME,
+          elements: elements.slice(q30Index),
+        },
+      ];
     }),
   };
 }
@@ -371,7 +473,10 @@ export function prepareQuestionnaireSurveyJson(form) {
   }
   if (isWqForm(form)) {
     surveyJson = applyWqOutcomeChoiceVisibility(surveyJson);
+    surveyJson = addWqStablePregnancyRowId(surveyJson);
     surveyJson = applyWqBornAliveChildFollowupLoop(surveyJson);
+    surveyJson = applyWqReproductionComparisonTable(surveyJson);
+    surveyJson = markWqLmpTimingControl(surveyJson);
   }
   return surveyJson;
 }

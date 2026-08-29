@@ -24,6 +24,8 @@ import { WqBornAliveChildFollowupsRenderer } from "./WqBornAliveChildFollowupsRe
 import { WqPregnancyGapReviewRenderer } from "./WqPregnancyGapReviewRenderer.js";
 import { WqPregnancyHistoryConfirmationRenderer } from "./WqPregnancyHistoryConfirmationRenderer.js";
 import { WqPregnancyOutcomeReviewRenderer } from "./WqPregnancyOutcomeReviewRenderer.js";
+import { WqReproductionComparisonRenderer } from "./WqReproductionComparisonRenderer.js";
+import { WqLmpTimingRenderer } from "./WqLmpTimingRenderer.js";
 import { WqPregnancySinceLastRenderer } from "./WqPregnancySinceLastRenderer.js";
 
 function NativeQuestionRendererBase({
@@ -73,6 +75,13 @@ function NativeQuestionRendererBase({
       />
     );
     case "wq-pregnancy-outcome-review": return <WqPregnancyOutcomeReviewRenderer {...props} />;
+    case "wq-reproduction-comparison": return (
+      <WqReproductionComparisonRenderer
+        {...props}
+        onRequestTopLevelFocus={onRequestTopLevelFocus}
+      />
+    );
+    case "wq-lmp-timing": return <WqLmpTimingRenderer {...props} />;
     case "wq-born-alive-child-followups": return (
       <WqBornAliveChildFollowupsRenderer
         {...props}

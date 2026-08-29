@@ -1,6 +1,6 @@
 /** Renders Q23_i as an ordered child table with a calculated outcome per row. */
 import React, { useMemo } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 
 import {
   getWqPregnancyChildSummary,
@@ -18,43 +18,41 @@ export function WqPregnancyOutcomeReviewRenderer({ locale, question }) {
 
   return (
     <QuestionFrame locale={locale} question={question}>
-      <ScrollView horizontal nestedScrollEnabled showsHorizontalScrollIndicator>
-        <View style={styles.table}>
-          <View style={[styles.row, styles.headerRow]}>
-            <Text style={[styles.headerText, styles.pregnancyCell]}>Pregnancy</Text>
-            <Text style={[styles.headerText, styles.serialCell]}>S.No.</Text>
-            <Text style={[styles.headerText, styles.nameCell]}>Name of child</Text>
-            <Text style={[styles.headerText, styles.outcomeCell]}>Outcome</Text>
-          </View>
-          {groups.flatMap((group, groupIndex) =>
-            group.rows.map(({ panel }, childIndex) => {
-              const child = getWqPregnancyChildSummary(panel);
-              return (
-                <View key={`${group.groupIndex}-${childIndex}`} style={styles.row}>
-                  <Text style={[styles.cellText, styles.pregnancyCell]}>
-                    {childIndex === 0 ? `Pregnancy ${groupIndex + 1}` : ""}
-                  </Text>
-                  <Text style={[styles.cellText, styles.serialCell]}>{childIndex + 1}</Text>
-                  <Text style={[styles.cellText, styles.nameCell]}>{child.name}</Text>
-                  <Text style={[styles.cellText, styles.outcomeCell]}>{child.outcome}</Text>
-                </View>
-              );
-            })
-          )}
+      <View style={styles.table}>
+        <View style={[styles.row, styles.headerRow]}>
+          <Text style={[styles.headerText, styles.pregnancyCell]}>Pregnancy</Text>
+          <Text style={[styles.headerText, styles.serialCell]}>No.</Text>
+          <Text style={[styles.headerText, styles.nameCell]}>Child</Text>
+          <Text style={[styles.headerText, styles.outcomeCell]}>Outcome</Text>
         </View>
-      </ScrollView>
+        {groups.flatMap((group, groupIndex) =>
+          group.rows.map(({ panel }, childIndex) => {
+            const child = getWqPregnancyChildSummary(panel);
+            return (
+              <View key={`${group.groupIndex}-${childIndex}`} style={styles.row}>
+                <Text style={[styles.cellText, styles.pregnancyCell]}>
+                  {childIndex === 0 ? `Preg. ${groupIndex + 1}` : ""}
+                </Text>
+                <Text style={[styles.cellText, styles.serialCell]}>{childIndex + 1}</Text>
+                <Text style={[styles.cellText, styles.nameCell]}>{child.name}</Text>
+                <Text style={[styles.cellText, styles.outcomeCell]}>{child.outcome}</Text>
+              </View>
+            );
+          })
+        )}
+      </View>
     </QuestionFrame>
   );
 }
 
 const styles = StyleSheet.create({
-  table: { minWidth: 570, overflow: "hidden", borderWidth: 1, borderColor: "#d0d5dd", borderRadius: 8, backgroundColor: "#ffffff" },
-  row: { minHeight: 46, flexDirection: "row", alignItems: "center", paddingHorizontal: 6, borderTopWidth: 1, borderTopColor: "#e4e7ec" },
+  table: { width: "100%", overflow: "hidden", borderWidth: 1, borderColor: "#d0d5dd", borderRadius: 8, backgroundColor: "#ffffff" },
+  row: { minHeight: 30, flexDirection: "row", alignItems: "center", paddingHorizontal: 2, borderTopWidth: 1, borderTopColor: "#e4e7ec" },
   headerRow: { borderTopWidth: 0, backgroundColor: "#eef4fb" },
-  headerText: { color: "#475467", fontSize: 12, fontWeight: "900", paddingHorizontal: 4 },
-  cellText: { color: "#18202a", fontSize: 13, fontWeight: "700", paddingHorizontal: 4 },
-  pregnancyCell: { width: 110 },
-  serialCell: { width: 60 },
-  nameCell: { width: 190 },
-  outcomeCell: { width: 190 },
+  headerText: { color: "#475467", fontSize: 8, fontWeight: "900", paddingHorizontal: 1 },
+  cellText: { color: "#18202a", fontSize: 9, lineHeight: 11, fontWeight: "700", paddingHorizontal: 1 },
+  pregnancyCell: { flex: 0.85 },
+  serialCell: { width: 28, textAlign: "center" },
+  nameCell: { flex: 1.05 },
+  outcomeCell: { flex: 1.1 },
 });

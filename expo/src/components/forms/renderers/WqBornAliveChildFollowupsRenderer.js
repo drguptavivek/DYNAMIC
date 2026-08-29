@@ -120,6 +120,22 @@ export function WqBornAliveChildFollowupsRenderer({
     setEditingIndex(firstIncomplete >= 0 ? firstIncomplete : null);
   }, [editingIndex, panels.length, question.value]);
 
+  const pendingLinePanel = editingIndex === null ? null : panels[editingIndex];
+  const pendingAlive = Number(panelValue(pendingLinePanel, CHILD_ALIVE_FIELD));
+  const pendingLivingWith = Number(panelValue(pendingLinePanel, CHILD_LIVING_WITH_FIELD));
+  const pendingLine = panelValue(pendingLinePanel, CHILD_LINE_FIELD);
+  useEffect(() => {
+    if (
+      pendingLinePanel &&
+      pendingAlive === 1 &&
+      [1, 2].includes(pendingLivingWith) &&
+      !/^\d{2}$/.test(String(pendingLine || ""))
+    ) {
+      question.wqAdvanceToNextChild?.();
+      onChange?.();
+    }
+  }, [editingIndex, onChange, pendingAlive, pendingLine, pendingLinePanel, pendingLivingWith, question]);
+
   if (!panels.length) return null;
   const committed = panels
     .map((panel, index) => ({ index, panel }))
@@ -142,8 +158,10 @@ export function WqBornAliveChildFollowupsRenderer({
     }
     const completed = activePanel?.getQuestionByName?.(WQ_FOLLOWUP_COMPLETED_FIELD);
     if (completed) completed.value = 1;
+    question.wqAdvanceToNextChild?.();
     setError("");
-    const nextIndex = panels.findIndex((panel, index) =>
+    const refreshedPanels = question.panels || [];
+    const nextIndex = refreshedPanels.findIndex((panel, index) =>
       index > editingIndex && Number(panelValue(panel, WQ_FOLLOWUP_COMPLETED_FIELD)) !== 1
     );
     setEditingIndex(nextIndex >= 0 ? nextIndex : null);
@@ -278,22 +296,22 @@ const styles = StyleSheet.create({
   count: { color: "#24527a", fontSize: 14, fontWeight: "900" },
   empty: { color: "#667085", fontSize: 14 },
   complete: { color: "#067647", fontSize: 15, fontWeight: "800" },
-  table: { minWidth: 990, overflow: "hidden", borderWidth: 1, borderColor: "#d0d5dd", borderRadius: 8, backgroundColor: "#ffffff" },
-  row: { minHeight: 46, flexDirection: "row", alignItems: "center", paddingHorizontal: 6, borderTopWidth: 1, borderTopColor: "#e4e7ec" },
+  table: { minWidth: 660, overflow: "hidden", borderWidth: 1, borderColor: "#d0d5dd", borderRadius: 8, backgroundColor: "#ffffff" },
+  row: { minHeight: 36, flexDirection: "row", alignItems: "center", paddingHorizontal: 3, borderTopWidth: 1, borderTopColor: "#e4e7ec" },
   headerRow: { borderTopWidth: 0, backgroundColor: "#eef4fb" },
-  headerText: { color: "#475467", fontSize: 12, fontWeight: "900", paddingHorizontal: 4 },
-  cellText: { color: "#18202a", fontSize: 13, fontWeight: "700", paddingHorizontal: 4 },
-  pregnancyCell: { width: 90 },
-  childCell: { width: 65 },
-  nameCell: { width: 150 },
-  aliveCell: { width: 100 },
-  detailCell: { width: 180 },
-  livingCell: { width: 220 },
-  actionsCell: { width: 150, flexDirection: "row", alignItems: "center", gap: 6 },
-  editButton: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 6, backgroundColor: "#eaf2ff" },
-  deleteButton: { paddingHorizontal: 10, paddingVertical: 8, borderRadius: 6, backgroundColor: "#fff1f0" },
-  actionText: { color: "#175cd3", fontSize: 13, fontWeight: "900" },
-  deleteText: { color: "#b42318", fontSize: 13, fontWeight: "900" },
+  headerText: { color: "#475467", fontSize: 9, fontWeight: "900", paddingHorizontal: 2 },
+  cellText: { color: "#18202a", fontSize: 10, fontWeight: "700", paddingHorizontal: 2 },
+  pregnancyCell: { width: 66 },
+  childCell: { width: 42 },
+  nameCell: { width: 92 },
+  aliveCell: { width: 68 },
+  detailCell: { width: 108 },
+  livingCell: { width: 132 },
+  actionsCell: { width: 116, flexDirection: "row", alignItems: "center", gap: 3 },
+  editButton: { paddingHorizontal: 8, paddingVertical: 6, borderRadius: 5, backgroundColor: "#eaf2ff" },
+  deleteButton: { paddingHorizontal: 7, paddingVertical: 6, borderRadius: 5, backgroundColor: "#fff1f0" },
+  actionText: { color: "#175cd3", fontSize: 10, fontWeight: "900" },
+  deleteText: { color: "#b42318", fontSize: 10, fontWeight: "900" },
   editor: { gap: 10, padding: 12, borderWidth: 1, borderColor: "#b9cbe3", borderRadius: 8, backgroundColor: "#f8fbff" },
   editorTitle: { color: "#24527a", fontSize: 17, fontWeight: "900" },
   editorInstruction: { color: "#475467", fontSize: 14, fontWeight: "700" },

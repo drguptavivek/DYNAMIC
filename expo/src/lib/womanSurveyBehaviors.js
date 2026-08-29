@@ -40,6 +40,9 @@ export const WQ_BORN_ALIVE_CHILD_FOLLOWUPS_FIELD = "wq_born_alive_child_followup
 export const WQ_FOLLOWUP_PREGNANCY_INDEX_FIELD = "wq_followup_pregnancy_index";
 export const WQ_FOLLOWUP_CHILD_INDEX_FIELD = "wq_followup_child_index";
 export const WQ_FOLLOWUP_COMPLETED_FIELD = "wq_followup_completed";
+export const WQ_PREGNANCY_ROW_ID_FIELD = "wq_pregnancy_row_id";
+export const WQ_REPRODUCTION_COMPARISON_RESULT_FIELD =
+  "wq_02_reproduction_compare_12_with_number_of_pregnancy_outcom";
 const WQ_HUSBAND_PARTNER_LINE_NUMBER_FIELD = "wq_husband_partner_line_number";
 const WQ_PREGNANCY_GROUP_FIELD = "pregnancy_02_reproduction_pregnancy_group_index";
 const WQ_MULTIPLE_BIRTH_INDEX_FIELD = "pregnancy_02_reproduction_multiple_birth_index";
@@ -215,7 +218,11 @@ export function buildWqHusbandPartnerChoices(members = [], options = {}) {
 export function calculateWqPregnancyTrackingEligibilityValue(answers = {}) {
   const age = toFiniteNumber(answers[WQ_AGE_FIELD]);
   const maritalStatus = toFiniteNumber(answers[WQ_CURRENT_MARITAL_STATUS_FIELD]);
-  const lmp = toFiniteNumber(answers[WQ_LMP_FIELD]);
+  const lmpAnswer = answers[WQ_LMP_FIELD];
+  const lmp = toFiniteNumber(lmpAnswer);
+  const hasLmpAnswer =
+    lmp !== null ||
+    (lmpAnswer && typeof lmpAnswer === "object" && ["date", "relative"].includes(lmpAnswer.mode));
   const lmpMoreThanSixMonths = toFiniteNumber(answers[WQ_LMP_MORE_THAN_SIX_MONTHS_FIELD]);
   const notPregnantOrUnsure = toFiniteNumber(answers[WQ_NOT_PREGNANT_OR_UNSURE_FIELD]);
   const hysterectomy = toFiniteNumber(answers[WQ_HYSTERECTOMY_FIELD]);
@@ -227,7 +234,7 @@ export function calculateWqPregnancyTrackingEligibilityValue(answers = {}) {
     age >= 18 &&
     age <= 44 &&
     (maritalStatus === 1 || maritalStatus === 2 || maritalStatus === 8) &&
-    lmp !== null &&
+    hasLmpAnswer &&
     lmp !== 993 &&
     lmp !== 994 &&
     hysterectomyEligible &&
@@ -341,6 +348,19 @@ function nextReverseHouseholdLineNumber(baseValue, childOffset) {
   return String(next).padStart(2, "0");
 }
 
+let wqPregnancyRowIdSequence = 0;
+
+function ensureWqPregnancyRowId(panel, panelIndex) {
+  const question = panel?.getQuestionByName?.(WQ_PREGNANCY_ROW_ID_FIELD);
+  if (!question) return "";
+  const existing = String(question.value || "");
+  if (existing) return existing;
+  wqPregnancyRowIdSequence += 1;
+  const rowId = `wq-pregnancy-${Date.now().toString(36)}-${panelIndex + 1}-${wqPregnancyRowIdSequence}`;
+  question.value = rowId;
+  return rowId;
+}
+
 function defaultMultipleTextMissingKeysToZero(value, keys = []) {
   if (!value || typeof value !== "object") return value;
   const hasAnyAnswer = keys.some((key) => String(value[key] ?? "") !== "");
@@ -423,6 +443,7 @@ export function applyWqReproductionSummary(model) {
     const question = model?.getQuestionByName?.(fieldName);
     if (question) question.readOnly = true;
   }
+  applyWqReproductionComparisonResult(model);
 }
 
 export function applyWqPregnancyTrackingEligibility(model) {
@@ -468,11 +489,16 @@ export function applyWqPregnancyHistoryCalculations(model) {
 
   const followupQuestion = model?.getQuestionByName?.(WQ_BORN_ALIVE_CHILD_FOLLOWUPS_FIELD);
   if (followupQuestion) {
+    // The specialized renderer invokes this immediately after committing a
+    // child. Nested SurveyJS metadata changes do not always reach the model's
+    // top-level onValueChanged handler in time to create the next editor.
+    followupQuestion.wqAdvanceToNextChild = () => applyWqPregnancyHistoryCalculations(model);
     const currentRows = Array.isArray(model?.getValue?.(WQ_BORN_ALIVE_CHILD_FOLLOWUPS_FIELD))
       ? model.getValue(WQ_BORN_ALIVE_CHILD_FOLLOWUPS_FIELD)
       : [];
     const currentByKey = new Map(currentRows.map((row) => [
-      `${row?.[WQ_FOLLOWUP_PREGNANCY_INDEX_FIELD]}:${row?.[WQ_FOLLOWUP_CHILD_INDEX_FIELD]}:${row?.[WQ_PREGNANCY_BABY_NAME_FIELD] || ""}`,
+      row?.[WQ_PREGNANCY_ROW_ID_FIELD] ||
+        `${row?.[WQ_FOLLOWUP_PREGNANCY_INDEX_FIELD]}:${row?.[WQ_FOLLOWUP_CHILD_INDEX_FIELD]}:${row?.[WQ_PREGNANCY_BABY_NAME_FIELD] || ""}`,
       row || {},
     ]));
     let livingChildOffset = 0;
@@ -487,8 +513,11 @@ export function applyWqPregnancyHistoryCalculations(model) {
       const pregnancyIndex = Number(getPanelQuestionValue(panel, WQ_PREGNANCY_GROUP_FIELD)) || panelIndex + 1;
       const childIndex = Number(getPanelQuestionValue(panel, WQ_MULTIPLE_BIRTH_INDEX_FIELD)) || 1;
       const babyName = getPanelQuestionValue(panel, WQ_PREGNANCY_BABY_NAME_FIELD);
-      const previous = currentByKey.get(`${pregnancyIndex}:${childIndex}:${babyName || ""}`) || {};
+      const pregnancyRowId = ensureWqPregnancyRowId(panel, panelIndex);
+      const previous = currentByKey.get(pregnancyRowId) ||
+        currentByKey.get(`${pregnancyIndex}:${childIndex}:${babyName || ""}`) || {};
       const next = {
+        [WQ_PREGNANCY_ROW_ID_FIELD]: pregnancyRowId,
         [WQ_FOLLOWUP_PREGNANCY_INDEX_FIELD]: pregnancyIndex,
         [WQ_FOLLOWUP_CHILD_INDEX_FIELD]: childIndex,
         [WQ_PREGNANCY_BABY_NAME_FIELD]: babyName,
@@ -506,15 +535,14 @@ export function applyWqPregnancyHistoryCalculations(model) {
       }
       if (Number(next[WQ_PREGNANCY_CHILD_ALIVE_FIELD]) === 1) {
         delete next[WQ_PREGNANCY_DEATH_AGE_FIELD];
-        if (Number(next[WQ_PREGNANCY_CHILD_LIVING_WITH_FIELD]) === 2) {
-          next[WQ_PREGNANCY_CHILD_LINE_FIELD] = "00";
-        } else {
-          next[WQ_PREGNANCY_CHILD_LINE_FIELD] = nextReverseHouseholdLineNumber(
-            model?.getValue?.(WQ_HUSBAND_PARTNER_LINE_NUMBER_FIELD),
-            livingChildOffset
-          );
-          livingChildOffset += 1;
-        }
+        // Every still-alive child receives the next unique reverse household
+        // line number in pregnancy/child order. Q26 describes residence with
+        // the respondent; it must not collapse multiple children onto 00.
+        next[WQ_PREGNANCY_CHILD_LINE_FIELD] = nextReverseHouseholdLineNumber(
+          model?.getValue?.(WQ_HUSBAND_PARTNER_LINE_NUMBER_FIELD),
+          livingChildOffset
+        );
+        livingChildOffset += 1;
       } else if (Number(next[WQ_PREGNANCY_CHILD_ALIVE_FIELD]) === 2) {
         delete next[WQ_PREGNANCY_CHILD_AGE_FIELD];
         delete next[WQ_PREGNANCY_CHILD_LIVING_WITH_FIELD];
@@ -562,6 +590,7 @@ export function applyWqPregnancyHistoryCalculations(model) {
   if (normalizedDeathAge !== deathAge) {
     setModelValueIfChanged(model, WQ_PREGNANCY_DEATH_AGE_FIELD, normalizedDeathAge);
   }
+  applyWqReproductionComparisonResult(model);
 }
 
 export function hasIncompleteWqBornAliveChildFollowups(model) {
@@ -578,6 +607,60 @@ export function hasIncompleteWqBornAliveChildFollowups(model) {
     ? followups.filter((row) => Number(row?.[WQ_FOLLOWUP_COMPLETED_FIELD]) === 1).length
     : 0;
   return completedCount < eligibleCount;
+}
+
+export function calculateWqReproductionComparison(model) {
+  const sum = (fields) => fields.reduce((total, field) => total + toCount(model?.getValue?.(field)), 0);
+  const summary = {
+    living: sum([WQ_SONS_AT_HOME_FIELD, WQ_DAUGHTERS_AT_HOME_FIELD]),
+    elsewhere: sum([WQ_SONS_ELSEWHERE_FIELD, WQ_DAUGHTERS_ELSEWHERE_FIELD]),
+    died: sum([WQ_BOYS_DEAD_FIELD, WQ_GIRLS_DEAD_FIELD]),
+    losses: sum([WQ_PREGNANCY_LOSSES_FIELD]),
+  };
+  const followup = model?.getQuestionByName?.(WQ_BORN_ALIVE_CHILD_FOLLOWUPS_FIELD);
+  const completed = (followup?.panels || []).filter(
+    (panel) => Number(getPanelQuestionValue(panel, WQ_FOLLOWUP_COMPLETED_FIELD)) === 1
+  );
+  const history = model?.getQuestionByName?.(WQ_PREGNANCY_HISTORY_FIELD);
+  const detailed = {
+    living: completed.filter((panel) =>
+      Number(getPanelQuestionValue(panel, WQ_PREGNANCY_CHILD_ALIVE_FIELD)) === 1 &&
+      Number(getPanelQuestionValue(panel, WQ_PREGNANCY_CHILD_LIVING_WITH_FIELD)) === 1
+    ).length,
+    elsewhere: completed.filter((panel) =>
+      Number(getPanelQuestionValue(panel, WQ_PREGNANCY_CHILD_ALIVE_FIELD)) === 1 &&
+      Number(getPanelQuestionValue(panel, WQ_PREGNANCY_CHILD_LIVING_WITH_FIELD)) === 2
+    ).length,
+    died: completed.filter((panel) =>
+      Number(getPanelQuestionValue(panel, WQ_PREGNANCY_CHILD_ALIVE_FIELD)) === 2
+    ).length,
+    losses: (history?.panels || []).filter((panel) => {
+      const outcome = calculateWqPregnancyHistoryOutcomeValue({
+        [WQ_PREGNANCY_BIRTH_RESULT_FIELD]: getPanelQuestionValue(panel, WQ_PREGNANCY_BIRTH_RESULT_FIELD),
+        [WQ_PREGNANCY_SIGN_OF_LIFE_FIELD]: getPanelQuestionValue(panel, WQ_PREGNANCY_SIGN_OF_LIFE_FIELD),
+        [WQ_PREGNANCY_DURATION_FIELD]: getPanelQuestionValue(panel, WQ_PREGNANCY_DURATION_FIELD),
+      });
+      return [2, 3, 4].includes(outcome);
+    }).length,
+  };
+  return { detailed, summary };
+}
+
+export function applyWqReproductionComparisonResult(model) {
+  const question = model?.getQuestionByName?.(WQ_REPRODUCTION_COMPARISON_RESULT_FIELD);
+  if (!question) return;
+  question.readOnly = true;
+  if (Number(model?.getValue?.(WQ_PAST_PREGNANCY_CHECK_FIELD)) !== 1) {
+    setModelValueIfChanged(model, WQ_REPRODUCTION_COMPARISON_RESULT_FIELD, undefined);
+    return;
+  }
+  const comparison = calculateWqReproductionComparison(model);
+  const total = (values) => Object.values(values).reduce((sum, value) => sum + toCount(value), 0);
+  setModelValueIfChanged(
+    model,
+    WQ_REPRODUCTION_COMPARISON_RESULT_FIELD,
+    total(comparison.detailed) >= total(comparison.summary) ? 1 : 2
+  );
 }
 
 export function requestNextWqPregnancy(model) {

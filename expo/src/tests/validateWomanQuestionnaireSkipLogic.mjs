@@ -26,10 +26,14 @@ const {
   WQ_PREGNANCY_DEATH_AGE_FIELD,
   WQ_PREGNANCY_DURATION_FIELD,
   WQ_PREGNANCY_OUTCOME_FIELD,
+  WQ_PREGNANCY_ROW_ID_FIELD,
   WQ_PREGNANCY_SIGN_OF_LIFE_FIELD,
+  WQ_REPRODUCTION_COMPARISON_RESULT_FIELD,
   WQ_STERILIZATION_FIELD,
   applyWqDomesticViolenceCalculations,
   applyWqPregnancyHistoryCalculations,
+  applyWqReproductionComparisonResult,
+  calculateWqReproductionComparison,
   hasIncompleteWqBornAliveChildFollowups,
   applyWqReproductionSummary,
   buildWqHusbandPartnerChoices,
@@ -751,6 +755,15 @@ assert.equal(
 const pregnancyHistoryJson = wq.pages
   .flatMap((page) => page.elements || [])
   .find((element) => element.name === "wq_pregnancy_history");
+const preparedPregnancyHistoryJson = prepareQuestionnaireSurveyJson(wq).pages
+  .flatMap((page) => page.elements || [])
+  .find((element) => element.name === "wq_pregnancy_history");
+assert.ok(
+  preparedPregnancyHistoryJson.templateElements.some(
+    (element) => element.name === WQ_PREGNANCY_ROW_ID_FIELD && element.visible === false
+  ),
+  "Each pregnancy row must persist a hidden stable ID"
+);
 const pregnancyOutcomeJson = pregnancyHistoryJson.templateElements.find(
   (element) => element.name === "pregnancy_02_reproduction_if_15_i_single_was_the_baby_born_alive_bor"
 );
@@ -764,6 +777,55 @@ const reproductionFollowUpPageJson = wq.pages.find(
 );
 const pregnancyOutcomeCheckJson = reproductionFollowUpPageJson.elements.find(
   (element) => element.name === WQ_PREGNANCY_OUTCOME_FIELD
+);
+const preparedWq = prepareQuestionnaireSurveyJson(wq);
+const preparedLmpJson = preparedWq.pages
+  .flatMap((page) => page.elements || [])
+  .find((element) => element.name === WQ_LMP_FIELD);
+assert.equal(preparedLmpJson.renderAs, "wq_lmp_timing", "Q33a must use its mixed date/relative/special renderer");
+const preparedReproductionFollowUpPageJson = preparedWq.pages.find(
+  (page) => page.name === "page_02b_reproduction_follow_up"
+);
+const preparedQ22bPageJson = preparedWq.pages.find(
+  (page) => page.name === "page_02c_reproduction_confirmation"
+);
+const preparedComparisonPageJson = preparedWq.pages.find(
+  (page) => page.name === "page_02d_reproduction_comparison"
+);
+const comparisonTableIndex = preparedComparisonPageJson.elements.findIndex(
+  (element) => element.name === "wq_reproduction_comparison_table"
+);
+const q29Index = preparedComparisonPageJson.elements.findIndex(
+  (element) => element.name === "wq_02_reproduction_compare_12_with_number_of_pregnancy_outcom"
+);
+assert.equal(comparisonTableIndex, q29Index - 1, "The reconciliation table must appear immediately above Q29");
+assert.equal(preparedComparisonPageJson.elements[q29Index].visible, false, "Q29 must be hidden because it is app-calculated");
+assert.equal(preparedComparisonPageJson.elements[q29Index].readOnly, true, "Q29 must be read-only");
+assert.equal(
+  preparedReproductionFollowUpPageJson.elements.at(-1).name,
+  "wq_02_reproduction_have_you_had_any_pregnancies_that_ended_si",
+  "The page before Q22b must end with the transformed Q22a question"
+);
+assert.equal(
+  preparedQ22bPageJson.elements[0].name,
+  "wq_02_reproduction_read_the_list_of_pregnancy_outcomes_in_ord",
+  "Q22b must begin the next page"
+);
+assert.deepEqual(
+  preparedComparisonPageJson.elements.map((element) => element.name),
+  [
+    "wq_reproduction_comparison_table",
+    "wq_02_reproduction_compare_12_with_number_of_pregnancy_outcom",
+  ],
+  "The comparison table and calculated Q29 must occupy their own page"
+);
+const postComparisonPageJson = preparedWq.pages.find(
+  (page) => page.name === "page_02e_reproduction_after_comparison"
+);
+assert.equal(
+  postComparisonPageJson.elements[0].name,
+  "wq_02_reproduction_did_you_ever_experience_a_delivery_by_caes",
+  "Q30 must always begin the page after the Q29 comparison"
 );
 const otherPregnanciesJson = reproductionFollowUpPageJson.elements.find(
   (element) => element.name === WQ_OTHER_PREGNANCIES_FIELD
@@ -1266,7 +1328,11 @@ assert.equal(firstChildLine.isVisible, true, "Q24_i Yes must show Q27_i");
 assert.equal(firstChildDeathAge.isVisible, false, "Q24_i Yes must skip Q28_i");
 firstChildLivingWith.value = 2;
 applyWqPregnancyHistoryCalculations(childLoopModel);
-assert.equal(childLoop.panels[0].getQuestionByName(WQ_PREGNANCY_CHILD_LINE_FIELD).value, "00");
+assert.equal(
+  childLoop.panels[0].getQuestionByName(WQ_PREGNANCY_CHILD_LINE_FIELD).value,
+  "96",
+  "A still-alive child not living with the respondent must retain a unique reverse line number"
+);
 assert.equal(childLoop.panels[0].getQuestionByName(WQ_PREGNANCY_CHILD_LINE_FIELD).readOnly, true);
 childLoop.panels[0].getQuestionByName(WQ_PREGNANCY_CHILD_LIVING_WITH_FIELD).value = 1;
 applyWqPregnancyHistoryCalculations(childLoopModel);
@@ -1276,7 +1342,8 @@ assert.equal(
   "The first resident child must continue after husband line 97"
 );
 childLoop.panels[0].getQuestionByName(WQ_FOLLOWUP_COMPLETED_FIELD).value = 1;
-applyWqPregnancyHistoryCalculations(childLoopModel);
+assert.equal(typeof childLoop.wqAdvanceToNextChild, "function");
+childLoop.wqAdvanceToNextChild();
 assert.equal(
   childLoop.panels[0].getQuestionByName(WQ_FOLLOWUP_COMPLETED_FIELD).value,
   1,
@@ -1331,11 +1398,82 @@ for (const expectedLine of ["01", "00", "99"]) {
     `Reverse Q27_i numbering must allocate ${expectedLine} without repeating 01`
   );
   wrappedLoop.panels.at(-1).getQuestionByName(WQ_FOLLOWUP_COMPLETED_FIELD).value = 1;
-  applyWqPregnancyHistoryCalculations(wrappedChildLineModel);
+  wrappedLoop.wqAdvanceToNextChild();
+}
+wrappedHistory.removePanel(1);
+wrappedHistory.panels.forEach((panel, index) => {
+  panel.getQuestionByName(WQ_PREGNANCY_GROUP_FIELD).value = index + 1;
+});
+applyWqPregnancyHistoryCalculations(wrappedChildLineModel);
+assert.deepEqual(
+  wrappedLoop.panels.map((panel) =>
+    panel.getQuestionByName("pregnancy_02_reproduction_what_name_was_given_to_the_baby").value
+  ),
+  ["Piku", "Rk"],
+  "Deleting one pregnancy must remove only its child follow-up and preserve remaining saved children after renumbering"
+);
+assert.ok(
+  wrappedLoop.panels.every(
+    (panel) => Number(panel.getQuestionByName(WQ_FOLLOWUP_COMPLETED_FIELD).value) === 1
+  ),
+  "Remaining pregnancies must retain their completed child details"
+);
+
+const nonResidentChildLineModel = createWqModel();
+nonResidentChildLineModel.setValue("wq_husband_partner_line_number", "01");
+const nonResidentHistory = question(nonResidentChildLineModel, "wq_pregnancy_history");
+for (const [index, name] of ["One", "Two"].entries()) {
+  nonResidentHistory.addPanel();
+  const panel = nonResidentHistory.panels.at(-1);
+  panel.getQuestionByName(WQ_PREGNANCY_GROUP_FIELD).value = index + 1;
+  panel.getQuestionByName(WQ_MULTIPLE_BIRTH_INDEX_FIELD).value = 1;
+  panel.getQuestionByName(WQ_MULTIPLE_BIRTH_COUNT_FIELD).value = 1;
+  panel.getQuestionByName(WQ_PREGNANCY_BIRTH_RESULT_FIELD).value = 1;
+  panel.getQuestionByName("pregnancy_02_reproduction_what_name_was_given_to_the_baby").value = name;
+}
+applyWqPregnancyHistoryCalculations(nonResidentChildLineModel);
+const nonResidentLoop = question(nonResidentChildLineModel, WQ_BORN_ALIVE_CHILD_FOLLOWUPS_FIELD);
+for (const expectedLine of ["00", "99"]) {
+  const active = nonResidentLoop.panels.at(-1);
+  active.getQuestionByName(WQ_PREGNANCY_CHILD_ALIVE_FIELD).value = 1;
+  active.getQuestionByName(WQ_PREGNANCY_CHILD_LIVING_WITH_FIELD).value = 2;
+  applyWqPregnancyHistoryCalculations(nonResidentChildLineModel);
+  assert.equal(
+    nonResidentLoop.panels.at(-1).getQuestionByName(WQ_PREGNANCY_CHILD_LINE_FIELD).value,
+    expectedLine,
+    `Non-resident still-alive children must receive distinct reverse line ${expectedLine}`
+  );
+  nonResidentLoop.panels.at(-1).getQuestionByName(WQ_FOLLOWUP_COMPLETED_FIELD).value = 1;
+  nonResidentLoop.wqAdvanceToNextChild();
 }
 childLoop.panels[0].getQuestionByName(WQ_PREGNANCY_CHILD_ALIVE_FIELD).value = 2;
 assert.equal(childLoop.panels[0].getQuestionByName(WQ_PREGNANCY_CHILD_AGE_FIELD).isVisible, false);
 assert.equal(childLoop.panels[0].getQuestionByName(WQ_PREGNANCY_DEATH_AGE_FIELD).isVisible, true, "Q24_i No must skip to Q28_i");
+childLoopModel.setValue("wq_02_reproduction_how_many_sons_live_with_you", "01");
+childLoopModel.setValue("wq_02_reproduction_how_many_daugthers_live_with_you", "00");
+childLoopModel.setValue("wq_02_reproduction_how_many_sons_are_alive_but_do_not_live_wi", "00");
+childLoopModel.setValue("wq_02_reproduction_how_many_daugthers_are_alive_but_do_not_li", "00");
+childLoopModel.setValue("wq_02_reproduction_how_many_boys_have_died", "01");
+childLoopModel.setValue("wq_02_reproduction_how_many_girls_have_died", "00");
+childLoopModel.setValue("wq_02_reproduction_how_many_miscarriages_abortions_and_stillb", "01");
+applyWqReproductionSummary(childLoopModel);
+assert.deepEqual(calculateWqReproductionComparison(childLoopModel), {
+  summary: { living: 1, elsewhere: 0, died: 1, losses: 1 },
+  detailed: { living: 1, elsewhere: 0, died: 1, losses: 1 },
+});
+applyWqReproductionComparisonResult(childLoopModel);
+assert.equal(
+  childLoopModel.getValue(WQ_REPRODUCTION_COMPARISON_RESULT_FIELD),
+  1,
+  "Q29 must store 1 when the detailed total equals the earlier-summary total"
+);
+childLoopModel.setValue("wq_02_reproduction_how_many_sons_live_with_you", "02");
+applyWqReproductionComparisonResult(childLoopModel);
+assert.equal(
+  childLoopModel.getValue(WQ_REPRODUCTION_COMPARISON_RESULT_FIELD),
+  2,
+  "Q29 must store 2 when the detailed total is less than the earlier-summary total"
+);
 
 model.setValue("wq_pregnant", 2);
 model.setValue("wq_02_reproduction_when_did_your_last_menstrual_period_start", 995);
@@ -1384,6 +1522,26 @@ assert.equal(
     [WQ_STERILIZATION_FIELD]: 4,
   }),
   1,
+);
+assert.equal(
+  calculateWqPregnancyTrackingEligibilityValue({
+    [WQ_AGE_FIELD]: 25,
+    [WQ_CURRENT_MARITAL_STATUS_FIELD]: 1,
+    [WQ_LMP_FIELD]: { mode: "date", day: "15", month: "08", year: "2026" },
+    [WQ_STERILIZATION_FIELD]: 4,
+  }),
+  1,
+  "A Q33a exact-date object must count as an answered LMP"
+);
+assert.equal(
+  calculateWqPregnancyTrackingEligibilityValue({
+    [WQ_AGE_FIELD]: 25,
+    [WQ_CURRENT_MARITAL_STATUS_FIELD]: 1,
+    [WQ_LMP_FIELD]: { mode: "relative", unit: "weeks", value: "02" },
+    [WQ_STERILIZATION_FIELD]: 4,
+  }),
+  1,
+  "A Q33a relative-time object must count as an answered LMP"
 );
 assert.equal(
   calculateWqPregnancyTrackingEligibilityValue({

@@ -26,7 +26,7 @@ type FormResponseRow = typeof schema.formResponses.$inferSelect;
 type PromotionHandler = (response: FormResponseRow, answers: FormAnswers) => Promise<void>;
 const WQ_WOMAN_AVAILABLE_FIELD = "wq_woman_available";
 const WQ_CURRENT_MARITAL_STATUS_FIELD = "wq_current_marital_status";
-const WQ_PREGNANCY_TRACKING_ELIGIBLE_FIELD = "wq_pregnancy_tracking_eligible";
+const WQ_PREGNANT_FIELD = "wq_pregnant";
 const WQ_MAX_VISITS = 3;
 const WQ_REVISIT_DELAY_DAYS = 1;
 
@@ -137,9 +137,9 @@ async function promoteWq(
 ): Promise<void> {
   try {
     const isPregnancyTrackingEligible =
-      answers[WQ_PREGNANCY_TRACKING_ELIGIBLE_FIELD] === "1" ||
-      answers[WQ_PREGNANCY_TRACKING_ELIGIBLE_FIELD] === 1 ||
-      answers[WQ_PREGNANCY_TRACKING_ELIGIBLE_FIELD] === true;
+      answers[WQ_PREGNANT_FIELD] === "1" ||
+      answers[WQ_PREGNANT_FIELD] === 1 ||
+      answers[WQ_PREGNANT_FIELD] === true;
 
     // Get household info
     const household = await getDb()

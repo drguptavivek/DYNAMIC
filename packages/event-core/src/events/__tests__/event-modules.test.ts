@@ -39,6 +39,42 @@ describe("field event modules", () => {
     expect(promotion?.task_descriptors.some((task) => task.task_type === "HRF")).toBe(true);
   });
 
+  it("creates a PEF task only when WQ Q32 says currently pregnant", () => {
+    const base = {
+      form_code: "WQ",
+      event_id: "evt-wq-q32-1",
+      site_id: 1,
+      locality_code: "02",
+      household_id: "1-02-0042-03",
+      subject_id: "1-02-0042-03-02",
+      form_response_id: "resp-wq-q32-1",
+      recorded_at: "2026-09-01T10:00:00.000Z",
+    };
+    const pregnant = promoteFormSubmission({
+      ...base,
+      answers_json: {
+        wq_interview_date: "2026-09-01",
+        wq_pregnant: 1,
+        wq_pregnancy_tracking_eligible: 2,
+      },
+    });
+    const notPregnant = promoteFormSubmission({
+      ...base,
+      event_id: "evt-wq-q32-2",
+      form_response_id: "resp-wq-q32-2",
+      answers_json: {
+        wq_interview_date: "2026-09-01",
+        wq_pregnant: 2,
+        wq_pregnancy_tracking_eligible: 1,
+      },
+    });
+
+    expect(pregnant?.event.payload).toMatchObject({ wq_pregnant: true });
+    expect(pregnant?.task_descriptors.some((task) => task.form_code === "PEF")).toBe(true);
+    expect(notPregnant?.event.payload).toMatchObject({ wq_pregnant: false });
+    expect(notPregnant?.task_descriptors).toEqual([]);
+  });
+
   it("promotes PEF submission evidence through the shared trigger", () => {
     const promotion = promoteFormSubmission({
       form_code: "PEF",
