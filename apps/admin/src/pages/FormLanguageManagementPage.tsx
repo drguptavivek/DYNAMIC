@@ -66,6 +66,9 @@ interface DashboardPayload {
 }
 
 interface FormLanguageDetail {
+  form_code: string;
+  form_version: string;
+  form_checksum: string;
   elements: FormElement[];
   translations: TranslationMap;
   can_edit: boolean;
@@ -204,6 +207,8 @@ export default function FormLanguageManagementPage() {
   const [selectedSite, setSelectedSite] = useState<number | "">("");
   const [selectedLanguage, setSelectedLanguage] = useState("hi");
   const [elements, setElements] = useState<FormElement[]>([]);
+  const [loadedFormVersion, setLoadedFormVersion] = useState("");
+  const [loadedFormChecksum, setLoadedFormChecksum] = useState("");
   const [translations, setTranslations] = useState<TranslationMap>({});
   const [canEdit, setCanEdit] = useState(false);
   const [canManagePermissions, setCanManagePermissions] = useState(false);
@@ -285,7 +290,7 @@ export default function FormLanguageManagementPage() {
     }
   }
 
-  async function loadFormLanguage() {
+  async function loadFormLanguage(cacheBust = false) {
     setLoading(true);
     setError("");
     setMessage("");
@@ -294,10 +299,13 @@ export default function FormLanguageManagementPage() {
         site_id: String(selectedSite),
         language_code: selectedLanguage,
       });
+      if (cacheBust) params.set("refresh", String(Date.now()));
       const data = await api.get<FormLanguageDetail>(
         `/form-language-management/forms/${selectedForm}?${params.toString()}`,
       );
       setElements(data.elements);
+      setLoadedFormVersion(data.form_version || "");
+      setLoadedFormChecksum(data.form_checksum || "");
       setTranslations(data.translations || {});
       setCanEdit(data.can_edit);
       setEditingElements(new Set());
@@ -307,6 +315,8 @@ export default function FormLanguageManagementPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load selected form language");
       setElements([]);
+      setLoadedFormVersion("");
+      setLoadedFormChecksum("");
       setTranslations({});
       setCanEdit(false);
     } finally {
@@ -693,8 +703,8 @@ export default function FormLanguageManagementPage() {
             ))}
           </select>
         </div>
-        <button className={styles.secondaryButton} type="button" onClick={loadFormLanguage} disabled={loading}>
-          Refresh
+        <button className={styles.secondaryButton} type="button" onClick={() => void loadFormLanguage(true)} disabled={loading}>
+          Refresh latest
         </button>
       </section>
 
@@ -764,9 +774,18 @@ export default function FormLanguageManagementPage() {
 
       <section className={styles.editorPanel}>
         <div className={styles.summaryRow}>
-          <span>{loading ? "Loading..." : `${elements.length} fields loaded`}</span>
+          <span>
+            {loading
+              ? "Loading latest questionnaire..."
+              : `${elements.length} current fields loaded${loadedFormVersion ? ` • Version ${loadedFormVersion}` : ""}`}
+          </span>
           <span>{canEdit ? "Editing allowed" : "Read only until permission is granted"}</span>
         </div>
+        {!loading && loadedFormChecksum ? (
+          <div className={styles.definitionStatus}>
+            Latest bundled definition loaded • Checksum {loadedFormChecksum.slice(0, 12)}
+          </div>
+        ) : null}
         <div className={styles.csvPanel}>
           <div>
             <div className={styles.permissionTitle}>CSV import/export</div>
@@ -863,7 +882,16 @@ export default function FormLanguageManagementPage() {
             {elements.map((element) => (
               <article className={styles.questionCard} key={element.name}>
                 <div className={styles.questionHeader}>
-                  <div className={styles.questionCode}>{element.name}</div>
+                  <div className={styles.questionIdentity}>
+                    <div className={styles.questionCode}>{element.name}</div>
+                    <div className={styles.questionMeta}>
+                      {element.source_code ? <span>Q{element.source_code}</span> : null}
+                      {element.page_title || element.page_name ? (
+                        <span>{element.page_title || element.page_name}</span>
+                      ) : null}
+                      {element.type ? <span>{element.type}</span> : null}
+                    </div>
+                  </div>
                   <div>
                     <div className={styles.englishText}>{element.title || element.name}</div>
                     {element.description ? <div className={styles.hint}>{element.description}</div> : null}

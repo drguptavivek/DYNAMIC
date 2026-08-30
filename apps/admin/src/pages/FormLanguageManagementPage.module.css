@@ -239,6 +239,14 @@
   font-weight: 650;
 }
 
+.definitionStatus {
+  margin: -0.45rem 0 1rem;
+  color: #047857;
+  font-size: 0.85rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
 .editorFootnote {
   margin-top: 1rem;
   color: #667085;
@@ -392,6 +400,10 @@
   align-items: start;
 }
 
+.questionHeader > * {
+  min-width: 0;
+}
+
 .translationStack {
   display: grid;
   gap: 0.55rem;
@@ -412,6 +424,28 @@
   overflow-wrap: anywhere;
   word-break: break-word;
   line-height: 1.35;
+}
+
+.questionIdentity {
+  min-width: 0;
+}
+
+.questionMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+}
+
+.questionMeta span {
+  max-width: 100%;
+  padding: 0.2rem 0.4rem;
+  border-radius: 999px;
+  background: #e8eef8;
+  color: #475467;
+  font-size: 0.7rem;
+  font-weight: 750;
+  overflow-wrap: anywhere;
 }
 
 .englishText {

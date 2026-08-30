@@ -309,6 +309,36 @@ export function mergeMissingFormTranslations(
   return { translations: merged, changed };
 }
 
+export function reconcileFormTranslations(
+  current: FormTranslations,
+  bundled: FormTranslations,
+  elements: FlattenedFormElement[],
+): { translations: FormTranslations; changed: boolean } {
+  const activeElements = new Map(elements.map((element) => [element.name, element]));
+  const reconciled: FormTranslations = {};
+
+  for (const [name, translation] of Object.entries(current)) {
+    const element = activeElements.get(name);
+    if (!element) continue;
+
+    const activeChoiceValues = new Set(element.choices.map((choice) => choice.value));
+    const choices = Object.fromEntries(
+      Object.entries(translation.choices || {}).filter(([value]) => activeChoiceValues.has(value)),
+    );
+    const next: FormElementTranslation = {};
+    if (translation.title?.trim()) next.title = translation.title.trim();
+    if (translation.description?.trim()) next.description = translation.description.trim();
+    if (Object.keys(choices).length > 0) next.choices = choices;
+    if (Object.keys(next).length > 0) reconciled[name] = next;
+  }
+
+  const merged = mergeMissingFormTranslations(reconciled, bundled).translations;
+  return {
+    translations: merged,
+    changed: JSON.stringify(merged) !== JSON.stringify(normalizeTranslations(current)),
+  };
+}
+
 export async function getStoredTranslations(
   _siteId: number | undefined,
   formCode: string,

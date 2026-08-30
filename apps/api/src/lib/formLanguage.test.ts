@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { applyTranslationsToFormJson, flattenFormElements, mergeMissingFormTranslations } from "./formLanguage";
+import {
+  applyTranslationsToFormJson,
+  flattenFormElements,
+  mergeMissingFormTranslations,
+  reconcileFormTranslations,
+} from "./formLanguage";
 
 test("applies question and option translations as SurveyJS localized text", () => {
   const formJson = {
@@ -150,5 +155,28 @@ test("merges bundled translations into database translations without overwriting
     q2: {
       title: "Bundled second question",
     },
+  });
+});
+
+test("reconciles translations against the latest questionnaire fields and options", () => {
+  const result = reconcileFormTranslations(
+    {
+      retained: { title: "Edited question", choices: { "1": "One", "9": "Removed choice" } },
+      removed: { title: "Removed question" },
+    },
+    {
+      retained: { title: "Bundled question", choices: { "1": "Bundled one", "2": "Bundled two" } },
+      added: { title: "New bundled question" },
+    },
+    [
+      { name: "retained", title: "Retained", description: "", choices: [{ value: "1", text: "One" }, { value: "2", text: "Two" }] },
+      { name: "added", title: "Added", description: "", choices: [] },
+    ],
+  );
+
+  assert.equal(result.changed, true);
+  assert.deepEqual(result.translations, {
+    retained: { title: "Edited question", choices: { "1": "One", "2": "Bundled two" } },
+    added: { title: "New bundled question" },
   });
 });

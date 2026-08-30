@@ -4,7 +4,7 @@ import { z } from "zod";
 import { db, schema } from "../db";
 import { requireRole } from "../middleware/auth";
 import { sendError, sendSuccess } from "../lib/errors";
-import { getAllFormMetadata, getFormJson } from "../lib/formCatalog";
+import { getAllFormMetadata, getFormJson, getLatestFormMetadata } from "../lib/formCatalog";
 import {
   SUPPORTED_FORM_LANGUAGES,
   canEditFormLanguage,
@@ -12,7 +12,7 @@ import {
   flattenFormElements,
   getStoredTranslations,
   listFormLanguagePermissions,
-  mergeMissingFormTranslations,
+  reconcileFormTranslations,
   saveFormLanguagePermission,
   saveFormTranslations,
 } from "../lib/formLanguage";
@@ -181,36 +181,29 @@ router.get("/forms/:form_code", async (req: Request, res: Response) => {
     }
 
     let translations = await getStoredTranslations(siteId, formCode, languageCode);
+    const elements = flattenFormElements(formJson);
     const bundledTranslations = extractTranslationsFromFormJson(formJson, languageCode);
-    if (Object.keys(bundledTranslations).length > 0) {
-      if (Object.keys(translations).length === 0) {
-        translations = await saveFormTranslations({
-          siteId,
-          formCode,
-          languageCode,
-          translations: bundledTranslations,
-          updatedByUserId: req.user.sub,
-        });
-      } else {
-        const mergedTranslations = mergeMissingFormTranslations(translations, bundledTranslations);
-        if (mergedTranslations.changed) {
-          translations = await saveFormTranslations({
-            siteId,
-            formCode,
-            languageCode,
-            translations: mergedTranslations.translations,
-            updatedByUserId: req.user.sub,
-          });
-        }
-      }
+    const reconciled = reconcileFormTranslations(translations, bundledTranslations, elements);
+    if (reconciled.changed) {
+      translations = await saveFormTranslations({
+        siteId,
+        formCode,
+        languageCode,
+        translations: reconciled.translations,
+        updatedByUserId: req.user.sub,
+      });
     }
     const canEdit = await canEditFormLanguage(req.user, siteId, formCode, languageCode);
+    const metadata = getLatestFormMetadata(formCode);
 
+    res.setHeader("Cache-Control", "no-store");
     sendSuccess(res, {
       form_code: formCode,
+      form_version: metadata?.version || String(formJson.version || ""),
+      form_checksum: metadata?.checksum || "",
       site_id: siteId,
       language_code: languageCode,
-      elements: flattenFormElements(formJson),
+      elements,
       translations,
       can_edit: canEdit,
     });
@@ -245,11 +238,17 @@ router.put("/forms/:form_code", async (req: Request, res: Response) => {
       return;
     }
 
+    const formJson = getFormJson(formCode)!;
+    const reconciled = reconcileFormTranslations(
+      body.translations,
+      extractTranslationsFromFormJson(formJson, languageCode),
+      flattenFormElements(formJson),
+    );
     const translations = await saveFormTranslations({
       siteId: body.site_id,
       formCode,
       languageCode,
-      translations: body.translations,
+      translations: reconciled.translations,
       updatedByUserId: req.user.sub,
     });
 
