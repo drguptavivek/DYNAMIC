@@ -30,7 +30,9 @@ export function WqLmpTimingRenderer({ answerData, locale, onChange, question }) 
   function commit(nextValue) {
     if (disabled) return;
     setNativeQuestionValue(question, nextValue);
-    question.validate?.();
+    // Defer required validation until the user advances. Selecting Date or
+    // Relative time is only the mode choice; the date/interval fields are
+    // entered immediately below it and should not show an error mid-entry.
     onChange?.();
   }
 

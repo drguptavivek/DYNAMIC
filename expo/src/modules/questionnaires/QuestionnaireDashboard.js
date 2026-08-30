@@ -704,7 +704,23 @@ export function QuestionnaireDashboard({
         onDraftSaved?.();
       }
       setSaveMessage(`Finalized ${submission.submission_id}`);
-      if (isWomanQuestionnaire(form) && isWqRevisitStop(sender)) {
+      if (isPregnancySurveillanceForm(form) && sender.data?.psf_tracking_disposition === "stopped") {
+        Alert.alert("Thank you. This woman has exited from the study.", "", [
+          { text: "OK", onPress: () => navigateTo(ROUTES.completedForms) },
+        ]);
+      } else if (isPregnancySurveillanceForm(form) && Number(sender.data?.psf_pregnant_now) === 1) {
+        Alert.alert("PEF form generated for this woman.", "", [
+          { text: "OK", onPress: () => navigateTo(ROUTES.completedForms) },
+        ]);
+      } else if (
+        isPregnancySurveillanceForm(form) &&
+        [1, 2, 8].includes(Number(sender.data?.psf_current_marital_status)) &&
+        [2, 98].includes(Number(sender.data?.psf_pregnant_now))
+      ) {
+        Alert.alert("PSF rescheduled.", "", [
+          { text: "OK", onPress: () => navigateTo(ROUTES.completedForms) },
+        ]);
+      } else if (isWomanQuestionnaire(form) && isWqRevisitStop(sender)) {
         const message = getWqRevisitStopMessage(sender);
         Alert.alert(message, "", [
           {

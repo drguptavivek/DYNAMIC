@@ -327,10 +327,25 @@ router.post(
           if (!draftId || !draft?.form_code || draft?.user_id !== req.user!.sub) {
             throw new Error("Invalid draft identity");
           }
-          const scope = resolveRecordScope({
+          // Task-created drafts (especially PSF/PEF) may not repeat the
+          // household scope in their answer payload. Resolve it from the
+          // task context so a valid draft can be synced after a user saves
+          // before completing the form.
+          let scopeSource = {
             ...draft,
             answers_json: draft.json_payload,
-          });
+          };
+          if (draft.task_id && (!Number.isFinite(Number(draft.site_id)) || !draft.locality_code)) {
+            const [task] = await db
+              .select({ site_id: schema.followUpTasks.site_id, locality_code: schema.followUpTasks.locality_code, household_id: schema.followUpTasks.household_id })
+              .from(schema.followUpTasks)
+              .where(eq(schema.followUpTasks.task_id, String(draft.task_id)))
+              .limit(1);
+            if (task) {
+              scopeSource = { ...scopeSource, ...task };
+            }
+          }
+          const scope = resolveRecordScope(scopeSource);
           if (!(await canAccessLocation(req.user!, scope.site_id, scope.locality_code, scope.household_id))) {
             throw new Error("Draft is outside the user's assigned area scope");
           }

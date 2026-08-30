@@ -457,3 +457,13 @@ Decisions:
 
 ## 2026-08-30 (Task filled-form view) [reverted]
 The temporary full-form rendering in the Task View was reverted at the user's request. Task metadata and attempts remain available.
+
+## 2026-08-30 (PSF permanent stop cancellation) [working]
+Goal: Stop all pregnancy-pathway work when PSF confirms a woman is no longer capable of pregnancy or eligible for tracking.
+Decisions:
+- A stopped PSF submission now marks the eligible-woman projection `not_eligible`/`not_tracked` and cancels outstanding PSF, PEF, PFF, POF, BAF, SBF, NFF, and CDF tasks for that woman. HHQ, WQ, and HRF history/tasks are preserved.
+
+## 2026-08-30 (PSF Q13 LMP control alignment) [working]
+Goal: Make PSF Q13 display the same LMP input options as WQ Q33a.
+Decisions:
+- Q13 uses the shared LMP timing renderer (Date, Relative time with Days/Weeks/Months/Years Ago, and special codes 993-996). Its labels/instructions now match Q33a; 993 and 994 remain the only LMP special codes that stop PSF tracking.

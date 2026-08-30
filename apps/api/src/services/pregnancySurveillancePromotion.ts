@@ -1,7 +1,7 @@
 import { schema } from "../db";
 import { getDb } from "../lib/dbContext";
 import type { FormAnswers } from "./promotionEventBridge";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, or } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { pregnancyDetected } from "@dynamic/event-core";
 import { writeTasksFromDescriptors } from "./taskWriter";
@@ -123,13 +123,26 @@ export async function promotePregnancySurveillance(
         ),
       );
   } else if (womanId && values.tracking_disposition === "stopped") {
+    // A permanent stop condition removes the woman from the pregnancy
+    // surveillance pathway. Keep the WQ/HRF history intact, but close every
+    // outstanding pregnancy-related task (including a future PEF) and mark
+    // the eligibility projection as no longer eligible for tracking.
+    await getDb()
+      .update(schema.eligibleWomen)
+      .set({
+        tracking_status: "not_tracked",
+        current_eligibility_status: "not_eligible",
+        updated_at: now,
+      })
+      .where(eq(schema.eligibleWomen.woman_id, womanId));
+
     await getDb()
       .update(schema.followUpTasks)
       .set({ status: "cancelled", closed_at: now, closed_reason: values.stop_reason || "psf_ineligible", updated_at: now })
       .where(
         and(
-          eq(schema.followUpTasks.woman_id, womanId),
-          eq(schema.followUpTasks.task_type, "PSF"),
+          or(eq(schema.followUpTasks.woman_id, womanId), eq(schema.followUpTasks.subject_id, womanId)),
+          inArray(schema.followUpTasks.task_type, ["PSF", "PEF", "PFF", "POF", "BAF", "SBF", "NFF", "CDF"]),
           inArray(schema.followUpTasks.status, ["planned", "pending", "due", "overdue"]),
         ),
       );

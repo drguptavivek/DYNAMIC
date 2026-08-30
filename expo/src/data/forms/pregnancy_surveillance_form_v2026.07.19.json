@@ -267,7 +267,7 @@
         {
           "type": "radiogroup",
           "name": "psf_last_menstrual_period",
-          "title": { "default": "When did your last menstrual period start?", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
+          "title": { "default": "When did your last menstrual period start?\nIF LESS THAN 1 WEEK, RECORD DAYS\nIF LESS THAN 1 MONTH, RECORD WEEKS\nIF LESS THAN 1 YEAR, RECORD MONTHS", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
           "order": 13,
           "section_order": 1,
           "sourceCode": "13",
@@ -277,10 +277,10 @@
           "visibleIf": "{psf_hysterectomy_status} = 2 or {psf_hysterectomy_status} = 3",
           "isRequired": true,
           "choices": [
-            { "value": 993, "text": { "default": "Has had hysterectomy", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
-            { "value": 994, "text": { "default": "In menopause", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
-            { "value": 995, "text": { "default": "Before last birth", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
-            { "value": 996, "text": { "default": "Never menstruated", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } }
+            { "value": 993, "text": { "default": "has had hysterectomy", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
+            { "value": 994, "text": { "default": "in menopause", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
+            { "value": 995, "text": { "default": "before last birth", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
+            { "value": 996, "text": { "default": "never menstruated", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } }
           ],
           "skipLogicSource": "993 hysterectomy or 994 menopause: stop pregnancy tracking.",
           "renderAs": "lmp_timing",
