@@ -33,8 +33,12 @@ export function createApp() {
       "http://localhost:58080",
       "http://127.0.0.1:58080",
     ]);
+    const isPrivateLanDevOrigin =
+      process.env.NODE_ENV !== "production" &&
+      typeof origin === "string" &&
+      /^http:\/\/(?:10(?:\.\d{1,3}){3}|192\.168(?:\.\d{1,3}){2}|172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2}):(5317|8088|58080)$/.test(origin);
 
-    if (origin && allowedOrigins.has(origin)) {
+    if (origin && (allowedOrigins.has(origin) || isPrivateLanDevOrigin)) {
       res.setHeader("Access-Control-Allow-Origin", origin);
       res.setHeader("Access-Control-Allow-Credentials", "true");
       res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");

@@ -4025,7 +4025,7 @@
           "order": 54,
           "section_order": 2,
           "sourceCode": "33b",
-          "sourceType": "select_one",
+          "sourceType": "app_calculated",
           "rawText": "CHECK 33a\nIF LAST MENSTRUAL PERIOD > 6 MONTHS AGO 1 last menstrual period > 6 months ago",
           "choices": [
             {
@@ -4056,8 +4056,10 @@
           "renderingHint": {
             "render_as": "radio"
           },
-          "visibleIf": "{wq_02_reproduction_when_did_your_last_menstrual_period_start} notempty and {wq_02_reproduction_when_did_your_last_menstrual_period_start} != 993",
-          "visibleIfSourceResolved": "Excel 02 row 87: Q33a hysterectomy skips Q33b to Q35."
+          "calculated": true,
+          "visible": false,
+          "visibleIf": "1 = 0",
+          "visibleIfSourceResolved": "Q33b is an internal app-calculated value. It is stored for routing and analysis but is never shown to the interviewer."
         },
         {
           "type": "radiogroup",
@@ -4205,7 +4207,7 @@
         {
           "type": "html",
           "name": "wq_02_reproduction_skip_questions_36_37_and_38_if_01_25_marit",
-          "html": "SKIP QUESTIONS 36, 37 and 38 if 01.25 (marital status) response is 2-6",
+          "html": "SKIP QUESTIONS 36, 37 and 38 if Section 1 Q17 (marital status) response is 2-6",
           "order": 58,
           "section_order": 2,
           "sourceType": "section_note"
@@ -4256,8 +4258,8 @@
           "renderingHint": {
             "render_as": "radio"
           },
-          "visibleIf": "({wq_current_marital_status} = 1 or {wq_current_marital_status} = 2 or {wq_current_marital_status} = 8)",
-          "visibleIfSourceResolved": "Excel 02 row 106: pregnancy tracking eligibility uses marital statuses 1/2/8, so Q36-Q38 inputs are shown for those statuses."
+          "visibleIf": "({wq_current_marital_status} = 1 or {wq_current_marital_status} = 7 or {wq_current_marital_status} = 8)",
+          "visibleIfSourceResolved": "Q36-Q38 are hidden when Section 01 Q17 marital status is option 2, 3, 4, 5, or 6; otherwise they are shown."
         },
         {
           "type": "radiogroup",
@@ -4329,8 +4331,8 @@
           "renderingHint": {
             "render_as": "radio"
           },
-          "visibleIf": "({wq_current_marital_status} = 1 or {wq_current_marital_status} = 2 or {wq_current_marital_status} = 8)",
-          "visibleIfSourceResolved": "Excel 02 row 106: pregnancy tracking eligibility uses marital statuses 1/2/8, so Q36-Q38 inputs are shown for those statuses."
+          "visibleIf": "({wq_current_marital_status} = 1 or {wq_current_marital_status} = 7 or {wq_current_marital_status} = 8)",
+          "visibleIfSourceResolved": "Q36-Q38 are hidden when Section 01 Q17 marital status is option 2, 3, 4, 5, or 6; otherwise they are shown."
         },
         {
           "type": "radiogroup",
@@ -4348,9 +4350,9 @@
           "section_order": 2,
           "sourceCode": "38",
           "sourceType": "calculated_integer",
-          "rawText": "Eligibility for pregnancy status tracking 1 Yes, eligible IF 01.15 (age) = 18-44, AND\n01.21 (marital status) = 1,2 or 8,  AND \n02.33a (menstrual period) != (different from) 993 or 994, AND\n02.34 (hysterectomy) = 2,  AND\n02.37 (sterilization status) = 4",
+          "rawText": "Eligibility for pregnancy status tracking 1 Yes, eligible IF Q11 (age) = 18-44, AND\nQ17 (marital status) = 1,2 or 8,  AND \n02.33a (menstrual period) != (different from) 993 or 994, AND\n02.34 (hysterectomy) = 2,  AND\n02.37 (sterilization status) = 4",
           "description": {
-            "default": "Yes, eligible IF 01.15 (age) = 18-44, AND\n01.21 (marital status) = 1,2 or 8,  AND \n02.33a (menstrual period) != (different from) 993 or 994, AND\n02.34 (hysterectomy) = 2,  AND\n02.37 (sterilization status) = 4",
+            "default": "Yes, eligible IF Q11 (age) = 18-44, AND\nQ17 (marital status) = 1,2 or 8,  AND \n02.33a (menstrual period) != (different from) 993 or 994, AND\n02.34 (hysterectomy) = 2,  AND\n02.37 (sterilization status) = 4",
             "hi": "",
             "kn": "",
             "mr": "",
@@ -4388,12 +4390,12 @@
             "render_as": "readonly_calculated_numeric"
           },
           "validationRulesSource": [
-            "IF 01.15 (age) = 18-44, AND\n01.21 (marital status) = 1,2 or 8,  AND \n02.33a (menstrual period) != (different from) 993 or 994, AND\n02.34 (hysterectomy) = 2,  AND\n02.37 (sterilization status) = 4"
+            "IF Q11 (age) = 18-44, AND\nQ17 (marital status) = 1,2 or 8,  AND \n02.33a (menstrual period) != (different from) 993 or 994, AND\n02.34 (hysterectomy) = 2,  AND\n02.37 (sterilization status) = 4"
           ],
           "readOnly": true,
           "calculated": true,
-          "visibleIf": "({wq_current_marital_status} = 1 or {wq_current_marital_status} = 2 or {wq_current_marital_status} = 8)",
-          "visibleIfSourceResolved": "Excel 02 row 106: pregnancy tracking eligibility uses marital statuses 1/2/8.",
+          "visibleIf": "({wq_current_marital_status} = 1 or {wq_current_marital_status} = 7 or {wq_current_marital_status} = 8)",
+          "visibleIfSourceResolved": "Q36-Q38 are hidden when Section 01 Q17 marital status is option 2, 3, 4, 5, or 6; otherwise they are shown.",
           "skipLogicSource": "Excel 02 row 106: eligible if age 18-44, marital status 1/2/8, LMP not 993/994, hysterectomy no, and sterilization status 4. Auto-filled read-only in app behavior."
         }
       ],

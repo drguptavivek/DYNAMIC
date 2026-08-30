@@ -1,5 +1,6 @@
 export const WQ_AGE_FIELD = "wq_age_last_birthday";
 export const WQ_CURRENT_MARITAL_STATUS_FIELD = "wq_current_marital_status";
+export const WQ_SECTION_TWO_COMPLETION_MARITAL_VALUES = [2, 3, 4, 5, 6];
 export const WQ_LMP_FIELD = "wq_02_reproduction_when_did_your_last_menstrual_period_start";
 export const WQ_LMP_MORE_THAN_SIX_MONTHS_FIELD =
   "wq_02_reproduction_check_33a_if_last_menstrual_period_6_month";
@@ -111,6 +112,19 @@ const WQ_DV_PHYSICAL_VIOLENCE_SOURCE_FIELDS = [
   WQ_DV_FORCE_SEX_ACT_FIELD,
   WQ_DV_FORCE_SEX_THREATS_FIELD,
 ];
+
+export function shouldCompleteWqAfterReproduction(maritalStatus) {
+  return WQ_SECTION_TWO_COMPLETION_MARITAL_VALUES.includes(Number(maritalStatus));
+}
+
+export function applyWqSectionTwoCompletion(model) {
+  if (!shouldCompleteWqAfterReproduction(model?.getValue?.(WQ_CURRENT_MARITAL_STATUS_FIELD))) {
+    return false;
+  }
+  model.setValue("wq_full_interview_completed", 1);
+  model.setValue("wq_result_interview", 1);
+  return true;
+}
 
 function toFiniteNumber(value) {
   if (value === undefined || value === null || value === "") return null;

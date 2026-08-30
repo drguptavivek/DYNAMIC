@@ -1,3 +1,11 @@
+## 2026-08-30 (WQ Section 2 completion for Q17 options 2-6) [working]
+Goal: End WQ after Section 2 when Q17 marital status is 2, 3, 4, 5, or 6.
+Decisions:
+- Q36-Q38 remain hidden for Q17 values 2-6. Leaving the transformed final Section 2 page (`page_02e_reproduction_after_comparison`) now routes directly to Outcome, stores `wq_result_interview=1` (Completed), restricts Outcome to Completed, and retains the mandatory preview-before-final-submit gate.
+- Q17 values 1 and 8 keep Q36-Q38 and the normal later-section flow. Full Expo test suite is green.
+Open:
+- APK rebuild/install only when explicitly requested.
+
 ## 2026-08-29 (WQ Q33b/Q33c auto-checks + ship) [working]
 Goal: Auto-calculate WQ Q33b (CHECK 33a >6 months) and Q33c (CHECK 32 not-pregnant/unsure) from the mixed Q33a control; commit, push, rebuild APK, install on the phone.
 Decisions:

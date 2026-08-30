@@ -32,6 +32,7 @@ const {
   WQ_STERILIZATION_FIELD,
    applyWqDomesticViolenceCalculations,
   applyWqLmpTimingChecks,
+  applyWqSectionTwoCompletion,
    applyWqPregnancyHistoryCalculations,
    applyWqReproductionComparisonResult,
    calculateWqReproductionComparison,
@@ -48,6 +49,7 @@ const {
   shouldRecalculateWqDomesticViolence,
   shouldRecalculateWqPregnancyHistory,
   shouldRecalculateWqReproductionSummary,
+  shouldCompleteWqAfterReproduction,
 } = await import("../lib/womanSurveyBehaviors.js");
 const {
   appendDynamicPanel,
@@ -482,6 +484,43 @@ assert.deepEqual(
   "Q17 married must keep the full outcome option list"
 );
 
+for (const maritalStatus of [2, 3, 4, 5, 6]) {
+  const sectionTwoCompletionModel = createWqModel();
+  sectionTwoCompletionModel.setValue("wq_interview_date", "2026-08-14");
+  sectionTwoCompletionModel.setValue("wq_visit_no", 1);
+  sectionTwoCompletionModel.setValue("wq_woman_available", 1);
+  sectionTwoCompletionModel.setValue("wq_consent_study", 1);
+  sectionTwoCompletionModel.setValue(WQ_CURRENT_MARITAL_STATUS_FIELD, maritalStatus);
+  assert.equal(shouldCompleteWqAfterReproduction(maritalStatus), true);
+  assert.equal(
+    isVisible(sectionTwoCompletionModel, "wq_02_reproduction_are_you_or_your_partner_currently_doing_so"),
+    false,
+    `Q17=${maritalStatus} must hide Q36`,
+  );
+  assert.equal(
+    isVisible(sectionTwoCompletionModel, WQ_STERILIZATION_FIELD),
+    false,
+    `Q17=${maritalStatus} must hide Q37`,
+  );
+  assert.equal(
+    isVisible(sectionTwoCompletionModel, "wq_pregnancy_tracking_eligible"),
+    false,
+    `Q17=${maritalStatus} must hide Q38`,
+  );
+  assert.equal(applyWqSectionTwoCompletion(sectionTwoCompletionModel), true);
+  assert.equal(sectionTwoCompletionModel.getValue("wq_result_interview"), 1);
+  assert.equal(sectionTwoCompletionModel.getValue("wq_full_interview_completed"), 1);
+  assert.deepEqual(
+    sectionTwoCompletionModel
+      .getQuestionByName("wq_result_interview")
+      .visibleChoices.map((choice) => choice.value),
+    [1],
+    `Q17=${maritalStatus} must mark the outcome Completed`,
+  );
+}
+assert.equal(shouldCompleteWqAfterReproduction(1), false);
+assert.equal(shouldCompleteWqAfterReproduction(8), false);
+
 const wqOutcomeJson = wq.pages
   .find((page) => page.name === "page_outcome")
   .elements.find((element) => element.name === "wq_result_interview");
@@ -538,7 +577,11 @@ model.setValue("wq_current_marital_status", 7);
 assert.equal(isVisible(model, "wq_husband_partner_name"), false);
 assert.equal(model.getPageByName("page_02_reproduction").isVisible, false);
 assert.equal(model.getPageByName("page_outcome").isVisible, true);
-assert.equal(isVisible(model, "wq_pregnancy_tracking_eligible"), false);
+assert.equal(
+  model.getQuestionByName("wq_pregnancy_tracking_eligible").page.isVisible,
+  false,
+  "Q17 never married must hide the page containing Q38",
+);
 model.setValue("wq_current_marital_status", 1);
 assert.equal(isVisible(model, "wq_husband_partner_name"), true);
 assert.equal(model.getPageByName("page_02_reproduction").isVisible, true);
@@ -1523,12 +1566,31 @@ assert.equal(model.getPageByName("page_04_husband_background_woman_work").isVisi
 
 const q38Question = question(model, "wq_pregnancy_tracking_eligible");
 assert.equal(q38Question.readOnly, true);
-model.setValue("wq_current_marital_status", 2);
-assert.equal(isVisible(model, "wq_02_reproduction_are_you_or_your_partner_currently_doing_so"), true);
-assert.equal(isVisible(model, "wq_02_reproduction_are_you_or_your_partner_sterilized_probe_w"), true);
-assert.equal(isVisible(model, "wq_pregnancy_tracking_eligible"), true);
-model.setValue("wq_current_marital_status", 3);
-assert.equal(isVisible(model, "wq_pregnancy_tracking_eligible"), false);
+const q36Field = "wq_02_reproduction_are_you_or_your_partner_currently_doing_so";
+for (const maritalStatus of [2, 3, 4, 5, 6]) {
+  model.setValue(WQ_CURRENT_MARITAL_STATUS_FIELD, maritalStatus);
+  assert.equal(isVisible(model, q36Field), false, `Q36 must be hidden for Q17=${maritalStatus}`);
+  assert.equal(
+    isVisible(model, WQ_STERILIZATION_FIELD),
+    false,
+    `Q37 must be hidden for Q17=${maritalStatus}`
+  );
+  assert.equal(
+    isVisible(model, "wq_pregnancy_tracking_eligible"),
+    false,
+    `Q38 must be hidden for Q17=${maritalStatus}`
+  );
+}
+for (const maritalStatus of [1, 8]) {
+  model.setValue(WQ_CURRENT_MARITAL_STATUS_FIELD, maritalStatus);
+  assert.equal(isVisible(model, q36Field), true, `Q36 must be shown for Q17=${maritalStatus}`);
+  assert.equal(isVisible(model, WQ_STERILIZATION_FIELD), true, `Q37 must be shown for Q17=${maritalStatus}`);
+  assert.equal(
+    isVisible(model, "wq_pregnancy_tracking_eligible"),
+    true,
+    `Q38 must be shown for Q17=${maritalStatus}`
+  );
+}
 
 assert.equal(
   calculateWqPregnancyTrackingEligibilityValue({
@@ -1727,6 +1789,11 @@ assert.equal(
   lmpChecksModel.getValue(WQ_LMP_MORE_THAN_SIX_MONTHS_FIELD),
   1,
   "Q33b must be auto-stored as 1 for an LMP over 6 months ago"
+);
+assert.equal(
+  isVisible(lmpChecksModel, WQ_LMP_MORE_THAN_SIX_MONTHS_FIELD),
+  false,
+  "Q33b is a backend calculation and must never be shown to the interviewer"
 );
 assert.equal(question(lmpChecksModel, WQ_LMP_MORE_THAN_SIX_MONTHS_FIELD).readOnly, true);
 assert.equal(question(lmpChecksModel, WQ_NOT_PREGNANT_OR_UNSURE_FIELD).readOnly, true);

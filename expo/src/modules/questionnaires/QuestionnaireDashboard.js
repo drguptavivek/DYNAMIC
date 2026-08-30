@@ -46,6 +46,7 @@ import { getDraftSavedMessage } from "./draftSaveMessages.js";
 import {
   WQ_CURRENT_MARITAL_STATUS_FIELD,
   WQ_OTHER_PREGNANCIES_FIELD,
+  applyWqSectionTwoCompletion,
   applyWqDomesticViolenceCalculations,
   applyWqLmpTimingChecks,
    applyWqPregnancyHistoryCalculations,
@@ -54,6 +55,7 @@ import {
   buildWqHusbandPartnerChoices,
   hasIncompleteWqBornAliveChildFollowups,
   requestNextWqPregnancy,
+  shouldCompleteWqAfterReproduction,
    shouldRecalculateWqDomesticViolence,
    shouldRecalculateWqLmpTimingChecks,
   shouldRecalculateWqPregnancyHistory,
@@ -71,6 +73,7 @@ const WQ_WOMAN_AVAILABLE_FIELD = "wq_woman_available";
 const WQ_RESULT_INTERVIEW_FIELD = "wq_result_interview";
 const WQ_OUTCOME_PAGE_NAME = "page_outcome";
 const WQ_BIOMARKERS_PAGE_NAME = "page_06_biomarkers";
+const WQ_SECTION_TWO_FINAL_PAGE_NAME = "page_02e_reproduction_after_comparison";
 const WQ_FULL_INTERVIEW_COMPLETED_FIELD = "wq_full_interview_completed";
 const WQ_HUSBAND_PARTNER_NAME_FIELD = "wq_husband_partner_name";
 const WQ_HUSBAND_PARTNER_LINE_NUMBER_FIELD = "wq_husband_partner_line_number";
@@ -578,6 +581,17 @@ export function QuestionnaireDashboard({
     model.onCurrentPageChanging.add((sender, options) => {
       const oldPageIndex = sender.pages.indexOf(options.oldCurrentPage);
       const newPageIndex = sender.pages.indexOf(options.newCurrentPage);
+      if (
+        isWomanQuestionnaire(form) &&
+        options.oldCurrentPage?.name === WQ_SECTION_TWO_FINAL_PAGE_NAME &&
+        shouldCompleteWqAfterReproduction(sender.getValue(WQ_CURRENT_MARITAL_STATUS_FIELD))
+      ) {
+        applyWqSectionTwoCompletion(sender);
+        const outcomePage = sender.getPageByName?.(WQ_OUTCOME_PAGE_NAME);
+        if (outcomePage?.isVisible && options.newCurrentPage?.name !== WQ_OUTCOME_PAGE_NAME) {
+          options.newCurrentPage = outcomePage;
+        }
+      }
       if (
         isWomanQuestionnaire(form) &&
         newPageIndex > oldPageIndex &&
