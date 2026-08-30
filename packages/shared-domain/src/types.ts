@@ -19,6 +19,7 @@ export type FormCode =
   | "HHQ"
   | "WQ"
   | "HRF"
+  | "PSF"
   | "PEF"
   | "UF"
   | "PFF"

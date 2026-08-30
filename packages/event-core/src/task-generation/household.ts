@@ -1,4 +1,4 @@
-import { generateHrfSchedule, type ProtocolConfig, type TaskDescriptor } from "@dynamic/shared-workflow";
+import { generateHrfSchedule, generatePsfSchedule, type ProtocolConfig, type TaskDescriptor } from "@dynamic/shared-workflow";
 import {
   addDaysIso,
   buildTaskKey,
@@ -115,4 +115,14 @@ export function generateEligibleWomanWqTaskDescriptors(
       disabled_reason: availability.disabled_reason,
     },
   ];
+}
+
+export function generatePregnancySurveillanceTaskDescriptors(input: { household_id: string; woman_id: string; eligibility_date: string; source_event_id: string; config?: ProtocolConfig }): TaskDescriptor[] {
+  const config = getConfig(input.config);
+  const modeRule = getModeRule(config, "PSF");
+  const disposition = getAttemptDisposition(config, "PSF");
+  const availability = getFormAvailability(config, "PSF");
+  return generatePsfSchedule({ eligibility_date: input.eligibility_date, study_end_date: config.study_end_date, rules_version: config.rules_version }).map((schedule) => ({
+    task_key: buildTaskKey(input.household_id, "woman", input.woman_id, "PSF", schedule.label, schedule.target_date, config.rules_version), household_id: input.household_id, subject_type: "woman", subject_id: input.woman_id, woman_id: input.woman_id, task_type: "PSF", form_code: "PSF", protocol_visit_label: schedule.label, generation_source: "scheduled", source_event_id: input.source_event_id, anchor_date: input.eligibility_date, window_start: schedule.window_start, target_date: schedule.target_date, deadline_date: schedule.deadline, default_expected_mode: modeRule.default_mode, allowed_modes: modeRule.allowed_modes, mode_rule_strength: modeRule.strength, max_failed_attempts: disposition.max_failed_attempts, requires_final_close_reason: disposition.requires_final_close_reason, rules_version: config.rules_version, form_availability: availability.availability, action_state: availability.availability === "available" ? "enabled" : "disabled", disabled_reason: availability.disabled_reason,
+  }));
 }

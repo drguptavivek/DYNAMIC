@@ -3,6 +3,7 @@
 export const PSF_ADDRESS_STATUS_FIELD = "psf_same_address_status";
 export const PSF_MARITAL_STATUS_FIELD = "psf_current_marital_status";
 export const PSF_STERILIZATION_STATUS_FIELD = "psf_sterilization_status";
+export const PSF_STERILIZATION_RECONFIRMATION_FIELD = "psf_sterilization_reconfirmation";
 export const PSF_HYSTERECTOMY_STATUS_FIELD = "psf_hysterectomy_status";
 export const PSF_PREGNANT_NOW_FIELD = "psf_pregnant_now";
 export const PSF_LMP_FIELD = "psf_last_menstrual_period";
@@ -14,6 +15,7 @@ const SOURCE_FIELDS = new Set([
   PSF_ADDRESS_STATUS_FIELD,
   PSF_MARITAL_STATUS_FIELD,
   PSF_STERILIZATION_STATUS_FIELD,
+  PSF_STERILIZATION_RECONFIRMATION_FIELD,
   PSF_HYSTERECTOMY_STATUS_FIELD,
   PSF_PREGNANT_NOW_FIELD,
   PSF_LMP_FIELD,

@@ -588,10 +588,19 @@ export function QuestionnaireDashboard({
         answerSnapshotRef.current = { ...(sender.data || {}) };
         setRendererAnswerData(answerSnapshotRef.current);
       }
-      if (
+  if (
         isPregnancySurveillanceForm(form) &&
         shouldRecalculatePregnancySurveillance(options.name)
       ) {
+        if (
+          options.name === "psf_sterilization_reconfirmation" &&
+          Number(options.value) === 2
+        ) {
+          sender.setValue("psf_sterilization_status", undefined);
+          sender.setValue("psf_sterilization_reconfirmation", undefined);
+          setSaveMessage("Please ask the sterilization question again.");
+          requestAnimationFrame(() => rendererRef.current?.focusQuestion("psf_sterilization_status"));
+        }
         applyPregnancySurveillanceCalculations(sender);
         answerSnapshotRef.current = { ...(sender.data || {}) };
         setRendererAnswerData(answerSnapshotRef.current);

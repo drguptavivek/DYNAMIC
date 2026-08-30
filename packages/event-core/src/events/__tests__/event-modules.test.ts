@@ -72,7 +72,8 @@ describe("field event modules", () => {
     expect(pregnant?.event.payload).toMatchObject({ wq_pregnant: true });
     expect(pregnant?.task_descriptors.some((task) => task.form_code === "PEF")).toBe(true);
     expect(notPregnant?.event.payload).toMatchObject({ wq_pregnant: false });
-    expect(notPregnant?.task_descriptors).toEqual([]);
+    expect(notPregnant?.task_descriptors.length).toBeGreaterThan(0);
+    expect(notPregnant?.task_descriptors.every((task) => task.form_code === "PSF")).toBe(true);
   });
 
   it("promotes PEF submission evidence through the shared trigger", () => {

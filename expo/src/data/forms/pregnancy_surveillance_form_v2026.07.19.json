@@ -209,6 +209,25 @@
         },
         {
           "type": "radiogroup",
+          "name": "psf_sterilization_reconfirmation",
+          "title": { "default": "Please confirm: Are you or your partner sterilized?", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
+          "order": 10.1,
+          "section_order": 1,
+          "sourceCode": "10_confirm",
+          "sourceType": "select_one",
+          "rawText": "If no, ask the sterilization question again to confirm.",
+          "description": { "default": "Confirm the response before continuing.", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
+          "visibleIf": "{psf_sterilization_status} = 4",
+          "isRequired": true,
+          "choices": [
+            { "value": 1, "text": { "default": "Yes, confirmed", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
+            { "value": 2, "text": { "default": "No, ask Q10 again", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } }
+          ],
+          "skipLogicSource": "When Q10 is No, reconfirm the same question. If not confirmed, return to Q10 and record the response again.",
+          "renderingHint": { "render_as": "radio" }
+        },
+        {
+          "type": "radiogroup",
           "name": "psf_hysterectomy_status",
           "title": { "default": "Some women undergo an operation to remove the uterus. Have you undergone such an operation?", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
           "order": 11,
@@ -216,7 +235,7 @@
           "sourceCode": "11",
           "sourceType": "select_one",
           "rawText": "Some women undergo an operation to remove the uterus. Have you undergone such an operation?",
-          "visibleIf": "{psf_sterilization_status} = 4",
+          "visibleIf": "{psf_sterilization_status} = 4 and {psf_sterilization_reconfirmation} = 1",
           "isRequired": true,
           "choices": [
             { "value": 1, "text": { "default": "Yes", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
@@ -320,7 +339,7 @@
   ],
   "extraction_notes": [
     "Converted from the single Pregnancy Surveillance worksheet in 04_pregnancy_surveillance_form_v2026.07.19.xlsx.",
-    "Workbook variable IDs 1-13 and coded option values are preserved.",
+    "Workbook variable IDs 1-13 and coded option values are preserved; Q10 confirmation is an added interviewer control.",
     "The workbook's unnumbered new-address prompt is stored as Q8_address and is required only after shifted within study area.",
     "Stop-tracking instructions are implemented as conditional hiding plus app-calculated disposition fields; task cancellation or Pregnancy Enrollment scheduling is intentionally deferred until the PSF task flow is defined.",
     "Q13 uses the shared exact-date, relative-time, and special-code native renderer."

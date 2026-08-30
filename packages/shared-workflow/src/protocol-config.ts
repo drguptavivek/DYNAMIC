@@ -76,6 +76,14 @@ export const DEFAULT_PROTOCOL_CONFIG: ProtocolConfig = {
       mode_rule_strength: "default",
     },
     {
+      task_type: "PSF",
+      window_days_before: 14,
+      window_days_after: 14,
+      default_mode: "telephonic",
+      allowed_modes: ["telephonic"],
+      mode_rule_strength: "required",
+    },
+    {
       task_type: "WQ",
       window_days_before: 0,
       window_days_after: 30,
@@ -159,6 +167,12 @@ export const DEFAULT_PROTOCOL_CONFIG: ProtocolConfig = {
   attempt_disposition_rules: [
     {
       task_type: "HRF",
+      max_failed_attempts: 5,
+      requires_final_close_reason: true,
+      close_reason_options: ["not_reachable", "refused", "moved_out", "deceased"],
+    },
+    {
+      task_type: "PSF",
       max_failed_attempts: 5,
       requires_final_close_reason: true,
       close_reason_options: ["not_reachable", "refused", "moved_out", "deceased"],
@@ -295,6 +309,13 @@ export const DEFAULT_PROTOCOL_CONFIG: ProtocolConfig = {
       exception_reason_required: false,
     },
     {
+      form_code: "PSF",
+      default_mode: "telephonic",
+      allowed_modes: ["telephonic"],
+      strength: "required",
+      exception_reason_required: false,
+    },
+    {
       form_code: "PFF",
       default_mode: "flexible",
       allowed_modes: ["telephonic", "face_to_face"],
@@ -325,6 +346,7 @@ export const DEFAULT_PROTOCOL_CONFIG: ProtocolConfig = {
     { form_code: "CDF", availability: "available" },
     { form_code: "UF", availability: "available" },
     { form_code: "HRF", availability: "available" },
+    { form_code: "PSF", availability: "available" },
     { form_code: "PFF", availability: "available" },
     { form_code: "POF", availability: "available" },
     { form_code: "NFF", availability: "available" },

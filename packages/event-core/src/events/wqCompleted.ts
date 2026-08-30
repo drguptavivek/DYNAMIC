@@ -1,6 +1,7 @@
 import type { DomainEventEnvelope } from "../types";
 import type { BaseEventInput, EventPromotionResult } from "./types";
 import * as pregnancyDetected from "./pregnancyDetected";
+import { generatePregnancySurveillanceTaskDescriptors } from "../task-generation/household";
 import type { ProtocolConfig, TaskDescriptor } from "./workflowHelpers";
 
 export const EVENT_TYPE = "wq_completed";
@@ -56,7 +57,15 @@ export function reduceEvent(): null {
 }
 
 export function planWorkflow(input: { event: DomainEventEnvelope<WqCompletedPayload>; config?: ProtocolConfig }): TaskDescriptor[] {
-  if (input.event.apply_status !== "applied" || !input.event.payload.wq_pregnant) return [];
+  if (input.event.apply_status !== "applied") return [];
+  const psfTasks = generatePregnancySurveillanceTaskDescriptors({
+    household_id: input.event.payload.household_id,
+    woman_id: input.event.payload.woman_id,
+    eligibility_date: input.event.payload.completed_date,
+    source_event_id: input.event.event_id,
+    config: input.config,
+  });
+  if (!input.event.payload.wq_pregnant) return psfTasks;
   const detectedEvent = pregnancyDetected.buildEvent({
     event_id: input.event.event_id,
     site_id: input.event.site_id,
@@ -70,7 +79,7 @@ export function planWorkflow(input: { event: DomainEventEnvelope<WqCompletedPayl
     form_response_id: input.event.form_response_id,
     apply_status: input.event.apply_status,
   });
-  return pregnancyDetected.planWorkflow({ event: detectedEvent, config: input.config });
+  return [...psfTasks, ...pregnancyDetected.planWorkflow({ event: detectedEvent, config: input.config })];
 }
 
 export function promoteEvidence(input: WqCompletedEventInput & { config?: ProtocolConfig }): EventPromotionResult<WqCompletedPayload> {

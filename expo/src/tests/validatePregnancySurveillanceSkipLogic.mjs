@@ -20,6 +20,9 @@ const model = new Model(prepareQuestionnaireSurveyJson(form));
 
 assert.equal(form.form_code, "PSF");
 assert.equal(form.version, "28 JUNE 2026");
+const elementNames = form.pages[0].elements.map((element) => element.name);
+assert.ok(elementNames.indexOf("psf_sterilization_status") < elementNames.indexOf("psf_sterilization_reconfirmation"));
+assert.ok(elementNames.indexOf("psf_sterilization_reconfirmation") < elementNames.indexOf("psf_hysterectomy_status"));
 assert.deepEqual(
   form.pages[0].elements
     .filter((element) => /^\d+(?:_address)?$/.test(String(element.sourceCode)))
@@ -50,6 +53,15 @@ model.setValue("psf_current_marital_status", 1);
 model.setValue("psf_sterilization_status", 2);
 assert.equal(model.getQuestionByName("psf_hysterectomy_status").isVisible, false);
 assert.equal(calculatePsfTrackingDisposition(model.data).stopReason, "sterilized");
+
+model.clear();
+model.setValue("psf_same_address_status", 1);
+model.setValue("psf_current_marital_status", 1);
+model.setValue("psf_sterilization_status", 4);
+assert.equal(model.getQuestionByName("psf_sterilization_reconfirmation").isVisible, true);
+assert.equal(model.getQuestionByName("psf_hysterectomy_status").isVisible, false);
+model.setValue("psf_sterilization_reconfirmation", 1);
+assert.equal(model.getQuestionByName("psf_hysterectomy_status").isVisible, true);
 
 model.clear();
 model.setValue("psf_same_address_status", 1);

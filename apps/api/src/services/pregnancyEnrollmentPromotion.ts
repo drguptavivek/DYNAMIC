@@ -1,5 +1,5 @@
 import { promoteFormSubmission, type PregnancyProjection } from "@dynamic/event-core";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { schema } from "../db";
 import { getDb } from "../lib/dbContext";
@@ -175,6 +175,19 @@ export async function promotePef(
       .where(eq(schema.pregnancies.pregnancy_id, projection.pregnancy_id));
 
     await writeTasksFromDescriptors(promotion.task_descriptors);
+
+    // PEF enrollment moves the woman into the active pregnancy pathway; retain
+    // completed PSF evidence but cancel every pending/future PSF task.
+    await getDb()
+      .update(schema.followUpTasks)
+      .set({ status: "cancelled", closed_at: now, closed_reason: "pregnancy_enrolled", updated_at: now })
+      .where(
+        and(
+          eq(schema.followUpTasks.woman_id, pregnancy.woman_id),
+          eq(schema.followUpTasks.task_type, "PSF"),
+          inArray(schema.followUpTasks.status, ["planned", "pending", "due", "overdue"]),
+        ),
+      );
   } catch (err) {
     console.error(`Error in promotePef for ${householdId}/${subjectId}:`, err);
     throw err;

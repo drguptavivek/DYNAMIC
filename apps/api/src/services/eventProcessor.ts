@@ -16,6 +16,7 @@ import { promoteHhq } from "./hhqFormPromotion";
 import { promotePef } from "./pregnancyEnrollmentPromotion";
 import { holdUnsupportedFormForReview } from "./unsupportedFormPromotion";
 import { promotePregnancySurveillance } from "./pregnancySurveillancePromotion";
+import { generatePregnancySurveillanceTaskDescriptors } from "@dynamic/event-core";
 export {
   rebuildAllProjectionRows,
   rebuildHhqHouseholdProjection,
@@ -453,6 +454,17 @@ async function promoteWq(
       });
       const tasks = wqCompleted.planWorkflow({ event: wqEvent });
       await writeTasksFromDescriptors(tasks);
+    } else {
+      // Women eligible for surveillance but not currently pregnant receive an
+      // independent PSF series beginning two months after this WQ completion.
+      await writeTasksFromDescriptors(
+        generatePregnancySurveillanceTaskDescriptors({
+          household_id: householdId,
+          woman_id: womanId,
+          eligibility_date: completedDate,
+          source_event_id: response.form_response_id || randomUUID(),
+        }),
+      );
     }
   } catch (err) {
     console.error(`Error in promoteWq for ${householdId}/${subjectId}:`, err);
@@ -724,7 +736,15 @@ async function promotePof(
       });
     }
 
-    await writeTasksFromDescriptors(promotion.task_descriptors);
+    await writeTasksFromDescriptors([
+      ...promotion.task_descriptors,
+      ...generatePregnancySurveillanceTaskDescriptors({
+        household_id: pregnancy.household_id || householdId,
+        woman_id: pregnancy.woman_id,
+        eligibility_date: deliveryDate,
+        source_event_id: eventId,
+      }),
+    ]);
   } catch (err) {
     console.error(`Error in promotePof for ${householdId}/${subjectId}:`, err);
     throw err;

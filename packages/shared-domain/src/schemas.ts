@@ -112,11 +112,11 @@ export const FollowUpTaskSchema = z.object({
   pregnancy_id: z.string().nullable().optional(),
   child_id: z.string().nullable().optional(),
   task_type: z
-    .enum(["HHQ", "WQ", "HRF", "PEF", "UF", "PFF", "POF", "BAF", "SBF", "NFF", "CDF", "VA"])
+    .enum(["HHQ", "WQ", "HRF", "PSF", "PEF", "UF", "PFF", "POF", "BAF", "SBF", "NFF", "CDF", "VA"])
     .nullable()
     .optional(),
   form_code: z
-    .enum(["HHQ", "WQ", "HRF", "PEF", "UF", "PFF", "POF", "BAF", "SBF", "NFF", "CDF", "VA"])
+    .enum(["HHQ", "WQ", "HRF", "PSF", "PEF", "UF", "PFF", "POF", "BAF", "SBF", "NFF", "CDF", "VA"])
     .nullable()
     .optional(),
   expected_forms: z.array(z.string()).nullable().optional(),
@@ -185,7 +185,7 @@ export const FormResponseSchema = z.object({
   series_id: z.string().nullable().optional(),
   sequence_number: z.number().int().nullable().optional(),
   form_code: z
-    .enum(["HHQ", "WQ", "HRF", "PEF", "UF", "PFF", "POF", "BAF", "SBF", "NFF", "CDF", "VA"])
+    .enum(["HHQ", "WQ", "HRF", "PSF", "PEF", "UF", "PFF", "POF", "BAF", "SBF", "NFF", "CDF", "VA"])
     .nullable()
     .optional(),
   form_version: z.string().nullable().optional(),

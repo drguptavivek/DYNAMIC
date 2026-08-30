@@ -99,6 +99,21 @@ export function generateHrfSchedule(params: {
   return results;
 }
 
+/** Generate woman-level Pregnancy Surveillance rounds every two months. */
+export function generatePsfSchedule(params: { eligibility_date: string; study_end_date: string; rules_version: string; start_after_months?: number }): Array<{ round: number; label: string; target_date: string; window_start: string; deadline: string }> {
+  const anchor = parseISODate(params.eligibility_date);
+  const studyEnd = parseISODate(params.study_end_date);
+  const results = [];
+  let round = 1;
+  while (true) {
+    const target = addCalendarMonths(anchor, (params.start_after_months ?? 2) + (round - 1) * 2);
+    if (target > studyEnd) break;
+    results.push({ round, label: `PSF-R${round}`, target_date: toISODate(target), window_start: toISODate(addDays(target, -14)), deadline: toISODate(addDays(target, 14)) });
+    round += 1;
+  }
+  return results;
+}
+
 /**
  * Generate PFF task schedule from enrollment_date.
  */

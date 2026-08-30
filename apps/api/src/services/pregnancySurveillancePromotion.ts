@@ -1,6 +1,10 @@
 import { schema } from "../db";
 import { getDb } from "../lib/dbContext";
 import type { FormAnswers } from "./promotionEventBridge";
+import { and, eq, inArray } from "drizzle-orm";
+import { randomUUID } from "crypto";
+import { pregnancyDetected } from "@dynamic/event-core";
+import { writeTasksFromDescriptors } from "./taskWriter";
 
 type FormResponseRow = typeof schema.formResponses.$inferSelect;
 
@@ -57,4 +61,77 @@ export async function promotePregnancySurveillance(
       target: schema.pregnancySurveillanceRecords.form_response_id,
       set: updateValues,
     });
+
+  const womanId = values.woman_id;
+  const householdId = values.household_id;
+  const pregnantNow = values.pregnancy_status === 1;
+
+  // A positive PSF pregnancy report starts the separate PEF pathway and ends
+  // only the outstanding PSF series. Completed PSF responses remain history.
+  if (pregnantNow && womanId && householdId) {
+    const [woman] = await getDb()
+      .select()
+      .from(schema.eligibleWomen)
+      .where(eq(schema.eligibleWomen.woman_id, womanId))
+      .limit(1);
+    const [existingPregnancy] = await getDb()
+      .select()
+      .from(schema.pregnancies)
+      .where(and(eq(schema.pregnancies.woman_id, womanId), eq(schema.pregnancies.pregnancy_status, "active")))
+      .limit(1);
+    const detectedDate = values.interview_date || new Date().toISOString().slice(0, 10);
+    let pregnancyId = existingPregnancy?.pregnancy_id;
+    if (!pregnancyId) {
+      pregnancyId = randomUUID();
+      await getDb().insert(schema.pregnancies).values({
+        pregnancy_id: pregnancyId,
+        woman_id: womanId,
+        household_member_id: woman?.household_member_id || womanId,
+        household_id: householdId,
+        site_id: response.site_id,
+        locality_code: response.locality_code,
+        pregnancy_sequence: 1,
+        pregnancy_status: "active",
+        detected_date: detectedDate,
+        detection_source: "psf",
+        source_event_id: response.form_response_id,
+        created_at: now,
+        updated_at: now,
+      });
+    }
+    const detectedEvent = pregnancyDetected.buildEvent({
+      event_id: randomUUID(),
+      site_id: response.site_id,
+      locality_code: response.locality_code,
+      household_id: householdId,
+      woman_id: womanId,
+      detected_date: detectedDate,
+      recorded_at: now.toISOString(),
+      task_id: response.task_id,
+      form_response_id: response.form_response_id,
+      device_id: response.device_id || undefined,
+    });
+    await writeTasksFromDescriptors(pregnancyDetected.planWorkflow({ event: detectedEvent }));
+    await getDb()
+      .update(schema.followUpTasks)
+      .set({ status: "cancelled", closed_at: now, closed_reason: "pregnancy_detected", updated_at: now })
+      .where(
+        and(
+          eq(schema.followUpTasks.woman_id, womanId),
+          eq(schema.followUpTasks.task_type, "PSF"),
+          inArray(schema.followUpTasks.status, ["planned", "pending", "due", "overdue"]),
+        ),
+      );
+  } else if (womanId && values.tracking_disposition === "stopped") {
+    await getDb()
+      .update(schema.followUpTasks)
+      .set({ status: "cancelled", closed_at: now, closed_reason: values.stop_reason || "psf_ineligible", updated_at: now })
+      .where(
+        and(
+          eq(schema.followUpTasks.woman_id, womanId),
+          eq(schema.followUpTasks.task_type, "PSF"),
+          inArray(schema.followUpTasks.status, ["planned", "pending", "due", "overdue"]),
+        ),
+      );
+  }
 }
