@@ -151,6 +151,35 @@ export function buildPffPrefill(member, household) {
   return { prefill, readOnlyFields };
 }
 
+/** Build prefill for Pregnancy Surveillance Form without applying task flow. */
+export function buildPsfPrefill(member, household, today = new Date()) {
+  if (!member || !household) {
+    return { prefill: { psf_interview_date: formatLocalIsoDate(today) }, readOnlyFields: [] };
+  }
+
+  const prefill = {
+    psf_household_id: household.household_id,
+    psf_woman_line_number: String(member.line_number ?? member.member_number ?? "").padStart(2, "0"),
+    psf_woman_id: member.individual_id || member.household_member_id || "",
+    psf_interview_date: formatLocalIsoDate(today),
+    psf_woman_name: member.member_name || member.name || "",
+    psf_husband_name: member.husband_name || "",
+    psf_current_address: household.address || "",
+  };
+
+  return {
+    prefill,
+    readOnlyFields: [
+      "psf_household_id",
+      "psf_woman_line_number",
+      "psf_woman_id",
+      "psf_woman_name",
+      "psf_husband_name",
+      "psf_current_address",
+    ],
+  };
+}
+
 /**
  * Build prefill for Pregnancy Outcome Form (POF)
  * Read-only: woman/pregnancy identifiers
@@ -263,6 +292,8 @@ export function buildPrefillForTask(task, household, member) {
       return buildPefPrefill(member, household);
     case "PFF":
       return buildPffPrefill(member, household);
+    case "PSF":
+      return buildPsfPrefill(member, household);
     case "POF":
       return buildPofPrefill(member, household);
     case "BAF":

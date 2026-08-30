@@ -41,6 +41,10 @@ import {
 } from "./questionnaireSurveyJsonTransforms";
 import { applyReadOnlyFields } from "./questionnaireReadOnlyFields.js";
 import { mergePrefillIntoBlankValues } from "../../lib/prefillMapper.js";
+import {
+  applyPregnancySurveillanceCalculations,
+  shouldRecalculatePregnancySurveillance,
+} from "../../lib/pregnancySurveillanceBehaviors.js";
 import { listHouseholdMembers } from "../households/householdRepository.js";
 import { getDraftSavedMessage } from "./draftSaveMessages.js";
 import {
@@ -90,6 +94,10 @@ function isWomanQuestionnaire(form) {
 
 function isHouseholdRoundsForm(form) {
   return String(form?.form_code || "").toUpperCase() === "HRF";
+}
+
+function isPregnancySurveillanceForm(form) {
+  return String(form?.form_code || "").toUpperCase() === "PSF";
 }
 
 function clampWqVisitNo(value) {
@@ -483,6 +491,10 @@ export function QuestionnaireDashboard({
       attachHouseholdRoundsSurveyBehaviors(model, form);
     }
 
+    if (isPregnancySurveillanceForm(form)) {
+      applyPregnancySurveillanceCalculations(model);
+    }
+
     model.onValueChanged.add((sender, options) => {
       markDirty();
       const nextData = {
@@ -573,6 +585,14 @@ export function QuestionnaireDashboard({
         shouldRecalculateHrfNewWomanEligibility(options.name)
       ) {
         applyHrfNewWomanEligibilityCalculations(sender);
+        answerSnapshotRef.current = { ...(sender.data || {}) };
+        setRendererAnswerData(answerSnapshotRef.current);
+      }
+      if (
+        isPregnancySurveillanceForm(form) &&
+        shouldRecalculatePregnancySurveillance(options.name)
+      ) {
+        applyPregnancySurveillanceCalculations(sender);
         answerSnapshotRef.current = { ...(sender.data || {}) };
         setRendererAnswerData(answerSnapshotRef.current);
       }
@@ -788,6 +808,11 @@ export function QuestionnaireDashboard({
            applyWqPregnancyTrackingEligibility(survey);
           applyWqDomesticViolenceCalculations(survey);
           routeWqStopToOutcome(survey, { navigate: false });
+        }
+        if (isPregnancySurveillanceForm(form)) {
+          applyPregnancySurveillanceCalculations(survey);
+          answerSnapshotRef.current = { ...(survey.data || {}) };
+          setRendererAnswerData(answerSnapshotRef.current);
         }
         setPreviewConfirmed(false);
         memberSummaryConfirmedRef.current = false;

@@ -15,6 +15,7 @@ import {
 import { promoteHhq } from "./hhqFormPromotion";
 import { promotePef } from "./pregnancyEnrollmentPromotion";
 import { holdUnsupportedFormForReview } from "./unsupportedFormPromotion";
+import { promotePregnancySurveillance } from "./pregnancySurveillancePromotion";
 export {
   rebuildAllProjectionRows,
   rebuildHhqHouseholdProjection,
@@ -127,6 +128,7 @@ const FORM_PROMOTION_HANDLERS: Record<string, PromotionHandler> = {
     }
   },
   SBF: async (response) => holdUnsupportedFormForReview(response, "SBF"),
+  PSF: (response, answers) => promotePregnancySurveillance(response, answers),
 };
 
 async function promoteWq(

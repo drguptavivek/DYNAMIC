@@ -9,6 +9,7 @@ import formBAF from './forms/birth_assessment_form_v2026.05.13.json';
 import formSBF from './forms/stillbirth_form_v2026.05.13.json';
 import formNFF from './forms/newborn_followup_form_v2026.05.13.json';
 import formCDF from './forms/child_death_form_v2026.05.13.json';
+import formPSF from './forms/pregnancy_surveillance_form_v2026.07.19.json';
 
 export const formCatalog = [
   {
@@ -87,6 +88,13 @@ export const formCatalog = [
     "version": "13 MAY 2026",
     "question_count": 25,
     "file_name": "child_death_form_v2026.05.13.json"
+  },
+  {
+    "form_code": "PSF",
+    "title": "Pregnancy Surveillance Form",
+    "version": "28 JUNE 2026",
+    "question_count": 14,
+    "file_name": "pregnancy_surveillance_form_v2026.07.19.json"
   }
 ];
 
@@ -101,5 +109,6 @@ export const formsByCode = {
   "BAF": formBAF,
   "SBF": formSBF,
   "NFF": formNFF,
-  "CDF": formCDF
+  "CDF": formCDF,
+  "PSF": formPSF
 };

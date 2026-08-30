@@ -1,3 +1,14 @@
+## 2026-08-30 (Pregnancy Surveillance form) [working]
+Goal: Convert the complete Pregnancy Surveillance Excel workbook into a rendered PSF form and add durable database storage.
+Decisions:
+- Added PSF as a separate form from PEF. Workbook IDs 1-13, Q8 new-address capture, coded options, and all stop/continue conditions are preserved; Q13 reuses the native exact-date/relative-time/special-code LMP control.
+- PSF live changes and draft restore calculate tracking disposition, stop reason, and pregnancy-detected evidence. No PEF definition or existing PEF flow was changed, and no PSF task scheduling was added because the user will specify the PSF task flow separately.
+- Raw submissions remain in `form_responses`; synchronized PSF submissions are additionally normalized into `pregnancy_surveillance_records`. The schema is exported for drizzle push and requires no seed task/data.
+- Focused PSF runtime test, full Expo suite, API unit tests, and API typecheck are green.
+Open:
+- Apply the additive schema to the running dev database and run DB smoke verification.
+- PSF task-flow behavior awaits a separate user instruction.
+
 ## 2026-08-30 (WQ Section 2 completion for Q17 options 2-6) [working]
 Goal: End WQ after Section 2 when Q17 marital status is 2, 3, 4, 5, or 6.
 Decisions:

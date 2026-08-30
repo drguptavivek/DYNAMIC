@@ -1,0 +1,337 @@
+{
+  "schema_version": "pretsing_surveyjs_semantic_v0.2",
+  "source_pdf": "C:\\Users\\jtndr\\Desktop\\aiims work\\04_pregnancy_surveillance_form_v2026.07.19.xlsx",
+  "form_code": "PSF",
+  "title": {
+    "default": "Pregnancy Surveillance Form",
+    "hi": "",
+    "kn": "",
+    "mr": "",
+    "ta": "",
+    "te": "",
+    "ur": ""
+  },
+  "description": {
+    "default": "DYNAMIC: 04 - Pregnancy Surveillance Form, version 28 June 2026",
+    "hi": "",
+    "kn": "",
+    "mr": "",
+    "ta": "",
+    "te": "",
+    "ur": ""
+  },
+  "version": "28 JUNE 2026",
+  "showQuestionNumbers": "on",
+  "questionTitlePattern": "numTitle",
+  "pages": [
+    {
+      "name": "page_01_pregnancy_surveillance",
+      "order": 1,
+      "title": {
+        "default": "Pregnancy surveillance",
+        "hi": "",
+        "kn": "",
+        "mr": "",
+        "ta": "",
+        "te": "",
+        "ur": ""
+      },
+      "elements": [
+        {
+          "type": "text",
+          "name": "psf_household_id",
+          "title": { "default": "Household ID", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
+          "order": 1,
+          "section_order": 1,
+          "sourceCode": "1",
+          "sourceType": "app_prefilled",
+          "rawText": "Household ID",
+          "description": { "default": "Automatically filled.", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
+          "readOnly": true,
+          "renderingHint": { "render_as": "input", "readonly": true }
+        },
+        {
+          "type": "text",
+          "name": "psf_woman_line_number",
+          "title": { "default": "Woman's line number", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
+          "order": 2,
+          "section_order": 1,
+          "sourceCode": "2",
+          "sourceType": "app_prefilled",
+          "rawText": "Woman's line number",
+          "description": { "default": "Automatically filled.", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
+          "readOnly": true,
+          "renderingHint": { "render_as": "input", "readonly": true }
+        },
+        {
+          "type": "text",
+          "name": "psf_woman_id",
+          "title": { "default": "Woman's ID", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
+          "order": 3,
+          "section_order": 1,
+          "sourceCode": "3",
+          "sourceType": "app_prefilled",
+          "rawText": "Woman's ID",
+          "description": { "default": "Automatically filled.", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
+          "readOnly": true,
+          "renderingHint": { "render_as": "input", "readonly": true }
+        },
+        {
+          "type": "text",
+          "name": "psf_interview_date",
+          "title": { "default": "Date of interview", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
+          "order": 4,
+          "section_order": 1,
+          "sourceCode": "4",
+          "sourceType": "date",
+          "rawText": "Date of interview mm/dd/yyyy",
+          "inputType": "date",
+          "isRequired": true,
+          "validationRulesSource": ["mm/dd/yyyy"],
+          "renderingHint": { "render_as": "date_picker" }
+        },
+        {
+          "type": "text",
+          "name": "psf_woman_name",
+          "title": { "default": "Name of eligible woman", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
+          "order": 5,
+          "section_order": 1,
+          "sourceCode": "5",
+          "sourceType": "app_prefilled",
+          "rawText": "Name of eligible woman",
+          "description": { "default": "Automatically filled; check with the respondent.", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
+          "readOnly": true,
+          "renderingHint": { "render_as": "input", "readonly": true }
+        },
+        {
+          "type": "text",
+          "name": "psf_husband_name",
+          "title": { "default": "Name of husband of woman", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
+          "order": 6,
+          "section_order": 1,
+          "sourceCode": "6",
+          "sourceType": "app_prefilled",
+          "rawText": "Name of husband of woman",
+          "description": { "default": "Automatically filled; check with the respondent.", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
+          "readOnly": true,
+          "renderingHint": { "render_as": "input", "readonly": true }
+        },
+        {
+          "type": "text",
+          "name": "psf_current_address",
+          "title": { "default": "Current address", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
+          "order": 7,
+          "section_order": 1,
+          "sourceCode": "7",
+          "sourceType": "app_prefilled",
+          "rawText": "Current address to be displayed",
+          "description": { "default": "Automatically displayed.", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
+          "readOnly": true,
+          "renderingHint": { "render_as": "input", "readonly": true }
+        },
+        {
+          "type": "radiogroup",
+          "name": "psf_same_address_status",
+          "title": { "default": "Do you still live at the displayed address?", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
+          "order": 8,
+          "section_order": 1,
+          "sourceCode": "8",
+          "sourceType": "select_one",
+          "rawText": "Do you still live in the same address (read out the displayed address)?",
+          "description": { "default": "Read out the displayed address. The field worker must confirm whether a new address is within or outside the study area.", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
+          "isRequired": true,
+          "choices": [
+            { "value": 1, "text": { "default": "Yes, same address", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
+            { "value": 2, "text": { "default": "No, shifted within study area", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
+            { "value": 3, "text": { "default": "No, shifted outside study area", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } }
+          ],
+          "skipLogicSource": "Option 2: capture and update the new address. Option 3: stop pregnancy tracking after field-worker confirmation.",
+          "renderingHint": { "render_as": "radio" }
+        },
+        {
+          "type": "text",
+          "name": "psf_new_address",
+          "title": { "default": "What is your new address?", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
+          "order": 8.1,
+          "section_order": 1,
+          "sourceCode": "8_address",
+          "sourceType": "free_text",
+          "rawText": "If not, what is your new address?",
+          "description": { "default": "Probe, record, and update the address within the study area.", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
+          "visibleIf": "{psf_same_address_status} = 2",
+          "isRequired": true,
+          "maxLength": 500,
+          "renderingHint": { "render_as": "input" }
+        },
+        {
+          "type": "radiogroup",
+          "name": "psf_current_marital_status",
+          "title": { "default": "What is your current marital status?", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
+          "order": 9,
+          "section_order": 1,
+          "sourceCode": "9",
+          "sourceType": "select_one",
+          "rawText": "What is your current marital status?",
+          "visibleIf": "{psf_same_address_status} = 1 or {psf_same_address_status} = 2",
+          "isRequired": true,
+          "choices": [
+            { "value": 1, "text": { "default": "Currently married", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
+            { "value": 2, "text": { "default": "Married, gauna not performed", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
+            { "value": 3, "text": { "default": "Widowed", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
+            { "value": 4, "text": { "default": "Divorced", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
+            { "value": 5, "text": { "default": "Separated", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
+            { "value": 6, "text": { "default": "Deserted", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
+            { "value": 8, "text": { "default": "Live-in relationship", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } }
+          ],
+          "skipLogicSource": "Options 3, 4, 5, or 6: stop pregnancy tracking after confirmation.",
+          "renderingHint": { "render_as": "radio" }
+        },
+        {
+          "type": "radiogroup",
+          "name": "psf_sterilization_status",
+          "title": { "default": "Are you or your partner sterilized?", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
+          "order": 10,
+          "section_order": 1,
+          "sourceCode": "10",
+          "sourceType": "select_one",
+          "rawText": "Are you or your partner sterilized? PROBE: Who is sterilized, you or your partner?",
+          "description": { "default": "Probe: Who is sterilized, you or your partner?", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
+          "visibleIf": "{psf_current_marital_status} = 1 or {psf_current_marital_status} = 2 or {psf_current_marital_status} = 8",
+          "isRequired": true,
+          "choices": [
+            { "value": 1, "text": { "default": "Yes, respondent sterilized only", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
+            { "value": 2, "text": { "default": "Yes, partner sterilized only", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
+            { "value": 3, "text": { "default": "Yes, both sterilized", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
+            { "value": 4, "text": { "default": "No, neither sterilized", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } }
+          ],
+          "skipLogicSource": "Options 1, 2, or 3: stop pregnancy tracking.",
+          "renderingHint": { "render_as": "radio" }
+        },
+        {
+          "type": "radiogroup",
+          "name": "psf_hysterectomy_status",
+          "title": { "default": "Some women undergo an operation to remove the uterus. Have you undergone such an operation?", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
+          "order": 11,
+          "section_order": 1,
+          "sourceCode": "11",
+          "sourceType": "select_one",
+          "rawText": "Some women undergo an operation to remove the uterus. Have you undergone such an operation?",
+          "visibleIf": "{psf_sterilization_status} = 4",
+          "isRequired": true,
+          "choices": [
+            { "value": 1, "text": { "default": "Yes", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
+            { "value": 2, "text": { "default": "No", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
+            { "value": 3, "text": { "default": "Don't know", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } }
+          ],
+          "skipLogicSource": "Option 1: stop pregnancy tracking.",
+          "renderingHint": { "render_as": "radio" }
+        },
+        {
+          "type": "radiogroup",
+          "name": "psf_pregnant_now",
+          "title": { "default": "Are you pregnant now?", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
+          "order": 12,
+          "section_order": 1,
+          "sourceCode": "12",
+          "sourceType": "select_one",
+          "rawText": "Are you pregnant now?",
+          "visibleIf": "{psf_hysterectomy_status} = 2 or {psf_hysterectomy_status} = 3",
+          "isRequired": true,
+          "choices": [
+            { "value": 1, "text": { "default": "Yes", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
+            { "value": 2, "text": { "default": "No", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
+            { "value": 98, "text": { "default": "Unsure", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } }
+          ],
+          "skipLogicSource": "Option 1: record pregnancy detection. Pregnancy Enrollment task creation will be added when the PSF task flow is defined.",
+          "renderingHint": { "render_as": "radio" }
+        },
+        {
+          "type": "radiogroup",
+          "name": "psf_last_menstrual_period",
+          "title": { "default": "When did your last menstrual period start?", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
+          "order": 13,
+          "section_order": 1,
+          "sourceCode": "13",
+          "sourceType": "mixed_date_relative_special",
+          "rawText": "When did your last menstrual period start? IF LESS THAN 1 WEEK, RECORD DAYS. IF LESS THAN 1 MONTH, RECORD WEEKS. IF LESS THAN 1 YEAR, RECORD MONTHS.",
+          "description": { "default": "If less than 1 week, record days; if less than 1 month, record weeks; if less than 1 year, record months.", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
+          "visibleIf": "{psf_hysterectomy_status} = 2 or {psf_hysterectomy_status} = 3",
+          "isRequired": true,
+          "choices": [
+            { "value": 993, "text": { "default": "Has had hysterectomy", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
+            { "value": 994, "text": { "default": "In menopause", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
+            { "value": 995, "text": { "default": "Before last birth", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } },
+            { "value": 996, "text": { "default": "Never menstruated", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" } }
+          ],
+          "skipLogicSource": "993 hysterectomy or 994 menopause: stop pregnancy tracking.",
+          "renderAs": "lmp_timing",
+          "renderingHint": { "render_as": "lmp_timing" }
+        },
+        {
+          "type": "text",
+          "name": "psf_tracking_disposition",
+          "title": { "default": "Pregnancy tracking disposition", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
+          "order": 14,
+          "section_order": 1,
+          "sourceCode": "APP_TRACKING_DISPOSITION",
+          "sourceType": "app_calculated",
+          "readOnly": true,
+          "calculated": true,
+          "visible": false,
+          "visibleIf": "1 = 0"
+        },
+        {
+          "type": "text",
+          "name": "psf_stop_reason",
+          "title": { "default": "Pregnancy tracking stop reason", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
+          "order": 15,
+          "section_order": 1,
+          "sourceCode": "APP_STOP_REASON",
+          "sourceType": "app_calculated",
+          "readOnly": true,
+          "calculated": true,
+          "visible": false,
+          "visibleIf": "1 = 0"
+        },
+        {
+          "type": "text",
+          "name": "psf_pregnancy_detected",
+          "title": { "default": "Pregnancy detected", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
+          "order": 16,
+          "section_order": 1,
+          "sourceCode": "APP_PREGNANCY_DETECTED",
+          "sourceType": "app_calculated",
+          "readOnly": true,
+          "calculated": true,
+          "visible": false,
+          "visibleIf": "1 = 0"
+        },
+        {
+          "type": "html",
+          "name": "psf_aging_out_note",
+          "order": 17,
+          "section_order": 1,
+          "sourceCode": "aging_out_note",
+          "sourceType": "instruction",
+          "html": "<div class=\"survey-note\">Aging-out persons must also be moved out of pregnancy tracking. Age-based tracking changes will be applied by the future PSF task-flow rule.</div>"
+        }
+      ]
+    }
+  ],
+  "extraction_notes": [
+    "Converted from the single Pregnancy Surveillance worksheet in 04_pregnancy_surveillance_form_v2026.07.19.xlsx.",
+    "Workbook variable IDs 1-13 and coded option values are preserved.",
+    "The workbook's unnumbered new-address prompt is stored as Q8_address and is required only after shifted within study area.",
+    "Stop-tracking instructions are implemented as conditional hiding plus app-calculated disposition fields; task cancellation or Pregnancy Enrollment scheduling is intentionally deferred until the PSF task flow is defined.",
+    "Q13 uses the shared exact-date, relative-time, and special-code native renderer."
+  ],
+  "locale": "default",
+  "supportedLocales": ["default", "hi", "kn", "mr", "ta", "te", "ur"],
+  "metadata": {
+    "entity": "woman",
+    "formCode": "PSF",
+    "version": "28 JUNE 2026",
+    "sourceWorkbook": "C:\\Users\\jtndr\\Desktop\\aiims work\\04_pregnancy_surveillance_form_v2026.07.19.xlsx"
+  },
+  "source_workbook": "04_pregnancy_surveillance_form_v2026.07.19.xlsx"
+}

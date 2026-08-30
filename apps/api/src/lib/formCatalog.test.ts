@@ -22,10 +22,10 @@ test("returns checksum and json URL for a bundled form", () => {
 test("lists all bundled form metadata with checksums", () => {
   const forms = getAllFormMetadata();
 
-  assert.equal(forms.length, 11);
+  assert.equal(forms.length, 12);
   assert.deepEqual(
     forms.map((form) => form.form_code),
-    ["HHQ", "WQ", "HRF", "PEF", "UF", "PFF", "POF", "BAF", "SBF", "NFF", "CDF"],
+    ["HHQ", "WQ", "HRF", "PEF", "UF", "PFF", "POF", "BAF", "SBF", "NFF", "CDF", "PSF"],
   );
   assert.ok(forms.every((form) => /^[a-f0-9]{64}$/.test(form.checksum)));
 });
@@ -33,7 +33,7 @@ test("lists all bundled form metadata with checksums", () => {
 test("returns slim form version manifest for sync pull", () => {
   const manifest = getFormVersionManifest();
 
-  assert.equal(manifest.length, 11);
+  assert.equal(manifest.length, 12);
   assert.deepEqual(Object.keys(manifest[0]).sort(), ["checksum", "form_code", "version"]);
   assert.equal(manifest[0].form_code, "HHQ");
   assert.equal(manifest[0].version, "2026.05.09");
@@ -46,6 +46,15 @@ test("returns full SurveyJS JSON for a bundled form", () => {
   assert.ok(formJson);
   assert.equal(formJson.form_code, "WQ");
   assert.equal(formJson.version, "28 JULY 2026");
+  assert.ok(Array.isArray(formJson.pages));
+});
+
+test("returns the Pregnancy Surveillance form converted from the workbook", () => {
+  const formJson = getFormJson("PSF");
+
+  assert.ok(formJson);
+  assert.equal(formJson.form_code, "PSF");
+  assert.equal(formJson.version, "28 JUNE 2026");
   assert.ok(Array.isArray(formJson.pages));
 });
 

@@ -1,4 +1,4 @@
-/** Collects WQ Q33a as an exact date, relative interval, or one special radio response. */
+/** Collects an LMP as an exact date, relative interval, or one special coded response. */
 import React, { useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 

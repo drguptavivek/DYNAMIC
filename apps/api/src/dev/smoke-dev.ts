@@ -44,8 +44,8 @@ async function runSmoke() {
   });
 
   const forms = await fetchJson("/protocol/forms", { headers: { Authorization: authorization } });
-  if (!Array.isArray(forms.forms) || forms.forms.length !== 11) {
-    throw new Error("/protocol/forms did not return 11 bundled forms");
+  if (!Array.isArray(forms.forms) || forms.forms.length !== 12) {
+    throw new Error("/protocol/forms did not return 12 bundled forms");
   }
 
   const formBatch = await fetchJson("/protocol/forms/batch?codes=HHQ,PEF,VA", {

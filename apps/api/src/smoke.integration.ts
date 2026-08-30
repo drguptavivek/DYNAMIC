@@ -57,7 +57,7 @@ test("API smoke flow passes against dynamic_test without a fixed port", async ()
     const forms = await fetchData(`${baseUrl}/protocol/forms`, {
       headers: { Authorization: authorization },
     });
-    assert.equal(forms.forms.length, 11);
+    assert.equal(forms.forms.length, 12);
     assert.match(forms.forms[0].checksum, /^[a-f0-9]{64}$/);
 
     const batch = await fetchData(`${baseUrl}/protocol/forms/batch?codes=HHQ,PEF,VA`, {

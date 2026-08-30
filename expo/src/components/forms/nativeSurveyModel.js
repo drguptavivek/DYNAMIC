@@ -629,7 +629,9 @@ export function getNativeRendererKind(question) {
   if (renderAs === "wq_reproduction_comparison" || isWqReproductionComparison) {
     return "wq-reproduction-comparison";
   }
-  if (renderAs === "wq_lmp_timing" || isWqLmpTiming) return "wq-lmp-timing";
+  if (renderAs === "wq_lmp_timing" || renderAs === "lmp_timing" || isWqLmpTiming) {
+    return "wq-lmp-timing";
+  }
   if (renderAs === "years_with_special_codes" || renderAs === "days_with_special_codes") return "select-one";
   if (type === "radiogroup") return "select-one";
   if (type === "checkbox") return "select-many";
