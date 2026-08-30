@@ -29,6 +29,7 @@ export default function Layout() {
     ...(canManageFormLanguage
       ? [{ path: "/form-language-management", label: "Form Language Management" }]
       : []),
+    { path: "/form-data-export", label: "Form Data Export" },
     { path: "/households", label: "Households" },
     { path: "/household-members", label: "Household Members" },
     { path: "/eligible-women", label: "Eligible Women" },

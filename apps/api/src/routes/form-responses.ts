@@ -5,8 +5,127 @@ import { sendError, sendSuccess } from "../lib/errors";
 import { getPagination } from "../lib/pagination";
 import { appendAreaScopeCondition } from "../lib/areaScope";
 import { requireDataAccess } from "../lib/dataAccess";
+import { getEffectiveFormJson } from "../lib/formLanguage";
 
 const router = Router();
+
+type ExportField = { key: string; choices: Map<string, string> };
+
+function collectExportFields(value: unknown, fields: ExportField[] = []): ExportField[] {
+  if (!value || typeof value !== "object") return fields;
+  const item = value as Record<string, unknown>;
+  if (typeof item.name === "string" && (typeof item.type === "string" || Array.isArray(item.choices))) {
+    const choices = new Map<string, string>();
+    if (Array.isArray(item.choices)) {
+      for (const choice of item.choices) {
+        if (choice && typeof choice === "object") {
+          const c = choice as Record<string, unknown>;
+          if (c.value !== undefined && c.text !== undefined) {
+            const text = c.text && typeof c.text === "object"
+              ? (c.text as Record<string, unknown>).default ?? Object.values(c.text as Record<string, unknown>)[0]
+              : c.text;
+            choices.set(String(c.value), String(text ?? ""));
+          }
+        }
+      }
+    }
+    const key = item.name;
+    // `name` is the canonical variable_name used by Form Language Management
+    // and by answers_json; sourceCode is metadata, not the answer key.
+    fields.push({ key, choices });
+  }
+  for (const child of Object.values(item)) {
+    if (Array.isArray(child)) child.forEach((entry) => collectExportFields(entry, fields));
+    else if (child && typeof child === "object") collectExportFields(child, fields);
+  }
+  return fields;
+}
+
+function csvCell(value: unknown): string {
+  if (value === undefined || value === null) return "";
+  let text = Array.isArray(value) ? value.join(", ") : typeof value === "object" ? JSON.stringify(value) : String(value);
+  // Some legacy timestamp payloads contain one literal quote pair; remove it
+  // before CSV escaping so Excel does not display triple quotes.
+  if (text.length >= 2 && text.startsWith('"') && text.endsWith('"')) text = text.slice(1, -1);
+  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+function displayAnswer(value: unknown, key?: string): string {
+  // Preserve the exact stored answer: option values remain their numeric/string
+  // codes. Only the household roster itself stays structured JSON; derived
+  // repeat columns are flattened for clean spreadsheet display.
+  if (Array.isArray(value)) {
+    if (key === "hhq_household_members") return JSON.stringify(value);
+    return value.map((entry) => displayAnswer(entry)).join(", ");
+  }
+  if (value === undefined || value === null) return "";
+  if (typeof value === "object") {
+    return Object.entries(value as Record<string, unknown>)
+      .map(([name, entry]) => `${name}: ${displayAnswer(entry)}`)
+      .join("; ");
+  }
+  return String(value);
+}
+
+function answerForField(answers: Record<string, unknown>, key: string): unknown {
+  if (Object.prototype.hasOwnProperty.call(answers, key)) return answers[key];
+
+  // HHQ's renderer upgrades the legacy single-mobile field to a repeat panel;
+  // export it back under the canonical language-management variable name.
+  if (key === "hhq_contact_mobile" && Array.isArray(answers.hhq_contact_mobile_numbers)) {
+    const numbers = answers.hhq_contact_mobile_numbers
+      .map((row) => row && typeof row === "object" ? (row as Record<string, unknown>).mobile_number : undefined)
+      .filter((value) => value !== undefined && value !== null && value !== "");
+    return numbers.length === 1 ? numbers[0] : numbers;
+  }
+
+  // Repeated household/member answers are stored as rows inside a panel. If
+  // the language definition exposes a nested variable as a column, collect
+  // that variable from every stored row instead of returning a blank cell.
+  const nestedValues: unknown[] = [];
+  for (const value of Object.values(answers)) {
+    if (!Array.isArray(value)) continue;
+    for (const row of value) {
+      if (row && typeof row === "object" && Object.prototype.hasOwnProperty.call(row, key)) {
+        nestedValues.push((row as Record<string, unknown>)[key]);
+      }
+    }
+  }
+  return nestedValues.length > 0 ? nestedValues : undefined;
+}
+
+/** Download all submitted answers for one form with raw variable values. */
+router.get("/export", requireDataAccess("can_access_raw_crfs"), async (req: Request, res: Response) => {
+  try {
+    const formCode = typeof req.query.form_code === "string" ? req.query.form_code.trim().toUpperCase() : "";
+    if (!formCode) {
+      sendError(res, 400, "FORM_CODE_REQUIRED", "form_code is required for a form-wise export");
+      return;
+    }
+    const conditions: any[] = [eq(schema.formResponses.form_code, formCode)];
+    await appendAreaScopeCondition(req.user!, schema.formResponses, conditions);
+    const [responses, formJson] = await Promise.all([
+      db.select().from(schema.formResponses).where(and(...conditions)).orderBy(desc(schema.formResponses.created_at)),
+      getEffectiveFormJson(formCode, req.user?.site_id ?? undefined),
+    ]);
+    if (!formJson) {
+      sendError(res, 404, "FORM_NOT_FOUND", `Form code ${formCode} not found`);
+      return;
+    }
+    const fields = collectExportFields(formJson);
+    const uniqueFields = [...new Map(fields.map((field) => [field.key, field])).values()];
+    const headers = ["form_response_id", "household_id", "subject_type", "subject_id", "form_version", "submitted_at", ...uniqueFields.map((field) => field.key)];
+    const rows = responses.map((response) => {
+      const answers = (response.answers_json || {}) as Record<string, unknown>;
+      return [response.form_response_id, response.household_id, response.subject_type, response.subject_id, response.form_version, response.synced_at || response.created_at, ...uniqueFields.map((field) => displayAnswer(answerForField(answers, field.key), field.key))];
+    });
+    const csv = [headers, ...rows].map((row) => row.map(csvCell).join(",")).join("\r\n") + "\r\n";
+    res.status(200).set({ "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename=${formCode.toLowerCase()}-form-responses.csv` }).send(`\uFEFF${csv}`);
+  } catch (error) {
+    console.error("Export form responses error:", error);
+    sendError(res, 500, "INTERNAL_ERROR", "An error occurred");
+  }
+});
 
 /**
  * GET /api/v1/form-responses

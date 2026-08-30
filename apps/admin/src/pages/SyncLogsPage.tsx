@@ -1,14 +1,17 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { api } from "../lib/api";
 import styles from "./SyncLogsPage.module.css";
 
 interface SyncLog {
   sync_log_id: string;
   device_id: string;
   user_id: string;
+  user_name?: string | null;
+  username?: string | null;
   direction: "push" | "pull";
   records_sent: number;
   records_received: number;
-  status: "pending" | "in_progress" | "completed" | "failed";
+  status: string;
   started_at: string;
   completed_at?: string;
   duration?: number;
@@ -25,6 +28,18 @@ export default function SyncLogsPage() {
   const [directionFilter, setDirectionFilter] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+
+  useEffect(() => {
+    const params = new URLSearchParams({ page: "1", per_page: "500" });
+    if (deviceFilter) params.set("device_id", deviceFilter);
+    if (userFilter) params.set("user_name", userFilter);
+    if (statusFilter) params.set("status", statusFilter);
+    if (startDate) params.set("from", startDate);
+    if (endDate) params.set("to", endDate);
+    api.getPage<SyncLog[]>(`/sync-logs?${params.toString()}`)
+      .then((result) => setLogs(result.data))
+      .catch(() => setLogs([]));
+  }, [deviceFilter, userFilter, statusFilter, startDate, endDate]);
 
   const filtered = logs.filter((log) => {
     if (deviceFilter && !log.device_id.includes(deviceFilter)) return false;
@@ -53,7 +68,7 @@ export default function SyncLogsPage() {
 
         <input
           type="text"
-          placeholder="User ID..."
+          placeholder="User name..."
           value={userFilter}
           onChange={(e) => setUserFilter(e.target.value)}
           className={styles.filterInput}
@@ -107,9 +122,8 @@ export default function SyncLogsPage() {
           <table className={styles.table}>
             <thead>
               <tr>
-                <th>Sync ID</th>
                 <th>Device ID</th>
-                <th>User ID</th>
+                <th>User name</th>
                 <th>Direction</th>
                 <th>Records Sent</th>
                 <th>Records Received</th>
@@ -121,9 +135,8 @@ export default function SyncLogsPage() {
             <tbody>
               {filtered.map((log) => (
                 <tr key={log.sync_log_id}>
-                  <td className={styles.syncId}>{log.sync_log_id.substring(0, 8)}...</td>
                   <td>{log.device_id}</td>
-                  <td>{log.user_id}</td>
+                  <td>{log.user_name || log.username || "Unknown user"}</td>
                   <td>{log.direction === "push" ? "↑ Push" : "↓ Pull"}</td>
                   <td>{log.records_sent}</td>
                   <td>{log.records_received}</td>

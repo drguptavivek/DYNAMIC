@@ -411,3 +411,49 @@ Decisions:
 - Central admins retain global scope; Site Research Scientists remain restricted to their site.
 Open:
 - None.
+## 2026-08-30 (Form-wise data export) [working]
+Goal: Add an admin export action for submitted data, using the current questionnaire variables and option labels.
+Decisions:
+- Added a protected `/form-responses/export?form_code=...` CSV endpoint. It applies the existing area scope, derives columns from the latest bundled/effective form definition, and uses the exact Form Language Management `variable_name` values as headers. Cells preserve the exact raw values stored in `answers_json`, including option codes.
+- Corrected the first export issue: stored answers use variable names rather than numeric `sourceCode` values. Repeat/object answers are serialized as JSON while scalar and option answers remain unchanged.
+- Added the admin Form Data Export page and navigation entry. Export is currently read-only and does not alter role permissions; role-specific visibility will be handled separately.
+Open:
+- Browser-check the export page with populated responses.
+
+## 2026-08-30 (Role-scoped admin data views) [working]
+Goal: Show live admin data and dashboard summaries according to the authenticated user's site scope.
+Decisions:
+- Existing household, member, eligible-woman, tracking, pregnancy, child, and task list APIs already enforce central-versus-site/locality scope server-side; the export page is available to authenticated non-admin roles and the export endpoint applies the same scope and raw-CRF permission.
+- Added `/dashboard` with scoped counts for households, members, eligible women, tracking-eligible women, active pregnancies, children, tasks, and open data-quality flags. The admin dashboard now renders these live counts instead of placeholders.
+Open:
+- Browser-check role-specific pages and exports with seeded/test records.
+
+## 2026-08-30 (Admin task list live loading) [working]
+Goal: Ensure the Tasks admin page shows synchronized tasks rather than an empty placeholder.
+Decisions:
+- The database contained 51 tasks (49 actionable, including one planned HHQ and 48 planned HRF), but `TasksPage` never called the API and therefore always rendered `No tasks found`.
+- TasksPage now loads `/tasks` with scope-preserving filters and displays the API's `failed_attempt_count`; the API now accepts comma-separated status filters.
+
+## 2026-08-30 (Admin sync logs live loading) [working]
+Goal: Make the Sync Logs admin page functional and role-scoped.
+Decisions:
+- SyncLogsPage now loads `/sync-logs` with device, user, status, and date filters instead of using an empty in-memory list.
+- Site research scientists, site data managers, central data managers, and field supervisors can list logs; non-central roles are restricted to users in their assigned site(s).
+
+## 2026-08-30 (Readable task identifiers) [working]
+Goal: Make the admin task list understandable to reviewers.
+Decisions:
+- Replaced the technical Task ID and Subject columns with `Household / Form ID`, combining the household identifier with the form code. The internal task ID remains available in the detail dialog for audit.
+
+## 2026-08-30 (Readable sync-log identity) [working]
+Goal: Make Sync Logs identify the person using the device without exposing technical IDs in the table.
+Decisions:
+- Removed Sync ID from the visible table, joined sync records to users, and display the user's display name (falling back to username). User-name filtering searches both fields; raw IDs remain backend/audit data.
+
+## 2026-08-30 (Task visit number display) [working]
+Goal: Show protocol visit number instead of failed-attempt count in the main task review table.
+Decisions:
+- The task list now derives visit number from `sequence_number`, HRF `protocol_visit_label` (`R1`, `R2`, ...), or baseline as visit 1. Failed-attempt data remains in the backend and is no longer presented as the primary reviewer column.
+
+## 2026-08-30 (Task filled-form view) [reverted]
+The temporary full-form rendering in the Task View was reverted at the user's request. Task metadata and attempts remain available.

@@ -51,7 +51,9 @@ router.get("/", requireAuth, async (req: Request, res: Response) => {
 
     // Handle multiple status values
     if (statusQuery) {
-      const statuses = Array.isArray(statusQuery) ? statusQuery : [statusQuery];
+      const statuses = (Array.isArray(statusQuery) ? statusQuery : [statusQuery])
+        .flatMap((value) => String(value).split(",").map((item) => item.trim()))
+        .filter(Boolean);
       if (statuses.length > 0) {
         conditions.push(inArray(schema.followUpTasks.status, statuses as string[]));
       }

@@ -1,15 +1,24 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { api } from "../lib/api";
+
+interface Site { site_id: number; site_code: string; site_name: string }
+interface Locality { site_id: number; locality_code: string; locality_name: string }
 import styles from "./TasksPage.module.css";
 
 interface Task {
   task_id: string;
+  household_id?: string;
+  form_code?: string;
   subject_id: string;
   task_type: string;
   protocol_visit_label?: string;
   target_date?: string;
   deadline?: string;
-  status: "pending" | "in_progress" | "completed" | "overdue" | "closed";
-  failed_attempts: number;
+  deadline_date?: string;
+  status: string;
+  failed_attempts?: number;
+  failed_attempt_count?: number;
+  sequence_number?: number;
 }
 
 interface TaskAttempt {
@@ -46,10 +55,30 @@ export default function TasksPage() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [attempts, setAttempts] = useState<TaskAttempt[]>([]);
   const [loading, setLoading] = useState(false);
+  const [sites, setSites] = useState<Site[]>([]);
+  const [localities, setLocalities] = useState<Locality[]>([]);
+
+  useEffect(() => {
+    Promise.all([api.get<Site[]>("/masters/sites"), api.get<Locality[]>("/masters/localities")])
+      .then(([siteRows, localityRows]) => { setSites(siteRows); setLocalities(localityRows); })
+      .catch(() => { setSites([]); setLocalities([]); });
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams({ page: "1", per_page: "500" });
+    if (taskTypeFilter) params.set("task_type", taskTypeFilter);
+    if (siteFilter) params.set("site_id", siteFilter);
+    if (localityFilter) params.set("locality_code", localityFilter);
+    if (statusFilter.length) params.set("status", statusFilter.join(","));
+    if (overdueOnly) params.set("overdue", "true");
+    api.getPage<Task[]>(`/tasks?${params.toString()}`)
+      .then((result) => setTasks(result.data))
+      .catch(() => setTasks([]));
+  }, [siteFilter, localityFilter, taskTypeFilter, statusFilter, overdueOnly]);
 
   const filtered = tasks.filter((task) => {
-    if (siteFilter) return true;
-    if (localityFilter) return true;
+    if (siteFilter && String((task as Task & { site_id?: number }).site_id ?? "") !== siteFilter) return false;
+    if (localityFilter && (task as Task & { locality_code?: string }).locality_code !== localityFilter) return false;
     if (taskTypeFilter && task.task_type !== taskTypeFilter) return false;
     if (statusFilter.length > 0 && !statusFilter.includes(task.status)) return false;
     if (overdueOnly && task.status !== "overdue") return false;
@@ -60,8 +89,8 @@ export default function TasksPage() {
     setSelectedTask(task);
     setLoading(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      setAttempts([]);
+      const attemptsResult = await api.get<TaskAttempt[]>(`/tasks/${encodeURIComponent(task.task_id)}/attempts`);
+      setAttempts(attemptsResult);
     } finally {
       setLoading(false);
     }
@@ -84,10 +113,11 @@ export default function TasksPage() {
       <div className={styles.filters}>
         <select
           value={siteFilter}
-          onChange={(e) => setSiteFilter(e.target.value)}
+          onChange={(e) => { setSiteFilter(e.target.value); setLocalityFilter(""); }}
           className={styles.filterSelect}
         >
           <option value="">All Sites</option>
+          {sites.map((site) => <option key={site.site_id} value={site.site_id}>{site.site_code} - {site.site_name}</option>)}
         </select>
 
         <select
@@ -96,6 +126,9 @@ export default function TasksPage() {
           className={styles.filterSelect}
         >
           <option value="">All Localities</option>
+          {localities.filter((locality) => !siteFilter || String(locality.site_id) === siteFilter).map((locality) => (
+            <option key={`${locality.site_id}-${locality.locality_code}`} value={locality.locality_code}>{locality.locality_code} - {locality.locality_name}</option>
+          ))}
         </select>
 
         <select
@@ -142,32 +175,30 @@ export default function TasksPage() {
           <table className={styles.table}>
             <thead>
               <tr>
-                <th>Task ID</th>
-                <th>Subject</th>
+                <th>Household / Form ID</th>
                 <th>Type</th>
                 <th>Visit Label</th>
                 <th>Target Date</th>
                 <th>Deadline</th>
                 <th>Status</th>
-                <th>Failed Attempts</th>
+                <th>Visit Number</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {filtered.map((task) => (
                 <tr key={task.task_id}>
-                  <td className={styles.taskId}>{task.task_id.substring(0, 8)}...</td>
-                  <td>{task.subject_id}</td>
+                  <td>{task.household_id || task.subject_id} / {task.form_code || task.task_type}</td>
                   <td>{task.task_type}</td>
                   <td>{task.protocol_visit_label || "—"}</td>
                   <td>{task.target_date || "—"}</td>
-                  <td>{task.deadline || "—"}</td>
+                  <td>{task.deadline_date || task.deadline || "—"}</td>
                   <td>
                     <span className={getStatusBadgeClass(task.status)}>
                       {task.status.replace(/_/g, " ")}
                     </span>
                   </td>
-                  <td>{task.failed_attempts}</td>
+                  <td>{task.sequence_number ?? (task.protocol_visit_label?.match(/R(\d+)$/)?.[1] || (task.protocol_visit_label === "baseline" ? "1" : "-"))}</td>
                   <td>
                     <button onClick={() => handleViewTask(task)} className={styles.actionBtn}>
                       View
@@ -251,8 +282,8 @@ function TaskDetailModal({
                   <span>{task.deadline || "—"}</span>
                 </div>
                 <div className={styles.infoItem}>
-                  <label>Failed Attempts</label>
-                  <span>{task.failed_attempts}</span>
+                  <label>Visit Number</label>
+                  <span>{task.sequence_number ?? (task.protocol_visit_label?.match(/R(\d+)$/)?.[1] || (task.protocol_visit_label === "baseline" ? "1" : "-"))}</span>
                 </div>
               </div>
             </div>
