@@ -66,7 +66,10 @@ function sourceTranslations(form: Record<string, unknown>): TranslationMap {
 
 async function translate(text: string, language: string): Promise<string> {
   const hosts = [
-    "translate.google.com", "translate.google.co.in", "translate.google.co.uk", "translate.googleapis.com",
+    // The Google APIs host is the most reliable endpoint in restricted/local
+    // environments; keep it first so retries do not immediately hit a throttled
+    // regional frontend.
+    "translate.googleapis.com", "translate.google.com", "translate.google.co.in", "translate.google.co.uk",
     "translate.google.co.jp", "translate.google.de", "translate.google.fr", "translate.google.it",
     "translate.google.com.au", "translate.google.co.za",
   ];
@@ -108,18 +111,19 @@ async function translateBatch(texts: string[], language: string): Promise<string
     const parts = translated.split(marker).map((part) => part.trim());
     if (parts.length === texts.length) return parts;
   } catch {
-    // The unauthenticated Google endpoint is allowed as a best-effort source;
-    // fall back to MyMemory when it is throttled.
+    // Retry below one text at a time when a provider changes/removes the marker.
   }
-  const url = new URL("https://api.mymemory.translated.net/get");
-  url.searchParams.set("q", joined);
-  url.searchParams.set("langpair", `en|${language}`);
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`MyMemory HTTP ${response.status}`);
-  const payload = (await response.json()) as { responseData?: { translatedText?: string } };
-  const fallback = payload.responseData?.translatedText || "";
-  const parts = fallback.split(/DYNSEP\d+/).map((part) => part.trim());
-  return parts.length === texts.length ? parts : texts.map((text) => text);
+  // Some proxies/providers rewrite the separator token.  Individual requests
+  // preserve correctness and avoid relying on a second rate-limited service.
+  const individual: string[] = [];
+  for (const text of texts) {
+    try {
+      individual.push(await translate(text, language));
+    } catch {
+      individual.push(text);
+    }
+  }
+  return individual;
 }
 
 async function main(): Promise<void> {
@@ -141,10 +145,19 @@ async function main(): Promise<void> {
         const jobs: Array<{ name: string; kind: "title" | "description" | "choice"; value: string; choice?: string }> = [];
         for (const [name, item] of Object.entries(source)) {
           const target = (merged[name] ||= {});
-          if (item.title && !target.title) jobs.push({ name, kind: "title", value: item.title });
-          if (item.description && !target.description) jobs.push({ name, kind: "description", value: item.description });
+          // Treat a stored value identical to the English source as untranslated.
+          // Earlier best-effort requests could persist the English fallback when a
+          // provider was throttled; those entries must be retried on subsequent runs.
+          if (item.title && (!target.title || target.title.trim() === item.title.trim())) {
+            jobs.push({ name, kind: "title", value: item.title });
+          }
+          if (item.description && (!target.description || target.description.trim() === item.description.trim())) {
+            jobs.push({ name, kind: "description", value: item.description });
+          }
           for (const [choice, value] of Object.entries(item.choices || {})) {
-            if (!target.choices?.[choice]) jobs.push({ name, kind: "choice", choice, value });
+            if (!target.choices?.[choice] || target.choices[choice].trim() === value.trim()) {
+              jobs.push({ name, kind: "choice", choice, value });
+            }
           }
         }
         let cursor = 0;

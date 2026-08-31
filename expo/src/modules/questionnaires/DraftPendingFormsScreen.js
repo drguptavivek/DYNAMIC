@@ -159,8 +159,8 @@ export function DraftPendingFormsScreen({ user }) {
 const styles = StyleSheet.create({
   wrap: {
     flex: 1,
-    gap: 12,
-    padding: 12,
+    gap: 8,
+    padding: 8,
     backgroundColor: "#eef2f5",
   },
   header: {
@@ -175,20 +175,20 @@ const styles = StyleSheet.create({
   },
   title: {
     color: "#17202a",
-    fontSize: 24,
-    lineHeight: 30,
+    fontSize: 19,
+    lineHeight: 23,
     fontWeight: "900",
   },
   subtitle: {
-    marginTop: 4,
+    marginTop: 2,
     color: "#667085",
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 11,
+    lineHeight: 14,
     fontWeight: "700",
   },
   refreshButton: {
-    minWidth: 76,
-    minHeight: 38,
+    minWidth: 64,
+    minHeight: 32,
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 8,
@@ -201,17 +201,17 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   list: {
-    gap: 12,
-    paddingBottom: 28,
+    gap: 8,
+    paddingBottom: 18,
   },
   countText: {
     color: "#667085",
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: "800",
   },
   card: {
-    gap: 14,
-    padding: 16,
+    gap: 8,
+    padding: 10,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: "#f59e0b",
@@ -220,18 +220,18 @@ const styles = StyleSheet.create({
   cardHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 8,
   },
   formBadge: {
-    minWidth: 54,
+    minWidth: 44,
     overflow: "hidden",
     borderRadius: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    paddingHorizontal: 7,
+    paddingVertical: 6,
     textAlign: "center",
     color: "#ffffff",
     backgroundColor: "#ef4444",
-    fontSize: 15,
+    fontSize: 12,
     fontWeight: "900",
   },
   cardTitleBlock: {
@@ -240,11 +240,11 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     color: "#17202a",
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "900",
   },
   cardSubtle: {
-    marginTop: 2,
+    marginTop: 1,
     color: "#92400e",
     fontSize: 13,
     fontWeight: "800",
@@ -252,13 +252,13 @@ const styles = StyleSheet.create({
   detailGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 10,
+    gap: 6,
   },
   detailItem: {
     width: "47%",
-    minWidth: 130,
-    gap: 4,
-    padding: 12,
+    minWidth: 110,
+    gap: 2,
+    padding: 7,
     borderRadius: 8,
     backgroundColor: "#ffffff",
   },
@@ -270,7 +270,7 @@ const styles = StyleSheet.create({
   },
   detailValue: {
     color: "#17202a",
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "800",
   },
   emptyState: {

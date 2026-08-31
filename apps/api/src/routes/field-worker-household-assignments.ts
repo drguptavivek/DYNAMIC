@@ -5,6 +5,7 @@ import { z } from "zod";
 import { db, schema } from "../db";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { sendError, sendSuccess } from "../lib/errors";
+import { addDays, parseISODate, toISODate } from "@dynamic/shared-workflow";
 
 const router = Router();
 
@@ -25,17 +26,14 @@ const clearAssignmentsSchema = z.object({
   user_ids: z.array(z.string().min(1)).optional(),
 });
 
-const HHQ_TARGET_DATE = "2026-09-01";
-const HHQ_DEADLINE_DATE = "2026-09-30";
-
 function parseRange(value: string | undefined): number | undefined {
   if (!value?.trim()) return undefined;
   const parsed = Number(value.trim());
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
-function buildHhqTaskKey(householdId: string): string {
-  return `${householdId}:household:${householdId}:HHQ:baseline:${HHQ_TARGET_DATE}:v1`;
+function buildHhqTaskKey(householdId: string, targetDate: string): string {
+  return `${householdId}:household:${householdId}:HHQ:baseline:${targetDate}:v1`;
 }
 
 router.get(
@@ -141,6 +139,8 @@ router.post(
       const uniqueHouseholdIds = [...new Set(data.household_ids)];
       const uniqueUserIds = [...new Set(data.user_ids)];
       const now = new Date();
+      const assignmentDate = toISODate(now);
+      const assignmentDeadline = toISODate(addDays(parseISODate(assignmentDate), 30));
 
       const fieldWorkers = await db
         .select({
@@ -230,7 +230,7 @@ router.post(
         .filter((household) => (household.baseline_enrollment_status ?? "pending") === "pending")
         .map((household) => ({
           task_id: randomUUID(),
-          task_key: buildHhqTaskKey(household.household_id),
+          task_key: buildHhqTaskKey(household.household_id, assignmentDate),
           site_id: household.site_id,
           locality_code: household.locality_code,
           household_id: household.household_id,
@@ -241,8 +241,10 @@ router.post(
           expected_forms: ["HHQ"],
           protocol_visit_label: "baseline",
           generation_source: "field_worker_household_assignment",
-          target_date: HHQ_TARGET_DATE,
-          deadline_date: HHQ_DEADLINE_DATE,
+          anchor_date: assignmentDate,
+          window_start: assignmentDate,
+          target_date: assignmentDate,
+          deadline_date: assignmentDeadline,
           status: "planned",
           rules_version: "1.0.0",
           form_availability: "available",
@@ -268,6 +270,8 @@ router.post(
               expected_forms: sql`excluded.expected_forms`,
               protocol_visit_label: sql`excluded.protocol_visit_label`,
               generation_source: sql`excluded.generation_source`,
+              anchor_date: sql`excluded.anchor_date`,
+              window_start: sql`excluded.window_start`,
               target_date: sql`excluded.target_date`,
               deadline_date: sql`excluded.deadline_date`,
               rules_version: sql`excluded.rules_version`,
