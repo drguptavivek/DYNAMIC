@@ -1,0 +1,29 @@
+[Unit]
+Description=DYNAMIC Node API
+Requires=dynamic-docker.service
+After=dynamic-docker.service network-online.target
+Wants=network-online.target
+RequiresMountsFor=/data
+ConditionPathIsMountPoint=/data
+
+[Service]
+Type=simple
+User=dynamic-api
+Group=dynamic-api
+WorkingDirectory=/data/dynamic/current
+EnvironmentFile=/etc/dynamic/api.env
+Environment=NODE_ENV=production
+Environment=APP_ENV=production
+ExecStart=/data/dynamic/current/node_modules/.bin/tsx apps/api/src/index.ts
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=30s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/data/dynamic/current
+UMask=027
+
+[Install]
+WantedBy=multi-user.target

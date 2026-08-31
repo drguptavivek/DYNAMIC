@@ -16,6 +16,7 @@ Current docs:
 - [Testing](testing.md).
 - [Backend API and admin UI build and deployment](deployment/backend-api-and-admin-ui.md).
 - [Local same-VM Nginx edge routing](deployment/same-vm-nginx.md).
+- [AWS EC2 production deployment](deployment/aws-ec2.md).
 
 Archived docs live under `archive/`. They are historical background only.
 

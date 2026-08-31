@@ -1,3 +1,16 @@
+## 2026-08-31 (AWS EC2 deployment foundation) [working]
+Goal: Add reviewable Ubuntu EC2 deployment assets without committing, pushing, deploying, or changing app behavior.
+Decisions:
+- Production releases are cloned under `/data/dynamic`; Docker data root is `/data/docker_volumes` on the mounted EBS volume, with a storage preflight that fails if `/data` is absent or Docker uses another root.
+- Added root-managed production Compose for loopback-only PostgreSQL/Redis and host-network Nginx, non-root `dynamic-api`/`dynamic-web` systemd units, env templates, production Nginx proxy, and rollback/storage scripts.
+- Added `docs/deployment/aws-ec2.md` with clone-first deployment, migration/backup, operations, rollback, and security checklist. Populated secrets/certs remain outside Git.
+Verification:
+- Production Compose interpolation/config validation passed with placeholders.
+- Admin production build, API typecheck, and API build passed; Vite emitted only the existing chunk-size warning.
+- systemd/Nginx runtime validation requires Ubuntu and real TLS files; Windows host has no `systemd-analyze`/bash runtime.
+Open:
+- Boss must provide the repository URL, DNS hostname, TLS/Certbot choice, production secret values, and approved migration/backup plan before any EC2 deployment.
+
 ## 2026-08-30 (Pregnancy Surveillance form) [working]
 Goal: Convert the complete Pregnancy Surveillance Excel workbook into a rendered PSF form and add durable database storage.
 Decisions:

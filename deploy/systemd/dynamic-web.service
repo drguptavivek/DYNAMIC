@@ -1,0 +1,27 @@
+[Unit]
+Description=DYNAMIC production admin web server
+Requires=dynamic-docker.service
+After=dynamic-docker.service network-online.target
+Wants=network-online.target
+RequiresMountsFor=/data
+ConditionPathIsMountPoint=/data
+
+[Service]
+Type=simple
+User=dynamic-web
+Group=dynamic-web
+WorkingDirectory=/data/dynamic/current
+EnvironmentFile=/etc/dynamic/web.env
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/npm --workspace @dynamic/admin run preview -- --host 127.0.0.1 --port 5317 --strictPort
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=30s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+UMask=027
+
+[Install]
+WantedBy=multi-user.target
