@@ -97,8 +97,9 @@ export async function sendCredentialsEmail(input: {
       `User ID: ${input.username}`,
       `Temporary password: ${input.password}`,
       "",
-      "This password is for your first login only. Change it immediately after signing in.",
-      "Please do not forward this email.",
+      "This is your one-time login details used to login Dynamic mobile App.",
+      "Please do not forward or share this email. Do not reply this email.",
+      "Kindly contact administrator for any issue at jtndr.kmr01@gmail.com.",
       "",
     ].join("\r\n").replace(/^\./gm, "..") + "\r\n.\r\n";
     const responsePromise = readResponse(socket);
