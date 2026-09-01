@@ -195,7 +195,7 @@ Key fields:
 | --- | --- |
 | `hhq_site_id` | Site component of household ID |
 | `hhq_locality_code` | Locality component of household ID |
-| `hhq_structure_map_id` | 4-digit structure component |
+| `hhq_structure_map_id` | 1-6 alphanumeric structure component |
 | `hhq_household_number` | 2-digit household component |
 | `hhq_contact_mobile` | 10-digit contact phone |
 | `hhq_household_members` | Dynamic household member listing |

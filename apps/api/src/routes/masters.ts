@@ -487,7 +487,7 @@ router.patch(
 const mappingFrameRecordSchema = z.object({
   site_id: z.number().int().positive(),
   locality_code: z.string().regex(/^\d{2}$/, "Locality code must be exactly 2 digits"),
-  structure_map_id: z.string().length(4),
+  structure_map_id: z.string().regex(/^[A-Za-z0-9]{1,6}$/, "Structure ID must be 1-6 alphanumeric characters"),
   household_number: z.string().length(2),
 });
 
@@ -605,6 +605,19 @@ function validateAndPadNumericCode(
     return text;
   }
   return text.padStart(width, "0");
+}
+
+function validateStructureMapId(value: string, errors: string[]): string {
+  const text = value.trim().toUpperCase();
+  if (!text) {
+    errors.push("Structure ID is missing");
+    return "";
+  }
+  if (!/^[A-Z0-9]{1,6}$/.test(text)) {
+    errors.push("Structure ID must be 1-6 alphanumeric characters");
+    return text;
+  }
+  return /^\d+$/.test(text) && text.length < 4 ? text.padStart(4, "0") : text;
 }
 
 function getCsvColumnIndexes(headers: string[]): Record<string, number> {
@@ -848,7 +861,7 @@ async function buildMappingFramePreviewRows(
 
     const paddedSiteId = validateAndPadNumericCode(siteValue, "Site ID", 1, errors);
     const localityValue = validateAndPadNumericCode(localityRaw, "Locality", 2, errors);
-    const structureMapId = validateAndPadNumericCode(structureRaw, "Structure ID", 4, errors);
+    const structureMapId = validateStructureMapId(structureRaw, errors);
     const householdNumber = validateAndPadNumericCode(householdRaw, "Household number", 2, errors);
     const siteId = paddedSiteId && /^\d$/.test(paddedSiteId) ? Number(paddedSiteId) : undefined;
 

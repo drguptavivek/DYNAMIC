@@ -30,7 +30,7 @@ In JSON, keep both:
 | `analysisCode` | Unique analysis-safe code derived from form + PDF variable ID | `hhq_04`, `hhq_3_i`, `pef_23a` |
 | `name` | SurveyJS answer key, preferably same as `analysisCode` once migration is done | `hhq_04` |
 | `title` | Question label only | `What is the number of the structure on map?` |
-| `description` | Instructions/hints only | `Enter exactly 4 digits from the structure map.` |
+| `description` | Instructions/hints only | `Enter 1 to 6 letters or digits from the structure map.` |
 
 Recommended analysis code format:
 
@@ -149,7 +149,7 @@ Baseline HHQ then updates:
 | --- | --- |
 | `hhq_site_id` | selected/copied from mapping frame |
 | `hhq_locality_code` | selected/copied from mapping frame |
-| `hhq_structure_map_id` | selected/copied from mapping frame; validate exactly 4 digits |
+| `hhq_structure_map_id` | selected/copied from mapping frame; validate 1-6 alphanumeric characters |
 | `hhq_household_number` | selected/copied from mapping frame; validate exactly 2 digits |
 | `household_id` | created from mapping frame and confirmed at HHQ |
 
@@ -188,7 +188,7 @@ Created from:
 
 | Field | Rule |
 | --- | --- |
-| `hhq_structure_map_id` | exactly 4 digits |
+| `hhq_structure_map_id` | 1-6 alphanumeric characters; legacy numeric values may remain zero-padded to 4 characters |
 
 Recommended storage:
 
@@ -210,7 +210,7 @@ Created from:
 | --- | --- |
 | `hhq_site_id` | site |
 | `hhq_locality_code` | village/hamlet/colony |
-| `hhq_structure_map_id` | 4-digit structure number |
+| `hhq_structure_map_id` | 1-6 character alphanumeric structure number |
 | `hhq_household_number` | 2-digit household number within structure |
 
 Recommended storage:
@@ -229,7 +229,7 @@ Validation:
 
 | Component | Validation |
 | --- | --- |
-| `structure_map_id` | exactly 4 digits |
+| `structure_map_id` | 1-6 alphanumeric characters |
 | `household_number` | exactly 2 digits |
 | full `household_id` | unique within study database |
 

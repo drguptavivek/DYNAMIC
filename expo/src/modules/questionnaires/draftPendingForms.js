@@ -44,7 +44,13 @@ export function getDraftHouseholdId(draft) {
   if (answers.household_id) return normalizeId(answers.household_id);
   const siteId = normalizeHouseholdIdPart(answers.hhq_site_id);
   const localityCode = normalizeHouseholdIdPart(answers.hhq_locality_code, 2);
-  const structureNumber = normalizeHouseholdIdPart(answers.hhq_structure_map_id, 4);
+  const rawStructureNumber = String(answers.hhq_structure_map_id || "").trim().toUpperCase();
+  if (rawStructureNumber && !/^[A-Z0-9]{1,6}$/.test(rawStructureNumber)) {
+    return draft?.subject_id ? normalizeId(draft.subject_id) : "";
+  }
+  const structureNumber = /^\d+$/.test(rawStructureNumber) && rawStructureNumber.length < 4
+    ? rawStructureNumber.padStart(4, "0")
+    : rawStructureNumber;
   const householdNumber = normalizeHouseholdIdPart(answers.hhq_household_number, 2);
   if (siteId && localityCode && structureNumber && householdNumber) {
     return [siteId, localityCode, structureNumber, householdNumber].join("-");

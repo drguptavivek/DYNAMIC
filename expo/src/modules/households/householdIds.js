@@ -10,11 +10,19 @@ export function normalizeIdPart(value, fallback, width) {
   return width ? text.padStart(width, "0") : text;
 }
 
+export function normalizeStructureMapId(value) {
+  const text = String(value || "").trim().toUpperCase();
+  if (!/^[A-Z0-9]{1,6}$/.test(text)) return "";
+  return /^\d+$/.test(text) && text.length < 4 ? text.padStart(4, "0") : text;
+}
+
 export function buildHouseholdId(record) {
+  const structureNumber = normalizeStructureMapId(record.structure_number);
+  if (!structureNumber) return "";
   return [
     normalizeIdPart(record.site_id, "0"),
     normalizeIdPart(record.locality_code, "00", 2),
-    normalizeIdPart(record.structure_number, "0000", 4),
+    structureNumber,
     normalizeIdPart(record.household_number, "00", 2)
   ].join("-");
 }
@@ -31,7 +39,7 @@ export function buildHouseholdIdFromHhqData(hhqData) {
   if (!/^[0-9]{2}$/.test(normalizeIdPart(localityCode, "00", 2))) {
     return "";
   }
-  if (!/^[0-9]{4}$/.test(String(structureNumber))) {
+  if (!/^[A-Za-z0-9]{1,6}$/.test(String(structureNumber).trim())) {
     return "";
   }
   if (!/^[0-9]{2}$/.test(String(householdNumber))) {
@@ -107,7 +115,7 @@ export function extractHouseholdRegistryFields(hhqData) {
     site_id: siteId,
     locality_code: String(localityCode || ""),
     locality_name: getStudyVillageName(siteId, localityCode),
-    structure_number: String(structureNumber || ""),
+    structure_number: normalizeStructureMapId(structureNumber),
     household_number: String(householdNumber || ""),
     address: hhqData.hhq_household_address || "",
     household_head_name: hhqData.hhq_household_head_name || "",

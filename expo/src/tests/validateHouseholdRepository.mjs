@@ -115,7 +115,11 @@ assert.equal(record.mobile_number, "9999999999");
 assert.equal(buildHouseholdIdFromHhqData(sample), "1-02-0042-03");
 assert.equal(
   buildHouseholdIdFromHhqData({ ...sample, hhq_structure_map_id: "42" }),
-  ""
+  "1-02-0042-03"
+);
+assert.equal(
+  buildHouseholdIdFromHhqData({ ...sample, hhq_structure_map_id: "A12B3" }),
+  "1-02-A12B3-03"
 );
 assert.equal(
   buildHouseholdIdFromHhqData({ ...sample, hhq_household_number: "3" }),

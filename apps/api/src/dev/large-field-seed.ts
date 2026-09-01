@@ -112,7 +112,7 @@ async function clearPriorLargeFieldSeed() {
 
 function makeHousehold(siteId: number, localityCode: string, ordinal: number, now: Date) {
   const structureOrdinal = Math.ceil(ordinal / 5);
-  const structureMapId = String(structureOrdinal).padStart(4, "0");
+  const structureMapId = String(structureOrdinal).padStart(4, "0").slice(-6);
   const householdNumber = String(((ordinal - 1) % 5) + 1).padStart(2, "0");
   const householdId = `${siteId}-${localityCode}-${structureMapId}-${householdNumber}`;
   const householdHeadName = makePersonName(1, ordinal, 1);

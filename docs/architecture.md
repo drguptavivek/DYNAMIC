@@ -140,6 +140,8 @@ Current format:
 1-02-0042-03-01
 ```
 
+`structure_map_id` is a case-insensitive 1-6 character alphanumeric value. Existing numeric IDs remain valid; numeric values shorter than four characters are normalized with leading zeroes for backward compatibility.
+
 Rules:
 
 - Baseline HHQ validates/enrolls households from the mapped frame.

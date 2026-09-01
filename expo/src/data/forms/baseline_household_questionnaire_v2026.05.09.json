@@ -269,17 +269,14 @@
           "order": 4,
           "section_order": 1,
           "sourceCode": "4",
-          "sourceType": "integer",
-          "renderingHint": {
-            "render_as": "numeric_textbox"
-          },
-          "rawText": "What is the number of the structure on map |_|_|_|_| 4-digits number - defined during mapping",
+          "sourceType": "string",
+          "rawText": "What is the number of the structure on map (up to 6 letters or digits) - defined during mapping",
           "validationRulesSource": [
-            "Exactly 4 digits."
+            "Enter 1 to 6 letters or digits."
           ],
           "inputType": "text",
           "description": {
-            "default": "4-digits number - defined during mapping",
+            "default": "Enter 1 to 6 letters or digits - defined during mapping",
             "hi": "",
             "kn": "",
             "mr": "",
@@ -290,9 +287,9 @@
           "validators": [
             {
               "type": "regex",
-              "regex": "^[0-9]{4}$",
+              "regex": "^[A-Za-z0-9]{1,6}$",
               "text": {
-                "default": "Enter exactly 4 digits.",
+                "default": "Enter 1 to 6 letters or digits.",
                 "hi": "",
                 "kn": "",
                 "mr": "",

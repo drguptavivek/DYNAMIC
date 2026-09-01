@@ -134,7 +134,8 @@ function normalizeHouseholdIdPart(value, width) {
 function buildDisplayHouseholdId(model) {
   const siteId = normalizeHouseholdIdPart(model.getValue("hhq_site_id"));
   const localityCode = normalizeHouseholdIdPart(model.getValue("hhq_locality_code"), 2);
-  const structureNumber = normalizeHouseholdIdPart(model.getValue("hhq_structure_map_id"), 4);
+  const structureNumber = String(model.getValue("hhq_structure_map_id") || "").trim().toUpperCase();
+  if (!/^[A-Z0-9]{1,6}$/.test(structureNumber)) return "";
   const householdNumber = normalizeHouseholdIdPart(model.getValue("hhq_household_number"), 2);
   if (!siteId || !localityCode || !structureNumber || !householdNumber) return "";
   return [siteId, localityCode, structureNumber, householdNumber].join("-");

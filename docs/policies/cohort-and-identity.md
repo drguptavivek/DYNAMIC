@@ -24,6 +24,8 @@ Current household ID format:
 1-02-0042-03
 ```
 
+`structure_map_id` accepts 1-6 alphanumeric characters (normalized to uppercase). Existing numeric IDs remain valid, and numeric values shorter than four characters retain the legacy four-character zero-padding.
+
 Current member ID format:
 
 ```text

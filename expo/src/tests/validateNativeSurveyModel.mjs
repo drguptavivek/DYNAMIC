@@ -65,10 +65,11 @@ assert.equal(model.pages.length, 4);
 assert.ok(getVisiblePageQuestions(model.pages[0]).length > 0);
 
 const structure = model.getQuestionByName("hhq_structure_map_id");
-setNativeQuestionValue(structure, "42");
-assert.deepEqual(getRegexValidationErrors(structure), ["Enter exactly 4 digits."]);
-setNativeQuestionValue(structure, "0042");
+setNativeQuestionValue(structure, "A42B7");
 assert.deepEqual(getRegexValidationErrors(structure), []);
+setNativeQuestionValue(structure, "1234567");
+assert.deepEqual(getRegexValidationErrors(structure), ["Enter 1 to 6 letters or digits."]);
+setNativeQuestionValue(structure, "0042");
 assert.equal(structure.value, "0042");
 assert.equal(model.data.hhq_structure_map_id, "0042");
 model.setValue("hhq_household_head_name", "Restored Draft Head");

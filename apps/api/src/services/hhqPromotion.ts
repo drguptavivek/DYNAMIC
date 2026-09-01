@@ -10,6 +10,12 @@ export function normalizeIdPart(value: unknown, fallback: string, width?: number
   return width ? text.padStart(width, "0") : text;
 }
 
+export function normalizeStructureMapId(value: unknown): string {
+  const text = String(value ?? "").trim().toUpperCase();
+  if (!/^[A-Z0-9]{1,6}$/.test(text)) return "";
+  return /^\d+$/.test(text) && text.length < 4 ? text.padStart(4, "0") : text;
+}
+
 export function buildHhqHouseholdId(answers: HhqAnswers): string {
   const siteId = answers.hhq_site_id;
   const localityCode = answers.hhq_locality_code;
@@ -24,11 +30,13 @@ export function buildHhqHouseholdId(answers: HhqAnswers): string {
   if (!/^[0-9]{2}$/.test(normalizedLocalityCode)) {
     return "";
   }
+  const normalizedStructureMapId = normalizeStructureMapId(structureMapId);
+  if (!normalizedStructureMapId) return "";
 
   return [
     normalizeIdPart(siteId, "0"),
     normalizedLocalityCode,
-    normalizeIdPart(structureMapId, "0000", 4),
+    normalizedStructureMapId,
     normalizeIdPart(householdNumber, "00", 2),
   ].join("-");
 }
@@ -76,7 +84,7 @@ export function buildHhqHouseholdPromotionValues(
     answers.hhq_structure_map_id !== undefined &&
     answers.hhq_structure_map_id !== null &&
     answers.hhq_structure_map_id !== ""
-      ? String(answers.hhq_structure_map_id)
+      ? normalizeStructureMapId(answers.hhq_structure_map_id)
       : parsed.structure_map_id;
   const householdNumber =
     answers.hhq_household_number !== undefined &&

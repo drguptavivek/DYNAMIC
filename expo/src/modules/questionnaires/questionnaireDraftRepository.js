@@ -126,7 +126,11 @@ function getPayloadHouseholdId(payload, subjectId) {
   if (payload?.hhq_household_id) return payload.hhq_household_id;
   const siteId = normalizeHouseholdIdPart(payload?.hhq_site_id);
   const localityCode = normalizeHouseholdIdPart(payload?.hhq_locality_code, 2);
-  const structureNumber = normalizeHouseholdIdPart(payload?.hhq_structure_map_id, 4);
+  const rawStructureNumber = String(payload?.hhq_structure_map_id || "").trim().toUpperCase();
+  if (rawStructureNumber && !/^[A-Z0-9]{1,6}$/.test(rawStructureNumber)) return subjectId;
+  const structureNumber = /^\d+$/.test(rawStructureNumber) && rawStructureNumber.length < 4
+    ? rawStructureNumber.padStart(4, "0")
+    : rawStructureNumber;
   const householdNumber = normalizeHouseholdIdPart(payload?.hhq_household_number, 2);
   if (siteId && localityCode && structureNumber && householdNumber) {
     return [siteId, localityCode, structureNumber, householdNumber].join("-");
