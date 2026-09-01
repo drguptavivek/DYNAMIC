@@ -386,27 +386,28 @@ router.post("/refresh", authRateLimit, async (req: Request, res: Response) => {
 });
 
 router.post("/totp/setup", requireAuth, async (req: Request, res: Response) => {
-  const [user] = await db.select({ username: schema.users.username, totp_secret: schema.users.totp_secret, totp_enabled: schema.users.totp_enabled }).from(schema.users)
-    .where(eq(schema.users.user_id, req.user!.sub));
-  if (!user) { sendError(res, 401, "INVALID_CREDENTIALS", "Authentication required"); return; }
+  const result = await db.transaction(async (tx) => {
+    const [user] = await tx.select({ username: schema.users.username, totp_secret: schema.users.totp_secret, totp_enabled: schema.users.totp_enabled }).from(schema.users)
+      .where(eq(schema.users.user_id, req.user!.sub)).for("update");
+    if (!user) return null;
 
-  // Setup may be requested more than once (for example, by React strict-mode
-  // effect replay or a browser refresh). Reuse a pending enrollment secret so
-  // the QR code and authenticator app never get out of sync.
-  if (!user.totp_enabled && user.totp_secret) {
-    try {
-      const secret = decryptTotpSecret(user.totp_secret);
-      sendSuccess(res, { secret, otpauth_uri: buildTotpUri(secret, user.username) });
-      return;
-    } catch {
-      // If an old/corrupt pending secret cannot be decrypted, replace it below.
+    // Locking the row makes setup idempotent even when duplicate requests
+    // arrive concurrently (for example, React strict-mode effect replay).
+    if (!user.totp_enabled && user.totp_secret) {
+      try {
+        const secret = decryptTotpSecret(user.totp_secret);
+        return { secret, otpauth_uri: buildTotpUri(secret, user.username) };
+      } catch {
+        // Replace an old/corrupt pending secret below.
+      }
     }
-  }
-
-  const secret = generateTotpSecret();
-  await db.update(schema.users).set({ totp_secret: encryptTotpSecret(secret), totp_enabled: false, updated_at: new Date() })
-    .where(eq(schema.users.user_id, req.user!.sub));
-  sendSuccess(res, { secret, otpauth_uri: buildTotpUri(secret, user.username) });
+    const secret = generateTotpSecret();
+    await tx.update(schema.users).set({ totp_secret: encryptTotpSecret(secret), totp_enabled: false, updated_at: new Date() })
+      .where(eq(schema.users.user_id, req.user!.sub));
+    return { secret, otpauth_uri: buildTotpUri(secret, user.username) };
+  });
+  if (!result) { sendError(res, 401, "INVALID_CREDENTIALS", "Authentication required"); return; }
+  sendSuccess(res, result);
 });
 
 router.post("/totp/enable", requireAuth, async (req: Request, res: Response) => {
