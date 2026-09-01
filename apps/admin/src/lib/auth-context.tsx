@@ -71,6 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const result = await api.post<{ access_token?: string; user?: AuthUser; requires_totp?: boolean }>("/auth/login", {
       username,
       password,
+      client: "web",
       ...(totpCode ? { totp_code: totpCode } : {}),
     });
     if (result.requires_totp) {

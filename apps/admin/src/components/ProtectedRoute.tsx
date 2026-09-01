@@ -13,6 +13,10 @@ export default function ProtectedRoute() {
     return <Navigate to="/login" replace />;
   }
 
+  if (user.role === "field_worker") {
+    return <Navigate to="/login" replace />;
+  }
+
   // Every web session must complete TOTP enrollment before any protected
   // surface is available. Keep the setup route itself reachable.
   if (!user.totp_enabled && location.pathname !== "/security/totp-setup") {

@@ -18,6 +18,7 @@ const loginSchema = z.object({
   username: z.string().min(1, "Username required"),
   password: z.string().min(1, "Password required"),
   totp_code: z.string().regex(/^\d{6}$/).optional(),
+  client: z.enum(["web", "mobile"]).default("mobile"),
 });
 
 const qrLoginSchema = z.object({
@@ -143,7 +144,7 @@ async function rotateRefreshSession(
  */
 router.post("/login", authRateLimit, async (req: Request, res: Response) => {
   try {
-    const { username, password, totp_code } = loginSchema.parse(req.body);
+    const { username, password, totp_code, client } = loginSchema.parse(req.body);
 
     if (isIpPairBlocked(req, username)) {
       res.setHeader("Retry-After", "600");
@@ -180,6 +181,12 @@ router.post("/login", authRateLimit, async (req: Request, res: Response) => {
         updated_at: new Date(),
       }).where(eq(schema.users.user_id, user.user_id));
       recordIpFailure(req, username);
+      sendError(res, 401, "INVALID_CREDENTIALS", "Invalid username or password");
+      return;
+    }
+
+    // Field workers authenticate through the Expo app only.
+    if (client === "web" && user.role === "field_worker") {
       sendError(res, 401, "INVALID_CREDENTIALS", "Invalid username or password");
       return;
     }
