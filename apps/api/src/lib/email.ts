@@ -100,8 +100,7 @@ export async function sendCredentialsEmail(input: {
       "This password is for your first login only. Change it immediately after signing in.",
       "Please do not forward this email.",
       "",
-      ".",
-    ].join("\r\n").replace(/^\./gm, "..") + "\r\n";
+    ].join("\r\n").replace(/^\./gm, "..") + "\r\n.\r\n";
     const responsePromise = readResponse(socket);
     socket.write(body);
     const response = await responsePromise;
