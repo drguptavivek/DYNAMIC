@@ -79,7 +79,7 @@ export async function sendCredentialsEmail(input: {
     await command(socket, `EHLO ${escapeHeader(process.env.SMTP_EHLO || "dynamic")}`);
     await command(socket, "AUTH LOGIN", [334]);
     await command(socket, Buffer.from(smtp.username).toString("base64"), [334]);
-    await command(socket, Buffer.from(smtp.password).toString("base64"));
+    await command(socket, Buffer.from(smtp.password).toString("base64"), [235]);
     await command(socket, `MAIL FROM:${quoted(smtp.from)}`);
     await command(socket, `RCPT TO:${quoted(input.to)}`);
     await command(socket, "DATA", [354]);
