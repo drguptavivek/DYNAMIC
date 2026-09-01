@@ -10,6 +10,11 @@ export const users = pgTable("users", {
   site_id: integer("site_id"),
   password_hash: text("password_hash").notNull(),
   active: boolean("active").default(true),
+  failed_login_attempts: integer("failed_login_attempts").notNull().default(0),
+  locked_until: timestamp("locked_until", { withTimezone: true }),
+  totp_secret: text("totp_secret"),
+  totp_enabled: boolean("totp_enabled").notNull().default(false),
+  password_reset_required: boolean("password_reset_required").notNull().default(false),
   created_at: timestamp("created_at", { withTimezone: true }),
   updated_at: timestamp("updated_at", { withTimezone: true }),
 });

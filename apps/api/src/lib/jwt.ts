@@ -7,6 +7,7 @@ export interface JwtPayload {
     | "field_worker"
     | "field_supervisor"
     | "site_research_scientist"
+    | "site_investigator"
     | "central_admin"
     | "site_data_manager"
     | "central_data_manager"

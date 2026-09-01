@@ -14,6 +14,7 @@ const userRoleValues = [
   "field_worker",
   "field_supervisor",
   "site_research_scientist",
+  "site_investigator",
   "central_admin",
   "site_data_manager",
   "central_data_manager",
@@ -26,6 +27,7 @@ const siteScopedRoles = new Set<UserRole>([
   "field_worker",
   "field_supervisor",
   "site_research_scientist",
+  "site_investigator",
   "site_data_manager",
 ]);
 
@@ -34,6 +36,7 @@ const roleRank: Record<UserRole, number> = {
   field_supervisor: 20,
   site_data_manager: 30,
   site_research_scientist: 40,
+  site_investigator: 40,
   central_data_manager: 50,
   us_collaborator: 50,
   central_admin: 60,
@@ -646,6 +649,52 @@ function userManagementScopeError(
 
   return null;
 }
+
+/**
+ * POST /api/v1/users/:id/security-reset
+ * Reset password lockout, account status, and TOTP enrollment according to role scope.
+ */
+router.post(
+  "/:id/security-reset",
+  requireAuth,
+  async (req: Request, res: Response) => {
+    try {
+      const body = z.object({
+        password: z.string().min(12).optional(),
+        active: z.boolean().optional(),
+        reset_totp: z.boolean().default(true),
+      }).parse(req.body);
+      const [target] = await db.select().from(schema.users).where(eq(schema.users.user_id, req.params.id));
+      if (!target) { sendError(res, 404, "USER_NOT_FOUND", "User not found"); return; }
+      if (target.user_id === req.user!.sub) {
+        sendError(res, 403, "CLI_RESET_REQUIRED", "This account can only be reset from the server CLI"); return;
+      }
+      const actorRole = req.user!.role as UserRole;
+      const targetRole = target.role as UserRole;
+      const allowed =
+        ((actorRole === "site_data_manager" || actorRole === "site_research_scientist") &&
+          ["field_worker", "field_supervisor"].includes(targetRole) && target.site_id === req.user!.site_id) ||
+        (actorRole === "central_data_manager" && ["us_collaborator", "site_investigator", "site_research_scientist", "site_data_manager"].includes(targetRole)) ||
+        (actorRole === "central_admin" && targetRole === "central_data_manager");
+      if (!allowed) { sendError(res, 403, "INSUFFICIENT_PERMISSIONS", "You cannot reset this account"); return; }
+      const updateData: Record<string, unknown> = {
+        failed_login_attempts: 0,
+        locked_until: null,
+        updated_at: new Date(),
+      };
+      if (body.password) { updateData.password_hash = await hashPassword(body.password); updateData.password_reset_required = false; }
+      if (body.active !== undefined) updateData.active = body.active;
+      if (body.reset_totp) { updateData.totp_secret = null; updateData.totp_enabled = false; }
+      await db.update(schema.users).set(updateData).where(eq(schema.users.user_id, target.user_id));
+      await revokeUserSessions(target.user_id);
+      sendSuccess(res, { reset: true });
+    } catch (error) {
+      if (error instanceof z.ZodError) { sendError(res, 400, "VALIDATION_ERROR", "Invalid security reset request"); return; }
+      console.error("Security reset error:", error);
+      sendError(res, 500, "INTERNAL_ERROR", "An error occurred");
+    }
+  },
+);
 
 /**
  * POST /api/v1/users/:id/password-login-qr

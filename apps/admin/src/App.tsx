@@ -17,6 +17,8 @@ import PregnantWomenPage from "./pages/PregnantWomenPage";
 import ChildrenPage from "./pages/ChildrenPage";
 import FormLanguageManagementPage from "./pages/FormLanguageManagementPage";
 import FormDataExportPage from "./pages/FormDataExportPage";
+import StudyHomePage from "./pages/StudyHomePage";
+import TotpSetupPage from "./pages/TotpSetupPage";
 
 export default function App() {
   return (
@@ -26,7 +28,8 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route element={<ProtectedRoute />}>
             <Route element={<Layout />}>
-              <Route path="/" element={<DashboardPage />} />
+              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/security/totp-setup" element={<TotpSetupPage />} />
               <Route path="/users" element={<UsersPage />} />
               <Route path="/field-worker-household-assignment" element={<FieldWorkerHouseholdAssignmentPage />} />
               <Route path="/masters" element={<MastersPage />} />
@@ -47,6 +50,7 @@ export default function App() {
               <Route path="/children" element={<ChildrenPage />} />
             </Route>
           </Route>
+          <Route path="/" element={<StudyHomePage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>

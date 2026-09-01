@@ -5,6 +5,7 @@ import styles from "./Layout.module.css";
 const ROLE_COLORS: Record<string, string> = {
   central_admin: "purple",
   site_research_scientist: "blue",
+  site_investigator: "cyan",
   field_supervisor: "green",
   field_worker: "gray",
   site_data_manager: "teal",
@@ -22,7 +23,7 @@ export default function Layout() {
     user?.role === "site_research_scientist" ||
     user?.role === "site_data_manager";
   const links = [
-    { path: "/", label: "Dashboard" },
+    { path: "/dashboard", label: "Dashboard" },
     { path: "/tasks", label: "Tasks" },
     { path: "/data-quality", label: "Data Quality" },
     { path: "/sync-logs", label: "Sync Logs" },

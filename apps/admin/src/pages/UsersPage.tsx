@@ -56,6 +56,7 @@ const ROLES: readonly UserRole[] = [
   "field_worker",
   "field_supervisor",
   "site_research_scientist",
+  "site_investigator",
   "central_admin",
   "site_data_manager",
   "central_data_manager",
@@ -66,6 +67,7 @@ const SITE_ADMIN_ROLES = new Set<UserRole>([
   "field_worker",
   "field_supervisor",
   "site_research_scientist",
+  "site_investigator",
   "site_data_manager",
 ]);
 
@@ -74,6 +76,7 @@ const ROLE_RANK: Record<UserRole, number> = {
   field_supervisor: 20,
   site_data_manager: 30,
   site_research_scientist: 40,
+  site_investigator: 40,
   central_data_manager: 50,
   us_collaborator: 50,
   central_admin: 60,
@@ -132,6 +135,7 @@ export default function UsersPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [passwordResetUser, setPasswordResetUser] = useState<User | null>(null);
+  const [securityResetFor, setSecurityResetFor] = useState<string | null>(null);
 
   const sitesById = useMemo(
     () => new Map(sites.map((site) => [site.site_id, site])),
@@ -276,6 +280,27 @@ export default function UsersPage() {
     await loadUsers();
   }
 
+  async function handleSecurityReset(target: User) {
+    if (currentUser?.user_id === target.user_id) return;
+    const confirmed = window.confirm(
+      `Reset lockout, account status, and authenticator enrollment for ${target.username}?`,
+    );
+    if (!confirmed) return;
+    setSecurityResetFor(target.user_id);
+    setError("");
+    try {
+      await api.post(`/users/${target.user_id}/security-reset`, {
+        active: true,
+        reset_totp: true,
+      });
+      await loadUsers();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to reset account security");
+    } finally {
+      setSecurityResetFor(null);
+    }
+  }
+
   async function handleDeviceAuthorization(device: RegisteredDevice) {
     const nextAuthorized = !device.authorized;
     if (!nextAuthorized) {
@@ -386,6 +411,14 @@ export default function UsersPage() {
                       <div className={styles.actionGroup}>
                         <button onClick={() => setEditingUser(listedUser)} className={styles.actionBtn}>Edit</button>
                         <button onClick={() => setPasswordResetUser(listedUser)} className={styles.actionBtn}>Password</button>
+                        <button
+                          onClick={() => void handleSecurityReset(listedUser)}
+                          className={styles.actionBtn}
+                          disabled={securityResetFor === listedUser.user_id || Boolean(statusDisabledReason(listedUser))}
+                          title="Unlock, activate, and reset TOTP"
+                        >
+                          {securityResetFor === listedUser.user_id ? "Resetting..." : "Security"}
+                        </button>
                       </div>
                     </td>
                   </tr>

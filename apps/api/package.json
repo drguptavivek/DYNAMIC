@@ -17,6 +17,7 @@
     "db:test:push": "npm run db:test:ensure && DATABASE_URL=${TEST_DATABASE_URL:-postgresql://dynamic:dynamic_dev_password@localhost:55432/dynamic_test} sh -c 'drizzle-kit push --dialect postgresql --schema \"./src/db/schema/*.ts\" --url \"$DATABASE_URL\"'",
     "db:push": "sh -c 'drizzle-kit push --dialect postgresql --schema \"./src/db/schema/*.ts\" --url \"$DATABASE_URL\"'",
     "smoke:dev": "tsx src/dev/smoke-dev.ts",
+    "security-reset": "tsx src/dev/security-reset.ts",
     "seed:large": "tsx src/dev/large-field-seed.ts"
   },
   "dependencies": {

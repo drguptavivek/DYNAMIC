@@ -7,12 +7,14 @@ export interface AuthUser {
   display_name?: string;
   role: UserRole;
   site_id?: number;
+  totp_enabled?: boolean;
 }
 
 export type UserRole =
   | "field_worker"
   | "field_supervisor"
   | "site_research_scientist"
+  | "site_investigator"
   | "central_admin"
   | "site_data_manager"
   | "central_data_manager"
@@ -21,7 +23,7 @@ export type UserRole =
 interface AuthContextValue {
   user: AuthUser | null;
   loading: boolean;
-  login(username: string, password: string): Promise<void>;
+  login(username: string, password: string, totpCode?: string): Promise<AuthUser>;
   logout(): void;
 }
 
@@ -65,14 +67,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  async function login(username: string, password: string) {
-    const result = await api.post<{ access_token: string; user: AuthUser }>("/auth/login", {
+  async function login(username: string, password: string, totpCode?: string): Promise<AuthUser> {
+    const result = await api.post<{ access_token?: string; user?: AuthUser; requires_totp?: boolean }>("/auth/login", {
       username,
       password,
+      ...(totpCode ? { totp_code: totpCode } : {}),
     });
+    if (result.requires_totp) {
+      throw Object.assign(new Error("Authenticator verification required"), { code: "TOTP_REQUIRED" });
+    }
+    if (!result.access_token || !result.user) throw new Error("Authentication failed");
     localStorage.setItem("access_token", result.access_token);
     localStorage.setItem("user", JSON.stringify(result.user));
     setUser(result.user);
+    return result.user;
   }
 
   function logout() {
