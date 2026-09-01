@@ -7,6 +7,7 @@ import { requireAuth, requireRole } from "../middleware/auth";
 import { sendError, sendSuccess } from "../lib/errors";
 import { createLoginQrPayload } from "../lib/loginQr";
 import { hashPassword } from "../lib/password";
+import { sendCredentialsEmail } from "../lib/email";
 import { markAccessSessionRevoked } from "../lib/tokenSessionCache";
 
 const router = Router();
@@ -761,6 +762,10 @@ router.patch(
         sendError(res, 404, "USER_NOT_FOUND", "User not found");
         return;
       }
+      if (data.password && !user.email) {
+        sendError(res, 400, "EMAIL_NOT_REGISTERED", "This user has no registered email address");
+        return;
+      }
 
       // Permission checks
       if (req.user!.role === "site_research_scientist") {
@@ -832,6 +837,7 @@ router.patch(
       if (data.active !== undefined) updateData.active = data.active;
       if (data.password) {
         updateData.password_hash = await hashPassword(data.password);
+        updateData.password_reset_required = true;
       }
 
       await db.transaction(async (tx) => {
@@ -866,9 +872,24 @@ router.patch(
         await revokeUserSessions(userId);
       }
 
+      let emailSent = false;
+      if (data.password) {
+        try {
+          const delivery = await sendCredentialsEmail({
+            to: user.email!,
+            username: user.username,
+            password: data.password,
+          });
+          emailSent = delivery.sent;
+          if (!emailSent) console.warn("Credentials email was not sent:", delivery.reason);
+        } catch (mailError) {
+          console.error("Credentials email delivery failed:", mailError);
+        }
+      }
+
       const updatedUser = await selectUserWithStaff(userId);
 
-      sendSuccess(res, updatedUser);
+      sendSuccess(res, data.password ? { user: updatedUser, email_sent: emailSent } : updatedUser);
     } catch (error) {
       if (error instanceof z.ZodError) {
         sendError(res, 400, "VALIDATION_ERROR", "Invalid request body", {

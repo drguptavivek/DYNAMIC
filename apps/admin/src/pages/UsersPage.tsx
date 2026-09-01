@@ -30,6 +30,11 @@ interface PasswordLoginQrResponse {
   qr_payload: string;
 }
 
+interface PasswordResetResponse {
+  user: User;
+  email_sent: boolean;
+}
+
 interface AreaAssignment {
   assignment_id: string;
   user_id: string;
@@ -275,9 +280,10 @@ export default function UsersPage() {
     }
   }
 
-  async function handlePasswordReset(target: User, newPassword: string) {
-    await api.patch(`/users/${target.user_id}`, { password: newPassword });
+  async function handlePasswordReset(target: User, newPassword: string): Promise<{ email_sent: boolean }> {
+    const result = await api.patch<PasswordResetResponse>(`/users/${target.user_id}`, { password: newPassword });
     await loadUsers();
+    return { email_sent: result.email_sent };
   }
 
   async function handleSecurityReset(target: User) {
@@ -746,13 +752,14 @@ function PasswordResetModal({
   user: User;
   site?: Site;
   onClose: () => void;
-  onSubmit: (user: User, password: string) => Promise<void>;
+  onSubmit: (user: User, password: string) => Promise<{ email_sent: boolean }>;
 }) {
   const [password, setPassword] = useState(() => generateStudyPassword());
   const [qrDataUrl, setQrDataUrl] = useState("");
   const [qrLoading, setQrLoading] = useState(false);
   const [generatedAt, setGeneratedAt] = useState(() => new Date());
   const [savedPassword, setSavedPassword] = useState("");
+  const [emailSent, setEmailSent] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const siteName = site ? siteLabel(site) : user.site_id ? `Site ID ${user.site_id}` : "Central / no site";
@@ -800,8 +807,9 @@ function PasswordResetModal({
     setError("");
     setLoading(true);
     try {
-      await onSubmit(user, password);
+      const result = await onSubmit(user, password);
       setSavedPassword(password);
+      setEmailSent(result.email_sent);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to reset password");
     } finally {
@@ -820,7 +828,7 @@ function PasswordResetModal({
   return (
     <div className={styles.modal}><div className={styles.modalContent}>
       {error && <div className={styles.error}>{error}</div>}
-      {savedPassword && <div className={styles.success}>Password saved. Share this password or QR only with the selected user.</div>}
+      {savedPassword && <div className={styles.success}>{emailSent ? `Password saved and credentials emailed to ${user.email}.` : "Password saved, but the credentials email could not be sent. Check SMTP configuration and resend the password."}</div>}
       <div className={styles.passwordResetIntro}>
         <p>New Password Generated. Click Save Password to set this password and deactivate old password. This password and QR Code will only be shown once.</p>
         <div><span>Username</span><strong>{user.username}</strong></div>
@@ -836,12 +844,13 @@ function PasswordResetModal({
             onChange={(event) => {
               setPassword(event.target.value);
               setSavedPassword("");
+              setEmailSent(false);
             }}
             className={styles.passwordValueInput}
           />
           <p className={styles.fieldHint}>Format: three faker words of 5-7 letters with one internal capital letter each, plus one 3-digit number, separated by dashes.</p>
           <div className={styles.inlineActions}>
-            <button type="button" className={styles.secondaryBtn} onClick={() => { setPassword(generateStudyPassword()); setGeneratedAt(new Date()); setSavedPassword(""); }}>Generate New</button>
+            <button type="button" className={styles.secondaryBtn} onClick={() => { setPassword(generateStudyPassword()); setGeneratedAt(new Date()); setSavedPassword(""); setEmailSent(false); }}>Generate New</button>
             <button type="button" className={styles.secondaryBtn} onClick={handleCopyPassword}>Copy Password</button>
           </div>
         </div>
