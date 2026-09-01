@@ -53,8 +53,9 @@ function readResponse(socket: tls.TLSSocket): Promise<string> {
 }
 
 async function command(socket: tls.TLSSocket, value: string, expected: number[] = [250]): Promise<void> {
+  const responsePromise = readResponse(socket);
   socket.write(`${value}\r\n`);
-  const response = await readResponse(socket);
+  const response = await responsePromise;
   const status = Number(response.slice(0, 3));
   if (!expected.includes(status)) throw new Error(`SMTP command failed (${status})`);
 }
@@ -70,12 +71,13 @@ export async function sendCredentialsEmail(input: {
 
   const socket = tls.connect({ host: smtp.host, port: smtp.port, servername: smtp.host, timeout: 15000 });
   try {
+    const greetingPromise = readResponse(socket);
     await new Promise<void>((resolve, reject) => {
       socket.once("secureConnect", resolve);
       socket.once("error", reject);
       socket.once("timeout", () => reject(new Error("SMTP connection timed out")));
     });
-    await readResponse(socket);
+    await greetingPromise;
     await command(socket, `EHLO ${escapeHeader(process.env.SMTP_EHLO || "dynamic")}`);
     await command(socket, "AUTH LOGIN", [334]);
     await command(socket, Buffer.from(smtp.username).toString("base64"), [334]);
@@ -100,8 +102,9 @@ export async function sendCredentialsEmail(input: {
       "",
       ".",
     ].join("\r\n").replace(/^\./gm, "..") + "\r\n";
+    const responsePromise = readResponse(socket);
     socket.write(body);
-    const response = await readResponse(socket);
+    const response = await responsePromise;
     if (Number(response.slice(0, 3)) !== 250) throw new Error("SMTP message was not accepted");
     await command(socket, "QUIT", [221]);
     return { sent: true };
