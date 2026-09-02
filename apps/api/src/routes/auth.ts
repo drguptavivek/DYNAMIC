@@ -420,8 +420,11 @@ router.post("/totp/setup", requireAuth, async (req: Request, res: Response) => {
 router.post("/totp/enable", requireAuth, async (req: Request, res: Response) => {
   try {
     const { code } = totpCodeSchema.parse(req.body);
-    const [user] = await db.select({ totp_secret: schema.users.totp_secret }).from(schema.users)
+    const [user] = await db.select({ totp_secret: schema.users.totp_secret, totp_enabled: schema.users.totp_enabled }).from(schema.users)
       .where(eq(schema.users.user_id, req.user!.sub));
+    // Duplicate submissions can happen when a user double-clicks or a browser
+    // retries the request. Once enabled, treat the operation as already done.
+    if (user?.totp_enabled) { sendSuccess(res, { enabled: true }); return; }
     if (!user?.totp_secret || !verifyTotp(decryptTotpSecret(user.totp_secret), code)) {
       sendError(res, 400, "INVALID_TOTP", "Invalid authenticator code"); return;
     }

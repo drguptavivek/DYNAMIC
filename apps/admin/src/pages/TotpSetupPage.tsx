@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import QRCode from "qrcode";
 import { api } from "../lib/api";
@@ -14,8 +14,12 @@ export default function TotpSetupPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const setupRequestStartedRef = useRef(false);
+  const enableRequestStartedRef = useRef(false);
 
   useEffect(() => {
+    if (setupRequestStartedRef.current) return;
+    setupRequestStartedRef.current = true;
     let cancelled = false;
     api.post<TotpSetup>("/auth/totp/setup", {})
       .then(async (value) => {
@@ -30,6 +34,8 @@ export default function TotpSetupPage() {
 
   async function handleEnable(event: React.FormEvent) {
     event.preventDefault();
+    if (enableRequestStartedRef.current || saving) return;
+    enableRequestStartedRef.current = true;
     setError("");
     setSaving(true);
     try {
@@ -39,7 +45,10 @@ export default function TotpSetupPage() {
       navigate("/dashboard", { replace: true });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Invalid authenticator code");
-    } finally { setSaving(false); }
+    } finally {
+      setSaving(false);
+      enableRequestStartedRef.current = false;
+    }
   }
 
   return <main className={styles.page}><section className={styles.card}>
