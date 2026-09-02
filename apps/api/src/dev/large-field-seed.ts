@@ -1,4 +1,5 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
 import { db, schema } from "../db";
 import { smokeUser, upsertDevSeed } from "./dev-seed";
 
@@ -17,14 +18,18 @@ const LOCALITIES = [
 ];
 
 const LARGE_FIELD_SEED = 20260610;
-const MIN_HOUSEHOLDS_PER_LOCALITY = 2000;
-const MAX_HOUSEHOLDS_PER_LOCALITY = 20000;
+const TOTAL_HOUSEHOLDS = 1000;
+const HHQ_TASK_HOUSEHOLDS = 1000;
 const MIN_MEMBERS_PER_HOUSEHOLD = 3;
 const MAX_MEMBERS_PER_HOUSEHOLD = 8;
 const MAX_ELIGIBLE_WOMEN_PER_HOUSEHOLD = 3;
 const BATCH_SIZE = 1000;
 const SEEDED_SITE_IDS = SITES.map((site) => site.site_id);
 const SEEDED_LOCALITY_CODES = LOCALITIES.map((locality) => locality.code);
+
+function buildHhqTaskKey(householdId: string, targetDate: string): string {
+  return `${householdId}:household:${householdId}:HHQ:baseline:${targetDate}:v1`;
+}
 
 const MALE_GIVEN_NAMES = [
   "Mohan",
@@ -104,6 +109,25 @@ async function clearPriorLargeFieldSeed() {
 
   await db.delete(schema.eligibleWomen).where(seededArea(schema.eligibleWomen));
   await db.delete(schema.householdMembers).where(seededArea(schema.householdMembers));
+  // Household assignments reference households, so clear them first or the
+  // subsequent household delete fails with a foreign-key violation.
+  await db
+    .delete(schema.fieldWorkerHouseholdAssignments)
+    .where(
+      sql`household_id in (
+        select household_id
+        from households
+        where site_id in (${sql.join(SEEDED_SITE_IDS.map((id) => sql`${id}`), sql`, `)})
+          and locality_code in (${sql.join(SEEDED_LOCALITY_CODES.map((code) => sql`${code}`), sql`, `)})
+      )`,
+    );
+  await db.delete(schema.followUpTasks).where(
+    sql`household_id in (
+      select household_id from households
+      where site_id in (${sql.join(SEEDED_SITE_IDS.map((id) => sql`${id}`), sql`, `)})
+        and locality_code in (${sql.join(SEEDED_LOCALITY_CODES.map((code) => sql`${code}`), sql`, `)})
+    )`,
+  );
   await db.delete(schema.households).where(seededArea(schema.households));
   await db.delete(schema.mappingFrame).where(seededArea(schema.mappingFrame));
   await db.delete(schema.userAreaAssignments).where(seededArea(schema.userAreaAssignments));
@@ -125,7 +149,7 @@ function makeHousehold(siteId: number, localityCode: string, ordinal: number, no
       household_number: householdNumber,
       structure_id: `${siteId}-${localityCode}-${structureMapId}`,
       mapping_status: "enrolled",
-      baseline_enrollment_status: "completed",
+      baseline_enrollment_status: "pending",
     },
     household: {
       household_id: householdId,
@@ -138,8 +162,8 @@ function makeHousehold(siteId: number, localityCode: string, ordinal: number, no
       consent_status: "Yes",
       result_interview: 1,
       language_questionnaire: 1,
-      baseline_enrollment_status: "completed",
-      baseline_completed_date: "2026-09-01",
+      baseline_enrollment_status: "pending",
+      baseline_completed_date: null,
       cohort_status: "enrolled",
       sync_status: "synced",
       created_at: now,
@@ -245,13 +269,11 @@ export async function upsertLargeFieldSeed() {
     })),
   );
 
-  const localityPlans = localityRows.map((locality) => ({
+  const householdsPerLocality = Math.floor(TOTAL_HOUSEHOLDS / localityRows.length);
+  const remainder = TOTAL_HOUSEHOLDS % localityRows.length;
+  const localityPlans = localityRows.map((locality, index) => ({
     ...locality,
-    householdCount: randomInt(
-      rng,
-      MIN_HOUSEHOLDS_PER_LOCALITY,
-      MAX_HOUSEHOLDS_PER_LOCALITY,
-    ),
+    householdCount: householdsPerLocality + (index < remainder ? 1 : 0),
   }));
 
   await db
@@ -331,6 +353,51 @@ export async function upsertLargeFieldSeed() {
       db.insert(schema.eligibleWomen).values(batch).onConflictDoNothing(),
     );
   }
+
+  const taskDate = now.toISOString().slice(0, 10);
+  const taskDeadline = new Date(now);
+  taskDeadline.setUTCDate(taskDeadline.getUTCDate() + 30);
+  const taskDeadlineDate = taskDeadline.toISOString().slice(0, 10);
+  const taskHouseholds = await db
+    .select({
+      household_id: schema.households.household_id,
+      site_id: schema.households.site_id,
+      locality_code: schema.households.locality_code,
+    })
+    .from(schema.households)
+    .where(
+      sql`site_id in (${sql.join(SEEDED_SITE_IDS.map((id) => sql`${id}`), sql`, `)})
+        and locality_code in (${sql.join(SEEDED_LOCALITY_CODES.map((code) => sql`${code}`), sql`, `)})`,
+    )
+    .orderBy(schema.households.household_id)
+    .limit(HHQ_TASK_HOUSEHOLDS);
+  await db.insert(schema.followUpTasks).values(
+    taskHouseholds.map((household) => ({
+      task_id: randomUUID(),
+      task_key: buildHhqTaskKey(household.household_id, taskDate),
+      site_id: household.site_id,
+      locality_code: household.locality_code,
+      household_id: household.household_id,
+      subject_type: "household",
+      subject_id: household.household_id,
+      task_type: "HHQ",
+      form_code: "HHQ",
+      expected_forms: ["HHQ"],
+      protocol_visit_label: "baseline",
+      generation_source: "large_field_seed",
+      anchor_date: taskDate,
+      window_start: taskDate,
+      target_date: taskDate,
+      deadline_date: taskDeadlineDate,
+      status: "planned",
+      rules_version: "1.0.0",
+      form_availability: "available",
+      action_state: "enabled",
+      created_at: now,
+      updated_at: now,
+    })),
+  );
+  console.log(`Created ${taskHouseholds.length} pending HHQ tasks.`);
 }
 
 upsertLargeFieldSeed()

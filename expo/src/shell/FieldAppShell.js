@@ -377,8 +377,8 @@ function AppLockScreen() {
 
 function LoginScreen() {
   const app = useFieldApp();
-  const [username, setUsername] = useState("dev-field-worker");
-  const [password, setPassword] = useState("dev-password");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [scannerOpen, setScannerOpen] = useState(false);

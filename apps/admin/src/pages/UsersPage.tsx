@@ -233,7 +233,7 @@ export default function UsersPage() {
     await loadUsers();
   }
 
-  async function handleEditUser(formData: EditUserFormData) {
+  async function handleEditUser(formData: EditUserFormData, selectedLocalityCodes: string[]) {
     if (!editingUser) return;
     if (formData.new_password && formData.new_password.length < 8) {
       throw new Error("New password must be at least 8 characters");
@@ -247,6 +247,16 @@ export default function UsersPage() {
       ...(nextSiteId !== currentSiteId ? { site_id: nextSiteId } : {}),
       ...(formData.new_password && { password: formData.new_password }),
     });
+    const existing = assignmentsByUser[editingUser.user_id] ?? [];
+    const existingForSite = existing.filter((assignment) => assignment.site_id === nextSiteId);
+    await Promise.all(existingForSite
+      .filter((assignment) => !selectedLocalityCodes.includes(assignment.locality_code))
+      .map((assignment) => api.delete(`/users/${editingUser.user_id}/area-assignments/${assignment.assignment_id}`)));
+    if (nextSiteId != null) {
+      await Promise.all(selectedLocalityCodes
+        .filter((code) => !existingForSite.some((assignment) => assignment.locality_code === code))
+        .map((locality_code) => api.post(`/users/${editingUser.user_id}/area-assignments`, { site_id: nextSiteId, locality_code })));
+    }
     setEditingUser(null);
     await loadUsers();
   }
@@ -450,6 +460,8 @@ export default function UsersPage() {
           currentUserRole={currentUser?.role}
           currentUserSiteId={currentUser?.site_id}
           sites={sites}
+          localities={localities}
+          assignments={assignmentsByUser[editingUser.user_id] ?? []}
           onClose={() => setEditingUser(null)}
           onSubmit={handleEditUser}
         />
@@ -615,6 +627,43 @@ function ScopeSelector({
   );
 }
 
+function LocalityAssignmentSelector({
+  siteId,
+  localities,
+  selectedCodes,
+  onChange,
+}: {
+  siteId: number | "";
+  localities: Locality[];
+  selectedCodes: string[];
+  onChange: (codes: string[]) => void;
+}) {
+  const available = siteId === "" ? [] : localities.filter((locality) => locality.site_id === siteId);
+  const toggle = (code: string) => onChange(
+    selectedCodes.includes(code) ? selectedCodes.filter((value) => value !== code) : [...selectedCodes, code],
+  );
+  return (
+    <div className={styles.formGroup}>
+      <label>Assigned Localities</label>
+      {available.length === 0 ? <p className={styles.fieldHint}>Select a site to assign localities.</p> : (
+        <div className={styles.localityAssignmentList}>
+          {available.map((locality) => (
+            <label key={locality.locality_code} className={styles.localityAssignmentOption}>
+              <input
+                type="checkbox"
+                checked={selectedCodes.includes(locality.locality_code)}
+                onChange={() => toggle(locality.locality_code)}
+              />
+              <span>{locality.locality_name} ({locality.locality_code})</span>
+            </label>
+          ))}
+        </div>
+      )}
+      <p className={styles.fieldHint}>The worker will receive household, member, task, and form data for every selected locality after syncing.</p>
+    </div>
+  );
+}
+
 function permittedRoles(currentUserRole?: UserRole): readonly UserRole[] {
   return currentUserRole === "site_research_scientist"
     ? ROLES.filter((role) => SITE_ADMIN_ROLES.has(role))
@@ -691,6 +740,8 @@ function EditUserModal({
   currentUserRole,
   currentUserSiteId,
   sites,
+  localities,
+  assignments,
   onClose,
   onSubmit,
 }: {
@@ -698,8 +749,10 @@ function EditUserModal({
   currentUserRole?: UserRole;
   currentUserSiteId?: number;
   sites: Site[];
+  localities: Locality[];
+  assignments: AreaAssignment[];
   onClose: () => void;
-  onSubmit: (data: EditUserFormData) => Promise<void>;
+  onSubmit: (data: EditUserFormData, selectedLocalityCodes: string[]) => Promise<void>;
 }) {
   const lockedSiteId = currentUserRole === "site_research_scientist" ? currentUserSiteId : undefined;
   const [formData, setFormData] = useState<EditUserFormData>({
@@ -707,6 +760,11 @@ function EditUserModal({
     site_id: user.site_id ?? "",
     new_password: "",
   });
+  const [selectedLocalityCodes, setSelectedLocalityCodes] = useState<string[]>(() =>
+    activeAssignments(assignments)
+      .filter((assignment) => assignment.site_id === (user.site_id ?? null))
+      .map((assignment) => assignment.locality_code),
+  );
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const roles = permittedRoles(currentUserRole);
@@ -717,7 +775,7 @@ function EditUserModal({
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault(); setError(""); setLoading(true);
-    try { await onSubmit(formData); }
+    try { await onSubmit(formData, selectedLocalityCodes); }
     catch (err) { setError(err instanceof Error ? err.message : "Failed to update user"); }
     finally { setLoading(false); }
   }
@@ -735,6 +793,12 @@ function EditUserModal({
           setFormData({ ...formData, role, site_id: siteRequired ? formData.site_id : "" });
         }}>{roles.map((role) => <option key={role} value={role}>{role.replace(/_/g, " ")}</option>)}</select></div>
         <ScopeSelector siteId={formData.site_id} sites={sites} lockedSiteId={lockedSiteId} siteRequired={SITE_ADMIN_ROLES.has(formData.role)} onChange={(site_id) => setFormData({ ...formData, site_id })} />
+        <LocalityAssignmentSelector
+          siteId={formData.site_id}
+          localities={localities}
+          selectedCodes={selectedLocalityCodes}
+          onChange={setSelectedLocalityCodes}
+        />
         <PasswordField label="New Password (leave blank to keep current)" name="edit-user-new-password" value={formData.new_password} onGenerate={handleGeneratePassword} onChange={(new_password) => setFormData({ ...formData, new_password })} />
         <p className={styles.statusHint}>Account status is changed with the switch in the Users table.</p>
         <ModalFooter loading={loading} submitLabel="Update" onClose={onClose} />

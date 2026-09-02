@@ -305,6 +305,8 @@ export async function pullSync(options = {}) {
   const responseStatusBackfillNeeded = getMeta("form_response_status_backfill_v1") !== "complete";
   const lastFormResponseSync = responseStatusBackfillNeeded ? null : getLastFormResponseSyncAt();
   const localities = getAssignedLocalities();
+  const currentUser = authStore.getUser();
+  const isFieldWorker = currentUser?.role === "field_worker";
 
   const baseParams = new URLSearchParams();
   baseParams.set("device_id", getMeta("device_id") || "unregistered-device");
@@ -312,7 +314,10 @@ export async function pullSync(options = {}) {
     baseParams.append("since", lastSync);
   }
   baseParams.append("form_response_since", lastFormResponseSync || new Date(0).toISOString());
-  if (localities.length > 0) {
+  // Field-worker household assignments are the authoritative scope for pull.
+  // Locality assignments are only a legacy fallback and can omit newly
+  // assigned households (especially after bulk assignment).
+  if (localities.length > 0 && !isFieldWorker) {
     baseParams.append("locality_codes", localities.join(","));
   }
   baseParams.append("client_time_utc", new Date().toISOString());

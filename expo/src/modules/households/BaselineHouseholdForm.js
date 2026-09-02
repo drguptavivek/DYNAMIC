@@ -542,6 +542,17 @@ export function BaselineHouseholdForm({
     }
   }, [draftContext, form, locale, model, onDraftSaved, onManualDraftSaved, showTransientMessage, taskContext]);
 
+  // Keep every hook unconditional. The draft-loading screen below is a
+  // render state, not a separate hook path; declaring this before the early
+  // return prevents React's hook order crash while the draft is restored.
+  const rendererAnswerData = useMemo(
+    () => ({
+      ...(renderAnswerData || {}),
+      ...(answerSnapshotRef.current || {}),
+    }),
+    [renderAnswerData],
+  );
+
   useEffect(() => {
     const interval = setInterval(() => {
       if (dirtyRef.current) saveDraft({ silent: true });
@@ -753,14 +764,6 @@ export function BaselineHouseholdForm({
     if (dirtyRef.current && !(await saveDraft({ silent: true }))) return;
     onClose?.();
   }
-
-  const rendererAnswerData = useMemo(
-    () => ({
-      ...(renderAnswerData || {}),
-      ...(answerSnapshotRef.current || {}),
-    }),
-    [renderAnswerData],
-  );
 
   return (
     <View style={styles.window}>

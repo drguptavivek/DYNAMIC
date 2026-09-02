@@ -80,8 +80,9 @@ router.get(
         .where(and(...conditions))
         .orderBy(schema.households.household_id);
 
-      const groupedRows = rows.reduce<
-        Array<{
+      const groupedByHousehold = new Map<
+        string,
+        {
           household_id: string;
           site_id: number;
           locality_code: string;
@@ -89,9 +90,11 @@ router.get(
           assigned_user_ids: string[];
           assigned_field_worker_names: string[];
           assigned_field_worker_usernames: string[];
-        }>
-      >((acc, row) => {
-        let grouped = acc.find((item) => item.household_id === row.household_id);
+        }
+      >();
+
+      for (const row of rows) {
+        let grouped = groupedByHousehold.get(row.household_id);
         if (!grouped) {
           grouped = {
             household_id: row.household_id,
@@ -102,7 +105,7 @@ router.get(
             assigned_field_worker_names: [],
             assigned_field_worker_usernames: [],
           };
-          acc.push(grouped);
+          groupedByHousehold.set(row.household_id, grouped);
         }
 
         if (row.assigned_user_id) grouped.assigned_user_ids.push(row.assigned_user_id);
@@ -112,8 +115,9 @@ router.get(
         if (row.assigned_field_worker_username) {
           grouped.assigned_field_worker_usernames.push(row.assigned_field_worker_username);
         }
-        return acc;
-      }, []);
+      }
+
+      const groupedRows = [...groupedByHousehold.values()];
 
       sendSuccess(res, groupedRows, 200, { total: groupedRows.length });
     } catch (error) {
@@ -225,6 +229,15 @@ router.post(
             updated_at: now,
           },
         });
+
+      // Assignment changes must advance the household sync watermark. Without
+      // this, devices that already completed an incremental sync never see
+      // newly assigned households because the household rows themselves did
+      // not change.
+      await db
+        .update(schema.households)
+        .set({ updated_at: now })
+        .where(inArray(schema.households.household_id, uniqueHouseholdIds));
 
       const hhqTaskValues = households
         .filter((household) => (household.baseline_enrollment_status ?? "pending") === "pending")

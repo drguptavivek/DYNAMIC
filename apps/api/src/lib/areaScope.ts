@@ -31,6 +31,25 @@ export async function buildAreaScopeCondition(
     return undefined;
   }
 
+  if (user.role === "field_worker") {
+    const localityAssignments = (
+      await db
+        .select()
+        .from(schema.userAreaAssignments)
+        .where(eq(schema.userAreaAssignments.user_id, user.sub))
+    ).filter(isActiveAssignment);
+    if (localityAssignments.length > 0) {
+      return or(
+        ...localityAssignments.map((assignment) =>
+          and(
+            eq(table.site_id, assignment.site_id),
+            eq(table.locality_code, assignment.locality_code),
+          )!,
+        ),
+      );
+    }
+  }
+
   if (user.role === "field_worker" && table.household_id) {
     const householdAssignments = await db
       .select({ household_id: schema.fieldWorkerHouseholdAssignments.household_id })
@@ -86,6 +105,17 @@ export async function canAccessLocation(
   }
 
   if (user.role === "field_worker") {
+    const localityAssignments = (
+      await db
+        .select()
+        .from(schema.userAreaAssignments)
+        .where(eq(schema.userAreaAssignments.user_id, user.sub))
+    ).filter(isActiveAssignment);
+    if (localityAssignments.length > 0) {
+      return localityAssignments.some(
+        (assignment) => assignment.site_id === siteId && assignment.locality_code === localityCode,
+      );
+    }
     if (!householdId) return false;
     const [assignment] = await db
       .select({ household_id: schema.fieldWorkerHouseholdAssignments.household_id })
