@@ -24,6 +24,7 @@ interface AuthContextValue {
   user: AuthUser | null;
   loading: boolean;
   login(username: string, password: string, totpCode?: string): Promise<AuthUser>;
+  markTotpEnabled(): void;
   logout(): void;
 }
 
@@ -90,8 +91,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }
 
+  function markTotpEnabled() {
+    setUser((current) => {
+      if (!current) return current;
+      const next = { ...current, totp_enabled: true };
+      localStorage.setItem("user", JSON.stringify(next));
+      return next;
+    });
+  }
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>{children}</AuthContext.Provider>
+    <AuthContext.Provider value={{ user, loading, login, markTotpEnabled, logout }}>{children}</AuthContext.Provider>
   );
 }
 

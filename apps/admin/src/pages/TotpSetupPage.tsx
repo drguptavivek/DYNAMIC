@@ -2,12 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import QRCode from "qrcode";
 import { api } from "../lib/api";
+import { useAuth } from "../lib/auth-context";
 import styles from "./TotpSetupPage.module.css";
 
 type TotpSetup = { secret: string; otpauth_uri: string };
 
 export default function TotpSetupPage() {
   const navigate = useNavigate();
+  const { markTotpEnabled } = useAuth();
   const [setup, setSetup] = useState<TotpSetup | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState("");
   const [code, setCode] = useState("");
@@ -40,8 +42,7 @@ export default function TotpSetupPage() {
     setSaving(true);
     try {
       await api.post("/auth/totp/enable", { code });
-      const cached = localStorage.getItem("user");
-      if (cached) localStorage.setItem("user", JSON.stringify({ ...JSON.parse(cached), totp_enabled: true }));
+      markTotpEnabled();
       navigate("/dashboard", { replace: true });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Invalid authenticator code");
