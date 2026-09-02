@@ -58,9 +58,7 @@ export function RendererLanguageSwitcher({ iconOnly = false, locale, onChange })
 
   function selectLanguage(code) {
     setOpen(false);
-    requestAnimationFrame(() => {
-      onChange(code);
-    });
+    onChange(code);
   }
 
   if (!compact) {

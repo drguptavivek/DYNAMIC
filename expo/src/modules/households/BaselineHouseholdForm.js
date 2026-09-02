@@ -240,6 +240,7 @@ export function BaselineHouseholdForm({
   const isRestoringDraftRef = useRef(false);
   const draftMutationVersionRef = useRef(0);
   const postRestoreDraftKeyRef = useRef(null);
+  const draftLookupStartedKeyRef = useRef(null);
   const messageTimerRef = useRef(null);
 
   const draftContext = useMemo(() => ({
@@ -278,6 +279,16 @@ export function BaselineHouseholdForm({
   }, []);
 
   useEffect(() => {
+    // A locale change rerenders this screen, but must not restart the same
+    // draft lookup or replace the loaded form with the loading screen.
+    if (
+      draftLookupStartedKeyRef.current === draftLookupKey &&
+      draftLookup.key === draftLookupKey &&
+      !draftLookup.loading
+    ) {
+      return undefined;
+    }
+    draftLookupStartedKeyRef.current = draftLookupKey;
     let cancelled = false;
     setDraftLookup({ key: draftLookupKey, loading: true, draft: null });
 
@@ -479,7 +490,7 @@ export function BaselineHouseholdForm({
     dirtyRef.current = false;
     setRenderAnswerData(cloneSurveyData(answerSnapshotRef.current || model.data || {}) || {});
     setRevision((value) => value + 1);
-  }, [draftLookup, draftLookupKey, locale, model, onLocaleChange, showTransientMessage]);
+  }, [draftLookup, draftLookupKey, model, onLocaleChange, showTransientMessage]);
 
   const saveDraft = useCallback(async ({ silent = false, manual = false } = {}) => {
     try {
@@ -743,10 +754,13 @@ export function BaselineHouseholdForm({
     onClose?.();
   }
 
-  const rendererAnswerData = {
-    ...(renderAnswerData || {}),
-    ...(answerSnapshotRef.current || {}),
-  };
+  const rendererAnswerData = useMemo(
+    () => ({
+      ...(renderAnswerData || {}),
+      ...(answerSnapshotRef.current || {}),
+    }),
+    [renderAnswerData],
+  );
 
   return (
     <View style={styles.window}>
