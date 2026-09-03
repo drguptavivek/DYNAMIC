@@ -51,9 +51,12 @@ import {
   WQ_CURRENT_MARITAL_STATUS_FIELD,
   WQ_OTHER_PREGNANCIES_FIELD,
   WQ_BORN_ALIVE_PROBE_FIELD,
+  WQ_CHECK8_CONFIRMATION_FIELD,
+  WQ_CHECK8_CONFIRMATION_MESSAGE,
   applyWqSectionTwoCompletion,
   applyWqAgeConsistencyCheck,
   applyWqBornAliveProbe,
+  applyWqCheck8Confirmation,
   applyWqDomesticViolenceCalculations,
   applyWqLmpTimingChecks,
    applyWqPregnancyHistoryCalculations,
@@ -488,6 +491,7 @@ export function QuestionnaireDashboard({
        applyWqPregnancyTrackingEligibility(model);
       applyWqDomesticViolenceCalculations(model);
       applyWqAgeConsistencyCheck(model);
+      applyWqCheck8Confirmation(model);
     }
 
     if (isHouseholdQuestionnaire(form)) {
@@ -590,6 +594,9 @@ export function QuestionnaireDashboard({
         }
         if (shouldRecalculateWqReproductionSummary(options.name)) {
           applyWqReproductionSummary(sender);
+          // The Q8 total may have just changed and cleared Q9's stale
+          // confirmation; refresh Q9's inline message to match.
+          applyWqCheck8Confirmation(sender);
         }
         if (shouldRecalculateWqPregnancyHistory(options.name)) {
           applyWqPregnancyHistoryCalculations(sender);
@@ -599,6 +606,15 @@ export function QuestionnaireDashboard({
         }
         if (shouldRecalculateWqAgeConsistency(options.name)) {
           applyWqAgeConsistencyCheck(sender);
+        }
+        if (options.name === WQ_CHECK8_CONFIRMATION_FIELD) {
+          applyWqCheck8Confirmation(sender);
+          if (Number(options.value) === 2) {
+            setSaveMessage(WQ_CHECK8_CONFIRMATION_MESSAGE);
+            requestAnimationFrame(() => {
+              rendererRef.current?.focusQuestion(WQ_EVER_GIVEN_BIRTH_FIELD);
+            });
+          }
         }
       }
       if (
@@ -854,6 +870,7 @@ export function QuestionnaireDashboard({
            applyWqPregnancyTrackingEligibility(survey);
           applyWqDomesticViolenceCalculations(survey);
           applyWqAgeConsistencyCheck(survey);
+          applyWqCheck8Confirmation(survey);
           routeWqStopToOutcome(survey, { navigate: false });
         }
         if (isPregnancySurveillanceForm(form)) {

@@ -497,8 +497,17 @@ export function applyWqReproductionSummary(model) {
     [WQ_GIRLS_DEAD_FIELD]: model?.getValue?.(WQ_GIRLS_DEAD_FIELD),
     [WQ_PREGNANCY_LOSSES_FIELD]: model?.getValue?.(WQ_PREGNANCY_LOSSES_FIELD),
   };
+  const previousTotalLiveBirths = model?.getValue?.(WQ_TOTAL_LIVE_BIRTHS_FIELD);
   const totalLiveBirths = calculateWqTotalLiveBirthsValue(answers);
   setModelValueIfChanged(model, WQ_TOTAL_LIVE_BIRTHS_FIELD, totalLiveBirths);
+  if (
+    !surveyValuesEqual(previousTotalLiveBirths, totalLiveBirths) &&
+    model?.getValue?.(WQ_CHECK8_CONFIRMATION_FIELD) !== undefined
+  ) {
+    // Q9 re-confirms the Q8 total; once that total changes, the prior
+    // confirmation (or denial) is stale and must be re-asked.
+    setModelValueIfChanged(model, WQ_CHECK8_CONFIRMATION_FIELD, undefined);
+  }
 
   const totalPregnancyOutcomes = calculateWqTotalPregnancyOutcomesValue({
     ...answers,
@@ -700,6 +709,32 @@ export function applyWqAgeConsistencyCheck(model) {
   return message;
 }
 
+export const WQ_CHECK8_CONFIRMATION_MESSAGE =
+  "Probe and correct Q1 to Q8, then confirm the total again.";
+
+const wqCheck8ConfirmationMessages = new WeakMap();
+
+// Q9 re-confirms the Q8 total births count. A "no" means the interviewer must
+// go back, probe, and correct Q1-Q8 before the total can be trusted, so it
+// blocks progress the same way the Q10/Q11 age mismatch does.
+export function applyWqCheck8Confirmation(model) {
+  const question = model?.getQuestionByName?.(WQ_CHECK8_CONFIRMATION_FIELD);
+  if (!question) return null;
+  const message =
+    Number(model?.getValue?.(WQ_CHECK8_CONFIRMATION_FIELD)) === 2
+      ? WQ_CHECK8_CONFIRMATION_MESSAGE
+      : null;
+  const previous = wqCheck8ConfirmationMessages.get(question);
+  if (previous && previous !== message) removeQuestionMessage(question, previous);
+  if (message) {
+    addQuestionMessage(question, message);
+    wqCheck8ConfirmationMessages.set(question, message);
+  } else {
+    wqCheck8ConfirmationMessages.delete(question);
+  }
+  return message;
+}
+
 // SurveyJS discards question.addError() messages on re-validation triggered by
 // page navigation, so blocking must happen here via options.error; addError
 // above only produces the immediate inline display while the interviewer types.
@@ -712,6 +747,12 @@ export function attachWqValidation(model) {
         referenceDate
       );
       if (message) options.error = message;
+    }
+    if (
+      options.name === WQ_CHECK8_CONFIRMATION_FIELD &&
+      Number(sender.getValue(WQ_CHECK8_CONFIRMATION_FIELD)) === 2
+    ) {
+      options.error = WQ_CHECK8_CONFIRMATION_MESSAGE;
     }
   });
 }

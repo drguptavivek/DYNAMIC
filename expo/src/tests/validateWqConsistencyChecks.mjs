@@ -14,10 +14,13 @@ const {
   WQ_BOYS_DEAD_FIELD,
   WQ_BORN_ALIVE_LATER_DIED_FIELD,
   WQ_BORN_ALIVE_PROBE_FIELD,
+  WQ_CHECK8_CONFIRMATION_FIELD,
+  WQ_CHECK8_CONFIRMATION_MESSAGE,
   WQ_INTERVIEW_DATE_FIELD,
   WQ_TOTAL_LIVE_BIRTHS_FIELD,
   applyWqAgeConsistencyCheck,
   applyWqBornAliveProbe,
+  applyWqCheck8Confirmation,
   applyWqReproductionSummary,
   attachWqValidation,
   calculateWqAgeConsistencyMessage,
@@ -263,5 +266,63 @@ assert.equal(
   undefined,
   "Manually overriding Q6 against the probe answer must clear the probe"
 );
+
+// --- applyWqCheck8Confirmation / Q9 blocking -------------------------------
+
+function questionHasMessage(item, message) {
+  return (item.errors || []).some((error) =>
+    (error.getText ? error.getText() : String(error)).includes(message)
+  );
+}
+
+const check8Model = createWqModel();
+attachWqValidation(check8Model);
+check8Model.setValue(WQ_INTERVIEW_DATE_FIELD, "2026-08-14");
+check8Model.setValue("wq_visit_no", 1);
+check8Model.setValue("wq_woman_available", 1);
+check8Model.setValue("wq_consent_study", 1);
+check8Model.setValue("wq_current_marital_status", 1);
+check8Model.setValue("wq_02_reproduction_now_i_would_like_to_ask_about_all_the_birt", 1);
+check8Model.setValue("wq_02_reproduction_do_you_have_any_sons_or_daughters_to_whom", 2);
+check8Model.setValue("wq_02_reproduction_do_you_have_any_sons_or_daughters_to_whom_2", 2);
+check8Model.setValue(WQ_BORN_ALIVE_LATER_DIED_FIELD, 2);
+applyWqReproductionSummary(check8Model);
+assert.equal(check8Model.getValue(WQ_TOTAL_LIVE_BIRTHS_FIELD), "00");
+
+check8Model.setValue(WQ_CHECK8_CONFIRMATION_FIELD, 2);
+applyWqCheck8Confirmation(check8Model);
+const check8Question = question(check8Model, WQ_CHECK8_CONFIRMATION_FIELD);
+assert.ok(
+  questionHasMessage(check8Question, WQ_CHECK8_CONFIRMATION_MESSAGE),
+  "Q9 = no must show the reconfirmation message inline"
+);
+assert.equal(
+  check8Model.validate(),
+  false,
+  "The model must fail validation while Q9 denies the Q8 total"
+);
+
+check8Model.setValue(WQ_BORN_ALIVE_LATER_DIED_FIELD, 1);
+applyWqReproductionSummary(check8Model);
+check8Model.setValue(WQ_CHECK8_CONFIRMATION_FIELD, 2);
+applyWqCheck8Confirmation(check8Model);
+assert.ok(
+  questionHasMessage(question(check8Model, WQ_CHECK8_CONFIRMATION_FIELD), WQ_CHECK8_CONFIRMATION_MESSAGE),
+  "Q9 = no must still block after Q6 flips to yes"
+);
+check8Model.setValue(WQ_BOYS_DEAD_FIELD, "02");
+applyWqReproductionSummary(check8Model);
+assert.equal(
+  check8Model.getValue(WQ_CHECK8_CONFIRMATION_FIELD),
+  undefined,
+  "Changing 7a (and therefore the Q8 total) must clear the stale Q9 confirmation"
+);
+applyWqCheck8Confirmation(check8Model);
+assert.equal(
+  question(check8Model, WQ_CHECK8_CONFIRMATION_FIELD).errors.length,
+  0,
+  "Clearing Q9 must also clear its inline message"
+);
+assert.equal(check8Model.validate(), true, "A cleared Q9 must not block validation");
 
 console.log("Validated WQ interviewer-consistency checks.");
