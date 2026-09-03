@@ -1,4 +1,5 @@
 import { getFormDisplayCode } from "../../lib/formDisplayCodes.js";
+import { describeNetworkError } from "../../lib/networkErrors.js";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
@@ -509,7 +510,7 @@ export function WorklistScreen({
       await loadTasks();
     } catch (error) {
       console.error("Sync error:", error);
-      setSyncError(`Sync failed: ${error.message}`);
+      setSyncError(describeNetworkError(error, { action: "Sync" }));
     } finally {
       setRefreshing(false);
     }

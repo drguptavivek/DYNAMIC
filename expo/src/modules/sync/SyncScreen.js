@@ -45,7 +45,7 @@ export function SyncScreen({ onClockStatusChange } = {}) {
       );
     } catch (error) {
       console.error("Error loading sync info:", error);
-      setSyncError(`Failed to load sync info: ${error.message}`);
+      setSyncError(describeNetworkError(error, { action: "Loading sync info" }));
     }
   }
 
@@ -60,7 +60,7 @@ export function SyncScreen({ onClockStatusChange } = {}) {
       loadSyncInfo();
     } catch (error) {
       console.error("Sync error:", error);
-      setSyncError(`Sync failed: ${error.message}`);
+      setSyncError(describeNetworkError(error, { action: "Sync" }));
       loadSyncInfo();
     } finally {
       setSyncing(false);
