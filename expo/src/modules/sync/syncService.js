@@ -1,3 +1,4 @@
+import { recordServerTime } from "./trustedClock.js";
 import { getDb } from "../tasks/taskSchema.js";
 import * as taskRepository from "../tasks/taskRepository.js";
 import * as authStore from "../auth/authStore.js";
@@ -158,6 +159,9 @@ function setClockMetadata(clock) {
 
   if (typeof clock.server_time_utc === "string") {
     setMeta("sync_clock_server_time_utc", clock.server_time_utc);
+    // Server time is the strongest evidence of "real" time; raise the
+    // device's trusted high-water mark so a later rewind is detectable.
+    recordServerTime(clock.server_time_utc).catch(() => {});
   }
   if (typeof clock.device_time_utc === "string") {
     setMeta("sync_clock_device_time_utc", clock.device_time_utc);

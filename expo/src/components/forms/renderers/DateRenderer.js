@@ -72,7 +72,10 @@ export function DateRenderer({ answerData, locale, question, onChange }) {
       </View>
       {pickerOpen && Platform.OS !== "web" ? (
         <DateTimePicker
-          maximumDate={parseSurveyDate(question.maxValue) || undefined}
+          maximumDate={
+            parseSurveyDate(question.maxValue) ||
+            (/_interview_date$/.test(String(question.name || "")) ? new Date() : undefined)
+          }
           minimumDate={parseSurveyDate(question.minValue) || undefined}
           mode="date"
           onDismiss={() => setPickerOpen(false)}

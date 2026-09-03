@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "expo-router";
-import { AppState } from "react-native";
+import { Alert, AppState } from "react-native";
 
 import { getHouseholdContextSync } from "../lib/householdSync.js";
 import { buildPrefillForTask } from "../lib/prefillMapper.js";
@@ -19,6 +19,7 @@ import { getTask } from "../modules/tasks/taskRepository.js";
 import { getRouteForTaskForm } from "../navigation/appNavigation.js";
 import { setNavigationHandler } from "../navigation/routes.js";
 import { loadLocalePreference, saveLocalePreference } from "../modules/preferences/localePreference.js";
+import { evaluateDeviceClock } from "../modules/sync/trustedClock.js";
 
 const FieldAppContext = createContext(null);
 
@@ -44,6 +45,22 @@ export function FieldAppProvider({ children }) {
   const [selectedLocalityCode, setSelectedLocalityCode] = useState("");
   const [localities, setLocalities] = useState([]);
   const [clockStatus, setClockStatus] = useState(null);
+  // Device clock guard: "blocked" when the clock has been moved back (or is
+  // far behind the server), "warning" when far ahead. See trustedClock.js.
+  const [clockGuard, setClockGuard] = useState({ status: "ok", message: "", skewMs: 0 });
+  const refreshClockGuard = useCallback(async () => {
+    try {
+      const status = syncService.getClockStatus();
+      const result = await evaluateDeviceClock({
+        serverDeltaMs: typeof status?.deltaMs === "number" ? status.deltaMs : null,
+      });
+      setClockGuard(result);
+      return result;
+    } catch (error) {
+      console.warn("Could not evaluate device clock:", error);
+      return { status: "ok", message: "", skewMs: 0 };
+    }
+  }, []);
   const [appLockReady, setAppLockReady] = useState(false);
   const [appLocked, setAppLocked] = useState(false);
   const [appLockConfigured, setAppLockConfigured] = useState(false);
@@ -67,6 +84,7 @@ export function FieldAppProvider({ children }) {
         initTaskDb();
         setTaskDbReady(true);
         setLocaleState(await loadLocalePreference());
+        await refreshClockGuard();
 
         const restoreUser = await authStore.restoreSession();
         if (restoreUser) {
@@ -91,9 +109,25 @@ export function FieldAppProvider({ children }) {
       if (nextState !== "active" && user && appLockConfigured) {
         setAppLocked(true);
       }
+      if (nextState === "active") {
+        // Coming back from Settings is exactly when the date may have changed.
+        refreshClockGuard();
+      }
     });
     return () => subscription.remove();
-  }, [user, appLockConfigured]);
+  }, [user, appLockConfigured, refreshClockGuard]);
+
+  // Re-check periodically while the app is open, and whenever a sync brings
+  // a fresh server/device delta.
+  useEffect(() => {
+    const interval = setInterval(() => {
+      refreshClockGuard();
+    }, 60 * 1000);
+    return () => clearInterval(interval);
+  }, [refreshClockGuard]);
+  useEffect(() => {
+    refreshClockGuard();
+  }, [clockStatus, refreshClockGuard]);
 
   async function refreshLocalities() {
     await initializeHouseholdRepository();
@@ -314,6 +348,11 @@ export function FieldAppProvider({ children }) {
 
   async function openFormFromTask(task) {
     if (!task) return;
+    const guard = await refreshClockGuard();
+    if (guard.status === "blocked") {
+      Alert.alert("Correct device date and time", guard.message);
+      return;
+    }
     setShowTaskModal(false);
     setSelectedTask(null);
     openTaskIdRef.current = null;
@@ -380,6 +419,8 @@ export function FieldAppProvider({ children }) {
       refreshLocalities,
       clockStatus,
       setClockStatus,
+      clockGuard,
+      refreshClockGuard,
       appLockReady,
       appLocked,
       appLockConfigured,
@@ -405,6 +446,8 @@ export function FieldAppProvider({ children }) {
       selectedLocalityCode,
       localities,
       clockStatus,
+      clockGuard,
+      refreshClockGuard,
       appLockReady,
       appLocked,
       appLockConfigured,

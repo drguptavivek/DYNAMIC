@@ -46,6 +46,14 @@ export function QuestionnaireRouteScreen({ draftId, formCode, mode, openKey, tas
     );
   }
 
+  if (isEntryRoute && app.clockGuard?.status === "blocked") {
+    return (
+      <FieldAppShell route={route} title={title}>
+        <BlockedPanel title="Correct device date and time" message={app.clockGuard.message} />
+      </FieldAppShell>
+    );
+  }
+
   if (isEntryRoute && !hasValidTaskContext && !isHhqHouseholdEntry) {
     return (
       <FieldAppShell route={route} title={title}>

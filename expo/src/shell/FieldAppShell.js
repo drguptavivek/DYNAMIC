@@ -175,7 +175,11 @@ export function FieldAppShell({ route, title, children, topBarCollapsed = false 
             </View>
           ) : null}
 
-          {clockAlert && <ClockDriftAlert alert={clockAlert} />}
+          {app.clockGuard && app.clockGuard.status !== "ok" ? (
+            <ClockGuardBanner guard={app.clockGuard} />
+          ) : clockAlert ? (
+            <ClockDriftAlert alert={clockAlert} />
+          ) : null}
           {children}
         </View>
       </View>
@@ -529,6 +533,18 @@ function LoginScreen() {
   );
 }
 
+function ClockGuardBanner({ guard }) {
+  const blocked = guard.status === "blocked";
+  return (
+    <View style={[styles.clockGuardBanner, blocked ? styles.clockGuardBannerBlocked : styles.clockGuardBannerWarning]}>
+      <Text style={styles.clockGuardTitle}>
+        {blocked ? "DEVICE DATE/TIME IS WRONG - FORMS ARE LOCKED" : "DEVICE DATE/TIME IS WRONG"}
+      </Text>
+      <Text style={styles.clockGuardText}>{guard.message}</Text>
+    </View>
+  );
+}
+
 function ClockDriftAlert({ alert }) {
   return (
     <View style={styles.clockAlert}>
@@ -840,6 +856,34 @@ const styles = StyleSheet.create({
     color: "#667085",
     fontSize: 12,
     fontWeight: "700",
+  },
+  clockGuardBanner: {
+    marginHorizontal: 12,
+    marginTop: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderRadius: 10,
+    borderWidth: 2,
+  },
+  clockGuardBannerBlocked: {
+    borderColor: "#b42318",
+    backgroundColor: "#fee4e2",
+  },
+  clockGuardBannerWarning: {
+    borderColor: "#d97706",
+    backgroundColor: "#fff7ed",
+  },
+  clockGuardTitle: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: "#7a271a",
+    marginBottom: 6,
+  },
+  clockGuardText: {
+    fontSize: 15,
+    fontWeight: "700",
+    lineHeight: 21,
+    color: "#7a271a",
   },
   clockAlert: {
     marginHorizontal: 20,
