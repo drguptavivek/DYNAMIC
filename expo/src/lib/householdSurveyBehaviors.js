@@ -431,6 +431,21 @@ function validateAgeAgainstResidenceDuration(model) {
   return invalidIndexes.size > 0;
 }
 
+// Blocks committing a roster entry (DynamicPanelRenderer validates each
+// panel question on "Add household member") when a second member is marked
+// as Head. The inline message from validateSingleHouseholdHead is wiped by
+// question.validate(), so the rule must also be asserted here.
+function validateHeadQuestion(sender, options) {
+  if (options.name !== MEMBER_RELATIONSHIP_FIELD) return;
+  if (Number(options.value) !== HEAD_RELATIONSHIP_VALUE) return;
+  const members = Array.isArray(sender.getValue(HH_MEMBER_PANEL))
+    ? sender.getValue(HH_MEMBER_PANEL)
+    : [];
+  if (getHeadMemberIndexes(members).length > 1) {
+    options.error = DUPLICATE_HEAD_MESSAGE;
+  }
+}
+
 function validateAgeQuestion(sender, options) {
   if (options.name !== MEMBER_AGE_YEARS_FIELD) return;
   const member = getPanelData(options.question);
@@ -512,8 +527,12 @@ function applyMandatoryHhqQuestions(model) {
 function configureHouseholdRosterQuestion(model) {
   const roster = model.getQuestionByName?.(HH_MEMBER_PANEL);
   if (!roster) return;
+  // First member opens automatically; after that the schedule page shows the
+  // panel's own "Add household member" button whenever no editor is open, so
+  // every usual member can be listed in one pass before the 02B check-listing
+  // probes (which remain the final completeness check).
   roster.dynamicAutoOpenFirstEntry = true;
-  roster.dynamicHideAddButton = true;
+  roster.dynamicHideAddButton = false;
   roster.addPanelText = "Add household member";
   roster.panelAddText = "Add household member";
 }
@@ -633,6 +652,7 @@ export function attachHouseholdSurveyBehaviors(
     }
   });
   model.onValidateQuestion?.add((sender, options) => {
+    validateHeadQuestion(sender, options);
     validateAgeQuestion(sender, options);
   });
   model.onComplete.add((sender) => onHouseholdSave?.(sender.data));
