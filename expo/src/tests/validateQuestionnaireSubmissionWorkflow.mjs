@@ -57,6 +57,14 @@ const hhqPayload = {
       member_marital_status: 1,
       member_woman_questionnaire_eligible: 1,
     },
+    {
+      member_line_number: 3,
+      member_name: "Male Infant",
+      member_relationship_to_head: 4,
+      member_sex: 1,
+      member_age_years: 1,
+      member_woman_questionnaire_eligible: 2,
+    },
   ],
 };
 
@@ -113,6 +121,11 @@ assert.equal(webSqliteState.eligible_women[0].tracking_status, "not_tracked");
 
 const wqTasks = webSqliteState.follow_up_tasks.filter((task) => task.task_type === "WQ");
 assert.equal(wqTasks.length, 1);
+assert.equal(
+  wqTasks.some((task) => task.subject_id === "1-02-0042-03-03"),
+  false,
+  "the male infant must not receive a WQ task",
+);
 assert.equal(wqTasks[0].household_id, "1-02-0042-03");
 assert.match(wqTasks[0].id, /^local-task-[0-9a-f-]{36}$/);
 assert.notEqual(wqTasks[0].id, wqTasks[0].task_key);
@@ -139,7 +152,20 @@ assert.equal(promotedHouseholds[0].source_form_response_id, submission.submissio
 const promotedMembers = JSON.parse(
   window.localStorage.getItem("dynamic_household_members_v4") || "[]",
 );
-assert.equal(promotedMembers.length, 2);
+assert.equal(promotedMembers.length, 3);
+
+const maleInfantMember = promotedMembers.find(
+  (member) => member.individual_id === "1-02-0042-03-03",
+);
+assert.equal(
+  maleInfantMember.woman_questionnaire_eligible,
+  0,
+  "raw HHQ code 2 (no) must be normalized to 0, never stored raw",
+);
+const eligibleWomanMember = promotedMembers.find(
+  (member) => member.individual_id === "1-02-0042-03-02",
+);
+assert.equal(eligibleWomanMember.woman_questionnaire_eligible, 1);
 
 const stateBeforeEarlyStop = JSON.parse(window.localStorage.getItem("dynamic_web_sqlite_v2") || "{}");
 stateBeforeEarlyStop.follow_up_tasks = [

@@ -7,7 +7,8 @@ import { getOfflineDatabase } from "../storage/offlineDatabase";
 import {
   assertUniqueMembers,
   buildHouseholdIdFromHhqData,
-  extractHouseholdRegistryFields
+  extractHouseholdRegistryFields,
+  normalizeWomanQuestionnaireEligible
 } from "./householdIds.js";
 import {
   STUDY_SITES,
@@ -430,6 +431,13 @@ async function initializeSqlite(db) {
   } catch {
     // Column already exists on databases created after the locality-type sync.
   }
+  try {
+    await db.execAsync(
+      "UPDATE household_members SET woman_questionnaire_eligible = 0 WHERE woman_questionnaire_eligible = 2"
+    );
+  } catch {
+    // Best-effort cleanup of legacy rows that stored the raw HHQ code (2 = no).
+  }
   for (const site of STUDY_SITES) {
     await db.runAsync(
       `INSERT INTO study_sites (site_id, site_code, site_name)
@@ -813,7 +821,9 @@ export async function saveSyncedHouseholdsAndMembers(households = [], members = 
     residence_years: member.residence_years,
     age_years: member.reported_age_years,
     marital_status: member.marital_status,
-    woman_questionnaire_eligible: member.woman_questionnaire_eligible ? 1 : 0,
+    woman_questionnaire_eligible: normalizeWomanQuestionnaireEligible(
+      member.woman_questionnaire_eligible
+    ),
     birth_registration_status: member.birth_registration_status,
     ever_attended_school: member.ever_attended_school,
     highest_grade_completed: member.highest_grade_completed,
@@ -1018,7 +1028,7 @@ export async function saveHousehold(record) {
           member.residence_years,
           member.age_years,
           member.marital_status,
-          member.woman_questionnaire_eligible,
+          normalizeWomanQuestionnaireEligible(member.woman_questionnaire_eligible),
           member.birth_registration_status,
           member.ever_attended_school,
           member.highest_grade_completed,
@@ -1068,17 +1078,23 @@ export async function saveHousehold(record) {
     [householdOnly]
   );
 
+  const normalizedMembers = (record.members || []).map((member) => ({
+    ...member,
+    woman_questionnaire_eligible: normalizeWomanQuestionnaireEligible(
+      member.woman_questionnaire_eligible
+    )
+  }));
   const currentMembers = readStorageArray(storage, MEMBER_STORAGE_KEY);
   setStorageArray(
     storage,
     MEMBER_STORAGE_KEY,
     mergeRowsById(
-      record.members || [],
+      normalizedMembers,
       currentMembers.filter((row) => row.household_id !== record.household_id),
       "individual_id",
       WEB_MEMBER_CACHE_LIMIT
     ),
-    record.members || []
+    normalizedMembers
   );
   return record;
 }

@@ -5,6 +5,11 @@ export const CONSENT_LABELS = {
   2: "No"
 };
 
+export function normalizeWomanQuestionnaireEligible(value) {
+  if (value === true || value === 1 || value === "1") return 1;
+  return 0;
+}
+
 export function normalizeIdPart(value, fallback, width) {
   const text = String(value || fallback || "").trim();
   return width ? text.padStart(width, "0") : text;
@@ -74,7 +79,9 @@ export function extractMemberRows(householdId, hhqData, updatedAt) {
       residence_years: residenceDuration.years ?? "",
       age_years: member.member_age_years || "",
       marital_status: member.member_marital_status || "",
-      woman_questionnaire_eligible: member.member_woman_questionnaire_eligible || "",
+      woman_questionnaire_eligible: normalizeWomanQuestionnaireEligible(
+        member.member_woman_questionnaire_eligible
+      ),
       birth_registration_status: member.member_birth_registration_status || "",
       ever_attended_school: member.member_ever_attended_school || "",
       highest_grade_completed: member.member_highest_grade_completed || "",

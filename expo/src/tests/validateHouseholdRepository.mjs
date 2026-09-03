@@ -70,8 +70,19 @@ assert.match(
 const {
   extractHouseholdRegistryFields,
   assertUniqueMembers,
-  buildHouseholdIdFromHhqData
+  buildHouseholdIdFromHhqData,
+  normalizeWomanQuestionnaireEligible
 } = await import("../modules/households/householdIds.js");
+
+assert.equal(normalizeWomanQuestionnaireEligible(1), 1);
+assert.equal(normalizeWomanQuestionnaireEligible("1"), 1);
+assert.equal(normalizeWomanQuestionnaireEligible(true), 1);
+assert.equal(normalizeWomanQuestionnaireEligible(2), 0);
+assert.equal(normalizeWomanQuestionnaireEligible("2"), 0);
+assert.equal(normalizeWomanQuestionnaireEligible(false), 0);
+assert.equal(normalizeWomanQuestionnaireEligible(""), 0);
+assert.equal(normalizeWomanQuestionnaireEligible(undefined), 0);
+assert.equal(normalizeWomanQuestionnaireEligible(null), 0);
 
 const sample = {
   hhq_site_id: 1,
@@ -102,15 +113,68 @@ const sample = {
       member_age_years: 35,
       member_marital_status: 1,
       member_woman_questionnaire_eligible: 1
+    },
+    {
+      member_line_number: 3,
+      member_name: "Male Infant",
+      member_relationship_to_head: 4,
+      member_sex: 1,
+      member_age_years: 1,
+      member_woman_questionnaire_eligible: 2
     }
   ]
 };
 
 const record = extractHouseholdRegistryFields(sample);
 assert.equal(record.household_id, "1-02-0042-03");
-assert.equal(record.members.length, 2);
+assert.equal(record.members.length, 3);
 assert.equal(record.members[0].individual_id, "1-02-0042-03-01");
 assert.equal(record.members[1].individual_id, "1-02-0042-03-02");
+assert.equal(
+  record.members[0].woman_questionnaire_eligible,
+  0,
+  "unset member_woman_questionnaire_eligible must normalize to 0"
+);
+assert.equal(
+  record.members[1].woman_questionnaire_eligible,
+  1,
+  "raw HHQ code 1 (yes) must normalize to 1"
+);
+assert.equal(
+  record.members[2].woman_questionnaire_eligible,
+  0,
+  "raw HHQ code 2 (no) must normalize to 0, never stored raw"
+);
+
+assert.equal(
+  extractHouseholdRegistryFields({
+    ...sample,
+    hhq_household_members: [
+      { member_line_number: 1, member_name: "A", member_woman_questionnaire_eligible: "1" }
+    ]
+  }).members[0].woman_questionnaire_eligible,
+  1
+);
+assert.equal(
+  extractHouseholdRegistryFields({
+    ...sample,
+    hhq_household_members: [
+      { member_line_number: 1, member_name: "A", member_woman_questionnaire_eligible: true }
+    ]
+  }).members[0].woman_questionnaire_eligible,
+  1
+);
+for (const emptyValue of ["", undefined, null]) {
+  assert.equal(
+    extractHouseholdRegistryFields({
+      ...sample,
+      hhq_household_members: [
+        { member_line_number: 1, member_name: "A", member_woman_questionnaire_eligible: emptyValue }
+      ]
+    }).members[0].woman_questionnaire_eligible,
+    0
+  );
+}
 assert.equal(record.mobile_number, "9999999999");
 assert.equal(buildHouseholdIdFromHhqData(sample), "1-02-0042-03");
 assert.equal(
