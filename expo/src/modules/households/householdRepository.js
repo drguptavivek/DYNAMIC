@@ -833,7 +833,51 @@ export async function saveSyncedHouseholdsAndMembers(households = [], members = 
 
   if (db) {
     await initializeSqlite(db);
-    for (const household of mappedHouseholds) {
+    try {
+      await db.execAsync("BEGIN TRANSACTION");
+      await saveHouseholdsAndMembersInTransaction(db, mappedHouseholds, mappedMembers);
+      await db.execAsync("COMMIT");
+    } catch (error) {
+      await db.execAsync("ROLLBACK");
+      console.error("Error saving synced households and members:", error);
+      throw error;
+    }
+    return;
+  }
+
+  const storage = getStorage();
+  if (!storage) return;
+  cleanupObsoleteWebStorage(storage);
+
+  const existingHouseholds = readStorageArray(storage, HOUSEHOLD_STORAGE_KEY);
+  setStorageArray(
+    storage,
+    HOUSEHOLD_STORAGE_KEY,
+    mergeRowsById(
+      mappedHouseholds,
+      existingHouseholds,
+      "household_id",
+      WEB_HOUSEHOLD_CACHE_LIMIT
+    ),
+    mappedHouseholds.slice(0, WEB_HOUSEHOLD_CACHE_LIMIT)
+  );
+
+  const existingMembers = readStorageArray(storage, MEMBER_STORAGE_KEY);
+  setStorageArray(
+    storage,
+    MEMBER_STORAGE_KEY,
+    mergeRowsById(
+      mappedMembers,
+      existingMembers,
+      "individual_id",
+      WEB_MEMBER_CACHE_LIMIT
+    ),
+    mappedMembers.slice(0, WEB_MEMBER_CACHE_LIMIT)
+  );
+}
+
+async function saveHouseholdsAndMembersInTransaction(db, mappedHouseholds, mappedMembers) {
+  for (const household of mappedHouseholds) {
       await db.runAsync(
         `INSERT INTO households (
            household_id, site_id, locality_code, locality_name, locality_type,
@@ -924,38 +968,6 @@ export async function saveSyncedHouseholdsAndMembers(households = [], members = 
         ]
       );
     }
-    return;
-  }
-
-  const storage = getStorage();
-  if (!storage) return;
-  cleanupObsoleteWebStorage(storage);
-
-  const existingHouseholds = readStorageArray(storage, HOUSEHOLD_STORAGE_KEY);
-  setStorageArray(
-    storage,
-    HOUSEHOLD_STORAGE_KEY,
-    mergeRowsById(
-      mappedHouseholds,
-      existingHouseholds,
-      "household_id",
-      WEB_HOUSEHOLD_CACHE_LIMIT
-    ),
-    mappedHouseholds.slice(0, WEB_HOUSEHOLD_CACHE_LIMIT)
-  );
-
-  const existingMembers = readStorageArray(storage, MEMBER_STORAGE_KEY);
-  setStorageArray(
-    storage,
-    MEMBER_STORAGE_KEY,
-    mergeRowsById(
-      mappedMembers,
-      existingMembers,
-      "individual_id",
-      WEB_MEMBER_CACHE_LIMIT
-    ),
-    mappedMembers.slice(0, WEB_MEMBER_CACHE_LIMIT)
-  );
 }
 
 export async function saveHousehold(record) {

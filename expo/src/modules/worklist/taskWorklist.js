@@ -413,13 +413,19 @@ export function reconcilePulledTasks(tasks = [], repository) {
     throw new Error("Task Worklist repository adapter must provide listTasks and saveTaskBatch");
   }
 
-  const existingTasks = repository.listTasks({});
   const incomingTasks = tasks.map((task) =>
     normalizeTaskAttemptLimits({
       ...task,
       sync_status: task.sync_status || "synced",
     })
   );
+  const incomingIdentities = incomingTasks
+    .map(taskIdentity)
+    .filter((identity) => identity != null);
+  const existingTasks =
+    typeof repository.getTasksByIdentities === "function"
+      ? repository.getTasksByIdentities(incomingIdentities)
+      : repository.listTasks({});
   const existingByIdentity = new Map(
     existingTasks
       .map((task) => [taskIdentity(task), task])

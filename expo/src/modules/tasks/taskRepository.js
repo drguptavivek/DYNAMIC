@@ -39,6 +39,37 @@ export function listTasks(filters = {}) {
   }
 }
 
+export function getTasksByIdentities(identities) {
+  const result = [];
+  if (!Array.isArray(identities) || identities.length === 0) return result;
+
+  const uniqueIdentities = Array.from(
+    new Set(identities.filter((identity) => identity !== null && identity !== undefined && identity !== "")),
+  );
+  if (uniqueIdentities.length === 0) return result;
+
+  const db = getDb();
+  // Each identity is bound twice (task_key IN ... OR id IN ...), so keep the
+  // chunk under the 999-variable limit of older SQLite builds.
+  const CHUNK_SIZE = 400;
+
+  for (let i = 0; i < uniqueIdentities.length; i += CHUNK_SIZE) {
+    const chunk = uniqueIdentities.slice(i, i + CHUNK_SIZE);
+    const placeholders = chunk.map(() => "?").join(",");
+    try {
+      const rows = db.getAllSync(
+        `SELECT * FROM follow_up_tasks WHERE task_key IN (${placeholders}) OR id IN (${placeholders})`,
+        [...chunk, ...chunk],
+      );
+      result.push(...(rows || []));
+    } catch (error) {
+      console.error("Error fetching tasks by identities:", error);
+    }
+  }
+
+  return result;
+}
+
 export function getTask(id) {
   const db = getDb();
   try {
@@ -291,8 +322,19 @@ export function saveEligibleWoman(woman) {
 }
 
 export function saveEligibleWomenBatch(women = []) {
-  for (const woman of women) {
-    saveEligibleWoman(woman);
+  if (!Array.isArray(women) || women.length === 0) return;
+  const db = getDb();
+
+  try {
+    db.runSync("BEGIN TRANSACTION");
+    for (const woman of women) {
+      saveEligibleWoman(woman);
+    }
+    db.runSync("COMMIT");
+  } catch (error) {
+    db.runSync("ROLLBACK");
+    console.error("Error saving eligible women batch:", error);
+    throw error;
   }
 }
 
@@ -352,8 +394,19 @@ export function savePregnancy(pregnancy) {
 }
 
 export function savePregnancyBatch(pregnancies = []) {
-  for (const pregnancy of pregnancies) {
-    savePregnancy(pregnancy);
+  if (!Array.isArray(pregnancies) || pregnancies.length === 0) return;
+  const db = getDb();
+
+  try {
+    db.runSync("BEGIN TRANSACTION");
+    for (const pregnancy of pregnancies) {
+      savePregnancy(pregnancy);
+    }
+    db.runSync("COMMIT");
+  } catch (error) {
+    db.runSync("ROLLBACK");
+    console.error("Error saving pregnancy batch:", error);
+    throw error;
   }
 }
 
@@ -700,6 +753,47 @@ export function markResponseUploadError(id, message) {
     );
   } catch (error) {
     console.error("Error marking response upload error:", error);
+    throw error;
+  }
+}
+
+export function markResponsesSyncedBatch(ids = []) {
+  if (!Array.isArray(ids) || ids.length === 0) return;
+  const db = getDb();
+
+  try {
+    db.runSync("BEGIN TRANSACTION");
+    for (const id of ids) {
+      db.runSync(
+        "UPDATE form_responses SET sync_status = 'synced', sync_error = NULL, sync_error_at = NULL WHERE id = ?",
+        [id],
+      );
+    }
+    db.runSync("COMMIT");
+  } catch (error) {
+    db.runSync("ROLLBACK");
+    console.error("Error marking responses synced batch:", error);
+    throw error;
+  }
+}
+
+export function markResponsesUploadErrorBatch(items = []) {
+  if (!Array.isArray(items) || items.length === 0) return;
+  const db = getDb();
+  const now = new Date().toISOString();
+
+  try {
+    db.runSync("BEGIN TRANSACTION");
+    for (const item of items) {
+      db.runSync(
+        "UPDATE form_responses SET sync_status = 'upload_error', sync_error = ?, sync_error_at = ? WHERE id = ?",
+        [item?.message || "Upload failed", now, item?.id],
+      );
+    }
+    db.runSync("COMMIT");
+  } catch (error) {
+    db.runSync("ROLLBACK");
+    console.error("Error marking responses upload error batch:", error);
     throw error;
   }
 }

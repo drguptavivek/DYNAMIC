@@ -196,6 +196,40 @@ assert.equal(savedBatches.length, 1);
 assert.equal(savedBatches[0].length, 1);
 assert.equal(savedBatches[0][0].id, "server-task-1");
 
+const identityCalls = [];
+const identityBatches = [];
+let identityListTasksCalled = false;
+const identityRepository = {
+  listTasks() {
+    identityListTasksCalled = true;
+    return [];
+  },
+  getTasksByIdentities(identities) {
+    identityCalls.push(identities);
+    return [provisionalTask].filter((task) =>
+      identities.includes(task.task_key) || identities.includes(task.id),
+    );
+  },
+  saveTaskBatch(tasks) {
+    identityBatches.push(tasks);
+  },
+};
+
+const identityReconcileResult = reconcilePulledTasks([confirmedTask], identityRepository);
+assert.equal(identityListTasksCalled, false);
+assert.equal(identityCalls.length, 1);
+assert.deepEqual(identityCalls[0], [confirmedTask.task_key]);
+assert.equal(identityReconcileResult.saved, 1);
+assert.deepEqual(identityReconcileResult.reconciled, [
+  {
+    task_key: provisionalTask.task_key,
+    provisional_task_id: "local-task-1",
+    confirmed_task_id: "server-task-1",
+    disposition: "confirmed",
+  },
+]);
+assert.equal(identityBatches.length, 1);
+
 const withdrawnTask = {
   ...confirmedTask,
   id: "server-task-withdrawn",

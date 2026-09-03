@@ -8,6 +8,7 @@ import {
   saveSyncedHouseholdsAndMembers,
 } from "../households/householdRepository.js";
 import { API_BASE_URL } from "./apiConfig.js";
+import { CHUNK_SIZE, forEachChunk } from "../../lib/yieldToUi.js";
 import {
   buildPushRecords,
   classifyDraftSyncErrors,
@@ -438,23 +439,31 @@ export async function pullSync(options = {}) {
       }
 
       if (tasks.length > 0) {
-        reconcilePulledTasks(tasks);
+        await forEachChunk(tasks, CHUNK_SIZE, async (chunk) => {
+          reconcilePulledTasks(chunk);
+        });
         pulledTasks += tasks.length;
         pulledOpenTasks += countOpenPulledTasks(tasks);
       }
 
       if (eligibleWomen.length > 0) {
-        taskRepository.saveEligibleWomenBatch(eligibleWomen);
+        await forEachChunk(eligibleWomen, CHUNK_SIZE, async (chunk) => {
+          taskRepository.saveEligibleWomenBatch(chunk);
+        });
         pulledEligibleWomen += eligibleWomen.length;
       }
 
       if (pregnancies.length > 0) {
-        taskRepository.savePregnancyBatch(pregnancies);
+        await forEachChunk(pregnancies, CHUNK_SIZE, async (chunk) => {
+          taskRepository.savePregnancyBatch(chunk);
+        });
         pulledPregnancies += pregnancies.length;
       }
 
       if (formResponses.length > 0) {
-        pulledFormResponses += taskRepository.saveSyncedFormResponsesBatch(formResponses);
+        await forEachChunk(formResponses, CHUNK_SIZE, async (chunk) => {
+          pulledFormResponses += taskRepository.saveSyncedFormResponsesBatch(chunk);
+        });
       }
 
       const formRefresh = await refreshProtocolForms(formVersions);
@@ -641,20 +650,26 @@ export async function pushSync() {
       }
     }
 
+    const { markQuestionnaireSubmissionSynced, markQuestionnaireSubmissionUploadError } =
+      await import("../questionnaires/questionnaireSubmissionRepository.js");
+
+    const uploadErrorItems = [];
+    const syncedIds = [];
     for (const item of pending) {
       if (uploadErrorById.has(item.id)) {
-        await taskRepository.markResponseUploadError(item.id, uploadErrorById.get(item.id));
-        const { markQuestionnaireSubmissionUploadError } = await import(
-          "../questionnaires/questionnaireSubmissionRepository.js"
-        );
-        markQuestionnaireSubmissionUploadError(item.id, uploadErrorById.get(item.id));
+        uploadErrorItems.push({ id: item.id, message: uploadErrorById.get(item.id) });
       } else if (acceptedIds.has(item.id)) {
-        await taskRepository.markResponseSynced(item.id);
-        const { markQuestionnaireSubmissionSynced } = await import(
-          "../questionnaires/questionnaireSubmissionRepository.js"
-        );
-        markQuestionnaireSubmissionSynced(item.id);
+        syncedIds.push(item.id);
       }
+    }
+
+    taskRepository.markResponsesUploadErrorBatch(uploadErrorItems);
+    taskRepository.markResponsesSyncedBatch(syncedIds);
+    for (const item of uploadErrorItems) {
+      markQuestionnaireSubmissionUploadError(item.id, item.message);
+    }
+    for (const id of syncedIds) {
+      markQuestionnaireSubmissionSynced(id);
     }
 
     const { markEventSynced } = await import("../events/eventOutbox.js");
