@@ -1,6 +1,8 @@
 /**
  * Persists mutable questionnaire drafts in browser storage or the shared native SQLite database.
  */
+import { deriveDraftIndexFields } from "./draftPendingForms.js";
+
 const DRAFT_STORAGE_KEY = "dynamic_questionnaire_drafts_v1";
 
 function getWebStorage() {
@@ -37,10 +39,21 @@ export function __setNativeDatabaseForTests(db) {
   nativeDatabaseOverride = db;
 }
 
+// Guards the one-time questionnaire_drafts index-column backfill so it only
+// runs once per process (the sync_meta key it writes makes it a no-op across
+// process restarts too). Reset alongside the test-only db override so tests
+// that swap in a fresh fake db can exercise it again if needed.
+let draftIndexBackfillRan = false;
+
 async function getNativeDatabase() {
   if (nativeDatabaseOverride) return nativeDatabaseOverride;
-  const { getDb } = await import("../tasks/taskSchema.js");
-  return getDb();
+  const { getDb, runQuestionnaireDraftIndexBackfill } = await import("../tasks/taskSchema.js");
+  const db = getDb();
+  if (!draftIndexBackfillRan) {
+    draftIndexBackfillRan = true;
+    runQuestionnaireDraftIndexBackfill(db);
+  }
+  return db;
 }
 
 function decodeNativeRow(row) {
@@ -106,12 +119,21 @@ async function readRows() {
 }
 
 async function persistDraft(draft) {
+  // Computed fresh on every write so household_id/site_id/woman_id/etc. stay
+  // in sync with json_payload, whether persistDraft is called with a
+  // brand-new draft (no columns yet) or a decoded existing row (columns
+  // already set from a prior write) that only had draft_status/updated_at
+  // changed — getDraftHouseholdId()/getDraftSiteId()/etc. prefer an existing
+  // column, so recomputing is a no-op in that case.
+  const derived = deriveDraftIndexFields(draft);
+
   const storage = getWebStorage();
   if (storage) {
     const rows = await readRows();
+    const enriched = { ...draft, ...derived };
     const index = rows.findIndex((row) => row.draft_id === draft.draft_id);
-    if (index >= 0) rows[index] = draft;
-    else rows.unshift(draft);
+    if (index >= 0) rows[index] = enriched;
+    else rows.unshift(enriched);
     storage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(rows));
     return;
   }
@@ -121,8 +143,10 @@ async function persistDraft(draft) {
     `INSERT OR REPLACE INTO questionnaire_drafts (
       draft_id, draft_key, form_code, form_version, task_id, subject_type, subject_id,
       device_id, user_id, json_payload, completion_state, draft_status,
-      submitted_form_response_id, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      submitted_form_response_id, created_at, updated_at,
+      household_id, site_id, locality_code, woman_id, structure_map_id,
+      household_number, answer_count, respondent_label
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       draft.draft_id,
       draft.draft_key,
@@ -139,6 +163,14 @@ async function persistDraft(draft) {
       draft.submitted_form_response_id || null,
       draft.created_at,
       draft.updated_at,
+      derived.household_id,
+      derived.site_id,
+      derived.locality_code,
+      derived.woman_id,
+      derived.structure_map_id,
+      derived.household_number,
+      derived.answer_count,
+      derived.respondent_label,
     ],
   );
 }
@@ -165,7 +197,11 @@ export async function removeQuestionnaireDraft(draftId) {
 }
 
 function getHouseholdIdFromDraft(draft) {
-  const candidate = getPayloadHouseholdId(draft?.json_payload || {}, draft?.subject_id);
+  const candidate = getPayloadHouseholdId(
+    draft?.json_payload || {},
+    draft?.subject_id,
+    draft?.household_id,
+  );
   const parts = String(candidate || "").split("-");
   return parts.length >= 4 ? parts.slice(0, 4).join("-") : candidate || null;
 }
@@ -175,7 +211,12 @@ function normalizeHouseholdIdPart(value, width) {
   return text && width ? text.padStart(width, "0") : text;
 }
 
-function getPayloadHouseholdId(payload, subjectId) {
+// Prefers the questionnaire_drafts.household_id column (columnHouseholdId)
+// when present, and only falls back to parsing the payload when it is
+// null/undefined — mirrors the same column-first, payload-fallback pattern
+// as getDraftHouseholdId() in draftPendingForms.js.
+function getPayloadHouseholdId(payload, subjectId, columnHouseholdId) {
+  if (columnHouseholdId) return columnHouseholdId;
   if (payload?.hhq_household_id) return payload.hhq_household_id;
   const siteId = normalizeHouseholdIdPart(payload?.hhq_site_id);
   const localityCode = normalizeHouseholdIdPart(payload?.hhq_locality_code, 2);
@@ -198,8 +239,9 @@ function buildDraftIdentityKey({
   deviceId,
   userId,
   payload,
+  householdId: columnHouseholdId,
 }) {
-  const householdId = getPayloadHouseholdId(payload, subjectId);
+  const householdId = getPayloadHouseholdId(payload, subjectId, columnHouseholdId);
   return [
     formCode,
     formVersion,
@@ -215,8 +257,9 @@ function buildDraftHouseholdUserKey({
   subjectId,
   userId,
   payload,
+  householdId: columnHouseholdId,
 }) {
-  const householdId = getPayloadHouseholdId(payload, subjectId);
+  const householdId = getPayloadHouseholdId(payload, subjectId, columnHouseholdId);
   return [
     formCode,
     formVersion,
@@ -233,6 +276,7 @@ function getDraftIdentityKey(draft) {
     deviceId: draft?.device_id,
     userId: draft?.user_id,
     payload: draft?.json_payload || {},
+    householdId: draft?.household_id,
   });
 }
 
@@ -243,6 +287,7 @@ function getDraftHouseholdUserKey(draft) {
     subjectId: draft?.subject_id,
     userId: draft?.user_id,
     payload: draft?.json_payload || {},
+    householdId: draft?.household_id,
   });
 }
 
@@ -445,6 +490,20 @@ export async function listActiveQuestionnaireDrafts() {
 // Non-payload columns returned by the lightweight summary query below. Kept
 // as an explicit list (rather than "SELECT *") so the summary row shape is
 // predictable and never accidentally widens to include json_payload.
+//
+// household_id/site_id/locality_code/woman_id/structure_map_id/
+// household_number/answer_count/respondent_label are real, indexed columns
+// (see taskSchema.js) that persistDraft() writes on every save and that a
+// one-time backfill populates for pre-existing rows, so this query selects
+// them directly instead of json_extract-ing the equivalent values out of
+// json_payload. The matching helpers in draftPendingForms.js
+// (getDraftSiteId/getDraftSubjectId/getDraftHouseholdId/
+// getDraftComparableIds/draftMatchesTask) and getPayloadHouseholdId below
+// already prefer these columns and only fall back to parsing json_payload
+// when a column is null/undefined, so summary rows (whose json_payload is
+// intentionally left empty below) match full-decode rows exactly as long as
+// the columns are populated -- which the backfill guarantees for native
+// rows that predate this migration.
 const SUMMARY_NON_PAYLOAD_COLUMNS = [
   "draft_id",
   "draft_key",
@@ -460,61 +519,41 @@ const SUMMARY_NON_PAYLOAD_COLUMNS = [
   "submitted_form_response_id",
   "created_at",
   "updated_at",
-];
-
-// The only json_payload keys any draft-to-task matching helper reads: the
-// getDraftSiteId/getDraftSubjectId/getDraftHouseholdId/getDraftComparableIds/
-// draftMatchesTask helpers in draftPendingForms.js, plus getPayloadHouseholdId
-// (used by getDraftIdentityKey/getDraftHouseholdUserKey below, which
-// dedupeActiveDrafts relies on). Extracting only these via json_extract lets
-// the summary query skip decoding the full (often large) json_payload blob.
-const SUMMARY_PAYLOAD_KEYS = [
-  "hhq_site_id",
-  "site_id",
-  "hhq_household_id",
   "household_id",
-  "hhq_locality_code",
-  "hhq_structure_map_id",
-  "hhq_household_number",
-  "wq_enter_structure_id_woman",
-  "individual_id",
+  "site_id",
+  "locality_code",
   "woman_id",
-  "subject_id",
+  "structure_map_id",
+  "household_number",
+  "answer_count",
+  "respondent_label",
 ];
-
-function summaryPayloadAlias(key) {
-  return `payload_${key}`;
-}
 
 function buildActiveDraftSummarySql() {
   const columnsSql = SUMMARY_NON_PAYLOAD_COLUMNS.join(", ");
-  const payloadSql = SUMMARY_PAYLOAD_KEYS.map(
-    (key) => `json_extract(json_payload, '$.${key}') AS ${summaryPayloadAlias(key)}`,
-  ).join(", ");
   return (
-    `SELECT ${columnsSql}, ${payloadSql} FROM questionnaire_drafts` +
+    `SELECT ${columnsSql} FROM questionnaire_drafts` +
     " WHERE draft_status = 'active' ORDER BY updated_at DESC"
   );
 }
 
 function decodeSummaryRow(row) {
-  const payload = {};
-  for (const key of SUMMARY_PAYLOAD_KEYS) {
-    const value = row[summaryPayloadAlias(key)];
-    if (value !== null && value !== undefined) payload[key] = value;
-  }
-
   const summary = {};
   for (const column of SUMMARY_NON_PAYLOAD_COLUMNS) {
     summary[column] = row[column];
   }
-  summary.json_payload = payload;
+  // The summary path exists precisely to avoid decoding json_payload, so it
+  // is left empty here; every matching helper reads the columns above
+  // instead. Callers that need the full answer payload (e.g. resuming a
+  // draft for editing) should use listActiveQuestionnaireDrafts() or
+  // getActiveQuestionnaireDraft() instead.
+  summary.json_payload = {};
   summary.completion_state = parseJson(summary.completion_state, {});
   return summary;
 }
 
-// Set once a json_extract-based summary query has failed (e.g. a SQLite
-// build without the JSON1 extension), so every subsequent call falls back
+// Set once the summary query has failed (e.g. an unexpected schema variant
+// missing one of the index columns), so every subsequent call falls back
 // straight to the full decode path instead of retrying and re-throwing.
 let summaryQueryUnsupported = false;
 
@@ -528,12 +567,12 @@ async function queryActiveDraftSummaryRows() {
 // Lightweight variant of listActiveQuestionnaireDrafts() for callers that
 // only need to match drafts against tasks (worklist enrichment, resolving a
 // task's active draft id) rather than read full answer payloads. On native,
-// this selects the non-payload columns plus a handful of json_extract'd
-// payload keys instead of decoding every row's full json_payload, so it
-// avoids JSON.parse-ing potentially large answer blobs on every worklist
-// load / task open. Falls back to listActiveQuestionnaireDrafts() if the
-// json_extract query is unsupported (e.g. no JSON1) or on the web storage
-// path, where there is no payload-decoding cost to avoid.
+// this selects the dedicated index columns instead of decoding every row's
+// full json_payload, so it avoids JSON.parse-ing potentially large answer
+// blobs on every worklist load / task open. Falls back to
+// listActiveQuestionnaireDrafts() if the summary query is unsupported (e.g.
+// an unmigrated schema variant) or on the web storage path, where there is
+// no payload-decoding cost to avoid.
 export async function listActiveQuestionnaireDraftSummaries() {
   const storage = getWebStorage();
   if (storage) return listActiveQuestionnaireDrafts();
@@ -546,7 +585,7 @@ export async function listActiveQuestionnaireDraftSummaries() {
   } catch (err) {
     summaryQueryUnsupported = true;
     console.warn(
-      "listActiveQuestionnaireDraftSummaries: json_extract query failed, falling back to full draft decode",
+      "listActiveQuestionnaireDraftSummaries: summary column query failed, falling back to full draft decode",
       err,
     );
     return listActiveQuestionnaireDrafts();

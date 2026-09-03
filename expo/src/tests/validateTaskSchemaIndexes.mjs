@@ -31,6 +31,9 @@ const expectedIndexes = [
   { table: "form_responses", columns: ["sync_status", "submitted_at"] },
   { table: "form_responses", columns: ["household_id"] },
   { table: "task_attempts", columns: ["task_id"] },
+  { table: "questionnaire_drafts", columns: ["draft_status", "household_id"] },
+  { table: "questionnaire_drafts", columns: ["draft_status", "woman_id"] },
+  { table: "questionnaire_drafts", columns: ["draft_status", "site_id", "locality_code"] },
 ];
 
 for (const { table, columns } of expectedIndexes) {

@@ -20,6 +20,14 @@ const DRAFT_COLUMNS = [
   "submitted_form_response_id",
   "created_at",
   "updated_at",
+  "household_id",
+  "site_id",
+  "locality_code",
+  "woman_id",
+  "structure_map_id",
+  "household_number",
+  "answer_count",
+  "respondent_label",
 ];
 
 function splitAndClauses(whereSql) {
@@ -405,6 +413,38 @@ const reopenedByHouseholdKey = await getActiveQuestionnaireDraft({
   deviceId: "device-other",
 });
 assert.equal(reopenedByHouseholdKey.draft_id, householdDraft.draft_id);
+
+// --- (h) persistDraft writes the derived index columns ----------------------
+// HHQ draft: household_id/site_id/locality_code/structure_map_id/
+// household_number are built from the hhq_* payload fields, exactly like
+// getDraftHouseholdId()/getDraftSiteId() compute them.
+const hhqIndexRow = db.rows.find((row) => row.draft_id === householdDraft.draft_id);
+assert.equal(hhqIndexRow.household_id, "4-04-0009-02");
+assert.equal(hhqIndexRow.site_id, "4");
+assert.equal(hhqIndexRow.locality_code, "04");
+assert.equal(hhqIndexRow.structure_map_id, "0009");
+assert.equal(hhqIndexRow.household_number, "02");
+assert.equal(hhqIndexRow.woman_id, null);
+assert.equal(hhqIndexRow.answer_count, Object.keys(householdPayload).length);
+assert.equal(hhqIndexRow.respondent_label, "4-04-0009-02");
+
+// WQ draft: woman_id comes from wq_enter_structure_id_woman.
+const wqDraft = await saveQuestionnaireDraft({
+  formCode: "WQ",
+  formVersion: "v1",
+  taskId: "task-wq-index",
+  subjectType: "individual",
+  subjectId: "5-05-0005-01-01",
+  deviceId: "device-wq",
+  userId: "user-wq",
+  payload: { wq_enter_structure_id_woman: "5-05-0005-01-01" },
+  completionState: { currentPageName: "page_01" },
+});
+const wqIndexRow = db.rows.find((row) => row.draft_id === wqDraft.draft_id);
+assert.equal(wqIndexRow.woman_id, "5-05-0005-01-01");
+assert.equal(wqIndexRow.household_id, "5-05-0005-01");
+assert.equal(wqIndexRow.answer_count, 1);
+assert.equal(wqIndexRow.respondent_label, "5-05-0005-01");
 
 // --- (f) every SELECT ever issued against questionnaire_drafts carries a ---
 // WHERE clause (parseSelect() above already throws otherwise, but assert

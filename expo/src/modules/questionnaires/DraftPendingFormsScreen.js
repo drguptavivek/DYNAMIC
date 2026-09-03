@@ -11,27 +11,21 @@ import {
 } from "react-native";
 
 import { listTaskWorklistCandidates } from "../worklist/taskWorklistRepository.js";
-import { listActiveQuestionnaireDrafts } from "./questionnaireDraftRepository.js";
+import { listActiveQuestionnaireDraftSummaries } from "./questionnaireDraftRepository.js";
 import {
+  countDraftAnswers,
   filterDraftsForTaskCandidates,
   filterDraftsForUserSite,
   getDraftHouseholdId,
   getDraftSiteId,
 } from "./draftPendingForms.js";
 
+// Summary rows always carry a populated answer_count column (written by
+// persistDraft/backfilled for pre-existing rows), so this only falls back to
+// counting json_payload keys for a row that predates the backfill.
 function hasDraftAnswers(draft) {
-  return Object.keys(draft?.json_payload || {}).length > 0;
-}
-
-function isMeaningfulDraftValue(value) {
-  if (value === undefined || value === null || value === "") return false;
-  if (Array.isArray(value)) return value.some(isMeaningfulDraftValue);
-  if (typeof value === "object") return Object.values(value).some(isMeaningfulDraftValue);
-  return true;
-}
-
-function countDraftAnswers(draft) {
-  return Object.values(draft?.json_payload || {}).filter(isMeaningfulDraftValue).length;
+  if (typeof draft?.answer_count === "number") return draft.answer_count > 0;
+  return countDraftAnswers(draft) > 0;
 }
 
 function formatDateTime(value) {
@@ -42,17 +36,18 @@ function formatDateTime(value) {
 }
 
 function normalizeDraft(draft) {
-  const answers = draft.json_payload || {};
+  const householdId = draft.household_id || getDraftHouseholdId(draft);
   return {
     id: draft.draft_id,
     form_code: draft.form_code || "-",
     form_version: draft.form_version || "",
-    site_id: getDraftSiteId(draft),
-    household_id: getDraftHouseholdId(draft),
+    site_id: draft.site_id ?? getDraftSiteId(draft),
+    household_id: householdId,
     subject_type: draft.subject_type || "",
     subject_id: draft.subject_id || "",
     current_page: draft.completion_state?.currentPageName || "",
-    answer_count: countDraftAnswers(draft),
+    answer_count: typeof draft.answer_count === "number" ? draft.answer_count : countDraftAnswers(draft),
+    respondent_label: draft.respondent_label || householdId || draft.subject_id || draft.draft_id,
     updated_at: draft.updated_at || "",
   };
 }
@@ -63,7 +58,7 @@ function DraftCard({ draft }) {
       <View style={styles.cardHeader}>
         <Text style={styles.formBadge}>{getFormDisplayCode(draft.form_code)}</Text>
         <View style={styles.cardTitleBlock}>
-          <Text style={styles.cardTitle}>{draft.household_id || draft.subject_id || draft.id}</Text>
+          <Text style={styles.cardTitle}>{draft.respondent_label}</Text>
           <Text style={styles.cardSubtle}>Continue filling from Worklist only</Text>
         </View>
       </View>
@@ -101,7 +96,7 @@ export function DraftPendingFormsScreen({ user }) {
 
   const loadDrafts = useCallback(async () => {
     const siteDrafts = filterDraftsForUserSite(
-      (await listActiveQuestionnaireDrafts()).filter(hasDraftAnswers),
+      (await listActiveQuestionnaireDraftSummaries()).filter(hasDraftAnswers),
       user,
     );
     const rows = filterDraftsForTaskCandidates(siteDrafts, listTaskWorklistCandidates()).map(normalizeDraft);

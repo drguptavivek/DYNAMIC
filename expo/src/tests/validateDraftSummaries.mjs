@@ -3,36 +3,35 @@ import assert from "node:assert/strict";
 // The repository's native branch is selected whenever `window` is undefined.
 delete globalThis.window;
 
+const { deriveDraftIndexFields } = await import(
+  "../modules/questionnaires/draftPendingForms.js"
+);
+
 // Minimal fake SQLite tailored to the two query shapes this test exercises:
 // the existing "SELECT * ... WHERE draft_status = 'active'" full decode, and
-// the new lightweight "SELECT <cols>, json_extract(...) AS ... WHERE
-// draft_status = 'active'" summary query. Unlike the fake in
-// validateQuestionnaireDraftRepositoryNative.mjs (which ignores the SELECT
-// column list entirely and returns full raw rows), this fake actually
-// projects columns so it can tell the two queries apart and answer the
-// json_extract query with only the requested payload keys extracted.
-function jsonExtract(jsonPayload, path) {
-  const key = path.replace(/^\$\./, "");
-  try {
-    const parsed = JSON.parse(jsonPayload || "{}") || {};
-    const value = parsed[key];
-    return value === undefined ? null : value;
-  } catch {
-    return null;
-  }
-}
-
+// the lightweight "SELECT <index columns> ... WHERE draft_status = 'active'"
+// summary query. insertRaw() derives the questionnaire_drafts index columns
+// (household_id, site_id, woman_id, etc.) from json_payload the same way
+// persistDraft() does, so this fake behaves like a real, migrated+backfilled
+// questionnaire_drafts table.
 class FakeSummaryDb {
   constructor() {
     this.rows = [];
     this.log = [];
-    // When true, any SELECT containing json_extract throws (simulating a
-    // SQLite build without the JSON1 extension).
-    this.jsonExtractUnsupported = false;
+    // When true, any SELECT against questionnaire_drafts throws (simulating
+    // an unmigrated/unexpected schema variant missing an index column).
+    this.summaryQueryUnsupported = false;
   }
 
   insertRaw(row) {
-    this.rows.push({ ...row });
+    let payload = {};
+    try {
+      payload = JSON.parse(row.json_payload || "{}") || {};
+    } catch {
+      payload = {};
+    }
+    const derived = deriveDraftIndexFields({ ...row, json_payload: payload });
+    this.rows.push({ ...row, ...derived });
   }
 
   runSync(sql) {
@@ -49,52 +48,42 @@ class FakeSummaryDb {
     const trimmed = sql.trim();
     assert.match(trimmed, /WHERE\s+draft_status\s*=\s*'active'/i);
 
-    const isSummaryQuery = /json_extract/i.test(trimmed);
-    if (isSummaryQuery && this.jsonExtractUnsupported) {
-      throw new Error("no such function: json_extract");
-    }
-
     const active = this.rows.filter((row) => row.draft_status === "active");
     const sorted = [...active].sort((a, b) =>
       String(b.updated_at).localeCompare(String(a.updated_at)),
     );
 
-    if (!isSummaryQuery) {
-      // Full "SELECT *" path used by listActiveQuestionnaireDrafts().
-      assert.doesNotMatch(trimmed, /json_extract/i);
-      return sorted.map((row) => ({ ...row }));
-    }
-
-    // Summary path: assert the bare json_payload column is never selected,
-    // and build each row from the extracted json_extract(...) AS aliases.
     const selectListMatch = trimmed.match(/^SELECT\s+(.+?)\s+FROM\s+questionnaire_drafts/i);
     assert.ok(selectListMatch, `could not parse SELECT list: ${trimmed}`);
     const selectList = selectListMatch[1];
-    // No bare "json_payload" column reference (only inside json_extract(...)).
+    const isFullSelect = selectList.trim() === "*";
+
+    if (isFullSelect) {
+      return sorted.map((row) => ({ ...row }));
+    }
+
+    if (this.summaryQueryUnsupported) {
+      throw new Error("no such column: respondent_label");
+    }
+
+    // Summary path: the query must select the real index columns directly --
+    // never json_extract(...) and never the bare json_payload column.
     assert.doesNotMatch(
-      selectList.replace(/json_extract\([^)]*\)/gi, ""),
+      selectList,
+      /json_extract/i,
+      `summary query must not use json_extract: ${selectList}`,
+    );
+    assert.doesNotMatch(
+      selectList,
       /\bjson_payload\b/i,
-      `summary query must not select the bare json_payload column: ${selectList}`,
+      `summary query must not select the json_payload column: ${selectList}`,
     );
 
-    const aliasPattern = /json_extract\(json_payload,\s*'([^']+)'\)\s+AS\s+(\w+)/gi;
-    const extractions = [];
-    let match;
-    while ((match = aliasPattern.exec(selectList))) {
-      extractions.push({ path: match[1], alias: match[2] });
-    }
-    const plainColumns = selectList
-      .split(",")
-      .map((part) => part.trim())
-      .filter((part) => !/json_extract/i.test(part));
-
+    const columns = selectList.split(",").map((part) => part.trim());
     return sorted.map((row) => {
       const projected = {};
-      for (const column of plainColumns) {
+      for (const column of columns) {
         projected[column] = row[column] ?? null;
-      }
-      for (const { path, alias } of extractions) {
-        projected[alias] = jsonExtract(row.json_payload, path);
       }
       return projected;
     });
@@ -188,7 +177,14 @@ for (const draftId of fullById.keys()) {
   assert.equal(summaryById.get(draftId).subject_id, fullById.get(draftId).subject_id);
 }
 
-// --- summary rows do not carry the full payload -----------------------------
+// --- summary rows carry the index columns but not the full payload ---------
+const wqSummary = summaryById.get("wq-draft");
+assert.equal(wqSummary.woman_id, "1-01-0001-01-02");
+assert.equal(wqSummary.household_id, "1-01-0001-01");
+const hhqSummary = summaryById.get("hhq-draft");
+assert.equal(hhqSummary.household_id, "1-02-0009-03");
+assert.equal(hhqSummary.site_id, "1");
+assert.equal(hhqSummary.locality_code, "02");
 for (const draft of summaryList) {
   assert.equal(draft.json_payload.some_other_large_answer_blob, undefined);
 }
@@ -251,10 +247,10 @@ assert.ok(summaryListWithDup.some((d) => d.draft_id === "hhq-draft"));
 assert.ok(!fullListWithDup.some((d) => d.draft_id === "hhq-draft-dup-older"));
 assert.ok(!summaryListWithDup.some((d) => d.draft_id === "hhq-draft-dup-older"));
 
-// --- fallback path: json_extract unsupported --------------------------------
+// --- fallback path: summary query unsupported -------------------------------
 const fallbackDb = new FakeSummaryDb();
-fallbackDb.jsonExtractUnsupported = true;
-for (const row of db.rows) fallbackDb.insertRaw(row);
+fallbackDb.summaryQueryUnsupported = true;
+for (const row of db.rows) fallbackDb.insertRaw({ ...row, json_payload: row.json_payload });
 __setNativeDatabaseForTests(fallbackDb);
 
 const fallbackSummaryList = await listActiveQuestionnaireDraftSummaries();
@@ -273,14 +269,13 @@ assert.equal(
   fallbackWqDraft.json_payload.some_other_large_answer_blob,
   "x".repeat(2000),
 );
-// A second call should not re-attempt (and re-throw) the json_extract query.
+// A second call should not re-attempt (and re-throw) the summary query.
 const secondFallbackCallLogMark = fallbackDb.log.length;
 await listActiveQuestionnaireDraftSummaries();
 const secondFallbackCallLog = fallbackDb.log.slice(secondFallbackCallLogMark);
 assert.ok(secondFallbackCallLog.length > 0);
-assert.ok(
-  !secondFallbackCallLog.some((sql) => /json_extract/i.test(sql)),
-  "once unsupported, summaries should never re-issue the json_extract query",
-);
+for (const sql of secondFallbackCallLog) {
+  assert.match(sql, /SELECT \*/, "once unsupported, summaries should always use the full-decode SELECT *");
+}
 
 console.log("Validated listActiveQuestionnaireDraftSummaries matches full decode semantics.");
