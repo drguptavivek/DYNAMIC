@@ -241,6 +241,38 @@ export function buildWqHusbandPartnerChoices(members = [], options = {}) {
   ];
 }
 
+/**
+ * Works out what the husband/partner dropdown (WQ Q18/Q19) currently holds.
+ * - "member": a listed household male was picked (name matches a choice and
+ *   the line number, when set, agrees).
+ * - "outside": "Husband not in household" was picked. Q18 then stores the
+ *   name the interviewer typed (or the sentinel text while it is still
+ *   empty) and Q19 stores the per-woman outside line number
+ *   (00 for the first eligible woman, then 99, 98, ... so each husband ID
+ *   stays unique within the household).
+ * - "none": nothing selected yet.
+ */
+export function resolveWqHusbandPartnerSelection({ nameValue, lineNumberValue, choices = [] } = {}) {
+  const outsideChoice = choices.find((choice) => choice?.value === WQ_HUSBAND_NOT_IN_HOUSEHOLD_VALUE) || null;
+  const name = nameValue === undefined || nameValue === null ? "" : String(nameValue);
+  const line =
+    lineNumberValue === undefined || lineNumberValue === null || lineNumberValue === ""
+      ? ""
+      : normalizeLineNumber(lineNumberValue);
+  const memberChoice = choices.find(
+    (choice) => choice?.value !== WQ_HUSBAND_NOT_IN_HOUSEHOLD_VALUE && String(choice?.value) === name
+  );
+  if (memberChoice && (line === "" || line === memberChoice.lineNumber)) {
+    return { mode: "member", choice: memberChoice, typedName: "" };
+  }
+  const isSentinel = name === WQ_HUSBAND_NOT_IN_HOUSEHOLD_VALUE;
+  const lineIsOutside = Boolean(outsideChoice) && line !== "" && line === outsideChoice.lineNumber;
+  if (isSentinel || lineIsOutside || name) {
+    return { mode: "outside", choice: outsideChoice, typedName: isSentinel ? "" : name };
+  }
+  return { mode: "none", choice: null, typedName: "" };
+}
+
 export function calculateWqPregnancyTrackingEligibilityValue(answers = {}) {
   const age = toFiniteNumber(answers[WQ_AGE_FIELD]);
   const maritalStatus = toFiniteNumber(answers[WQ_CURRENT_MARITAL_STATUS_FIELD]);

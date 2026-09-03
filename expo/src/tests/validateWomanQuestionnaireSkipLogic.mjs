@@ -45,6 +45,7 @@ const {
   calculateWqLmpMoreThanSixMonthsValue,
   calculateWqNotPregnantOrUnsureValue,
   getWqOutsideHouseholdHusbandLineNumber,
+  resolveWqHusbandPartnerSelection,
   requestNextWqPregnancy,
   shouldRecalculateWqDomesticViolence,
   shouldRecalculateWqPregnancyHistory,
@@ -626,6 +627,58 @@ assert.equal(
     currentWomanId: "2-02-0003-01-02",
   }).at(-1).lineNumber,
   "99"
+);
+
+// Q18/Q19 selection resolution: listed member vs. typed outside-household name.
+const husbandChoices = buildWqHusbandPartnerChoices(
+  [
+    ...outsideHusbandMembers,
+    { member_name: "Ravi", sex: 1, age_years: 32, line_number: 4, individual_id: "2-02-0003-01-04" },
+  ],
+  { currentWomanId: "2-02-0003-01-02" }
+);
+assert.equal(husbandChoices.at(-1).lineNumber, "99");
+assert.deepEqual(
+  resolveWqHusbandPartnerSelection({ nameValue: undefined, lineNumberValue: undefined, choices: husbandChoices }),
+  { mode: "none", choice: null, typedName: "" }
+);
+const memberSelection = resolveWqHusbandPartnerSelection({
+  nameValue: "Ravi",
+  lineNumberValue: "04",
+  choices: husbandChoices,
+});
+assert.equal(memberSelection.mode, "member");
+assert.equal(memberSelection.choice.lineNumber, "04");
+// Sentinel just picked, no name typed yet.
+const outsideSelection = resolveWqHusbandPartnerSelection({
+  nameValue: "Husband not in household",
+  lineNumberValue: "99",
+  choices: husbandChoices,
+});
+assert.equal(outsideSelection.mode, "outside");
+assert.equal(outsideSelection.choice.lineNumber, "99");
+assert.equal(outsideSelection.typedName, "");
+// Name typed for an outside husband keeps the outside line number.
+const typedSelection = resolveWqHusbandPartnerSelection({
+  nameValue: "Suresh",
+  lineNumberValue: "99",
+  choices: husbandChoices,
+});
+assert.equal(typedSelection.mode, "outside");
+assert.equal(typedSelection.typedName, "Suresh");
+// A typed name equal to a listed member's name, but with the outside line
+// number, is still an outside husband.
+const homonymSelection = resolveWqHusbandPartnerSelection({
+  nameValue: "Ravi",
+  lineNumberValue: "99",
+  choices: husbandChoices,
+});
+assert.equal(homonymSelection.mode, "outside");
+assert.equal(homonymSelection.typedName, "Ravi");
+// Legacy free-text name with no line number is treated as outside.
+assert.equal(
+  resolveWqHusbandPartnerSelection({ nameValue: "Mahesh", lineNumberValue: "", choices: husbandChoices }).mode,
+  "outside"
 );
 
 model.setValue("wq_02_reproduction_now_i_would_like_to_ask_about_all_the_birt", 2);

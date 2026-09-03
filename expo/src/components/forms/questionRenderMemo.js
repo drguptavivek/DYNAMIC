@@ -26,7 +26,9 @@ export const LEAF_RENDERER_KINDS = new Set([
   "select-one",
   "select-many",
   "grouped-coded-single-select",
-  "household-member-dropdown",
+  // household-member-dropdown is deliberately NOT a leaf: it also reads the
+  // husband/partner line-number answer (WQ Q19) to decide whether the
+  // outside-household name input is shown.
   "note",
   "instruction",
   "camera",
