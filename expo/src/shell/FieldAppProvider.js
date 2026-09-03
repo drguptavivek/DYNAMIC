@@ -22,6 +22,7 @@ import { loadLocalePreference, saveLocalePreference } from "../modules/preferenc
 import { evaluateDeviceClock } from "../modules/sync/trustedClock.js";
 import { configurePerfLog, startTiming } from "../lib/perfLog.js";
 import * as Application from "expo-application";
+import { stabilizeClockGuard } from "./fieldAppProviderStability.js";
 
 const FieldAppContext = createContext(null);
 
@@ -56,7 +57,7 @@ export function FieldAppProvider({ children }) {
       const result = await evaluateDeviceClock({
         serverDeltaMs: typeof status?.deltaMs === "number" ? status.deltaMs : null,
       });
-      setClockGuard(result);
+      setClockGuard((previous) => stabilizeClockGuard(previous, result));
       return result;
     } catch (error) {
       console.warn("Could not evaluate device clock:", error);
@@ -69,100 +70,49 @@ export function FieldAppProvider({ children }) {
   const [appLockBiometricAvailable, setAppLockBiometricAvailable] = useState(false);
   const [appLockBiometricEnabled, setAppLockBiometricEnabled] = useState(false);
 
-  useEffect(() => {
-    setNavigationHandler((route, options = {}) => {
-      if (options.replace !== false) {
-        router.replace(route);
-        return;
-      }
-      router.push(route);
-    });
-    return () => setNavigationHandler(null);
-  }, [router]);
-
-  useEffect(() => {
-    async function initApp() {
-      const endInit = startTiming("app.init");
-      try {
-        configurePerfLog({ appVersion: Application.nativeApplicationVersion || "" });
-        initTaskDb();
-        setTaskDbReady(true);
-        setLocaleState(await loadLocalePreference());
-        await refreshClockGuard();
-
-        const restoreUser = await authStore.restoreSession();
-        if (restoreUser) {
-          setUser(restoreUser);
-          await initializeAppLock(restoreUser, { afterLogin: false });
-        } else {
-          setAppLockReady(true);
-        }
-
-        await refreshLocalities();
-        setClockStatus(syncService.getClockStatus());
-        endInit({ ok: true, loggedIn: Boolean(restoreUser) });
-      } catch (error) {
-        console.error("App init error:", error);
-        endInit({ ok: false });
-      }
-    }
-
-    initApp();
+  const initializeAppLock = useCallback(async (nextUser, options = {}) => {
+    const configured = await appLockStore.isLockConfiguredForUser(nextUser);
+    const biometricStatus = await appLockStore.getBiometricStatus();
+    const biometricEnabled = await appLockStore.isBiometricUnlockEnabledForUser(nextUser);
+    const biometricAvailable = Boolean(biometricStatus.available && biometricStatus.enrolled);
+    setAppLockConfigured(configured);
+    setAppLockBiometricAvailable(biometricAvailable);
+    setAppLockBiometricEnabled(Boolean(configured && biometricEnabled && biometricAvailable));
+    setAppLocked(configured ? !options.afterLogin : true);
+    setAppLockReady(true);
   }, []);
 
-  useEffect(() => {
-    configurePerfLog({ deviceId: user?.device_id || "" });
-  }, [user?.device_id]);
+  const clearFormContext = useCallback(() => {
+    setCurrentTaskContext(null);
+    setPrefillData(null);
+    setReadOnlyFields(null);
+    setClockStatus(syncService.getClockStatus());
+  }, []);
 
-  useEffect(() => {
-    const subscription = AppState.addEventListener("change", (nextState) => {
-      if (nextState !== "active" && user && appLockConfigured) {
-        setAppLocked(true);
-      }
-      if (nextState === "active") {
-        // Coming back from Settings is exactly when the date may have changed.
-        refreshClockGuard();
-      }
-    });
-    return () => subscription.remove();
-  }, [user, appLockConfigured, refreshClockGuard]);
-
-  // Re-check periodically while the app is open, and whenever a sync brings
-  // a fresh server/device delta.
-  useEffect(() => {
-    const interval = setInterval(() => {
-      refreshClockGuard();
-    }, 60 * 1000);
-    return () => clearInterval(interval);
-  }, [refreshClockGuard]);
-  useEffect(() => {
-    refreshClockGuard();
-  }, [clockStatus, refreshClockGuard]);
-
-  async function refreshLocalities() {
+  const refreshLocalities = useCallback(async () => {
     await initializeHouseholdRepository();
     setLocalities(await listLocalities());
-  }
+  }, []);
 
-  async function login(username, password) {
+  const login = useCallback(async (username, password) => {
     const result = await authStore.login(username, password);
     if (result.ok) {
       setUser(result.user);
       await initializeAppLock(result.user, { afterLogin: true });
     }
     return result;
-  }
+  }, [initializeAppLock]);
 
-  async function loginWithQrPayload(qrPayload) {
+  const loginWithQrPayload = useCallback(async (qrPayload) => {
     const result = await authStore.loginWithQrPayload(qrPayload);
     if (result.ok) {
       setUser(result.user);
       await initializeAppLock(result.user, { afterLogin: true });
     }
     return result;
-  }
+  }, [initializeAppLock]);
 
-  async function logout() {
+  const logout = useCallback(async () => {
     const logoutUser = user;
     try {
       await appLockStore.clearLockForUser(logoutUser);
@@ -182,21 +132,9 @@ export function FieldAppProvider({ children }) {
     setSelectedLocalityCode("");
     setLocalities([]);
     clearFormContext();
-  }
+  }, [clearFormContext, user]);
 
-  async function initializeAppLock(nextUser, options = {}) {
-    const configured = await appLockStore.isLockConfiguredForUser(nextUser);
-    const biometricStatus = await appLockStore.getBiometricStatus();
-    const biometricEnabled = await appLockStore.isBiometricUnlockEnabledForUser(nextUser);
-    const biometricAvailable = Boolean(biometricStatus.available && biometricStatus.enrolled);
-    setAppLockConfigured(configured);
-    setAppLockBiometricAvailable(biometricAvailable);
-    setAppLockBiometricEnabled(Boolean(configured && biometricEnabled && biometricAvailable));
-    setAppLocked(configured ? !options.afterLogin : true);
-    setAppLockReady(true);
-  }
-
-  async function configureAppLock(pin, options = {}) {
+  const configureAppLock = useCallback(async (pin, options = {}) => {
     if (!user) {
       return { ok: false, error: "Login is required before setting an app lock" };
     }
@@ -211,9 +149,9 @@ export function FieldAppProvider({ children }) {
     } catch (error) {
       return { ok: false, error: error.message };
     }
-  }
+  }, [appLockBiometricAvailable, user]);
 
-  async function unlockAppWithPin(pin) {
+  const unlockAppWithPin = useCallback(async (pin) => {
     if (!user) return { ok: false, error: "Login is required" };
     const ok = await appLockStore.verifyPinForUser(user, pin);
     if (ok) {
@@ -221,9 +159,9 @@ export function FieldAppProvider({ children }) {
       return { ok: true };
     }
     return { ok: false, error: "PIN did not match" };
-  }
+  }, [user]);
 
-  async function unlockAppWithBiometrics() {
+  const unlockAppWithBiometrics = useCallback(async () => {
     if (!user) return { ok: false, error: "Login is required" };
     const result = await appLockStore.unlockWithBiometrics(user);
     if (result.ok) {
@@ -240,9 +178,9 @@ export function FieldAppProvider({ children }) {
       return { ok: false, error: "Biometric unlock is not available on this device" };
     }
     return { ok: false, error: "Biometric unlock was not completed" };
-  }
+  }, [user]);
 
-  async function unlockAppWithPassword(password) {
+  const unlockAppWithPassword = useCallback(async (password) => {
     if (!user) return { ok: false, error: "Login is required" };
     const username = user.username || user.email;
     if (!username || !password) {
@@ -257,9 +195,9 @@ export function FieldAppProvider({ children }) {
     setUser(result.user);
     setAppLocked(false);
     return { ok: true };
-  }
+  }, [user]);
 
-  async function changeAppPinWithPassword(password, newPin) {
+  const changeAppPinWithPassword = useCallback(async (password, newPin) => {
     if (!user) return { ok: false, error: "Login is required" };
     const username = user.username || user.email;
     if (!username || !password) {
@@ -287,9 +225,9 @@ export function FieldAppProvider({ children }) {
     } catch (error) {
       return { ok: false, error: error.message };
     }
-  }
+  }, [appLockBiometricAvailable, user]);
 
-  async function setAppLockBiometricPreference(enabled) {
+  const setAppLockBiometricPreference = useCallback(async (enabled) => {
     if (!user) return { ok: false, error: "Login is required" };
     const result = await appLockStore.setBiometricUnlockForUser(user, enabled);
     if (!result.ok) {
@@ -307,35 +245,28 @@ export function FieldAppProvider({ children }) {
     const nextEnabled = Boolean(result.record?.biometric_enabled && appLockBiometricAvailable);
     setAppLockBiometricEnabled(nextEnabled);
     return { ok: true, enabled: nextEnabled };
-  }
+  }, [appLockBiometricAvailable, user]);
 
-  function clearFormContext() {
-    setCurrentTaskContext(null);
-    setPrefillData(null);
-    setReadOnlyFields(null);
-    setClockStatus(syncService.getClockStatus());
-  }
-
-  function openTask(task) {
+  const openTask = useCallback((task) => {
     if (!task) return;
     const taskId = task.id || task.task_id || task.task_key;
     if (openTaskIdRef.current) return;
     openTaskIdRef.current = taskId || "open";
     setSelectedTask(task);
     setShowTaskModal(true);
-  }
+  }, []);
 
-  function closeTaskModal() {
+  const closeTaskModal = useCallback(() => {
     setShowTaskModal(false);
     setSelectedTask(null);
     openTaskIdRef.current = null;
-  }
+  }, []);
 
-  function notifyTaskWorklistChanged() {
+  const notifyTaskWorklistChanged = useCallback(() => {
     setTaskWorklistRevision((revision) => revision + 1);
-  }
+  }, []);
 
-  async function resolveActiveDraftForTask(task) {
+  const resolveActiveDraftForTask = useCallback(async (task) => {
     if (!task) return null;
     const existingDraft = await getQuestionnaireDraftById(task.active_draft_id);
     if (existingDraft) return existingDraft;
@@ -354,9 +285,9 @@ export function FieldAppProvider({ children }) {
       deviceId: user?.device_id || "dev-device",
       userId: user?.user_id || user?.id || user?.username || "dev-user",
     });
-  }
+  }, [user]);
 
-  async function openFormFromTask(task) {
+  const openFormFromTask = useCallback(async (task) => {
     if (!task) return;
     const guard = await refreshClockGuard();
     if (guard.status === "blocked") {
@@ -401,7 +332,77 @@ export function FieldAppProvider({ children }) {
     }
 
     router.push(getRouteForTaskForm(taskForOpen));
-  }
+  }, [refreshClockGuard, resolveActiveDraftForTask, router]);
+
+  useEffect(() => {
+    setNavigationHandler((route, options = {}) => {
+      if (options.replace !== false) {
+        router.replace(route);
+        return;
+      }
+      router.push(route);
+    });
+    return () => setNavigationHandler(null);
+  }, [router]);
+
+  useEffect(() => {
+    async function initApp() {
+      const endInit = startTiming("app.init");
+      try {
+        configurePerfLog({ appVersion: Application.nativeApplicationVersion || "" });
+        initTaskDb();
+        setTaskDbReady(true);
+        setLocaleState(await loadLocalePreference());
+        await refreshClockGuard();
+
+        const restoreUser = await authStore.restoreSession();
+        if (restoreUser) {
+          setUser(restoreUser);
+          await initializeAppLock(restoreUser, { afterLogin: false });
+        } else {
+          setAppLockReady(true);
+        }
+
+        await refreshLocalities();
+        setClockStatus(syncService.getClockStatus());
+        endInit({ ok: true, loggedIn: Boolean(restoreUser) });
+      } catch (error) {
+        console.error("App init error:", error);
+        endInit({ ok: false });
+      }
+    }
+
+    initApp();
+  }, [initializeAppLock, refreshClockGuard, refreshLocalities]);
+
+  useEffect(() => {
+    configurePerfLog({ deviceId: user?.device_id || "" });
+  }, [user?.device_id]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      if (nextState !== "active" && user && appLockConfigured) {
+        setAppLocked(true);
+      }
+      if (nextState === "active") {
+        // Coming back from Settings is exactly when the date may have changed.
+        refreshClockGuard();
+      }
+    });
+    return () => subscription.remove();
+  }, [user, appLockConfigured, refreshClockGuard]);
+
+  // Re-check periodically while the app is open, and whenever a sync brings
+  // a fresh server/device delta.
+  useEffect(() => {
+    const interval = setInterval(() => {
+      refreshClockGuard();
+    }, 60 * 1000);
+    return () => clearInterval(interval);
+  }, [refreshClockGuard]);
+  useEffect(() => {
+    refreshClockGuard();
+  }, [clockStatus, refreshClockGuard]);
 
   const value = useMemo(
     () => ({
@@ -445,24 +446,40 @@ export function FieldAppProvider({ children }) {
     }),
     [
       locale,
+      setLocale,
       user,
+      login,
+      loginWithQrPayload,
+      logout,
       taskDbReady,
       selectedTask,
       showTaskModal,
       taskWorklistRevision,
+      closeTaskModal,
+      notifyTaskWorklistChanged,
+      openTask,
+      openFormFromTask,
       currentTaskContext,
       prefillData,
       readOnlyFields,
+      clearFormContext,
       selectedLocalityCode,
       localities,
       clockStatus,
       clockGuard,
       refreshClockGuard,
+      refreshLocalities,
       appLockReady,
       appLocked,
       appLockConfigured,
       appLockBiometricAvailable,
       appLockBiometricEnabled,
+      configureAppLock,
+      unlockAppWithPin,
+      unlockAppWithBiometrics,
+      unlockAppWithPassword,
+      changeAppPinWithPassword,
+      setAppLockBiometricPreference,
     ],
   );
 
