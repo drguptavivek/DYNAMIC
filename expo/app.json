@@ -2,7 +2,7 @@
   "expo": {
     "name": "DYNAMIC Field App",
     "slug": "dynamic-field-app",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "icon": "./assets/images/icon.png",
     "orientation": "portrait",
     "platforms": [
