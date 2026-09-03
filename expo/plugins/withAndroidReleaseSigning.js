@@ -110,14 +110,12 @@ function applyGradleJvmArgs(items) {
 }
 
 function withAndroidReleaseSigning(config) {
-  const {
-    ANDROID_RELEASE_KEYSTORE_PATH,
-    ANDROID_RELEASE_KEYSTORE_PASSWORD,
-    ANDROID_RELEASE_KEY_ALIAS,
-    ANDROID_RELEASE_KEY_PASSWORD,
-    ANDROID_VERSION_NAME,
-    ANDROID_VERSION_CODE,
-  } = process.env;
+  const ANDROID_RELEASE_KEYSTORE_PATH = process.env.ANDROID_RELEASE_KEYSTORE_PATH;
+  const ANDROID_RELEASE_KEYSTORE_PASSWORD = process.env.ANDROID_RELEASE_KEYSTORE_PASSWORD;
+  const ANDROID_RELEASE_KEY_ALIAS = process.env.ANDROID_RELEASE_KEY_ALIAS;
+  const ANDROID_RELEASE_KEY_PASSWORD = process.env.ANDROID_RELEASE_KEY_PASSWORD;
+  const ANDROID_VERSION_NAME = process.env.ANDROID_VERSION_NAME;
+  const ANDROID_VERSION_CODE = process.env.ANDROID_VERSION_CODE;
 
   // Applied directly on the config object (not inside a mod callback) so the
   // mutation is visible to Expo's own built-in Android base mods (which set

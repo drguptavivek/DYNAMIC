@@ -962,14 +962,6 @@ export function QuestionnaireDashboard({
     };
   }, [showForm, survey, draftContext]);
 
-  if (!form) {
-    return (
-      <View style={styles.wrap}>
-        <Text style={styles.title}>Questionnaire not found</Text>
-      </View>
-    );
-  }
-
   const displayedSections = useMemo(
     () =>
       survey
@@ -999,6 +991,14 @@ export function QuestionnaireDashboard({
     }),
     [rendererAnswerData],
   );
+
+  if (!form) {
+    return (
+      <View style={styles.wrap}>
+        <Text style={styles.title}>Questionnaire not found</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.wrap}>

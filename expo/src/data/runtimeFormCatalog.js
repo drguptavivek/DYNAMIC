@@ -55,7 +55,7 @@ export function getRuntimeFormByCode(formCode) {
     const merged = preserveClientRendererMetadata(cachedForm, bundledForm);
     mergedFormCache.set(cachedForm, merged);
     return merged;
-  } catch (error) {
+  } catch (_error) {
     return formsByCode[normalizedCode];
   }
 }

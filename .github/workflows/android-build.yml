@@ -84,6 +84,9 @@ jobs:
       - name: Run expo test suite
         run: npm --workspace expo test
 
+      - name: Lint expo app
+        run: npm --workspace expo run lint -- --max-warnings=1000
+
       - name: Compute debug version
         id: version
         run: |
@@ -164,6 +167,9 @@ jobs:
 
       - name: Run expo test suite
         run: npm --workspace expo test
+
+      - name: Lint expo app
+        run: npm --workspace expo run lint -- --max-warnings=1000
 
       - name: Compute release version
         id: version

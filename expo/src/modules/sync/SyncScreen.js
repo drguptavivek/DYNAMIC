@@ -4,6 +4,7 @@ import * as syncService from "../sync/syncService.js";
 import * as eventOutbox from "../events/eventOutbox.js";
 import * as taskRepository from "../tasks/taskRepository.js";
 import { formatSyncCompletionMessage, summarizePendingSyncData } from "./syncWorkflow.js";
+import { describeNetworkError } from "../../lib/networkErrors.js";
 
 export function SyncScreen({ onClockStatusChange } = {}) {
   const [lastSync, setLastSync] = useState(null);

@@ -535,7 +535,7 @@ const styles = StyleSheet.create({
   emptyText: {
     color: "#667085",
     fontWeight: "600"
-  }
+  },
   perfHint: { color: "#667085", fontSize: 13, lineHeight: 18, marginBottom: 10 },
   perfTable: { borderWidth: 1, borderColor: "#d0d5dd", borderRadius: 8, overflow: "hidden" },
   perfRow: { flexDirection: "row", alignItems: "center", paddingVertical: 8, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: "#eef2f6" },
