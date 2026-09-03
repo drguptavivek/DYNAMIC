@@ -44,3 +44,6 @@ uploads/
 # Android release signing keys - never commit
 *.keystore
 *.jks
+.serena/project.yml
+.trace-mcp/guard-mode
+.trace-mcp/install-date
