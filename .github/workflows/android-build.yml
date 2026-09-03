@@ -36,12 +36,30 @@ jobs:
     concurrency:
       group: android-debug-${{ github.ref }}
       cancel-in-progress: true
-    # Debug environment variables (Settings > Environments > debug) can hold
-    # an API_BASE_URL repository/environment variable pointing debug builds
-    # at a staging API. See docs/android-ci.md.
+    # The debug GitHub Environment (Settings > Environments > debug) holds
+    # the API_BASE_URL secret the debug APK is built against. See
+    # docs/android-ci.md.
     environment: debug
+    # The API base URL is inlined into the JS bundle by Metro, which runs
+    # inside the Gradle assemble step, so it must be a job-level env var
+    # (not just on the prebuild step). It is stored as a GitHub *secret*
+    # named API_BASE_URL on the environment, e.g. https://<domain>/api/v1.
+    env:
+      EXPO_PUBLIC_API_BASE_URL: ${{ secrets.API_BASE_URL }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Require API base URL secret
+        run: |
+          if [ -z "${EXPO_PUBLIC_API_BASE_URL}" ]; then
+            echo "::error::API_BASE_URL secret is not set for this environment; refusing to build an APK that would fall back to localhost."
+            exit 1
+          fi
+          case "${EXPO_PUBLIC_API_BASE_URL}" in
+            https://*) ;;
+            *) echo "::error::API_BASE_URL must be an https:// URL (Android blocks cleartext HTTP)."; exit 1 ;;
+          esac
+
 
       - uses: actions/setup-node@v4
         with:
@@ -81,7 +99,6 @@ jobs:
         env:
           ANDROID_VERSION_NAME: ${{ steps.version.outputs.version_name }}
           ANDROID_VERSION_CODE: ${{ steps.version.outputs.version_code }}
-          EXPO_PUBLIC_API_BASE_URL: ${{ vars.API_BASE_URL }}
         run: npx expo prebuild --platform android --no-install
 
       - name: Assemble debug APK
@@ -107,12 +124,26 @@ jobs:
       cancel-in-progress: false
     permissions:
       contents: write
-    # Release environment variables (Settings > Environments > release) hold
-    # the production API_BASE_URL variable plus the signing secrets listed
-    # in docs/android-ci.md.
+    # The release GitHub Environment (Settings > Environments > release)
+    # holds the production API_BASE_URL secret plus the signing secrets
+    # listed in docs/android-ci.md.
     environment: release
+    env:
+      EXPO_PUBLIC_API_BASE_URL: ${{ secrets.API_BASE_URL }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Require API base URL secret
+        run: |
+          if [ -z "${EXPO_PUBLIC_API_BASE_URL}" ]; then
+            echo "::error::API_BASE_URL secret is not set for this environment; refusing to build an APK that would fall back to localhost."
+            exit 1
+          fi
+          case "${EXPO_PUBLIC_API_BASE_URL}" in
+            https://*) ;;
+            *) echo "::error::API_BASE_URL must be an https:// URL (Android blocks cleartext HTTP)."; exit 1 ;;
+          esac
+
 
       - uses: actions/setup-node@v4
         with:
@@ -228,7 +259,6 @@ jobs:
           ANDROID_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEYSTORE_PASSWORD }}
           ANDROID_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
           ANDROID_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
-          EXPO_PUBLIC_API_BASE_URL: ${{ vars.API_BASE_URL }}
         run: npx expo prebuild --platform android --no-install
 
       # The signing secrets were already written into android/gradle.properties

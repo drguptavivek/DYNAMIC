@@ -102,22 +102,33 @@ it; the file never touches the repository or a workflow artifact.
 `expo/src/modules/sync/apiConfig.js` reads the API base URL from
 `process.env.EXPO_PUBLIC_API_BASE_URL` (an Expo public env var, inlined into
 the JS bundle at build time), falling back to `http://localhost:3310/api/v1`
-if unset.
+only for local development.
 
-The workflow wires this per-environment so debug and release builds can
-point at different backends:
+The workflow takes the URL from a GitHub **secret** named `API_BASE_URL` on
+each Environment, exported as a job-level env var so both `expo prebuild` and
+the Gradle assemble step (where Metro actually bundles the JS) see it:
 
-- Set an `API_BASE_URL` **variable** (not secret) on the `debug` GitHub
-  Environment — e.g. `https://api-staging.example.org/api/v1` (placeholder;
-  replace with your real staging URL).
-- Set an `API_BASE_URL` **variable** on the `release` GitHub Environment —
-  e.g. `https://api.example.org/api/v1` (placeholder; replace with your real
-  production URL).
+- `debug` Environment: `API_BASE_URL` secret, e.g. `https://<domain>/api/v1`.
+- `release` Environment: `API_BASE_URL` secret for the production API.
 
-If a `API_BASE_URL` variable is left unset for an environment, the build
-falls back to `apiConfig.js`'s own default (`http://localhost:3310/api/v1`),
-which is only useful for local testing — set both before relying on real
-release/debug builds against a hosted API.
+The value must be an `https://` URL: Android blocks cleartext HTTP by
+default, and a phone cannot reach `localhost` on your machine anyway. A
+"Require API base URL secret" step fails the build if the secret is unset or
+not https, so a build can never silently fall back to localhost.
+
+### Local builds
+
+Expo CLI loads `expo/.env` automatically for `expo start`, `expo run:android`
+and `expo prebuild`. For a local build against the hosted API, copy
+`expo/.env.example` to `expo/.env` (it is gitignored) and set:
+
+```
+EXPO_PUBLIC_API_BASE_URL=https://<domain>/api/v1
+```
+
+Leave it unset only when you are running the API locally on the same
+machine as an emulator, and note that a physical phone still cannot reach
+`localhost`.
 
 ## Tagging a release
 
