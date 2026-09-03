@@ -17,6 +17,7 @@ import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import * as syncService from "../sync/syncService.js";
 import { listTaskWorklistCandidates } from "./taskWorklistRepository.js";
 import { buildTaskLocalityOptions, filterTaskWorklist, getTaskStage } from "./taskWorklist.js";
+import { buildTaskTypeOptions, filterTasksByType } from "./taskTypeFilter.js";
 import { getTaskOpenBlockReason } from "./taskOpenPolicy.js";
 import {
   getHouseholdMemberCountSync,
@@ -94,11 +95,15 @@ function WorklistFilters({
   localityOptions,
   stageFilter,
   onStageFilterChange,
+  taskTypeFilter,
+  onTaskTypeFilterChange,
+  taskTypeOptions,
   filteredCount,
   totalCount,
 }) {
   const localityButtonRef = useRef(null);
   const stageButtonRef = useRef(null);
+  const typeButtonRef = useRef(null);
   const [openDropdown, setOpenDropdown] = useState(null);
   const [dropdownAnchor, setDropdownAnchor] = useState(null);
   const selectedLocality = localityOptions.find((option) => option.code === localityFilter);
@@ -106,6 +111,8 @@ function WorklistFilters({
   const localityChoices = [{ code: "", label: "All localities" }, ...localityOptions];
   const selectedStage =
     STAGE_FILTER_OPTIONS.find((option) => option.value === stageFilter) || STAGE_FILTER_OPTIONS[0];
+  const typeChoices = [{ value: "", label: "All forms" }, ...taskTypeOptions];
+  const selectedType = typeChoices.find((option) => option.value === taskTypeFilter) || typeChoices[0];
 
   function toggleDropdown(type, buttonRef) {
     if (openDropdown === type) {
@@ -120,7 +127,12 @@ function WorklistFilters({
     });
   }
 
-  const dropdownChoices = openDropdown === "locality" ? localityChoices : STAGE_FILTER_OPTIONS;
+  const dropdownChoices =
+    openDropdown === "locality"
+      ? localityChoices
+      : openDropdown === "type"
+      ? typeChoices
+      : STAGE_FILTER_OPTIONS;
 
   return (
     <View style={styles.filterPanel}>
@@ -153,6 +165,18 @@ function WorklistFilters({
         >
           <Text style={styles.localityDropdownLabel} numberOfLines={1}>
             {selectedStage.label}
+          </Text>
+          <Text style={styles.localityDropdownIcon}>v</Text>
+        </Pressable>
+      </View>
+      <View style={styles.localityDropdownWrap}>
+        <Pressable
+          ref={typeButtonRef}
+          onPress={() => toggleDropdown("type", typeButtonRef)}
+          style={styles.localityDropdownButton}
+        >
+          <Text style={styles.localityDropdownLabel} numberOfLines={1}>
+            {selectedType.label}
           </Text>
           <Text style={styles.localityDropdownIcon}>v</Text>
         </Pressable>
@@ -197,7 +221,12 @@ function WorklistFilters({
               >
                 {dropdownChoices.map((option) => {
                   const optionValue = openDropdown === "locality" ? option.code : option.value;
-                  const selectedValue = openDropdown === "locality" ? localityFilter : stageFilter;
+                  const selectedValue =
+                    openDropdown === "locality"
+                      ? localityFilter
+                      : openDropdown === "type"
+                      ? taskTypeFilter
+                      : stageFilter;
                   const isActive = selectedValue === optionValue;
                   return (
                     <Pressable
@@ -205,6 +234,8 @@ function WorklistFilters({
                       onPress={() => {
                         if (openDropdown === "locality") {
                           onLocalityFilterChange(optionValue);
+                        } else if (openDropdown === "type") {
+                          onTaskTypeFilterChange(optionValue);
                         } else {
                           onStageFilterChange(optionValue);
                         }
@@ -435,6 +466,7 @@ export function WorklistScreen({
   const [searchText, setSearchText] = useState("");
   const [localityFilter, setLocalityFilter] = useState(selectedLocalityCode || "");
   const [stageFilter, setStageFilter] = useState("");
+  const [taskTypeFilter, setTaskTypeFilter] = useState("");
   const [selectedHouseholdTask, setSelectedHouseholdTask] = useState(null);
 
   useEffect(() => {
@@ -495,14 +527,18 @@ export function WorklistScreen({
     () => buildTaskLocalityOptions(tasks, localities),
     [tasks, localities],
   );
+  const taskTypeOptions = useMemo(() => buildTaskTypeOptions(tasks), [tasks]);
   const filteredTasks = useMemo(
     () =>
-      filterTaskWorklist(tasks, {
-        search: searchText,
-        locality_code: localityFilter,
-        stage: stageFilter,
-      }),
-    [tasks, searchText, localityFilter, stageFilter],
+      filterTasksByType(
+        filterTaskWorklist(tasks, {
+          search: searchText,
+          locality_code: localityFilter,
+          stage: stageFilter,
+        }),
+        taskTypeFilter,
+      ),
+    [tasks, searchText, localityFilter, stageFilter, taskTypeFilter],
   );
   const grouped = useMemo(
     () => groupTasksByUrgency(filteredTasks, { stageFilter }),
@@ -576,6 +612,9 @@ export function WorklistScreen({
       localityOptions={localityOptions}
       stageFilter={stageFilter}
       onStageFilterChange={setStageFilter}
+      taskTypeFilter={taskTypeFilter}
+      onTaskTypeFilterChange={setTaskTypeFilter}
+      taskTypeOptions={taskTypeOptions}
       filteredCount={filteredTasks.length}
       totalCount={tasks.length}
     />
@@ -751,6 +790,7 @@ const styles = StyleSheet.create({
   },
   filterDropdownRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: 8,
     alignItems: "flex-start",
   },
@@ -759,7 +799,7 @@ const styles = StyleSheet.create({
     zIndex: 40,
     elevation: 24,
     flex: 1,
-    minWidth: 0,
+    minWidth: 110,
   },
   localityDropdownLabel: {
     flex: 1,
