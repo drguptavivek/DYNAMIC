@@ -18,13 +18,14 @@ hand-maintained or committed.
   Produces a debug-signed APK (the stock Expo `debug.keystore`, no secrets
   needed) and uploads it as a workflow artifact for 14 days.
 - **`release`** — runs when a tag matching `v*.*.*` is pushed (e.g. `v0.2.0`).
-  Produces a release-signed APK **and** AAB using a real keystore from
-  repository secrets, uploads both as workflow artifacts, and publishes a
-  GitHub Release for the tag with both files attached.
+  Produces a release-signed APK using a real keystore from repository
+  secrets, uploads it as a workflow artifact, and publishes a GitHub
+  Release for the tag with the APK attached. No AAB is built: field devices
+  are sideloaded, and an AAB cannot be installed directly on a phone.
 
 Both jobs can also be triggered manually via **Actions → Android Build → Run
 workflow**, choosing `debug` or `release` from the `build_type` input. A
-manual `release` run not on a `v*.*.*` tag still builds and signs an APK/AAB,
+manual `release` run not on a `v*.*.*` tag still builds and signs an APK,
 but does not create a GitHub Release (there is no tag to attach one to).
 
 Debug pushes and PR pushes share a `concurrency` group per ref, so pushing new
@@ -188,10 +189,10 @@ run number, and `versionName` is
 
 - **Debug APK**: workflow artifact named `android-debug-apk-<versionName>` on
   the `debug` job's run, retained for 14 days.
-- **Release APK/AAB**: workflow artifacts named `android-release-apk-<versionName>`
-  and `android-release-aab-<versionName>` on the `release` job's run (default
-  90-day retention), **and** attached to the GitHub Release for the pushed
-  tag under the repository's **Releases** page.
+- **Release APK**: workflow artifact named `android-release-apk-<versionName>`
+  on the `release` job's run (default 90-day retention), **and** attached to
+  the GitHub Release for the pushed tag under the repository's **Releases**
+  page.
 
 ## Losing the keystore
 
