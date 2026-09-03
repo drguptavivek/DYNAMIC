@@ -47,6 +47,7 @@ import {
 } from "../../lib/pregnancySurveillanceBehaviors.js";
 import { listHouseholdMembers } from "../households/householdRepository.js";
 import { getDraftSavedMessage } from "./draftSaveMessages.js";
+import { applyQuestionnaireLanguageFromLocale } from "../../lib/questionnaireLanguageField.js";
 import {
   WQ_CURRENT_MARITAL_STATUS_FIELD,
   WQ_OTHER_PREGNANCIES_FIELD,
@@ -893,6 +894,9 @@ export function QuestionnaireDashboard({
         setRendererAnswerData(answerSnapshotRef.current);
       }
 
+      // The restored draft may carry an older language answer; the active
+      // switcher language always wins.
+      applyQuestionnaireLanguageFromLocale(survey, activeLocaleRef.current);
       updateSurveyStatus(survey);
     }
 
@@ -901,6 +905,18 @@ export function QuestionnaireDashboard({
       cancelled = true;
     };
   }, [showForm, survey, draftContext]);
+
+  // "Language of questionnaire" (where a form has it) is recorded from the
+  // language switcher rather than asked; keep it in step with the selection.
+  const activeLocaleRef = useRef(activeLocale);
+  activeLocaleRef.current = activeLocale;
+  useEffect(() => {
+    if (!showForm || !survey) return;
+    if (applyQuestionnaireLanguageFromLocale(survey, activeLocale)) {
+      markDirty();
+      updateSurveyStatus(survey);
+    }
+  }, [showForm, survey, activeLocale]);
 
   useEffect(() => {
     if (!showForm || !survey) return undefined;

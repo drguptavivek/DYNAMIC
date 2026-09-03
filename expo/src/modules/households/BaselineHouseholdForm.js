@@ -35,6 +35,7 @@ import { saveQuestionnaireSubmission } from "../questionnaires/questionnaireSubm
 import { getPreparedSurveyJson } from "../questionnaires/questionnaireSurveyJsonTransforms.js";
 import { buildHhqPrefill, mergePrefillIntoBlankValues } from "../../lib/prefillMapper.js";
 import { getHouseholdSync } from "../../lib/householdSync.js";
+import { applyQuestionnaireLanguageFromLocale } from "../../lib/questionnaireLanguageField.js";
 import { applyHhqTaskHouseholdPrefill } from "./hhqTaskPrefill.js";
 import { buildHouseholdIdFromHhqData } from "./householdIds.js";
 import { extractHouseholdRegistryFields } from "./householdRepository.js";
@@ -452,6 +453,10 @@ export function BaselineHouseholdForm({
 
   useEffect(() => {
     model.locale = locale;
+    // "Language of questionnaire" is recorded from the switcher, not asked.
+    if (applyQuestionnaireLanguageFromLocale(model, locale)) {
+      answerSnapshotRef.current = cloneSurveyData(model.data || {});
+    }
     setRenderAnswerData(cloneSurveyData(answerSnapshotRef.current || model.data || {}) || {});
     setRevision((value) => value + 1);
   }, [model, locale]);
