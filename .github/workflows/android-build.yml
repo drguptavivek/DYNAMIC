@@ -1,0 +1,269 @@
+name: Android Build
+
+# CI Native Generation: expo/android is gitignored, so every job runs
+# `npx expo prebuild --platform android --no-install` before touching Gradle.
+# There is no eas.json / EAS Build in this project — builds run entirely on
+# GitHub-hosted ubuntu-latest runners, using the Android SDK that image
+# ships preinstalled (see the comment on setup-android below).
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*.*.*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: "Which build to run"
+        required: true
+        type: choice
+        options: [debug, release]
+        default: debug
+
+env:
+  EXPO_NO_TELEMETRY: "1"
+  CI: "1"
+
+jobs:
+  debug:
+    name: Debug APK
+    runs-on: ubuntu-latest
+    if: >-
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.build_type == 'debug')
+    concurrency:
+      group: android-debug-${{ github.ref }}
+      cancel-in-progress: true
+    # Debug environment variables (Settings > Environments > debug) can hold
+    # an API_BASE_URL repository/environment variable pointing debug builds
+    # at a staging API. See docs/android-ci.md.
+    environment: debug
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      # ubuntu-latest GitHub-hosted runners ship a preinstalled Android SDK
+      # (via android-actions' own image tooling) with the API levels and
+      # build-tools recent Expo SDKs need, so android-actions/setup-android
+      # is not required here — it's only needed on runners without the SDK
+      # preinstalled (e.g. macOS runners or self-hosted runners).
+      - uses: gradle/actions/setup-gradle@v3
+
+      - name: Install dependencies (workspace root)
+        run: npm ci
+
+      - name: Run expo test suite
+        run: npm --workspace expo test
+
+      - name: Compute debug version
+        id: version
+        run: |
+          APP_VERSION=$(node -p "require('./expo/app.json').expo.version")
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          VERSION_NAME="${APP_VERSION}-debug.${{ github.run_number }}+${SHORT_SHA}"
+          VERSION_CODE="${{ github.run_number }}"
+          echo "version_name=${VERSION_NAME}" >> "$GITHUB_OUTPUT"
+          echo "version_code=${VERSION_CODE}" >> "$GITHUB_OUTPUT"
+
+      - name: Prebuild Android project
+        working-directory: expo
+        env:
+          ANDROID_VERSION_NAME: ${{ steps.version.outputs.version_name }}
+          ANDROID_VERSION_CODE: ${{ steps.version.outputs.version_code }}
+          EXPO_PUBLIC_API_BASE_URL: ${{ vars.API_BASE_URL }}
+        run: npx expo prebuild --platform android --no-install
+
+      - name: Assemble debug APK
+        working-directory: expo/android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-debug-apk-${{ steps.version.outputs.version_name }}
+          path: expo/android/app/build/outputs/apk/debug/*.apk
+          retention-days: 14
+          if-no-files-found: error
+
+  release:
+    name: Release APK/AAB
+    runs-on: ubuntu-latest
+    if: >-
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.build_type == 'release')
+    concurrency:
+      group: android-release-${{ github.ref }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+    # Release environment variables (Settings > Environments > release) hold
+    # the production API_BASE_URL variable plus the signing secrets listed
+    # in docs/android-ci.md.
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      # See the comment in the `debug` job: ubuntu-latest's preinstalled
+      # Android SDK is sufficient, so no extra setup-android action is used.
+      - uses: gradle/actions/setup-gradle@v3
+
+      - name: Install dependencies (workspace root)
+        run: npm ci
+
+      - name: Run expo test suite
+        run: npm --workspace expo test
+
+      - name: Compute release version
+        id: version
+        run: |
+          APP_VERSION=$(node -p "require('./expo/app.json').expo.version")
+
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+            TAG_VERSION="${TAG#v}"
+            IS_TAG_BUILD=true
+          else
+            # workflow_dispatch on a non-tag ref: no release tag to derive
+            # version/versionCode from, so fall back to app.json's version
+            # with a manual/run-number suffix. No GitHub Release is created
+            # for this path (see the "Create GitHub Release" step's `if`).
+            TAG=""
+            TAG_VERSION="${APP_VERSION}-manual.${{ github.run_number }}"
+            IS_TAG_BUILD=false
+          fi
+
+          if [[ "$IS_TAG_BUILD" == "true" && "${TAG_VERSION%%-*}" != "$APP_VERSION" ]]; then
+            echo "::warning::Tag version (${TAG_VERSION}) does not match expo/app.json version (${APP_VERSION}). The tag wins: building versionName=${TAG_VERSION}."
+          fi
+
+          VERSION_CODE=$(TAG_VERSION="$TAG_VERSION" RUN_NUMBER="${{ github.run_number }}" node -e "
+            const tagVersion = process.env.TAG_VERSION;
+            const runNumber = Number(process.env.RUN_NUMBER);
+            const m = tagVersion.match(/^(\d+)\.(\d+)\.(\d+)(-.+)?$/);
+            if (!m) {
+              console.error('versionName ' + JSON.stringify(tagVersion) + ' is not MAJOR.MINOR.PATCH[-prerelease]');
+              process.exit(1);
+            }
+            const [, major, minor, patch, prerelease] = m;
+            if (Number(minor) > 99 || Number(patch) > 99 || Number(major) > 2000) {
+              console.error('MAJOR must be <= 2000 and MINOR/PATCH < 100 for the versionCode = MAJOR*1000000 + MINOR*10000 + PATCH*100 + suffix scheme');
+              process.exit(1);
+            }
+            // Last two digits order builds of the same MAJOR.MINOR.PATCH:
+            // prerelease -rc.N / -beta.N / -alpha.N -> N (capped at 98),
+            // any other prerelease -> 1, stable -> 99. So every prerelease
+            // sorts below its own stable and above the previous version.
+            let suffix = 99;
+            if (prerelease) {
+              const n = prerelease.match(/(\d+)/);
+              suffix = n ? Math.min(Math.max(Number(n[1]), 1), 98) : 1;
+            }
+            const code = Number(major) * 1000000 + Number(minor) * 10000 + Number(patch) * 100 + suffix;
+            console.log(code);
+          ")
+
+          IS_PRERELEASE=false
+          if [[ "$TAG_VERSION" == *-* ]]; then
+            IS_PRERELEASE=true
+          fi
+
+          echo "version_name=${TAG_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "version_code=${VERSION_CODE}" >> "$GITHUB_OUTPUT"
+          echo "is_tag_build=${IS_TAG_BUILD}" >> "$GITHUB_OUTPUT"
+          echo "is_prerelease=${IS_PRERELEASE}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
+      # The signing plugin is a deliberate no-op when any secret is missing,
+      # which would silently produce a debug-signed "release". Fail here instead.
+      - name: Check release signing secrets
+        env:
+          KS: ${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 }}
+          KSP: ${{ secrets.ANDROID_RELEASE_KEYSTORE_PASSWORD }}
+          KA: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
+          KP: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
+        run: |
+          missing=""
+          [[ -z "$KS" ]]  && missing="$missing ANDROID_RELEASE_KEYSTORE_BASE64"
+          [[ -z "$KSP" ]] && missing="$missing ANDROID_RELEASE_KEYSTORE_PASSWORD"
+          [[ -z "$KA" ]]  && missing="$missing ANDROID_RELEASE_KEY_ALIAS"
+          [[ -z "$KP" ]]  && missing="$missing ANDROID_RELEASE_KEY_PASSWORD"
+          if [[ -n "$missing" ]]; then
+            echo "::error::Missing release signing secret(s):$missing (see docs/android-ci.md)"
+            exit 1
+          fi
+
+      - name: Decode release keystore
+        run: |
+          echo "${ANDROID_RELEASE_KEYSTORE_BASE64}" | base64 -d > "${RUNNER_TEMP}/release.keystore"
+        env:
+          ANDROID_RELEASE_KEYSTORE_BASE64: ${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 }}
+
+      - name: Prebuild Android project
+        working-directory: expo
+        env:
+          ANDROID_VERSION_NAME: ${{ steps.version.outputs.version_name }}
+          ANDROID_VERSION_CODE: ${{ steps.version.outputs.version_code }}
+          ANDROID_RELEASE_KEYSTORE_PATH: ${{ runner.temp }}/release.keystore
+          ANDROID_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEYSTORE_PASSWORD }}
+          ANDROID_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
+          ANDROID_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
+          EXPO_PUBLIC_API_BASE_URL: ${{ vars.API_BASE_URL }}
+        run: npx expo prebuild --platform android --no-install
+
+      # The signing secrets were already written into android/gradle.properties
+      # by the withAndroidReleaseSigning plugin during the prebuild step above,
+      # so Gradle doesn't need the ANDROID_RELEASE_* env vars again here.
+      - name: Assemble + bundle release
+        working-directory: expo/android
+        run: ./gradlew assembleRelease bundleRelease --no-daemon
+
+      - name: Upload release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-release-apk-${{ steps.version.outputs.version_name }}
+          path: expo/android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+
+      - name: Upload release AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-release-aab-${{ steps.version.outputs.version_name }}
+          path: expo/android/app/build/outputs/bundle/release/*.aab
+          if-no-files-found: error
+
+      - name: Create GitHub Release
+        if: steps.version.outputs.is_tag_build == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PRERELEASE_FLAG=""
+          if [[ "${{ steps.version.outputs.is_prerelease }}" == "true" ]]; then
+            PRERELEASE_FLAG="--prerelease"
+          fi
+          gh release create "${{ steps.version.outputs.tag }}" \
+            expo/android/app/build/outputs/apk/release/*.apk \
+            expo/android/app/build/outputs/bundle/release/*.aab \
+            --title "${{ steps.version.outputs.tag }}" \
+            --generate-notes \
+            $PRERELEASE_FLAG

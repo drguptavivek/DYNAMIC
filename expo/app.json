@@ -28,7 +28,8 @@
           "cameraPermission": "Allow DYNAMIC to scan admin-issued login QR codes."
         }
       ],
-      "expo-sqlite"
+      "expo-sqlite",
+      "./plugins/withAndroidReleaseSigning.js"
     ],
     "android": {
       "package": "com.drguptavivek.dynamicfieldapp"
