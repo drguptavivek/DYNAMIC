@@ -1,3 +1,4 @@
+import { getFormDisplayCode } from "../../lib/formDisplayCodes.js";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Model } from "survey-core";
@@ -1017,7 +1018,7 @@ export function QuestionnaireDashboard({
           ) : null}
           <View style={[styles.formWindowHeader, compact && styles.formWindowHeaderHidden]}>
             <View style={[styles.titleBlock, compact && styles.formHeaderTitleBlockCompact]}>
-              <Text style={styles.code}>{form.form_code}</Text>
+              <Text style={styles.code}>{getFormDisplayCode(form.form_code)}</Text>
               <View>
                 <Text numberOfLines={compact ? 1 : undefined} style={[styles.formWindowTitle, compact && styles.formWindowTitleCompact]}>{form.title?.default || form.title}</Text>
                 <Text style={styles.subtle}>
@@ -1131,7 +1132,7 @@ export function QuestionnaireDashboard({
                           <Text style={styles.memberSummaryCell}>Age</Text>
                           <Text style={styles.memberSummaryCell}>Sex</Text>
                           <Text style={[styles.memberSummaryCell, styles.memberSummaryRelationCell]}>Relation</Text>
-                          <Text style={styles.memberSummaryCell}>WQ Eligible</Text>
+                          <Text style={styles.memberSummaryCell}>BWQ Eligible</Text>
                         </View>
                         {memberSummaryRows.length ? (
                           memberSummaryRows.map((row) => (
@@ -1206,7 +1207,7 @@ export function QuestionnaireDashboard({
         <>
       <View style={styles.toolbar}>
         <View style={styles.titleBlock}>
-          <Text style={styles.code}>{form.form_code}</Text>
+          <Text style={styles.code}>{getFormDisplayCode(form.form_code)}</Text>
           <View>
             <Text style={styles.title}>{form.title?.default || form.title}</Text>
             <Text style={styles.subtle}>

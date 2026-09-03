@@ -1,3 +1,4 @@
+import { getFormDisplayCode } from "../../lib/formDisplayCodes.js";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -60,7 +61,7 @@ function DraftCard({ draft }) {
   return (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
-        <Text style={styles.formBadge}>{draft.form_code}</Text>
+        <Text style={styles.formBadge}>{getFormDisplayCode(draft.form_code)}</Text>
         <View style={styles.cardTitleBlock}>
           <Text style={styles.cardTitle}>{draft.household_id || draft.subject_id || draft.id}</Text>
           <Text style={styles.cardSubtle}>Continue filling from Worklist only</Text>

@@ -737,7 +737,7 @@ function formatMaritalStatus(status) {
 
 function formatMemberFlag(member) {
   if (Number(member.relationship_to_head) === 1) return "Household head";
-  if (Number(member.woman_questionnaire_eligible) === 1) return "WQ eligible";
+  if (Number(member.woman_questionnaire_eligible) === 1) return "BWQ eligible";
   return "Active member";
 }
 

@@ -14,9 +14,9 @@ const tasks = [
 {
   const options = buildTaskTypeOptions(tasks);
   assert.deepStrictEqual(options, [
-    { value: "HHQ", label: "HHQ" },
+    { value: "HHQ", label: "BHQ" },
     { value: "HRF", label: "HRF" },
-    { value: "WQ", label: "WQ" },
+    { value: "WQ", label: "BWQ" },
   ]);
 }
 

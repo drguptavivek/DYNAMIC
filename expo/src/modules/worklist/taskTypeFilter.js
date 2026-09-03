@@ -1,3 +1,4 @@
+import { getFormDisplayCode } from "../../lib/formDisplayCodes.js";
 export function buildTaskTypeOptions(tasks) {
   const values = new Set();
   for (const task of tasks || []) {
@@ -7,7 +8,7 @@ export function buildTaskTypeOptions(tasks) {
   }
   return Array.from(values)
     .sort()
-    .map((value) => ({ value, label: value }));
+    .map((value) => ({ value, label: getFormDisplayCode(value) }));
 }
 
 export function filterTasksByType(tasks, taskType) {

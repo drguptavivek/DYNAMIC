@@ -1,3 +1,4 @@
+import { getFormDisplayCode } from "../../lib/formDisplayCodes.js";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
@@ -401,7 +402,7 @@ function TaskRow({ task, onPress, onLongPress, onViewHousehold }) {
         <View style={styles.taskHeader}>
           <View style={styles.taskTitleLine}>
             <View style={[styles.taskTypeBadge, { backgroundColor: badgeColor }]}>
-              <Text style={styles.taskTypeBadgeText}>{task.task_type}</Text>
+              <Text style={styles.taskTypeBadgeText}>{getFormDisplayCode(task.task_type)}</Text>
             </View>
             {task.household_head_name ? (
               <Text style={styles.taskHeaderHeadName}>

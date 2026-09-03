@@ -1,3 +1,4 @@
+import { getFormDisplayCode } from "../../lib/formDisplayCodes.js";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useFocusEffect } from "expo-router";
 import {
@@ -41,7 +42,7 @@ function FilterChip({ label, active, onPress, compact }) {
   );
 }
 
-function InlineFilter({ label, value, options, onChange, compact }) {
+function InlineFilter({ label, value, options, onChange, compact, formatOption = (option) => option }) {
   const choices = ["", ...options];
   return (
     <View style={[styles.inlineFilter, compact && styles.inlineFilterCompact]}>
@@ -57,7 +58,7 @@ function InlineFilter({ label, value, options, onChange, compact }) {
             <FilterChip
               key={option || `${label}-all`}
               compact={compact}
-              label={option || "All"}
+              label={option ? formatOption(option) : "All"}
               active={active}
               onPress={() => onChange(option)}
             />
@@ -73,7 +74,7 @@ function FormCard({ response }) {
   return (
     <View style={[styles.card, hasUploadError && styles.errorCard]}>
       <View style={styles.cardHeader}>
-        <Text style={styles.formBadge}>{response.form_code}</Text>
+        <Text style={styles.formBadge}>{getFormDisplayCode(response.form_code)}</Text>
         <View style={styles.cardTitleBlock}>
           <Text style={styles.cardTitle} numberOfLines={1}>
             {response.household_id || response.subject_id || response.id}
@@ -118,7 +119,7 @@ function HhqHistoryCard({ group }) {
   return (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
-        <Text style={styles.formBadge}>{group.form_code}</Text>
+        <Text style={styles.formBadge}>{getFormDisplayCode(group.form_code)}</Text>
         <View style={styles.cardTitleBlock}>
           <Text style={styles.cardTitle}>{group.household_id}</Text>
           <Text style={styles.cardSubtle}>
@@ -273,6 +274,7 @@ export function FormSubmissionListScreen({ mode }) {
             options={formOptions}
             onChange={setFormId}
             compact={compact}
+            formatOption={getFormDisplayCode}
           />
           <InlineFilter
             label="Locality"

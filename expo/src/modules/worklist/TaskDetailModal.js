@@ -1,3 +1,4 @@
+import { getFormDisplayCode } from "../../lib/formDisplayCodes.js";
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -90,7 +91,7 @@ export function TaskDetailModal({ visible, task, onClose, onOpenForm, onTaskChan
   const modalContent = (
     <View style={styles.modalContent}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>{task.task_type}</Text>
+            <Text style={styles.modalTitle}>{getFormDisplayCode(task.task_type)}</Text>
             <Pressable onPress={onClose} style={styles.closeButton}>
               <Text style={styles.closeButtonText}>✕</Text>
             </Pressable>
