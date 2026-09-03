@@ -50,8 +50,10 @@ import { getDraftSavedMessage } from "./draftSaveMessages.js";
 import {
   WQ_CURRENT_MARITAL_STATUS_FIELD,
   WQ_OTHER_PREGNANCIES_FIELD,
+  WQ_BORN_ALIVE_PROBE_FIELD,
   applyWqSectionTwoCompletion,
   applyWqAgeConsistencyCheck,
+  applyWqBornAliveProbe,
   applyWqDomesticViolenceCalculations,
   applyWqLmpTimingChecks,
    applyWqPregnancyHistoryCalculations,
@@ -559,6 +561,17 @@ export function QuestionnaireDashboard({
           requestAnimationFrame(() => {
             rendererRef.current?.focusQuestion(WQ_BORN_ALIVE_LATER_DIED_FIELD);
           });
+        }
+        if (
+          options.name === WQ_BORN_ALIVE_PROBE_FIELD ||
+          options.name === WQ_BORN_ALIVE_LATER_DIED_FIELD
+        ) {
+          const focusFieldName = applyWqBornAliveProbe(sender, options.name);
+          if (focusFieldName) {
+            requestAnimationFrame(() => {
+              rendererRef.current?.focusQuestion(focusFieldName);
+            });
+          }
         }
         if (
           options.name === WQ_OTHER_PREGNANCIES_FIELD &&

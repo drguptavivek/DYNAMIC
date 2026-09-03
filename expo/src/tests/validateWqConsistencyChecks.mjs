@@ -11,8 +11,14 @@ const { prepareQuestionnaireSurveyJson } = await import(
 const {
   WQ_AGE_FIELD,
   WQ_BIRTH_MONTH_YEAR_FIELD,
+  WQ_BOYS_DEAD_FIELD,
+  WQ_BORN_ALIVE_LATER_DIED_FIELD,
+  WQ_BORN_ALIVE_PROBE_FIELD,
   WQ_INTERVIEW_DATE_FIELD,
+  WQ_TOTAL_LIVE_BIRTHS_FIELD,
   applyWqAgeConsistencyCheck,
+  applyWqBornAliveProbe,
+  applyWqReproductionSummary,
   attachWqValidation,
   calculateWqAgeConsistencyMessage,
   calculateWqAgesFromBirthDate,
@@ -34,6 +40,10 @@ function question(model, name) {
   const item = model.getQuestionByName(name);
   assert.ok(item, `Expected WQ question ${name} to exist`);
   return item;
+}
+
+function isVisible(model, name) {
+  return question(model, name).isVisible;
 }
 
 // --- calculateWqAgesFromBirthDate -----------------------------------------
@@ -181,5 +191,77 @@ assert.equal(shouldRecalculateWqAgeConsistency(WQ_BIRTH_MONTH_YEAR_FIELD), true)
 assert.equal(shouldRecalculateWqAgeConsistency(WQ_AGE_FIELD), true);
 assert.equal(shouldRecalculateWqAgeConsistency(WQ_INTERVIEW_DATE_FIELD), true);
 assert.equal(shouldRecalculateWqAgeConsistency("wq_visit_no"), false);
+
+// --- applyWqBornAliveProbe --------------------------------------------------
+
+function createReproductionReadyModel() {
+  const reproductionModel = createWqModel();
+  reproductionModel.setValue(WQ_INTERVIEW_DATE_FIELD, "2026-08-14");
+  reproductionModel.setValue("wq_visit_no", 1);
+  reproductionModel.setValue("wq_woman_available", 1);
+  reproductionModel.setValue("wq_consent_study", 1);
+  reproductionModel.setValue("wq_current_marital_status", 1);
+  reproductionModel.setValue(
+    "wq_02_reproduction_now_i_would_like_to_ask_about_all_the_birt",
+    2
+  );
+  return reproductionModel;
+}
+
+const probeYesModel = createReproductionReadyModel();
+probeYesModel.setValue(WQ_BORN_ALIVE_LATER_DIED_FIELD, 2);
+applyWqReproductionSummary(probeYesModel);
+probeYesModel.setValue(WQ_BORN_ALIVE_PROBE_FIELD, 1);
+const probeYesFocus = applyWqBornAliveProbe(probeYesModel, WQ_BORN_ALIVE_PROBE_FIELD);
+assert.equal(
+  probeYesModel.getValue(WQ_BORN_ALIVE_LATER_DIED_FIELD),
+  1,
+  "Probe=1 must flip Q6 to yes"
+);
+assert.equal(probeYesFocus, WQ_BOYS_DEAD_FIELD, "Probe=1 must request focus on Q7a");
+assert.equal(
+  isVisible(probeYesModel, WQ_BOYS_DEAD_FIELD),
+  true,
+  "Q7a must become visible once Q6 flips to yes"
+);
+applyWqReproductionSummary(probeYesModel);
+assert.notEqual(
+  probeYesModel.getValue(WQ_TOTAL_LIVE_BIRTHS_FIELD),
+  undefined,
+  "Q8 must still auto-sum after a probe=1 override"
+);
+
+const probeNoModel = createReproductionReadyModel();
+probeNoModel.setValue(WQ_BORN_ALIVE_LATER_DIED_FIELD, 2);
+applyWqReproductionSummary(probeNoModel);
+probeNoModel.setValue(WQ_BORN_ALIVE_PROBE_FIELD, 2);
+const probeNoFocus = applyWqBornAliveProbe(probeNoModel, WQ_BORN_ALIVE_PROBE_FIELD);
+assert.equal(probeNoFocus, undefined, "Probe=2 must not request a focus jump");
+assert.equal(
+  probeNoModel.getValue(WQ_BORN_ALIVE_LATER_DIED_FIELD),
+  2,
+  "Probe=2 must leave Q6 at no"
+);
+applyWqReproductionSummary(probeNoModel);
+assert.equal(
+  probeNoModel.getValue(WQ_TOTAL_LIVE_BIRTHS_FIELD),
+  "00",
+  "Q8 must stay auto-summed to zero while Q6 is no"
+);
+
+const overrideModel = createReproductionReadyModel();
+overrideModel.setValue(WQ_BORN_ALIVE_LATER_DIED_FIELD, 2);
+applyWqReproductionSummary(overrideModel);
+overrideModel.setValue(WQ_BORN_ALIVE_PROBE_FIELD, 1);
+applyWqBornAliveProbe(overrideModel, WQ_BORN_ALIVE_PROBE_FIELD);
+assert.equal(overrideModel.getValue(WQ_BORN_ALIVE_LATER_DIED_FIELD), 1);
+// Interviewer overrides Q6 back to "no" by hand after the probe said yes.
+overrideModel.setValue(WQ_BORN_ALIVE_LATER_DIED_FIELD, 2);
+applyWqBornAliveProbe(overrideModel, WQ_BORN_ALIVE_LATER_DIED_FIELD);
+assert.equal(
+  overrideModel.getValue(WQ_BORN_ALIVE_PROBE_FIELD),
+  undefined,
+  "Manually overriding Q6 against the probe answer must clear the probe"
+);
 
 console.log("Validated WQ interviewer-consistency checks.");

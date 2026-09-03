@@ -23,6 +23,7 @@ export const WQ_CHILDREN_ELSEWHERE_FIELD = "wq_02_reproduction_do_you_have_any_s
 export const WQ_SONS_ELSEWHERE_FIELD = "wq_02_reproduction_how_many_sons_are_alive_but_do_not_live_wi";
 export const WQ_DAUGHTERS_ELSEWHERE_FIELD = "wq_02_reproduction_how_many_daugthers_are_alive_but_do_not_li";
 export const WQ_BORN_ALIVE_LATER_DIED_FIELD = "wq_02_reproduction_have_you_ever_given_birth_to_a_boy_or_girl";
+export const WQ_BORN_ALIVE_PROBE_FIELD = "wq_02_reproduction_probe_born_alive_signs_of_life";
 export const WQ_BOYS_DEAD_FIELD = "wq_02_reproduction_how_many_boys_have_died";
 export const WQ_GIRLS_DEAD_FIELD = "wq_02_reproduction_how_many_girls_have_died";
 export const WQ_TOTAL_LIVE_BIRTHS_FIELD = "wq_02_reproduction_sum_answers_to_3_5_and_7_enter_total_if_no";
@@ -520,6 +521,36 @@ export function applyWqReproductionSummary(model) {
     if (question) question.readOnly = true;
   }
   applyWqReproductionComparisonResult(model);
+}
+
+// Q6a probes for signs of life before the interviewer accepts a Q6 "no"
+// (zero child deaths). Confirming a sign of life (probe=1) reopens Q6 as
+// "yes" so 7a/7b (boys/girls dead) become answerable; an interviewer
+// overriding Q6 by hand after the probe was answered clears the probe so it
+// is asked again rather than silently disagreeing with Q6.
+export function applyWqBornAliveProbe(model, changedField) {
+  if (!model) return undefined;
+  if (changedField === WQ_BORN_ALIVE_PROBE_FIELD) {
+    const probeValue = Number(model.getValue(WQ_BORN_ALIVE_PROBE_FIELD));
+    if (probeValue === 1) {
+      if (Number(model.getValue(WQ_BORN_ALIVE_LATER_DIED_FIELD)) !== 1) {
+        model.setValue(WQ_BORN_ALIVE_LATER_DIED_FIELD, 1);
+      }
+      return WQ_BOYS_DEAD_FIELD;
+    }
+    return undefined;
+  }
+  if (changedField === WQ_BORN_ALIVE_LATER_DIED_FIELD) {
+    const bornAlive = Number(model.getValue(WQ_BORN_ALIVE_LATER_DIED_FIELD));
+    const probeValue = Number(model.getValue(WQ_BORN_ALIVE_PROBE_FIELD));
+    const interviewerOverrode =
+      (bornAlive === 2 && probeValue === 1) || (bornAlive === 1 && probeValue === 2);
+    if (interviewerOverrode) {
+      setModelValueIfChanged(model, WQ_BORN_ALIVE_PROBE_FIELD, undefined);
+    }
+    return undefined;
+  }
+  return undefined;
 }
 
 export function applyWqPregnancyTrackingEligibility(model) {

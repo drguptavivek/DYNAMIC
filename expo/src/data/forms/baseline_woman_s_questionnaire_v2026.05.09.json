@@ -2214,6 +2214,54 @@
           "visibleIfSourceResolved": "Excel 02 row 4: Q1 no skips to Q6, so Q6 must stay visible for both Q1 answers."
         },
         {
+          "type": "radiogroup",
+          "name": "wq_02_reproduction_probe_born_alive_signs_of_life",
+          "title": {
+            "default": "PROBE: Any baby who cried, who made any movement, sound or effort to breathe, or who showed any other signs of life even if for a very short time?",
+            "hi": "",
+            "kn": "",
+            "mr": "",
+            "ta": "",
+            "te": "",
+            "ur": ""
+          },
+          "order": 29.5,
+          "section_order": 2,
+          "sourceCode": "6a",
+          "sourceType": "select_one",
+          "choices": [
+            {
+              "value": 1,
+              "text": {
+                "default": "yes",
+                "hi": "",
+                "kn": "",
+                "mr": "",
+                "ta": "",
+                "te": "",
+                "ur": ""
+              }
+            },
+            {
+              "value": 2,
+              "text": {
+                "default": "no",
+                "hi": "",
+                "kn": "",
+                "mr": "",
+                "ta": "",
+                "te": "",
+                "ur": ""
+              }
+            }
+          ],
+          "renderingHint": {
+            "render_as": "radio"
+          },
+          "visibleIf": "{wq_02_reproduction_have_you_ever_given_birth_to_a_boy_or_girl} = 2 or {wq_02_reproduction_probe_born_alive_signs_of_life} notempty",
+          "visibleIfSourceResolved": "Interviewer probe added after Q6 no, to confirm there were no signs of life before accepting zero child deaths."
+        },
+        {
           "type": "text",
           "name": "wq_02_reproduction_how_many_boys_have_died",
           "title": {
