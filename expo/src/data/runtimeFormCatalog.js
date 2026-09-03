@@ -1,4 +1,4 @@
-import { formsByCode } from "./formCatalog";
+import { getBundledFormByCode } from "./formCatalog";
 import { getCachedProtocolForm } from "../modules/sync/syncService.js";
 
 const CLIENT_RENDERER_FIELDS = ["renderAs"];
@@ -45,7 +45,7 @@ const mergedFormCache = new WeakMap();
 export function getRuntimeFormByCode(formCode) {
   const normalizedCode = String(formCode || "").toUpperCase();
   try {
-    const bundledForm = formsByCode[normalizedCode];
+    const bundledForm = getBundledFormByCode(normalizedCode);
     const cachedForm = getCachedProtocolForm(normalizedCode);
     if (!cachedForm) return bundledForm;
 
@@ -56,6 +56,6 @@ export function getRuntimeFormByCode(formCode) {
     mergedFormCache.set(cachedForm, merged);
     return merged;
   } catch (_error) {
-    return formsByCode[normalizedCode];
+    return getBundledFormByCode(normalizedCode);
   }
 }

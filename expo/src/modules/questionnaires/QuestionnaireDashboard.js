@@ -2,7 +2,6 @@ import { getFormDisplayCode } from "../../lib/formDisplayCodes.js";
 import { startTiming } from "../../lib/perfLog.js";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
-import { Model } from "survey-core";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { NativeSurveyRenderer } from "../../components/forms/NativeSurveyRenderer.js";
 import { RendererLanguageSwitcher } from "../../components/forms/RendererLanguageSwitcher.js";
@@ -50,6 +49,7 @@ import {
 import { listHouseholdMembers } from "../households/householdRepository.js";
 import { getDraftSavedMessage } from "./draftSaveMessages.js";
 import { applyQuestionnaireLanguageFromLocale } from "../../lib/questionnaireLanguageField.js";
+import { createSurveyModel } from "../../polyfills/surveyCoreNative.js";
 import {
   WQ_CURRENT_MARITAL_STATUS_FIELD,
   WQ_OTHER_PREGNANCIES_FIELD,
@@ -469,7 +469,7 @@ export function QuestionnaireDashboard({
     if (!showForm || !form) return null;
     const endOpen = startTiming("form.open", { form: form.form_code });
     const surveyJson = getPreparedSurveyJson(form);
-    const model = new Model(surveyJson);
+    const model = createSurveyModel(surveyJson);
     model.showCompletedPage = false;
     model.showPreviewBeforeComplete = "noPreview";
     model.completeText = "Submit";

@@ -1,22 +1,8 @@
 /**
- * Supplies the event-listener and focus surfaces Survey Core probes on React Native's
- * DOM-less window.
+ * Public ESM entrypoint for the lazy native Survey Core model factory.
+ *
+ * The implementation lives in CommonJS so its synchronous `require` remains
+ * compatible with Metro and Node's ESM test runner. Importing this module still
+ * does not evaluate Survey Core; that happens only when the factory is called.
  */
-import { Question, SurveyModel } from "survey-core";
-
-if (typeof window !== "undefined") {
-  if (typeof window.addEventListener !== "function") {
-    window.addEventListener = () => {};
-  }
-  if (typeof window.removeEventListener !== "function") {
-    window.removeEventListener = () => {};
-  }
-}
-
-if (typeof document === "undefined") {
-  // Survey Core's error-focus path reads settings.environment (a browser DOM) without a
-  // guard, so page validation throws without a document and silently kills Next/Complete
-  // presses. Native renderers own scrolling and focus, so disable the DOM helpers.
-  SurveyModel.prototype.scrollElementToTop = function scrollElementToTopNoOp() {};
-  Question.prototype.focusInputElement = function focusInputElementNoOp() {};
-}
+export { createSurveyModel, isNativeSurveyCorePatched } from "./surveyCoreNative.cjs";

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { Model } from "survey-core";
+import { createSurveyModel } from "../polyfills/surveyCoreNative.js";
 
 const { prepareQuestionnaireSurveyJson } = await import(
   "../modules/questionnaires/questionnaireSurveyJsonTransforms.js"
@@ -50,7 +50,7 @@ const wqPath = path.resolve(
 const wq = JSON.parse(fs.readFileSync(wqPath, "utf8"));
 
 function createWqModel() {
-  return new Model(prepareQuestionnaireSurveyJson(wq));
+  return createSurveyModel(prepareQuestionnaireSurveyJson(wq));
 }
 
 function question(model, name) {

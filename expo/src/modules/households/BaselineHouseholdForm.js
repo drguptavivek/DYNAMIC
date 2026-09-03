@@ -4,7 +4,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, AppState, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
-import { Model } from "survey-core";
 
 import { NativeSurveyRenderer } from "../../components/forms/NativeSurveyRenderer.js";
 import { RendererLanguageSwitcher } from "../../components/forms/RendererLanguageSwitcher.js";
@@ -40,6 +39,7 @@ import { startTiming } from "../../lib/perfLog.js";
 import { applyHhqTaskHouseholdPrefill } from "./hhqTaskPrefill.js";
 import { buildHouseholdIdFromHhqData } from "./householdIds.js";
 import { extractHouseholdRegistryFields } from "./householdRepository.js";
+import { createSurveyModel } from "../../polyfills/surveyCoreNative.js";
 
 const AUTOSAVE_INTERVAL_MS = 30000;
 const MAX_HHQ_VISIT_NO = 3;
@@ -324,7 +324,7 @@ export function BaselineHouseholdForm({
       user,
       localities,
     });
-    const survey = new Model(surveyJson);
+    const survey = createSurveyModel(surveyJson);
     survey.showCompletedPage = false;
     survey.checkErrorsMode = "onValueChanged";
 
