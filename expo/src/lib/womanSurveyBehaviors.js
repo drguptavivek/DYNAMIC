@@ -38,6 +38,8 @@ export const WQ_PREGNANCY_BIRTH_RESULT_FIELD = "pregnancy_02_reproduction_if_15_
 export const WQ_PREGNANCY_SIGN_OF_LIFE_FIELD = "pregnancy_02_reproduction_did_the_baby_cry_move_or_breathe";
 export const WQ_PREGNANCY_DURATION_FIELD = "pregnancy_02_reproduction_how_long_did_this_pregnancy_last_in_weeks";
 export const WQ_PREGNANCY_OUTCOME_FIELD = "pregnancy_02_reproduction_check_16_17_and_21_if_16_i_1_or_17_i_1_the";
+export const WQ_PREGNANCY_BIRTH_DATE_FIELD =
+  "pregnancy_02_reproduction_check_16_and_17_type_of_pregnancy_outcome";
 export const WQ_PREGNANCY_CHILD_LIVING_WITH_FIELD = "pregnancy_02_reproduction_if_born_alive_and_still_living_is_name_liv";
 export const WQ_PREGNANCY_CHILD_LINE_FIELD = "pregnancy_02_reproduction_if_born_alive_and_still_living_record_hous";
 export const WQ_PREGNANCY_DEATH_AGE_FIELD = "pregnancy_02_reproduction_if_born_alive_and_now_dead_if_19_i_1_boy_h";
@@ -99,11 +101,14 @@ const WQ_PREGNANCY_HISTORY_SOURCE_FIELDS = [
   WQ_PREGNANCY_BIRTH_RESULT_FIELD,
   WQ_PREGNANCY_SIGN_OF_LIFE_FIELD,
   WQ_PREGNANCY_DURATION_FIELD,
+  WQ_PREGNANCY_BIRTH_DATE_FIELD,
   WQ_PREGNANCY_CHILD_LIVING_WITH_FIELD,
   WQ_PREGNANCY_CHILD_ALIVE_FIELD,
   WQ_PREGNANCY_CHILD_LINE_FIELD,
+  WQ_PREGNANCY_CHILD_AGE_FIELD,
   WQ_PREGNANCY_DEATH_AGE_FIELD,
   WQ_FOLLOWUP_COMPLETED_FIELD,
+  WQ_INTERVIEW_DATE_FIELD,
 ];
 
 const WQ_DV_PHYSICAL_VIOLENCE_SOURCE_FIELDS = [
@@ -754,6 +759,52 @@ export function attachWqValidation(model) {
     ) {
       options.error = WQ_CHECK8_CONFIRMATION_MESSAGE;
     }
+    // These questions repeat inside dynamic panels (pregnancy history, and
+    // the born-alive child follow-ups), so sibling/linked values must be
+    // read off the panel the validated question belongs to, not the model
+    // top-level (which only ever holds the hidden template duplicate).
+    if (options.name === WQ_PREGNANCY_DURATION_FIELD) {
+      const panel = options.question?.parent;
+      const answers = {
+        [WQ_PREGNANCY_BIRTH_RESULT_FIELD]: getPanelQuestionValue(panel, WQ_PREGNANCY_BIRTH_RESULT_FIELD),
+        [WQ_PREGNANCY_SIGN_OF_LIFE_FIELD]: getPanelQuestionValue(panel, WQ_PREGNANCY_SIGN_OF_LIFE_FIELD),
+        [WQ_PREGNANCY_DURATION_FIELD]: getPanelQuestionValue(panel, WQ_PREGNANCY_DURATION_FIELD),
+      };
+      const message = calculateWqPregnancyDurationMessage(answers);
+      if (message) options.error = message;
+    }
+    if (options.name === WQ_PREGNANCY_BIRTH_DATE_FIELD) {
+      const panel = options.question?.parent;
+      const birthDate = getPanelQuestionValue(panel, WQ_PREGNANCY_BIRTH_DATE_FIELD);
+      const referenceDate = wqReferenceDate(sender.getValue(WQ_INTERVIEW_DATE_FIELD));
+      const motherBirthYear = getWqMotherBirthYear(sender);
+      const message = calculateWqPregnancyBirthDateMessage(birthDate, referenceDate, motherBirthYear);
+      if (message) options.error = message;
+    }
+    if (options.name === WQ_PREGNANCY_CHILD_AGE_FIELD) {
+      const panel = options.question?.parent;
+      const rowId = getPanelQuestionValue(panel, WQ_PREGNANCY_ROW_ID_FIELD);
+      const historyPanel = findWqPregnancyHistoryPanelByRowId(sender, rowId);
+      const birthDate = historyPanel
+        ? getPanelQuestionValue(historyPanel, WQ_PREGNANCY_BIRTH_DATE_FIELD)
+        : null;
+      const ageValue = getPanelQuestionValue(panel, WQ_PREGNANCY_CHILD_AGE_FIELD);
+      const referenceDate = wqReferenceDate(sender.getValue(WQ_INTERVIEW_DATE_FIELD));
+      const message = calculateWqChildAgeAtLastBirthdayMessage(birthDate, ageValue, referenceDate);
+      if (message) options.error = message;
+    }
+    if (options.name === WQ_PREGNANCY_DEATH_AGE_FIELD) {
+      const panel = options.question?.parent;
+      const rowId = getPanelQuestionValue(panel, WQ_PREGNANCY_ROW_ID_FIELD);
+      const historyPanel = findWqPregnancyHistoryPanelByRowId(sender, rowId);
+      const birthDate = historyPanel
+        ? getPanelQuestionValue(historyPanel, WQ_PREGNANCY_BIRTH_DATE_FIELD)
+        : null;
+      const deathAgeValue = getPanelQuestionValue(panel, WQ_PREGNANCY_DEATH_AGE_FIELD);
+      const referenceDate = wqReferenceDate(sender.getValue(WQ_INTERVIEW_DATE_FIELD));
+      const message = calculateWqDeathAgeMessage(deathAgeValue, birthDate, referenceDate);
+      if (message) options.error = message;
+    }
   });
 }
 
@@ -763,6 +814,264 @@ export function shouldRecalculateWqAgeConsistency(fieldName) {
     fieldName === WQ_AGE_FIELD ||
     fieldName === WQ_INTERVIEW_DATE_FIELD
   );
+}
+
+function setOrClearQuestionMessage(map, question, message) {
+  if (!question) return;
+  const previous = map.get(question);
+  if (previous && previous !== message) removeQuestionMessage(question, previous);
+  if (message) {
+    addQuestionMessage(question, message);
+    map.set(question, message);
+  } else {
+    map.delete(question);
+  }
+}
+
+// Q21_i's acceptable weeks/months range narrows once the pregnancy is known
+// to be a born-alive outcome (calculateWqPregnancyHistoryOutcomeValue === 1),
+// since a live birth cannot be recorded as a pre-viability duration.
+export function calculateWqPregnancyDurationMessage(answers = {}) {
+  const duration = answers[WQ_PREGNANCY_DURATION_FIELD];
+  const weeks = getMultipleTextNumber(duration, "weeks");
+  const months = getMultipleTextNumber(duration, "months");
+  const isBornAlive = calculateWqPregnancyHistoryOutcomeValue(answers) === 1;
+  const subject = isBornAlive ? "A born-alive pregnancy" : "This pregnancy";
+  if (weeks !== null) {
+    const min = isBornAlive ? 24 : 4;
+    const max = 46;
+    if (weeks < min || weeks > max) {
+      return `${subject} must have lasted ${min} to ${max} weeks (entered ${weeks}).`;
+    }
+  }
+  if (months !== null) {
+    const min = isBornAlive ? 6 : 1;
+    const max = 10;
+    if (months < min || months > max) {
+      return `${subject} must have lasted ${min} to ${max} months (entered ${months}).`;
+    }
+  }
+  return null;
+}
+
+const wqPregnancyDurationMessages = new WeakMap();
+
+function applyWqPregnancyDurationChecks(model) {
+  const panelDynamic = model?.getQuestionByName?.(WQ_PREGNANCY_HISTORY_FIELD);
+  const panels = Array.isArray(panelDynamic?.panels) ? panelDynamic.panels : [];
+  for (const panel of panels) {
+    const question = panel?.getQuestionByName?.(WQ_PREGNANCY_DURATION_FIELD);
+    if (!question) continue;
+    const answers = {
+      [WQ_PREGNANCY_BIRTH_RESULT_FIELD]: getPanelQuestionValue(panel, WQ_PREGNANCY_BIRTH_RESULT_FIELD),
+      [WQ_PREGNANCY_SIGN_OF_LIFE_FIELD]: getPanelQuestionValue(panel, WQ_PREGNANCY_SIGN_OF_LIFE_FIELD),
+      [WQ_PREGNANCY_DURATION_FIELD]: getPanelQuestionValue(panel, WQ_PREGNANCY_DURATION_FIELD),
+    };
+    setOrClearQuestionMessage(
+      wqPregnancyDurationMessages,
+      question,
+      calculateWqPregnancyDurationMessage(answers)
+    );
+  }
+}
+
+function isCompleteWqPregnancyBirthDate(birthDate) {
+  return (
+    birthDate &&
+    typeof birthDate === "object" &&
+    String(birthDate.day ?? "") !== "" &&
+    String(birthDate.month ?? "") !== "" &&
+    String(birthDate.year ?? "") !== ""
+  );
+}
+
+function wqPregnancyBirthDateAsDate(birthDate) {
+  const day = toFiniteNumber(birthDate?.day);
+  const month = toFiniteNumber(birthDate?.month);
+  const year = toFiniteNumber(birthDate?.year);
+  if (day === null || month === null || year === null) return null;
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    return null;
+  }
+  return date;
+}
+
+function formatWqPregnancyBirthDate(birthDate) {
+  const day = String(birthDate?.day ?? "").padStart(2, "0");
+  const month = String(birthDate?.month ?? "").padStart(2, "0");
+  const year = String(birthDate?.year ?? "");
+  return `${day}/${month}/${year}`;
+}
+
+function resolveWqReferenceDate(referenceDate) {
+  return referenceDate instanceof Date && !Number.isNaN(referenceDate.getTime())
+    ? referenceDate
+    : new Date();
+}
+
+function getWqMotherBirthYear(model) {
+  const birthValue = model?.getValue?.(WQ_BIRTH_MONTH_YEAR_FIELD);
+  const year = toFiniteNumber(birthValue?.year);
+  if (year === null || year === 9998) return null;
+  return year;
+}
+
+// Q20_i (birth/pregnancy-end date) must be a real calendar date that is not
+// in the future relative to Q3, and not earlier than the mother's own birth
+// year from Q10 (when that year is known).
+export function calculateWqPregnancyBirthDateMessage(birthDate, referenceDate, motherBirthYear) {
+  if (!isCompleteWqPregnancyBirthDate(birthDate)) return null;
+  const label = formatWqPregnancyBirthDate(birthDate);
+  const parsedDate = wqPregnancyBirthDateAsDate(birthDate);
+  if (!parsedDate) {
+    return `20_i is not a valid calendar date (entered ${label}).`;
+  }
+  const refDate = resolveWqReferenceDate(referenceDate);
+  if (parsedDate.getTime() > refDate.getTime()) {
+    return `20_i cannot be after the interview date (entered ${label}).`;
+  }
+  if (motherBirthYear !== null && motherBirthYear !== undefined) {
+    const year = toFiniteNumber(birthDate.year);
+    if (year !== null && year < motherBirthYear) {
+      return `20_i year cannot be before the mother's own birth year ${motherBirthYear} (entered ${label}).`;
+    }
+  }
+  return null;
+}
+
+// Q25_i (completed age at last birthday for a living born-alive child) must
+// equal the completed years between Q20_i and the reference date.
+export function calculateWqChildAgeAtLastBirthdayMessage(birthDate, ageValue, referenceDate) {
+  if (!isCompleteWqPregnancyBirthDate(birthDate)) return null;
+  if (ageValue === undefined || ageValue === null || ageValue === "") return null;
+  const actualAge = toFiniteNumber(ageValue);
+  if (actualAge === null) return null;
+  const parsedDate = wqPregnancyBirthDateAsDate(birthDate);
+  if (!parsedDate) return null;
+  const refDate = resolveWqReferenceDate(referenceDate);
+  const birthYear = parsedDate.getUTCFullYear();
+  const birthMonth = parsedDate.getUTCMonth();
+  const birthDay = parsedDate.getUTCDate();
+  const refYear = refDate.getUTCFullYear();
+  const refMonth = refDate.getUTCMonth();
+  const refDay = refDate.getUTCDate();
+  let expectedAge = refYear - birthYear;
+  if (refMonth < birthMonth || (refMonth === birthMonth && refDay < birthDay)) {
+    expectedAge -= 1;
+  }
+  expectedAge = Math.max(0, expectedAge);
+  if (expectedAge === actualAge) return null;
+  return `Born ${formatWqPregnancyBirthDate(birthDate)}, so age at last birthday should be ${expectedAge} (entered ${actualAge}).`;
+}
+
+const WQ_DEATH_AGE_UNIT_RANGES = {
+  days: { min: 0, max: 30, label: "under 1 month old" },
+  months: { min: 1, max: 23, label: "under 2 years old" },
+  years: { min: 2, max: Infinity, label: "2 years or older" },
+};
+const WQ_MONTH_DAYS = 30.44;
+const WQ_YEAR_DAYS = 365.25;
+
+function wqFilledDeathAgeUnits(deathAge) {
+  return ["days", "months", "years"].filter(
+    (key) => deathAge && typeof deathAge === "object" && String(deathAge[key] ?? "") !== ""
+  );
+}
+
+// Q28_i (age at death for a born-alive child who has since died) must record
+// exactly one unit following the Excel recording rule (days under 1 month,
+// months under 2 years, years otherwise), and the resulting age cannot
+// exceed the time elapsed since Q20_i.
+export function calculateWqDeathAgeMessage(deathAge, birthDate, referenceDate) {
+  if (!isCompleteWqPregnancyBirthDate(birthDate)) return null;
+  const filledUnits = wqFilledDeathAgeUnits(deathAge);
+  if (filledUnits.length === 0) return null;
+  if (filledUnits.length > 1) {
+    return `28_i must record only one of days, months, or years (entered ${filledUnits.join(", ")}).`;
+  }
+  const unit = filledUnits[0];
+  const value = toFiniteNumber(deathAge[unit]);
+  if (value === null) return null;
+  const range = WQ_DEATH_AGE_UNIT_RANGES[unit];
+  if (value < range.min || value > range.max) {
+    const rangeLabel = range.max === Infinity ? `${range.min} or more` : `${range.min} to ${range.max}`;
+    return `28_i ${unit} must be ${rangeLabel} for a death ${range.label} (entered ${value}).`;
+  }
+  const parsedBirthDate = wqPregnancyBirthDateAsDate(birthDate);
+  if (!parsedBirthDate) return null;
+  const refDate = resolveWqReferenceDate(referenceDate);
+  const daysSinceBirth = Math.floor((refDate.getTime() - parsedBirthDate.getTime()) / WQ_LMP_DAY_MS);
+  const ageInDays =
+    unit === "days" ? value : unit === "months" ? value * WQ_MONTH_DAYS : value * WQ_YEAR_DAYS;
+  if (ageInDays > daysSinceBirth) {
+    return `28_i age at death (about ${Math.round(ageInDays)} days) cannot exceed ${daysSinceBirth} days since birth (20_i).`;
+  }
+  return null;
+}
+
+function findWqPregnancyHistoryPanelByRowId(model, rowId) {
+  if (!rowId) return null;
+  const panelDynamic = model?.getQuestionByName?.(WQ_PREGNANCY_HISTORY_FIELD);
+  const panels = Array.isArray(panelDynamic?.panels) ? panelDynamic.panels : [];
+  return (
+    panels.find((panel) => getPanelQuestionValue(panel, WQ_PREGNANCY_ROW_ID_FIELD) === rowId) || null
+  );
+}
+
+const wqPregnancyBirthDateMessages = new WeakMap();
+const wqChildAgeMessages = new WeakMap();
+const wqDeathAgeMessages = new WeakMap();
+
+function applyWqPregnancyDateChecks(model) {
+  const referenceDate = wqReferenceDate(model?.getValue?.(WQ_INTERVIEW_DATE_FIELD));
+  const motherBirthYear = getWqMotherBirthYear(model);
+  const panelDynamic = model?.getQuestionByName?.(WQ_PREGNANCY_HISTORY_FIELD);
+  const historyPanels = Array.isArray(panelDynamic?.panels) ? panelDynamic.panels : [];
+  for (const panel of historyPanels) {
+    const question = panel?.getQuestionByName?.(WQ_PREGNANCY_BIRTH_DATE_FIELD);
+    if (!question) continue;
+    const birthDate = getPanelQuestionValue(panel, WQ_PREGNANCY_BIRTH_DATE_FIELD);
+    setOrClearQuestionMessage(
+      wqPregnancyBirthDateMessages,
+      question,
+      calculateWqPregnancyBirthDateMessage(birthDate, referenceDate, motherBirthYear)
+    );
+  }
+
+  const followupQuestion = model?.getQuestionByName?.(WQ_BORN_ALIVE_CHILD_FOLLOWUPS_FIELD);
+  const followupPanels = Array.isArray(followupQuestion?.panels) ? followupQuestion.panels : [];
+  for (const panel of followupPanels) {
+    const rowId = getPanelQuestionValue(panel, WQ_PREGNANCY_ROW_ID_FIELD);
+    const historyPanel = findWqPregnancyHistoryPanelByRowId(model, rowId);
+    const birthDate = historyPanel
+      ? getPanelQuestionValue(historyPanel, WQ_PREGNANCY_BIRTH_DATE_FIELD)
+      : null;
+
+    const ageQuestion = panel?.getQuestionByName?.(WQ_PREGNANCY_CHILD_AGE_FIELD);
+    if (ageQuestion) {
+      const ageValue = getPanelQuestionValue(panel, WQ_PREGNANCY_CHILD_AGE_FIELD);
+      setOrClearQuestionMessage(
+        wqChildAgeMessages,
+        ageQuestion,
+        calculateWqChildAgeAtLastBirthdayMessage(birthDate, ageValue, referenceDate)
+      );
+    }
+
+    const deathAgeQuestion = panel?.getQuestionByName?.(WQ_PREGNANCY_DEATH_AGE_FIELD);
+    if (deathAgeQuestion) {
+      const deathAgeValue = getPanelQuestionValue(panel, WQ_PREGNANCY_DEATH_AGE_FIELD);
+      setOrClearQuestionMessage(
+        wqDeathAgeMessages,
+        deathAgeQuestion,
+        calculateWqDeathAgeMessage(deathAgeValue, birthDate, referenceDate)
+      );
+    }
+  }
 }
 
 export function applyWqPregnancyHistoryCalculations(model) {
@@ -890,6 +1199,8 @@ export function applyWqPregnancyHistoryCalculations(model) {
   if (normalizedDeathAge !== deathAge) {
     setModelValueIfChanged(model, WQ_PREGNANCY_DEATH_AGE_FIELD, normalizedDeathAge);
   }
+  applyWqPregnancyDurationChecks(model);
+  applyWqPregnancyDateChecks(model);
   applyWqReproductionComparisonResult(model);
 }
 

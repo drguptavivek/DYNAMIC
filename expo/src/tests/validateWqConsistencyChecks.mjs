@@ -17,15 +17,29 @@ const {
   WQ_CHECK8_CONFIRMATION_FIELD,
   WQ_CHECK8_CONFIRMATION_MESSAGE,
   WQ_INTERVIEW_DATE_FIELD,
+  WQ_PREGNANCY_BIRTH_DATE_FIELD,
+  WQ_PREGNANCY_BIRTH_RESULT_FIELD,
+  WQ_PREGNANCY_CHILD_AGE_FIELD,
+  WQ_PREGNANCY_DEATH_AGE_FIELD,
+  WQ_PREGNANCY_DURATION_FIELD,
+  WQ_PREGNANCY_HISTORY_FIELD,
+  WQ_PREGNANCY_ROW_ID_FIELD,
+  WQ_PREGNANCY_SIGN_OF_LIFE_FIELD,
   WQ_TOTAL_LIVE_BIRTHS_FIELD,
   applyWqAgeConsistencyCheck,
   applyWqBornAliveProbe,
   applyWqCheck8Confirmation,
+  applyWqPregnancyHistoryCalculations,
   applyWqReproductionSummary,
   attachWqValidation,
   calculateWqAgeConsistencyMessage,
   calculateWqAgesFromBirthDate,
+  calculateWqChildAgeAtLastBirthdayMessage,
+  calculateWqDeathAgeMessage,
+  calculateWqPregnancyBirthDateMessage,
+  calculateWqPregnancyDurationMessage,
   shouldRecalculateWqAgeConsistency,
+  shouldRecalculateWqPregnancyHistory,
 } = await import("../lib/womanSurveyBehaviors.js");
 
 const root = path.dirname(fileURLToPath(import.meta.url));
@@ -43,6 +57,35 @@ function question(model, name) {
   const item = model.getQuestionByName(name);
   assert.ok(item, `Expected WQ question ${name} to exist`);
   return item;
+}
+
+function panelQuestion(panel, name) {
+  const item = panel.getQuestionByName(name);
+  assert.ok(item, `Expected pregnancy-history question ${name} to exist`);
+  return item;
+}
+
+function addPregnancyHistoryPanel(model) {
+  const panelDynamic = question(model, WQ_PREGNANCY_HISTORY_FIELD);
+  panelDynamic.addPanel();
+  return panelDynamic.panels[panelDynamic.panels.length - 1];
+}
+
+function questionHasErrorText(item, message) {
+  return (item.errors || []).some((error) =>
+    (error.getText ? error.getText() : String(error)).includes(message)
+  );
+}
+
+function createReproductionHistoryModel() {
+  const historyModel = createWqModel();
+  historyModel.setValue(WQ_INTERVIEW_DATE_FIELD, "2026-08-14");
+  historyModel.setValue("wq_visit_no", 1);
+  historyModel.setValue("wq_woman_available", 1);
+  historyModel.setValue("wq_consent_study", 1);
+  historyModel.setValue("wq_current_marital_status", 1);
+  historyModel.setValue("wq_02_reproduction_check_12", 1);
+  return historyModel;
 }
 
 function isVisible(model, name) {
@@ -324,5 +367,91 @@ assert.equal(
   "Clearing Q9 must also clear its inline message"
 );
 assert.equal(check8Model.validate(), true, "A cleared Q9 must not block validation");
+
+// --- calculateWqPregnancyDurationMessage / Q21_i ---------------------------
+
+assert.equal(
+  calculateWqPregnancyDurationMessage({
+    [WQ_PREGNANCY_BIRTH_RESULT_FIELD]: 1,
+    [WQ_PREGNANCY_SIGN_OF_LIFE_FIELD]: undefined,
+    [WQ_PREGNANCY_DURATION_FIELD]: { weeks: "20" },
+  }),
+  "A born-alive pregnancy must have lasted 24 to 46 weeks (entered 20).",
+  "A born-alive pregnancy under 24 weeks must be flagged"
+);
+assert.equal(
+  calculateWqPregnancyDurationMessage({
+    [WQ_PREGNANCY_BIRTH_RESULT_FIELD]: 1,
+    [WQ_PREGNANCY_DURATION_FIELD]: { weeks: "30" },
+  }),
+  null,
+  "A born-alive pregnancy of 30 weeks is consistent"
+);
+assert.equal(
+  calculateWqPregnancyDurationMessage({
+    [WQ_PREGNANCY_BIRTH_RESULT_FIELD]: 2,
+    [WQ_PREGNANCY_DURATION_FIELD]: { weeks: "03" },
+  }),
+  "This pregnancy must have lasted 4 to 46 weeks (entered 3).",
+  "A non-born-alive pregnancy under 4 weeks must be flagged"
+);
+assert.equal(
+  calculateWqPregnancyDurationMessage({
+    [WQ_PREGNANCY_BIRTH_RESULT_FIELD]: 1,
+    [WQ_PREGNANCY_DURATION_FIELD]: { months: "05" },
+  }),
+  "A born-alive pregnancy must have lasted 6 to 10 months (entered 5).",
+  "A born-alive pregnancy under 6 months must be flagged"
+);
+assert.equal(
+  calculateWqPregnancyDurationMessage({
+    [WQ_PREGNANCY_BIRTH_RESULT_FIELD]: 2,
+    [WQ_PREGNANCY_DURATION_FIELD]: { months: "02" },
+  }),
+  null,
+  "A non-born-alive pregnancy of 2 months is consistent"
+);
+
+const durationModel = createReproductionHistoryModel();
+attachWqValidation(durationModel);
+const durationPanel = addPregnancyHistoryPanel(durationModel);
+panelQuestion(durationPanel, WQ_PREGNANCY_BIRTH_RESULT_FIELD).value = 1;
+panelQuestion(durationPanel, WQ_PREGNANCY_DURATION_FIELD).value = { weeks: "20" };
+applyWqPregnancyHistoryCalculations(durationModel);
+const durationQuestion = panelQuestion(durationPanel, WQ_PREGNANCY_DURATION_FIELD);
+assert.ok(
+  questionHasErrorText(
+    durationQuestion,
+    "A born-alive pregnancy must have lasted 24 to 46 weeks (entered 20)."
+  ),
+  "Q21_i must show the inline duration mismatch"
+);
+assert.equal(
+  durationModel.validate(),
+  false,
+  "The model must fail validation while Q21_i contradicts the born-alive outcome"
+);
+panelQuestion(durationPanel, WQ_PREGNANCY_DURATION_FIELD).value = { weeks: "30" };
+applyWqPregnancyHistoryCalculations(durationModel);
+assert.equal(
+  panelQuestion(durationPanel, WQ_PREGNANCY_DURATION_FIELD).errors.length,
+  0,
+  "Correcting Q21_i must clear the duration message"
+);
+assert.equal(
+  shouldRecalculateWqPregnancyHistory(WQ_PREGNANCY_BIRTH_DATE_FIELD),
+  true,
+  "20_i changes must trigger the pregnancy-history recalculation hook"
+);
+assert.equal(
+  shouldRecalculateWqPregnancyHistory(WQ_PREGNANCY_CHILD_AGE_FIELD),
+  true,
+  "25_i changes must trigger the pregnancy-history recalculation hook"
+);
+assert.equal(
+  shouldRecalculateWqPregnancyHistory(WQ_INTERVIEW_DATE_FIELD),
+  true,
+  "Interview date changes must trigger the pregnancy-history recalculation hook"
+);
 
 console.log("Validated WQ interviewer-consistency checks.");
