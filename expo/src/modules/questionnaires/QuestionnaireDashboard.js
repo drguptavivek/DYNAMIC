@@ -36,8 +36,8 @@ import {
 } from "../../lib/householdRoundsSurveyBehaviors.js";
 import { buildHouseholdMemberSummaryRows } from "./householdMemberSummary";
 import {
+  getPreparedSurveyJson,
   normalizeQuestionnaireSurveyData,
-  prepareQuestionnaireSurveyJson,
 } from "./questionnaireSurveyJsonTransforms";
 import { applyReadOnlyFields } from "./questionnaireReadOnlyFields.js";
 import { mergePrefillIntoBlankValues } from "../../lib/prefillMapper.js";
@@ -454,7 +454,7 @@ export function QuestionnaireDashboard({
 
   const survey = useMemo(() => {
     if (!showForm || !form) return null;
-    const surveyJson = prepareQuestionnaireSurveyJson(form);
+    const surveyJson = getPreparedSurveyJson(form);
     const model = new Model(surveyJson);
     model.showCompletedPage = false;
     model.showPreviewBeforeComplete = "noPreview";

@@ -32,7 +32,7 @@ import {
 } from "../questionnaires/questionnaireDraftRepository.js";
 import { getDraftSavedMessage } from "../questionnaires/draftSaveMessages.js";
 import { saveQuestionnaireSubmission } from "../questionnaires/questionnaireSubmissionRepository.js";
-import { prepareQuestionnaireSurveyJson } from "../questionnaires/questionnaireSurveyJsonTransforms.js";
+import { getPreparedSurveyJson } from "../questionnaires/questionnaireSurveyJsonTransforms.js";
 import { buildHhqPrefill, mergePrefillIntoBlankValues } from "../../lib/prefillMapper.js";
 import { getHouseholdSync } from "../../lib/householdSync.js";
 import { applyHhqTaskHouseholdPrefill } from "./hhqTaskPrefill.js";
@@ -317,7 +317,7 @@ export function BaselineHouseholdForm({
   }, [draftContext, draftLookupKey]);
 
   const model = useMemo(() => {
-    const surveyJson = applyHouseholdMasterChoices(prepareQuestionnaireSurveyJson(form), {
+    const surveyJson = applyHouseholdMasterChoices(getPreparedSurveyJson(form), {
       user,
       localities,
     });

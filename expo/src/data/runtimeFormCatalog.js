@@ -36,14 +36,25 @@ export function preserveClientRendererMetadata(runtimeForm, bundledForm) {
   return merged;
 }
 
+// getCachedProtocolForm returns the identical (===) cached object as long as
+// the synced form hasn't changed, so a WeakMap keyed on that object lets the
+// merge (which deep-clones via JSON.parse(JSON.stringify(...))) run once per
+// synced version instead of once per questionnaire open.
+const mergedFormCache = new WeakMap();
+
 export function getRuntimeFormByCode(formCode) {
   const normalizedCode = String(formCode || "").toUpperCase();
   try {
     const bundledForm = formsByCode[normalizedCode];
     const cachedForm = getCachedProtocolForm(normalizedCode);
-    return cachedForm
-      ? preserveClientRendererMetadata(cachedForm, bundledForm)
-      : bundledForm;
+    if (!cachedForm) return bundledForm;
+
+    const cachedMerged = mergedFormCache.get(cachedForm);
+    if (cachedMerged) return cachedMerged;
+
+    const merged = preserveClientRendererMetadata(cachedForm, bundledForm);
+    mergedFormCache.set(cachedForm, merged);
+    return merged;
   } catch (error) {
     return formsByCode[normalizedCode];
   }

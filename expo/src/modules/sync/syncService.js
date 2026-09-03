@@ -237,26 +237,79 @@ function cacheProtocolForms(forms) {
   for (const form of forms) {
     setMeta(`form_json_${String(form.form_code).toUpperCase()}`, JSON.stringify(form.json));
   }
+  // Bump the generation so getCachedProtocolForm's stamp check below no
+  // longer matches, forcing a fresh SQLite read for whatever codes changed
+  // (and, harmlessly, for any code sharing the same checksum-less state).
+  protocolFormCacheGeneration += 1;
 }
 
-const parsedProtocolFormCache = new Map();
+// getCachedProtocolForm reads a 200-350 KB JSON blob from sync_meta. It is
+// called on every questionnaire open (often twice - see
+// runtimeFormCatalog.getRuntimeFormByCode), so the parsed result is cached
+// per form code behind a cheap "stamp": the checksum recorded for that code
+// in form_versions plus a module-level generation counter bumped whenever
+// cacheProtocolForms() writes new form JSON. SQLite is only touched again
+// when the stamp changes (or the cache is empty/cleared).
+let protocolFormCacheGeneration = 0;
+const protocolFormCache = new Map();
 
 export function getCachedProtocolForm(formCode) {
-  const metaKey = `form_json_${String(formCode).toUpperCase()}`;
-  const value = getMeta(metaKey);
-  if (!value) return null;
-  const cached = parsedProtocolFormCache.get(metaKey);
-  if (cached && cached.raw === value) {
+  const normalizedCode = String(formCode || "").toUpperCase();
+  const metaKey = `form_json_${normalizedCode}`;
+  const versionEntry = getCachedFormVersions().find(
+    (entry) => String(entry?.form_code).toUpperCase() === normalizedCode,
+  );
+  const checksum = versionEntry?.checksum || null;
+  const cached = protocolFormCache.get(metaKey);
+
+  if (checksum) {
+    const stamp = `${checksum}:${protocolFormCacheGeneration}`;
+    if (cached && cached.stamp === stamp) {
+      return cached.parsed;
+    }
+    const value = getMeta(metaKey);
+    if (!value) {
+      protocolFormCache.delete(metaKey);
+      return null;
+    }
+    try {
+      const parsed = JSON.parse(value);
+      protocolFormCache.set(metaKey, { stamp, raw: value, parsed });
+      return parsed;
+    } catch (error) {
+      console.error("Error parsing cached protocol form:", error);
+      return null;
+    }
+  }
+
+  // Legacy fallback: form_versions has no checksum entry for this code (e.g.
+  // a form cached before form_versions existed, or synced out of band), so
+  // there's no cheap stamp to compare against. Do the old raw-string read
+  // and compare only once (a cache miss, i.e. first call or right after
+  // clearProtocolFormCache); once resolved, trust the cache without hitting
+  // SQLite again until it's explicitly invalidated.
+  const legacyStamp = `legacy:${protocolFormCacheGeneration}`;
+  if (cached && cached.stamp === legacyStamp) {
     return cached.parsed;
+  }
+  const value = getMeta(metaKey);
+  if (!value) {
+    protocolFormCache.delete(metaKey);
+    return null;
   }
   try {
     const parsed = JSON.parse(value);
-    parsedProtocolFormCache.set(metaKey, { raw: value, parsed });
+    protocolFormCache.set(metaKey, { stamp: legacyStamp, raw: value, parsed });
     return parsed;
   } catch (error) {
     console.error("Error parsing cached protocol form:", error);
     return null;
   }
+}
+
+export function clearProtocolFormCache() {
+  protocolFormCache.clear();
+  protocolFormCacheGeneration += 1;
 }
 
 export async function refreshProtocolForms(formVersions = []) {
