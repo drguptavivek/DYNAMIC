@@ -1,5 +1,9 @@
 import assert from "node:assert";
-import { buildTaskTypeOptions, filterTasksByType } from "../modules/worklist/taskTypeFilter.js";
+import {
+  buildTaskTypeOptions,
+  filterTasksByType,
+  listStandardTaskTypeOptions,
+} from "../modules/worklist/taskTypeFilter.js";
 
 const tasks = [
   { id: 1, task_type: "wq" },
@@ -18,6 +22,17 @@ const tasks = [
     { value: "HRF", label: "HRF · Household Rounds Form" },
     { value: "WQ", label: "BWQ · Baseline Woman's Questionnaire" },
   ]);
+}
+
+// Worklist choices come from standard form metadata, even before tasks load.
+{
+  const options = listStandardTaskTypeOptions();
+  assert.ok(options.length >= 12);
+  assert.deepStrictEqual(
+    options.find((option) => option.value === "HHQ"),
+    { value: "HHQ", label: "BHQ · Baseline Household Questionnaire" },
+  );
+  assert.ok(options.some((option) => option.value === "PSF"));
 }
 
 // filterTasksByType: "" returns all tasks

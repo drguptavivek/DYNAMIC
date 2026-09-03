@@ -1,6 +1,8 @@
 import { getFormDisplayCode } from "../../lib/formDisplayCodes.js";
 import { describeNetworkError } from "../../lib/networkErrors.js";
 import { startTiming } from "../../lib/perfLog.js";
+import { useCommittedSearch } from "../../lib/useCommittedSearch.js";
+import { getLocalCalendarDate } from "../../lib/localDate.js";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
@@ -8,6 +10,7 @@ import {
   StyleSheet,
   FlatList,
   Platform,
+  AppState,
   Pressable,
   ScrollView,
   ActivityIndicator,
@@ -18,9 +21,9 @@ import {
 } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import * as syncService from "../sync/syncService.js";
-import { listTaskWorklistCandidates } from "./taskWorklistRepository.js";
-import { buildTaskLocalityOptions, filterTaskWorklist, getTaskStage } from "./taskWorklist.js";
-import { buildTaskTypeOptions, filterTasksByType } from "./taskTypeFilter.js";
+import { listTaskWorklistPage } from "./taskWorklistRepository.js";
+import { buildTaskLocalityOptions, filterTaskWorklist, getTaskUrgencyBucket } from "./taskWorklist.js";
+import { filterTasksByType, listStandardTaskTypeOptions } from "./taskTypeFilter.js";
 import { getTaskOpenBlockReason } from "./taskOpenPolicy.js";
 import {
   getHouseholdMemberCountSync,
@@ -29,7 +32,6 @@ import {
 } from "../../lib/householdSync.js";
 import { listActiveQuestionnaireDraftSummaries } from "../questionnaires/questionnaireDraftRepository.js";
 import { draftMatchesTask } from "../questionnaires/draftPendingForms.js";
-import { useListPaging } from "../../lib/useListPaging.js";
 
 const BADGE_COLORS = {
   HHQ: "#e74c3c",
@@ -57,7 +59,7 @@ const STAGE_FILTER_OPTIONS = [
 
 function groupTasksByUrgency(tasks, options = {}) {
   const { stageFilter = "" } = options;
-  const today = new Date().toISOString().split("T")[0];
+  const today = getLocalCalendarDate();
 
   const groups = {
     draft: [],
@@ -70,20 +72,11 @@ function groupTasksByUrgency(tasks, options = {}) {
   for (const task of tasks) {
     if (task.status === "completed" || task.status === "missed") continue;
 
-    const stage = getTaskStage(task, today);
     const protocolDate = task.target_date || task.window_start || "";
     if (stageFilter === "outdated" && protocolDate && protocolDate < today) {
       groups.overdue.push({ ...task, worklist_display_stage: "outdated" });
-    } else if (stage === "draft") {
-      groups.draft.push(task);
-    } else if (stage === "future_planned") {
-      groups.futurePlanned.push(task);
-    } else if (task.target_date < today) {
-      groups.overdue.push(task);
-    } else if (task.target_date === today) {
-      groups.today.push(task);
     } else {
-      groups.upcoming.push(task);
+      groups[getTaskUrgencyBucket(task, today)].push(task);
     }
   }
 
@@ -103,6 +96,7 @@ function WorklistFilters({
   taskTypeOptions,
   filteredCount,
   totalCount,
+  searchAwaitingMinimum,
 }) {
   const localityButtonRef = useRef(null);
   const stageButtonRef = useRef(null);
@@ -188,6 +182,9 @@ function WorklistFilters({
       <Text style={styles.filterCount}>
         Showing {filteredCount} of {totalCount} tasks
       </Text>
+      {searchAwaitingMinimum ? (
+        <Text style={styles.searchHint}>Enter at least 3 characters to search.</Text>
+      ) : null}
 
       <Modal
         visible={Boolean(openDropdown && dropdownAnchor)}
@@ -315,6 +312,10 @@ function getTaskVisitNo(task) {
     return Math.min(3, Math.max(1, Math.trunc(failedAttempts) + 1));
   }
   return 1;
+}
+
+function getCalendarDate() {
+  return getLocalCalendarDate();
 }
 
 function DetailRow({ label, value, fullWidth, blankWhenEmpty }) {
@@ -463,46 +464,84 @@ export function WorklistScreen({
   worklistRevision,
 }) {
   const [tasks, setTasks] = useState([]);
+  const [totalTaskCount, setTotalTaskCount] = useState(0);
+  const [hasMoreTasks, setHasMoreTasks] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [syncError, setSyncError] = useState(null);
-  const [searchText, setSearchText] = useState("");
+  const {
+    input: searchText,
+    setInput: setSearchText,
+    committed: committedSearch,
+    awaitingMinimum: searchAwaitingMinimum,
+  } = useCommittedSearch();
   const [localityFilter, setLocalityFilter] = useState(selectedLocalityCode || "");
   const [stageFilter, setStageFilter] = useState("");
   const [taskTypeFilter, setTaskTypeFilter] = useState("");
   const [selectedHouseholdTask, setSelectedHouseholdTask] = useState(null);
+  const requestIdRef = useRef(0);
+  const [calendarDate, setCalendarDate] = useState(getCalendarDate);
 
   useEffect(() => {
-    loadTasks();
-  }, [selectedLocalityCode, worklistRevision]);
+    loadTasks({ reset: true });
+  }, [selectedLocalityCode, worklistRevision, localityFilter, stageFilter, taskTypeFilter, committedSearch, calendarDate]);
+
+  useEffect(() => {
+    const refreshCalendarDate = () => setCalendarDate(getCalendarDate());
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      if (nextState === "active") refreshCalendarDate();
+    });
+    const interval = setInterval(refreshCalendarDate, 60 * 1000);
+    return () => {
+      subscription.remove();
+      clearInterval(interval);
+    };
+  }, []);
 
   useEffect(() => {
     setLocalityFilter(selectedLocalityCode || "");
   }, [selectedLocalityCode]);
 
-  async function loadTasks() {
-    setLoading(true);
+  async function loadTasks({ reset = true } = {}) {
+    const requestId = ++requestIdRef.current;
+    const offset = reset ? 0 : tasks.length;
+    if (reset) setLoading(true);
+    else setLoadingMore(true);
     const endLoad = startTiming("worklist.load");
     try {
       const activeDrafts = await listActiveQuestionnaireDraftSummaries();
-      const candidateTasks = listTaskWorklistCandidates({
-        locality_code: selectedLocalityCode || undefined,
+      const result = await listTaskWorklistPage({
+        locality_code: localityFilter || undefined,
+        stage: stageFilter || undefined,
+        task_type: taskTypeFilter || undefined,
+        search: committedSearch,
+        activeDrafts,
+        limit: 100,
+        offset,
       });
+      if (requestId !== requestIdRef.current) return;
+      const candidateTasks = result.tasks || [];
       const householdsById = getHouseholdsByIdsSync(
         candidateTasks.map((task) => task.household_id)
       );
-      const allTasks = candidateTasks.map((task) =>
+      const pageTasks = candidateTasks.map((task) =>
         enrichTaskForWorklist(task, activeDrafts, householdsById)
       );
-      setTasks(allTasks);
+      setTasks((previous) => (reset ? pageTasks : [...previous, ...pageTasks]));
+      setTotalTaskCount(Number(result.total) || 0);
+      setHasMoreTasks(Boolean(result.hasMore));
       setSyncError(null);
-      endLoad({ tasks: allTasks.length, drafts: activeDrafts.length });
+      endLoad({ tasks: pageTasks.length, total: result.total, drafts: activeDrafts.length });
     } catch (error) {
       endLoad({ ok: false });
       console.error("Error loading tasks:", error);
-      setSyncError(error.message);
+      if (requestId === requestIdRef.current) setSyncError(error.message);
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) {
+        setLoading(false);
+        setLoadingMore(false);
+      }
     }
   }
 
@@ -511,7 +550,7 @@ export function WorklistScreen({
     try {
       const syncSvc = syncServiceProp || syncService;
       await syncSvc.syncAll();
-      await loadTasks();
+      await loadTasks({ reset: true });
     } catch (error) {
       console.error("Sync error:", error);
       setSyncError(describeNetworkError(error, { action: "Sync" }));
@@ -533,18 +572,16 @@ export function WorklistScreen({
     () => buildTaskLocalityOptions(tasks, localities),
     [tasks, localities],
   );
-  const taskTypeOptions = useMemo(() => buildTaskTypeOptions(tasks), [tasks]);
+  const taskTypeOptions = useMemo(() => listStandardTaskTypeOptions(), []);
   const filteredTasks = useMemo(
     () =>
       filterTasksByType(
         filterTaskWorklist(tasks, {
-          search: searchText,
-          locality_code: localityFilter,
           stage: stageFilter,
         }),
         taskTypeFilter,
       ),
-    [tasks, searchText, localityFilter, stageFilter, taskTypeFilter],
+    [tasks, stageFilter, taskTypeFilter],
   );
   const grouped = useMemo(
     () => groupTasksByUrgency(filteredTasks, { stageFilter }),
@@ -592,7 +629,14 @@ export function WorklistScreen({
     return built;
   }, [grouped]);
 
-  const { pagedItems: pagedSections, hasMore, showMore, shown, total } = useListPaging(sections);
+  const pagedSections = sections;
+  const hasMore = hasMoreTasks;
+  const shown = tasks.length;
+  const total = totalTaskCount;
+  const showMore = () => {
+    if (!hasMoreTasks && !loadingMore) return;
+    if (!loadingMore) loadTasks({ reset: false });
+  };
 
   if (loading) {
     return (
@@ -622,7 +666,8 @@ export function WorklistScreen({
       onTaskTypeFilterChange={setTaskTypeFilter}
       taskTypeOptions={taskTypeOptions}
       filteredCount={filteredTasks.length}
-      totalCount={tasks.length}
+      totalCount={totalTaskCount}
+      searchAwaitingMinimum={searchAwaitingMinimum}
     />
   );
 
@@ -638,7 +683,7 @@ export function WorklistScreen({
           ListEmptyComponent={
             <View style={styles.centerContainer}>
               <Text style={styles.emptyText}>
-                {tasks.length > 0 ? "No matching tasks" : "No open tasks"}
+                {totalTaskCount > 0 ? "No matching tasks" : "No open tasks"}
               </Text>
               {syncError && <Text style={styles.errorText}>{syncError}</Text>}
             </View>
@@ -667,8 +712,9 @@ export function WorklistScreen({
   }
 
   const showMoreFooter = hasMore ? (
-    <Pressable onPress={showMore} style={styles.showMoreButton}>
-      <Text style={styles.showMoreText}>{`Show more (${shown} of ${total})`}</Text>
+    <Pressable onPress={showMore} disabled={loadingMore} style={styles.showMoreButton}>
+      {loadingMore ? <ActivityIndicator color="#2563eb" /> : null}
+      <Text style={styles.showMoreText}>{loadingMore ? "Loading…" : `Show more (${shown} of ${total})`}</Text>
     </Pressable>
   ) : null;
 
@@ -866,6 +912,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
     color: "#667085",
+  },
+  searchHint: {
+    color: "#667085",
+    fontSize: 11,
+    fontWeight: "700",
+    marginTop: 3,
   },
   loadingText: {
     marginTop: 12,

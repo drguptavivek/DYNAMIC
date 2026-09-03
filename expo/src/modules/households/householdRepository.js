@@ -349,6 +349,9 @@ async function getDatabase() {
   return getOfflineDatabase();
 }
 
+let initPromise = null;
+let initializedDatabase = null;
+
 async function initializeSqlite(db) {
   await db.execAsync(`
     PRAGMA journal_mode = WAL;
@@ -415,6 +418,10 @@ async function initializeSqlite(db) {
       created_at TEXT,
       updated_at TEXT
     );
+    CREATE TABLE IF NOT EXISTS local_schema_migrations (
+      name TEXT PRIMARY KEY NOT NULL,
+      applied_at TEXT NOT NULL
+    );
     CREATE INDEX IF NOT EXISTS idx_households_locality
       ON households(site_id, locality_code);
     CREATE INDEX IF NOT EXISTS idx_households_locality_hh_number
@@ -425,18 +432,71 @@ async function initializeSqlite(db) {
       ON household_members(sex);
     CREATE INDEX IF NOT EXISTS idx_household_members_name
       ON household_members(member_name);
+    CREATE INDEX IF NOT EXISTS idx_households_locality_code_nocase
+      ON households(locality_code COLLATE NOCASE);
+    CREATE INDEX IF NOT EXISTS idx_households_id_nocase
+      ON households(household_id COLLATE NOCASE);
+    CREATE INDEX IF NOT EXISTS idx_households_locality_name_nocase
+      ON households(locality_name COLLATE NOCASE);
+    CREATE INDEX IF NOT EXISTS idx_households_number_nocase
+      ON households(household_number COLLATE NOCASE);
+    CREATE INDEX IF NOT EXISTS idx_households_address_nocase
+      ON households(address COLLATE NOCASE);
+    CREATE INDEX IF NOT EXISTS idx_households_head_name_nocase
+      ON households(household_head_name COLLATE NOCASE);
+    CREATE INDEX IF NOT EXISTS idx_households_structure_number_nocase
+      ON households(structure_number COLLATE NOCASE);
+    CREATE INDEX IF NOT EXISTS idx_households_consent_status_nocase
+      ON households(consent_status COLLATE NOCASE);
+    CREATE INDEX IF NOT EXISTS idx_households_mobile_number_nocase
+      ON households(mobile_number COLLATE NOCASE);
+    CREATE INDEX IF NOT EXISTS idx_households_interview_date_nocase
+      ON households(interview_date COLLATE NOCASE);
+    CREATE INDEX IF NOT EXISTS idx_household_members_name_nocase
+      ON household_members(member_name COLLATE NOCASE);
   `);
+
+  // These migrations are deliberately named rather than using PRAGMA
+  // user_version: the shared database has more than one schema owner.
+  await db.execAsync("BEGIN TRANSACTION");
   try {
-    await db.execAsync("ALTER TABLE households ADD COLUMN locality_type TEXT");
-  } catch {
-    // Column already exists on databases created after the locality-type sync.
-  }
-  try {
-    await db.execAsync(
-      "UPDATE household_members SET woman_questionnaire_eligible = 0 WHERE woman_questionnaire_eligible = 2"
+    const appliedRows = await db.getAllAsync(
+      "SELECT name FROM local_schema_migrations"
     );
-  } catch {
-    // Best-effort cleanup of legacy rows that stored the raw HHQ code (2 = no).
+    const applied = new Set((appliedRows || []).map((row) => row.name));
+
+    if (!applied.has("households.locality_type.v1")) {
+      // Older installs may already have the column but no migration ledger.
+      // Inspect first so ALTER TABLE is only issued when it is needed.
+      const columns = await db.getAllAsync("PRAGMA table_info(households)");
+      const hasLocalityType = (columns || []).some((column) => column.name === "locality_type");
+      if (!hasLocalityType) {
+        await db.execAsync("ALTER TABLE households ADD COLUMN locality_type TEXT");
+      }
+      await db.runAsync(
+        "INSERT INTO local_schema_migrations (name, applied_at) VALUES (?, ?)",
+        ["households.locality_type.v1", new Date().toISOString()]
+      );
+    }
+
+    if (!applied.has("household_members.woman_questionnaire_eligible.v1")) {
+      await db.execAsync(
+        "UPDATE household_members SET woman_questionnaire_eligible = 0 WHERE woman_questionnaire_eligible = 2"
+      );
+      await db.runAsync(
+        "INSERT INTO local_schema_migrations (name, applied_at) VALUES (?, ?)",
+        ["household_members.woman_questionnaire_eligible.v1", new Date().toISOString()]
+      );
+    }
+
+    await db.execAsync("COMMIT");
+  } catch (error) {
+    try {
+      await db.execAsync("ROLLBACK");
+    } catch {
+      // Preserve the migration error when rollback itself is unavailable.
+    }
+    throw error;
   }
   for (const site of STUDY_SITES) {
     await db.runAsync(
@@ -465,10 +525,26 @@ async function initializeSqlite(db) {
   }
 }
 
+async function ensureSqliteInitialized(db) {
+  if (initPromise && initializedDatabase === db) return initPromise;
+
+  initializedDatabase = db;
+  const pending = initializeSqlite(db);
+  const guarded = pending.catch((error) => {
+    if (initPromise === guarded) {
+      initPromise = null;
+      initializedDatabase = null;
+    }
+    throw error;
+  });
+  initPromise = guarded;
+  return guarded;
+}
+
 export async function initializeHouseholdRepository() {
   const db = await getDatabase();
   if (db) {
-    await initializeSqlite(db);
+    await ensureSqliteInitialized(db);
     return;
   }
 
@@ -490,9 +566,11 @@ export async function listHouseholds(filters = {}) {
     offset = 0
   } = filters;
   const normalizedSearch = String(search || "").trim().toLowerCase();
-  const normalizedLocalitySearch = String(localitySearch || "").trim().toLowerCase();
+  const localitySearchValue = String(localitySearch || "").trim().toLowerCase();
+  const normalizedLocalitySearch = localitySearchValue.length >= 3 ? localitySearchValue : "";
   const normalizedHouseholdNumber = String(householdNumber || "").trim().toLowerCase();
-  const normalizedAddress = String(address || "").trim().toLowerCase();
+  const addressValue = String(address || "").trim().toLowerCase();
+  const normalizedAddress = addressValue.length >= 3 ? addressValue : "";
   const normalizedLocalityCodes = Array.isArray(localityCodes)
     ? localityCodes.map((code) => String(code)).filter(Boolean)
     : [];
@@ -503,7 +581,7 @@ export async function listHouseholds(filters = {}) {
   if (hasHouseholdIdFilter && normalizedHouseholdIds.length === 0) return [];
   const db = await getDatabase();
   if (db) {
-    await initializeSqlite(db);
+    await ensureSqliteInitialized(db);
     const params = [];
     const conditions = [];
     if (localityCode) {
@@ -515,35 +593,36 @@ export async function listHouseholds(filters = {}) {
       params.push(...normalizedLocalityCodes);
     }
     if (hasHouseholdIdFilter) {
-      conditions.push(`household_id IN (${normalizedHouseholdIds.map(() => "?").join(", ")})`);
-      params.push(...normalizedHouseholdIds);
+      conditions.push("household_id IN (SELECT value FROM json_each(?))");
+      params.push(JSON.stringify(normalizedHouseholdIds));
     }
-    if (normalizedLocalitySearch) {
-      conditions.push("LOWER(COALESCE(locality_code, '') || ' ' || COALESCE(locality_name, '')) LIKE ?");
-      params.push(`%${normalizedLocalitySearch}%`);
+    if (normalizedLocalitySearch.length >= 3) {
+      conditions.push("(locality_code LIKE ? COLLATE NOCASE OR locality_name LIKE ? COLLATE NOCASE)");
+      params.push(`${normalizedLocalitySearch}%`, `${normalizedLocalitySearch}%`);
     }
     if (normalizedHouseholdNumber) {
-      conditions.push("LOWER(COALESCE(household_number, '')) LIKE ?");
-      params.push(`%${normalizedHouseholdNumber}%`);
+      conditions.push("household_number LIKE ? COLLATE NOCASE");
+      params.push(`${normalizedHouseholdNumber}%`);
     }
-    if (normalizedAddress) {
-      conditions.push("LOWER(COALESCE(address, '')) LIKE ?");
-      params.push(`%${normalizedAddress}%`);
+    if (normalizedAddress.length >= 3) {
+      conditions.push("address LIKE ? COLLATE NOCASE");
+      params.push(`${normalizedAddress}%`);
     }
     if (normalizedSearch) {
-      conditions.push(`LOWER(
-        household_id || ' ' ||
-        COALESCE(locality_code, '') || ' ' ||
-        COALESCE(locality_name, '') || ' ' ||
-        COALESCE(structure_number, '') || ' ' ||
-        COALESCE(household_number, '') || ' ' ||
-        COALESCE(address, '') || ' ' ||
-        COALESCE(household_head_name, '') || ' ' ||
-        COALESCE(consent_status, '') || ' ' ||
-        COALESCE(mobile_number, '') || ' ' ||
-        COALESCE(interview_date, '')
-      ) LIKE ?`);
-      params.push(`%${normalizedSearch}%`);
+      const searchableColumns = [
+        "household_id",
+        "locality_code",
+        "locality_name",
+        "structure_number",
+        "household_number",
+        "address",
+        "household_head_name",
+        "consent_status",
+        "mobile_number",
+        "interview_date"
+      ];
+      conditions.push(`(${searchableColumns.map((column) => `${column} LIKE ? COLLATE NOCASE`).join(" OR ")})`);
+      params.push(...searchableColumns.map(() => `${normalizedSearch}%`));
     }
     const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
     return db.getAllAsync(
@@ -605,7 +684,7 @@ export async function listHouseholds(filters = {}) {
 export async function listHouseholdMembers(householdId) {
   const db = await getDatabase();
   if (db) {
-    await initializeSqlite(db);
+    await ensureSqliteInitialized(db);
     return db.getAllAsync(
       `SELECT individual_id, household_id, line_number, member_name,
               relationship_to_head, sex, last_residence_place,
@@ -629,7 +708,7 @@ export async function listHouseholdMembers(householdId) {
 export async function getHousehold(householdId) {
   const db = await getDatabase();
   if (db) {
-    await initializeSqlite(db);
+    await ensureSqliteInitialized(db);
     return db.getFirstAsync(
       `SELECT household_id, site_id, locality_code, locality_name, locality_type,
               structure_number, household_number, address,
@@ -649,7 +728,7 @@ export async function getHousehold(householdId) {
 export async function listLocalities() {
   const db = await getDatabase();
   if (db) {
-    await initializeSqlite(db);
+    await ensureSqliteInitialized(db);
     return db.getAllAsync(
       `SELECT locality_code, COALESCE(locality_name, locality_code) AS locality_name,
               MIN(site_id) AS site_id, COUNT(*) AS household_count
@@ -689,9 +768,11 @@ export async function searchHouseholdMembers(filters = {}) {
     limit = 50,
     offset = 0
   } = filters;
-  const normalizedName = String(name || "").trim().toLowerCase();
+  const nameValue = String(name || "").trim().toLowerCase();
+  const normalizedName = nameValue.length >= 3 ? nameValue : "";
   const normalizedHouseholdNumber = String(householdNumber || "").trim();
-  const normalizedAddress = String(address || "").trim().toLowerCase();
+  const addressValue = String(address || "").trim().toLowerCase();
+  const normalizedAddress = addressValue.length >= 3 ? addressValue : "";
   const normalizedSex = sex === undefined || sex === null || sex === "" ? "" : String(sex);
   const normalizedLocalityCodes = Array.isArray(localityCodes)
     ? localityCodes.map((code) => String(code)).filter(Boolean)
@@ -704,7 +785,7 @@ export async function searchHouseholdMembers(filters = {}) {
 
   const db = await getDatabase();
   if (db) {
-    await initializeSqlite(db);
+    await ensureSqliteInitialized(db);
     const params = [];
     let sql = `
       SELECT m.individual_id, m.household_id, m.line_number, m.member_name,
@@ -725,16 +806,16 @@ export async function searchHouseholdMembers(filters = {}) {
       params.push(...normalizedLocalityCodes);
     }
     if (hasHouseholdIdFilter) {
-      sql += ` AND m.household_id IN (${normalizedHouseholdIds.map(() => "?").join(", ")})`;
-      params.push(...normalizedHouseholdIds);
+      sql += " AND m.household_id IN (SELECT value FROM json_each(?))";
+      params.push(JSON.stringify(normalizedHouseholdIds));
     }
     if (normalizedHouseholdNumber) {
       sql += " AND h.household_number = ?";
       params.push(normalizedHouseholdNumber);
     }
-    if (normalizedAddress) {
-      sql += " AND LOWER(COALESCE(h.address, '')) LIKE ?";
-      params.push(`%${normalizedAddress}%`);
+    if (normalizedAddress.length >= 3) {
+      sql += " AND h.address LIKE ? COLLATE NOCASE";
+      params.push(`${normalizedAddress}%`);
     }
     if (normalizedSex === "other") {
       sql += " AND (m.sex IS NULL OR CAST(m.sex AS TEXT) NOT IN ('1', '2'))";
@@ -742,9 +823,9 @@ export async function searchHouseholdMembers(filters = {}) {
       sql += " AND CAST(m.sex AS TEXT) = ?";
       params.push(normalizedSex);
     }
-    if (normalizedName) {
-      sql += " AND LOWER(COALESCE(m.member_name, '')) LIKE ?";
-      params.push(`%${normalizedName}%`);
+    if (normalizedName.length >= 3) {
+      sql += " AND m.member_name LIKE ? COLLATE NOCASE";
+      params.push(`${normalizedName}%`);
     }
 
     sql += " ORDER BY h.locality_code ASC, h.household_number ASC, m.line_number ASC LIMIT ? OFFSET ?";
@@ -832,7 +913,7 @@ export async function saveSyncedHouseholdsAndMembers(households = [], members = 
   }));
 
   if (db) {
-    await initializeSqlite(db);
+    await ensureSqliteInitialized(db);
     try {
       await db.execAsync("BEGIN TRANSACTION");
       await saveHouseholdsAndMembersInTransaction(db, mappedHouseholds, mappedMembers);
@@ -974,7 +1055,7 @@ export async function saveHousehold(record) {
   assertUniqueMembers(record);
   const db = await getDatabase();
   if (db) {
-    await initializeSqlite(db);
+    await ensureSqliteInitialized(db);
     await db.runAsync(
       `INSERT INTO households (
          household_id, site_id, locality_code, locality_name, structure_number,

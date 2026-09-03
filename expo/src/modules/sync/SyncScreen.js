@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator } from "react-native";
 import * as syncService from "../sync/syncService.js";
 import * as eventOutbox from "../events/eventOutbox.js";
 import * as taskRepository from "../tasks/taskRepository.js";
-import { formatSyncCompletionMessage, summarizePendingSyncData } from "./syncWorkflow.js";
+import { formatSyncCompletionMessage } from "./syncWorkflow.js";
 import { describeNetworkError } from "../../lib/networkErrors.js";
 
 export function SyncScreen({ onClockStatusChange } = {}) {
@@ -19,11 +19,7 @@ export function SyncScreen({ onClockStatusChange } = {}) {
   const [syncError, setSyncError] = useState(null);
   const [clockStatus, setClockStatus] = useState(null);
 
-  useEffect(() => {
-    loadSyncInfo();
-  }, []);
-
-  function loadSyncInfo() {
+  const loadSyncInfo = useCallback(async () => {
     try {
       const lastSyncAt = syncService.getLastSyncAt();
       setLastSync(lastSyncAt);
@@ -36,19 +32,22 @@ export function SyncScreen({ onClockStatusChange } = {}) {
         onClockStatusChange(currentClockStatus);
       }
 
-      const pendingResponses = taskRepository.getPendingResponses();
+      const pendingResponses = await taskRepository.countPendingResponses();
       const pendingEvents = eventOutbox.getPendingEvents();
-      setPendingSummary(
-        summarizePendingSyncData({
-          formResponses: pendingResponses,
-          domainEvents: pendingEvents,
-        }),
-      );
+      setPendingSummary({
+        responses: pendingResponses,
+        events: pendingEvents.length,
+        total: pendingResponses + pendingEvents.length,
+      });
     } catch (error) {
       console.error("Error loading sync info:", error);
       setSyncError(describeNetworkError(error, { action: "Loading sync info" }));
     }
-  }
+  }, [onClockStatusChange]);
+
+  useEffect(() => {
+    loadSyncInfo();
+  }, [loadSyncInfo]);
 
   async function handleSyncNow() {
     setSyncing(true);

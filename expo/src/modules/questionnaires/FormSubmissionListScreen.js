@@ -1,5 +1,5 @@
 import { getFormDisplayCode } from "../../lib/formDisplayCodes.js";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useFocusEffect } from "expo-router";
 import {
   ActivityIndicator,
@@ -14,7 +14,7 @@ import {
   View,
 } from "react-native";
 
-import { listFormResponses } from "../tasks/taskRepository.js";
+import { listFormResponseSummaries } from "../tasks/taskRepository.js";
 import {
   buildSubmissionDisplayItems,
   filterResponses,
@@ -23,6 +23,7 @@ import {
   uniqueOptions,
 } from "./formSubmissionHistory.js";
 import { useListPaging } from "../../lib/useListPaging.js";
+import { useCommittedSearch } from "../../lib/useCommittedSearch.js";
 
 function formatDateTime(value) {
   if (!value) return "-";
@@ -158,7 +159,13 @@ export function FormSubmissionListScreen({ mode }) {
   const [responses, setResponses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [search, setSearch] = useState("");
+  const loadRequestRef = useRef(0);
+  const {
+    input: search,
+    setInput: setSearch,
+    committed: committedSearch,
+    awaitingMinimum: searchAwaitingMinimum,
+  } = useCommittedSearch();
   const [siteId, setSiteId] = useState("");
   const [formId, setFormId] = useState("");
   const [localityCode, setLocalityCode] = useState("");
@@ -174,12 +181,12 @@ export function FormSubmissionListScreen({ mode }) {
   const filteredResponses = useMemo(
     () =>
       filterResponses(responses, {
-        search,
+        search: committedSearch,
         siteId,
         formId,
         localityCode,
       }),
-    [responses, search, siteId, formId, localityCode],
+    [responses, committedSearch, siteId, formId, localityCode],
   );
   const displayItems = useMemo(
     () => (uploaded ? buildSubmissionDisplayItems(filteredResponses) : []),
@@ -205,29 +212,41 @@ export function FormSubmissionListScreen({ mode }) {
     total: pagedTotal,
   } = useListPaging(listData);
 
-  const loadResponses = useCallback(() => {
-    const rows = listFormResponses({ sync_status: syncStatus }).map(normalizeFormResponse);
-    setResponses(rows);
+  const loadResponses = useCallback(async () => {
+    const requestId = ++loadRequestRef.current;
+    const rows = (await listFormResponseSummaries({ sync_status: syncStatus })).map(normalizeFormResponse);
+    if (requestId === loadRequestRef.current) setResponses(rows);
   }, [syncStatus]);
 
   useEffect(() => {
-    try {
-      loadResponses();
-    } finally {
-      setLoading(false);
-    }
+    let active = true;
+    setLoading(true);
+    loadResponses()
+      .catch((error) => console.error("Error loading form submission history:", error))
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+      loadRequestRef.current += 1;
+    };
   }, [loadResponses]);
 
   useFocusEffect(
     useCallback(() => {
-      loadResponses();
+      loadResponses().catch((error) => console.error("Error refreshing form submission history:", error));
+      return () => {
+        loadRequestRef.current += 1;
+      };
     }, [loadResponses]),
   );
 
-  const handleRefresh = useCallback(() => {
+  const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      loadResponses();
+      await loadResponses();
+    } catch (error) {
+      console.error("Error refreshing form submission history:", error);
     } finally {
       setRefreshing(false);
     }
@@ -293,6 +312,9 @@ export function FormSubmissionListScreen({ mode }) {
             ? "Showing 1 form"
             : `Showing ${filteredResponses.length} of ${responses.length} forms`}
       </Text>
+      {searchAwaitingMinimum ? (
+        <Text style={styles.searchHint}>Enter at least 3 characters to search.</Text>
+      ) : null}
     </>
   );
 
@@ -535,6 +557,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "800",
     color: "#667085",
+  },
+  searchHint: {
+    color: "#667085",
+    fontSize: 11,
+    fontWeight: "700",
   },
   showMoreButton: {
     minHeight: 40,

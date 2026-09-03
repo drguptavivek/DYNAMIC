@@ -2,9 +2,9 @@ import { getFormDisplayCode } from "../../lib/formDisplayCodes.js";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  FlatList,
   Pressable,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -12,6 +12,7 @@ import {
 
 import { listTaskWorklistCandidates } from "../worklist/taskWorklistRepository.js";
 import { listActiveQuestionnaireDraftSummaries } from "./questionnaireDraftRepository.js";
+import { useListPaging } from "../../lib/useListPaging.js";
 import {
   countDraftAnswers,
   filterDraftsForTaskCandidates,
@@ -112,6 +113,31 @@ export function DraftPendingFormsScreen({ user }) {
     loadDrafts().finally(() => setRefreshing(false));
   }, [loadDrafts]);
 
+  // Keep the complete, filtered summary set in memory for correct counts and
+  // task/worklist matching, but mount only one 100-item page at a time.
+  const {
+    pagedItems: pagedDrafts,
+    hasMore,
+    showMore,
+    shown,
+    total,
+  } = useListPaging(drafts);
+
+  const listFooter = hasMore ? (
+    <Pressable onPress={showMore} style={styles.showMoreButton}>
+      <Text style={styles.showMoreText}>{`Show more (${shown} of ${total})`}</Text>
+    </Pressable>
+  ) : null;
+
+  const listEmpty = (
+    <View style={styles.emptyCard}>
+      <Text style={styles.emptyTitle}>No draft/pending forms</Text>
+      <Text style={styles.emptyText}>
+        Forms will appear here after Save Draft is tapped before final submission.
+      </Text>
+    </View>
+  );
+
   return (
     <View style={styles.wrap}>
       <View style={styles.header}>
@@ -129,24 +155,25 @@ export function DraftPendingFormsScreen({ user }) {
           <ActivityIndicator color="#17202a" />
         </View>
       ) : (
-        <ScrollView
+        <FlatList
+          data={pagedDrafts}
+          keyExtractor={(draft) => draft.id}
+          renderItem={({ item }) => <DraftCard draft={item} />}
           contentContainerStyle={styles.list}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
-        >
-          <Text style={styles.countText}>
-            {drafts.length === 1 ? "Showing 1 draft" : `Showing ${drafts.length} drafts`}
-          </Text>
-          {drafts.length ? (
-            drafts.map((draft) => <DraftCard key={draft.id} draft={draft} />)
-          ) : (
-            <View style={styles.emptyCard}>
-              <Text style={styles.emptyTitle}>No draft/pending forms</Text>
-              <Text style={styles.emptyText}>
-                Forms will appear here after Save Draft is tapped before final submission.
-              </Text>
-            </View>
-          )}
-        </ScrollView>
+          ListHeaderComponent={
+            <Text style={styles.countText}>
+              {drafts.length === 1 ? "Showing 1 draft" : `Showing ${drafts.length} drafts`}
+            </Text>
+          }
+          ListFooterComponent={listFooter}
+          ListEmptyComponent={listEmpty}
+          onEndReached={showMore}
+          onEndReachedThreshold={0.5}
+          initialNumToRender={20}
+          windowSize={7}
+          removeClippedSubviews
+        />
       )}
     </View>
   );
@@ -203,6 +230,21 @@ const styles = StyleSheet.create({
   countText: {
     color: "#667085",
     fontSize: 12,
+    fontWeight: "800",
+  },
+  showMoreButton: {
+    minHeight: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#c8d0d9",
+    backgroundColor: "#ffffff",
+    marginTop: 4,
+  },
+  showMoreText: {
+    color: "#0369a1",
+    fontSize: 13,
     fontWeight: "800",
   },
   card: {

@@ -14,6 +14,7 @@ const {
   buildTaskLocalityOptions,
   filterTaskWorklist,
   getTaskStage,
+  getTaskUrgencyBucket,
   isFuturePlannedTask,
   listTaskWorklistCandidates,
   normalizeTaskAttemptLimits,
@@ -105,6 +106,14 @@ const futurePlannedTask = {
 assert.equal(isFuturePlannedTask(futurePlannedTask, "2026-08-17"), true);
 assert.equal(getTaskStage(futurePlannedTask, "2026-08-17"), "future_planned");
 assert.equal(getTaskStage({ ...confirmedTask, has_active_draft: true }, "2026-08-17"), "draft");
+assert.equal(
+  getTaskUrgencyBucket({ ...confirmedTask, target_date: null, window_start: "2026-08-17" }, "2026-08-17"),
+  "today",
+);
+assert.equal(
+  getTaskUrgencyBucket({ ...confirmedTask, target_date: null, window_start: "2026-08-16" }, "2026-08-17"),
+  "overdue",
+);
 const overdueDraftTask = {
   ...confirmedTask,
   id: "overdue-draft-task",
@@ -242,6 +251,18 @@ assert.equal(withdrawnResult.reconciled[0].disposition, "withdrawn");
 const worklist = listTaskWorklist({ locality_code: "02" }, repository);
 assert.deepEqual(worklist.map((task) => task.id), ["local-task-1"]);
 
+assert.deepEqual(
+  buildTaskLocalityOptions([], [
+    { site_id: 1, locality_code: "01", locality_name: "North" },
+    { site_id: 1, locality_code: "02", locality_name: "South" },
+  ]),
+  [
+    { code: "01", label: "North (01)" },
+    { code: "02", label: "South (02)" },
+  ],
+  "assigned locality masters must remain available even when no task currently uses them",
+);
+
 let candidateFilters = null;
 const candidates = listTaskWorklistCandidates({}, {
   listTasks(filters = {}) {
@@ -328,7 +349,7 @@ assert.deepEqual(
       { site_id: 2, locality_code: "02", locality_name: "02" },
     ],
   ).map((option) => option.code),
-  ["02"],
+  ["01", "02"],
 );
 assert.deepEqual(
   buildTaskLocalityOptions(

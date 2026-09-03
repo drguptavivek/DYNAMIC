@@ -1,14 +1,14 @@
 /**
  * Provides household list, detail, and baseline-household-form routes for the field app.
  */
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 
 import { getRuntimeFormByCode } from "../../data/runtimeFormCatalog";
 import { getAssignedLocalities, getAssignedSites } from "../../lib/householdMasterChoices.js";
 import { ROUTES, navigateTo } from "../../navigation/routes";
 import * as syncService from "../sync/syncService.js";
-import { listTasks } from "../tasks/taskRepository.js";
+import { listOpenHhqHouseholdIds } from "../tasks/taskRepository.js";
 import { BaselineHouseholdForm } from "./BaselineHouseholdForm.js";
 import {
   formatSite,
@@ -23,21 +23,11 @@ import {
 const HHQ_CODE = "HHQ";
 const PAGE_SIZE = 50;
 const MEMBER_SEARCH_PAGE_SIZE = 10;
+const FREE_TEXT_SEARCH_MIN_LENGTH = 3;
+const SEARCH_DEBOUNCE_MS = 300;
 
 function isFieldWorker(user) {
   return String(user?.role || "").toLowerCase().replace(/[\s-]+/g, "_") === "field_worker";
-}
-
-function getOpenHhqHouseholdIdsForUser(user) {
-  if (!isFieldWorker(user)) return null;
-  return [
-    ...new Set(
-      listTasks({ status: "open", task_type: HHQ_CODE })
-        .map((task) => task.household_id || task.subject_id)
-        .filter(Boolean)
-        .map(String)
-    )
-  ];
 }
 
 export function HouseholdModule({
@@ -57,9 +47,11 @@ export function HouseholdModule({
   const [households, setHouseholds] = useState([]);
   const [selectedLocalityCodes, setSelectedLocalityCodes] = useState([]);
   const [householdNumber, setHouseholdNumber] = useState("");
+  const [addressSearchInput, setAddressSearchInput] = useState("");
   const [addressSearch, setAddressSearch] = useState("");
   const [householdPage, setHouseholdPage] = useState(0);
   const [householdHasNextPage, setHouseholdHasNextPage] = useState(false);
+  const [memberNameInput, setMemberNameInput] = useState("");
   const [memberName, setMemberName] = useState("");
   const [memberSex, setMemberSex] = useState("");
   const [memberPage, setMemberPage] = useState(0);
@@ -71,6 +63,11 @@ export function HouseholdModule({
   const [saveMessage, setSaveMessage] = useState("");
   const [syncing, setSyncing] = useState(false);
   const [syncProgress, setSyncProgress] = useState(null);
+  const [openHhqHouseholdIds, setOpenHhqHouseholdIds] = useState(null);
+  const [openHhqIdsLoading, setOpenHhqIdsLoading] = useState(isFieldWorker(user));
+  const [openHhqIdsReloadKey, setOpenHhqIdsReloadKey] = useState(0);
+  const householdRequestRef = useRef(0);
+  const userKey = `${user?.id || user?.user_id || user?.username || ""}:${String(user?.role || "")}`;
   const hhqForm = getRuntimeFormByCode(HHQ_CODE);
   const showForm = mode === "new";
   const assignedLocalities = useMemo(() => {
@@ -82,25 +79,100 @@ export function HouseholdModule({
     }));
   }, [user, localities]);
 
+  useEffect(() => {
+    const trimmed = addressSearchInput.trim();
+    if (trimmed.length < FREE_TEXT_SEARCH_MIN_LENGTH) {
+      setAddressSearch("");
+      return undefined;
+    }
+    const timeout = setTimeout(() => setAddressSearch(trimmed), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timeout);
+  }, [addressSearchInput]);
+
+  useEffect(() => {
+    const trimmed = memberNameInput.trim();
+    if (trimmed.length < FREE_TEXT_SEARCH_MIN_LENGTH) {
+      setMemberName("");
+      return undefined;
+    }
+    const timeout = setTimeout(() => setMemberName(trimmed), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timeout);
+  }, [memberNameInput]);
+
+  function handleAddressSearchChange(value) {
+    setAddressSearchInput(value);
+    if (value.trim().length < FREE_TEXT_SEARCH_MIN_LENGTH) setAddressSearch("");
+  }
+
+  function handleMemberNameChange(value) {
+    setMemberNameInput(value);
+    if (value.trim().length < FREE_TEXT_SEARCH_MIN_LENGTH) setMemberName("");
+  }
+
+  useEffect(() => {
+    let active = true;
+    if (!isFieldWorker(user)) {
+      setOpenHhqHouseholdIds(null);
+      setOpenHhqIdsLoading(false);
+      return () => {
+        active = false;
+      };
+    }
+
+    setOpenHhqHouseholdIds(null);
+    setOpenHhqIdsLoading(true);
+    listOpenHhqHouseholdIds()
+      .then((ids) => {
+        if (active) setOpenHhqHouseholdIds(ids);
+      })
+      .catch((error) => {
+        // A field worker must never see an unscoped fallback after a local
+        // task query failure. An empty allow-list is fail-closed.
+        console.error("Unable to load open HHQ household IDs:", error);
+        if (active) setOpenHhqHouseholdIds([]);
+      })
+      .finally(() => {
+        if (active) setOpenHhqIdsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [userKey, openHhqIdsReloadKey]);
+
   const refreshHouseholds = async () => {
-    await initializeHouseholdRepository();
-    const scopedHouseholdIds = getOpenHhqHouseholdIdsForUser(user);
-    const rows = await listHouseholds({
-      localityCode: selectedLocalityCode,
-      localityCodes: selectedLocalityCodes,
-      householdIds: scopedHouseholdIds,
-      householdNumber,
-      address: addressSearch,
-      limit: PAGE_SIZE + 1,
-      offset: householdPage * PAGE_SIZE
-    });
-    setHouseholdHasNextPage(rows.length > PAGE_SIZE);
-    setHouseholds(rows.slice(0, PAGE_SIZE));
+    const requestId = ++householdRequestRef.current;
+    const fieldWorker = isFieldWorker(user);
+    if (fieldWorker && (openHhqIdsLoading || openHhqHouseholdIds === null)) {
+      setHouseholdHasNextPage(false);
+      setHouseholds([]);
+      return;
+    }
+    try {
+      await initializeHouseholdRepository();
+      const rows = await listHouseholds({
+        localityCode: selectedLocalityCode,
+        localityCodes: selectedLocalityCodes,
+        householdIds: fieldWorker ? openHhqHouseholdIds : null,
+        householdNumber,
+        address: addressSearch,
+        limit: PAGE_SIZE + 1,
+        offset: householdPage * PAGE_SIZE
+      });
+      if (requestId !== householdRequestRef.current) return;
+      setHouseholdHasNextPage(rows.length > PAGE_SIZE);
+      setHouseholds(rows.slice(0, PAGE_SIZE));
+    } catch (error) {
+      console.error("Unable to load households:", error);
+      if (requestId === householdRequestRef.current) {
+        setHouseholdHasNextPage(false);
+        setHouseholds([]);
+      }
+    }
   };
 
   useEffect(() => {
     refreshHouseholds();
-  }, [user, selectedLocalityCode, selectedLocalityCodes, householdNumber, addressSearch, householdPage]);
+  }, [userKey, selectedLocalityCode, selectedLocalityCodes, householdNumber, addressSearch, householdPage, openHhqHouseholdIds, openHhqIdsLoading]);
 
   useEffect(() => {
     setHouseholdPage(0);
@@ -118,7 +190,7 @@ export function HouseholdModule({
   useEffect(() => {
     let active = true;
     const hasMemberSearch =
-      memberName.trim() || memberSex;
+      memberName || memberSex;
 
     async function runMemberSearch() {
       if (!hasMemberSearch) {
@@ -126,11 +198,15 @@ export function HouseholdModule({
         setMemberHasNextPage(false);
         return;
       }
-      const scopedHouseholdIds = getOpenHhqHouseholdIdsForUser(user);
+      if (isFieldWorker(user) && (openHhqIdsLoading || openHhqHouseholdIds === null)) {
+        setMemberResults([]);
+        setMemberHasNextPage(false);
+        return;
+      }
       const rows = await searchHouseholdMembers({
         localityCode: selectedLocalityCode,
         localityCodes: selectedLocalityCodes,
-        householdIds: scopedHouseholdIds,
+        householdIds: isFieldWorker(user) ? openHhqHouseholdIds : null,
         name: memberName,
         householdNumber,
         address: addressSearch,
@@ -148,7 +224,7 @@ export function HouseholdModule({
     return () => {
       active = false;
     };
-  }, [user, selectedLocalityCode, selectedLocalityCodes, householdNumber, addressSearch, memberName, memberSex, memberPage]);
+  }, [userKey, selectedLocalityCode, selectedLocalityCodes, householdNumber, addressSearch, memberName, memberSex, memberPage, openHhqHouseholdIds, openHhqIdsLoading]);
 
   function toggleLocalityFilter(localityCode) {
     setSelectedLocalityCodes((current) => {
@@ -196,6 +272,7 @@ export function HouseholdModule({
       if (onDataSynced) {
         await onDataSynced();
       }
+      if (isFieldWorker(user)) setOpenHhqIdsReloadKey((key) => key + 1);
       const cacheInfo = getHouseholdCacheInfo();
       const pulledMessage = `Synced ${result.pulledHouseholds || 0} households and ${result.pulledMembers || 0} members`;
       setSaveMessage(
@@ -271,14 +348,14 @@ export function HouseholdModule({
             style={[styles.search, styles.householdNumberFilterInput]}
           />
           <TextInput
-            value={addressSearch}
-            onChangeText={setAddressSearch}
+            value={addressSearchInput}
+            onChangeText={handleAddressSearchChange}
             placeholder="Addr"
             style={[styles.search, styles.addressFilterInput]}
           />
           <TextInput
-            value={memberName}
-            onChangeText={setMemberName}
+            value={memberNameInput}
+            onChangeText={handleMemberNameChange}
             placeholder="Name"
             style={[styles.search, styles.memberNameFilterInput]}
           />

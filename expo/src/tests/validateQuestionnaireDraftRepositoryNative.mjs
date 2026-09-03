@@ -202,9 +202,35 @@ assert.ok(
   save1Selects.length <= 2,
   `saveQuestionnaireDraft should issue at most 2 SELECTs, got ${save1Selects.length}`,
 );
+assert.ok(
+  save1Selects.every((sql) => !/^SELECT\s+\*/i.test(sql) && !/\bjson_payload\b/i.test(sql)),
+  `saveQuestionnaireDraft native matching must not select json_payload: ${save1Selects.join(" | ")}`,
+);
+assert.ok(save1Selects.every((sql) => /\btask_id\b/i.test(sql) && /\bsubject_type\b/i.test(sql)));
 
 assert.equal(draft1.draft_status, "active");
 assert.deepEqual(draft1.json_payload, { hhq_site_id: 1 });
+const firstCreatedAt = draft1.created_at;
+
+mark = db.log.length;
+const directlyResaved = await saveQuestionnaireDraft({
+  ...context,
+  draftId: draft1.draft_id,
+  payload: { hhq_site_id: 1, hhq_household_head_name: "Direct ID payload" },
+  completionState: { currentPageName: "page_direct" },
+});
+const directSaveSelects = selectCallsSince(db, mark);
+assert.ok(directSaveSelects.length <= 2);
+assert.ok(
+  directSaveSelects.every((sql) => !/^SELECT\s+\*/i.test(sql) && !/\bjson_payload\b/i.test(sql)),
+  `direct-ID save must not select json_payload: ${directSaveSelects.join(" | ")}`,
+);
+assert.equal(directlyResaved.draft_id, draft1.draft_id);
+assert.equal(directlyResaved.created_at, firstCreatedAt);
+assert.deepEqual(
+  (await getQuestionnaireDraftById(draft1.draft_id)).json_payload,
+  { hhq_site_id: 1, hhq_household_head_name: "Direct ID payload" },
+);
 
 const activeById = await getQuestionnaireDraftById(draft1.draft_id);
 assert.equal(activeById.draft_id, draft1.draft_id);
@@ -254,6 +280,7 @@ assert.ok(
   save2Selects.length <= 2,
   `saveQuestionnaireDraft should issue at most 2 SELECTs, got ${save2Selects.length}`,
 );
+assert.ok(save2Selects.every((sql) => !/\bjson_payload\b/i.test(sql)));
 
 // The identity-key match reuses draft1's row rather than minting a new one...
 assert.equal(draft2.draft_id, draft1.draft_id);
@@ -445,6 +472,53 @@ assert.equal(wqIndexRow.woman_id, "5-05-0005-01-01");
 assert.equal(wqIndexRow.household_id, "5-05-0005-01");
 assert.equal(wqIndexRow.answer_count, 1);
 assert.equal(wqIndexRow.respondent_label, "5-05-0005-01");
+
+// Exact task/type identity wins over a newer broader identity candidate. This
+// keeps two rows for the same user/form/subject distinguishable when their
+// draft keys differ, while preserving the existing household fallback for a
+// recreated task key.
+db.insertRaw({
+  draft_id: "specific-task-a",
+  draft_key: "HHQ|v1|task-specific-a|household|6-06-0006-01|device-specific|user-specific",
+  form_code: "HHQ",
+  form_version: "v1",
+  task_id: "task-specific-a",
+  subject_type: "household",
+  subject_id: "6-06-0006-01",
+  device_id: "device-specific",
+  user_id: "user-specific",
+  draft_status: "active",
+  created_at: "2026-01-01T00:00:00.000Z",
+  updated_at: "2026-01-01T00:00:00.000Z",
+  household_id: "6-06-0006-01",
+});
+db.insertRaw({
+  draft_id: "specific-task-b",
+  draft_key: "HHQ|v1|task-specific-b|individual|6-06-0006-01|device-specific|user-specific",
+  form_code: "HHQ",
+  form_version: "v1",
+  task_id: "task-specific-b",
+  subject_type: "individual",
+  subject_id: "6-06-0006-01",
+  device_id: "device-specific",
+  user_id: "user-specific",
+  draft_status: "active",
+  created_at: "2026-02-01T00:00:00.000Z",
+  updated_at: "2099-01-01T00:00:00.000Z",
+  household_id: "6-06-0006-01",
+});
+const specificTaskDraft = await saveQuestionnaireDraft({
+  formCode: "HHQ",
+  formVersion: "v1",
+  taskId: "task-specific-a",
+  subjectType: "household",
+  subjectId: "6-06-0006-01",
+  deviceId: "device-specific",
+  userId: "user-specific",
+  payload: { hhq_site_id: 6, hhq_household_head_name: "Task A" },
+});
+assert.equal(specificTaskDraft.draft_id, "specific-task-a");
+assert.equal(await getQuestionnaireDraftById("specific-task-b"), null);
 
 // --- (f) every SELECT ever issued against questionnaire_drafts carries a ---
 // WHERE clause (parseSelect() above already throws otherwise, but assert

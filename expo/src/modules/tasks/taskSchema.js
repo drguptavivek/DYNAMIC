@@ -231,6 +231,13 @@ export function initTaskDb() {
     "CREATE INDEX IF NOT EXISTS follow_up_tasks_locality_status_idx ON follow_up_tasks (assigned_locality_code, status)",
     "CREATE INDEX IF NOT EXISTS follow_up_tasks_sync_status_idx ON follow_up_tasks (sync_status)",
     "CREATE INDEX IF NOT EXISTS follow_up_tasks_household_id_idx ON follow_up_tasks (household_id)",
+    "CREATE INDEX IF NOT EXISTS follow_up_tasks_household_id_nocase_idx ON follow_up_tasks (household_id COLLATE NOCASE)",
+    "CREATE INDEX IF NOT EXISTS follow_up_tasks_task_key_nocase_idx ON follow_up_tasks (task_key COLLATE NOCASE)",
+    "CREATE INDEX IF NOT EXISTS follow_up_tasks_subject_id_nocase_idx ON follow_up_tasks (subject_id COLLATE NOCASE)",
+    "CREATE INDEX IF NOT EXISTS follow_up_tasks_subject_name_nocase_idx ON follow_up_tasks (subject_name COLLATE NOCASE)",
+    "CREATE INDEX IF NOT EXISTS follow_up_tasks_task_type_nocase_idx ON follow_up_tasks (task_type COLLATE NOCASE)",
+    "CREATE INDEX IF NOT EXISTS follow_up_tasks_protocol_visit_label_nocase_idx ON follow_up_tasks (protocol_visit_label COLLATE NOCASE)",
+    "CREATE INDEX IF NOT EXISTS follow_up_tasks_locality_nocase_idx ON follow_up_tasks (assigned_locality_code COLLATE NOCASE)",
     "CREATE INDEX IF NOT EXISTS form_responses_sync_status_submitted_at_idx ON form_responses (sync_status, submitted_at)",
     "CREATE INDEX IF NOT EXISTS form_responses_household_id_idx ON form_responses (household_id)",
     "CREATE INDEX IF NOT EXISTS task_attempts_task_id_idx ON task_attempts (task_id)",
@@ -241,8 +248,10 @@ export function initTaskDb() {
   ]) {
     try {
       db.runSync(statement);
-    } catch {
-      // Index target column missing on an unexpected schema variant; skip rather than brick startup.
+    } catch (error) {
+      // Keep an unexpected legacy schema usable, but make missing performance
+      // indexes visible instead of silently degrading every subsequent read.
+      console.warn(`Could not create local task index: ${statement}`, error);
     }
   }
 

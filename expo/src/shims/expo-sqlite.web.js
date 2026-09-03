@@ -290,6 +290,12 @@ class WebDatabase {
   getFirstSync(sql, params = []) {
     const normalized = sql.trim().replace(/\s+/g, " ");
 
+    if (/SELECT COUNT\(\*\) AS total FROM form_responses WHERE sync_status = 'pending'/i.test(normalized)) {
+      return {
+        total: this.state.form_responses.filter((row) => row.sync_status === "pending").length,
+      };
+    }
+
     if (/SELECT value FROM sync_meta WHERE key = \?/i.test(normalized)) {
       return { value: this.state.sync_meta[params[0]] ?? null };
     }
@@ -330,7 +336,36 @@ class WebDatabase {
     }
 
     if (/SELECT \* FROM form_responses WHERE sync_status = 'pending'/i.test(normalized)) {
-      return sortBy(this.state.form_responses.filter((row) => row.sync_status === "pending"), "created_at");
+      const rows = sortBy(
+        this.state.form_responses.filter((row) => row.sync_status === "pending"),
+        "created_at",
+      );
+      if (/LIMIT \?/i.test(normalized)) return rows.slice(0, Number(params.at(-1)) || rows.length);
+      return rows;
+    }
+
+    if (/^SELECT id, form_code, form_version, household_id, site_id, locality_code, subject_type, subject_id, submitted_at, sync_status, sync_error, sync_error_at, server_response_status, created_at, updated_at FROM form_responses/i.test(normalized)) {
+      let rows = [...this.state.form_responses];
+      if (/sync_status = \?/i.test(normalized)) {
+        rows = rows.filter((row) => row.sync_status === params[0]);
+      }
+      return sortBy(rows, "submitted_at", "DESC").map((row) => ({
+        id: row.id,
+        form_code: row.form_code,
+        form_version: row.form_version,
+        household_id: row.household_id,
+        site_id: row.site_id,
+        locality_code: row.locality_code,
+        subject_type: row.subject_type,
+        subject_id: row.subject_id,
+        submitted_at: row.submitted_at,
+        sync_status: row.sync_status,
+        sync_error: row.sync_error,
+        sync_error_at: row.sync_error_at,
+        server_response_status: row.server_response_status,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+      }));
     }
 
     if (/SELECT \* FROM form_responses WHERE 1=1/i.test(normalized)) {

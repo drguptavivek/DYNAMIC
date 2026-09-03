@@ -72,7 +72,10 @@ async function queryRows(whereSql, params = [], orderBySql) {
   const sql = `SELECT * FROM questionnaire_drafts WHERE ${whereSql}${
     orderBySql ? ` ORDER BY ${orderBySql}` : ""
   }`;
-  return db.getAllSync(sql, params).map(decodeNativeRow);
+  const rows = typeof db.getAllAsync === "function"
+    ? await db.getAllAsync(sql, params)
+    : db.getAllSync(sql, params);
+  return rows.map(decodeNativeRow);
 }
 
 async function queryFirstRow(whereSql, params = [], orderBySql) {
@@ -80,8 +83,71 @@ async function queryFirstRow(whereSql, params = [], orderBySql) {
   const sql = `SELECT * FROM questionnaire_drafts WHERE ${whereSql}${
     orderBySql ? ` ORDER BY ${orderBySql}` : ""
   }`;
-  const row = db.getFirstSync(sql, params);
+  const row = typeof db.getFirstAsync === "function"
+    ? await db.getFirstAsync(sql, params)
+    : db.getFirstSync(sql, params);
   return row ? decodeNativeRow(row) : null;
+}
+
+// Native save/resume matching only needs identity, lifecycle, timestamps, and
+// the denormalized matching columns. Keep this projection separate from
+// queryRows(): loading an existing draft by id must not parse its potentially
+// large answer payload just to preserve draft_id/created_at, and candidate
+// rows must not carry payloads into duplicate matching.
+const DRAFT_MATCH_COLUMNS = [
+  "draft_id",
+  "draft_key",
+  "form_code",
+  "form_version",
+  "task_id",
+  "subject_type",
+  "subject_id",
+  "device_id",
+  "user_id",
+  "draft_status",
+  "created_at",
+  "updated_at",
+  "household_id",
+  "site_id",
+  "locality_code",
+  "woman_id",
+  "structure_map_id",
+  "household_number",
+];
+
+function decodeDraftMatchRow(row) {
+  const match = {};
+  for (const column of DRAFT_MATCH_COLUMNS) match[column] = row[column];
+  // Identity helpers intentionally use denormalized columns first. Leaving
+  // this empty makes accidental payload reads visible in tests and prevents
+  // a caller from treating a summary as a resumable full draft.
+  match.json_payload = {};
+  match.completion_state = {};
+  return match;
+}
+
+async function queryDraftMatchRows(whereSql, params = [], orderBySql) {
+  const db = await getNativeDatabase();
+  const columnsSql = DRAFT_MATCH_COLUMNS.join(", ");
+  const sql = `SELECT ${columnsSql} FROM questionnaire_drafts WHERE ${whereSql}${
+    orderBySql ? ` ORDER BY ${orderBySql}` : ""
+  }`;
+  const rows = typeof db.getAllAsync === "function"
+    ? await db.getAllAsync(sql, params)
+    : db.getAllSync(sql, params);
+  return rows.map(decodeDraftMatchRow);
+}
+
+async function queryFirstDraftMatchRow(whereSql, params = [], orderBySql) {
+  const db = await getNativeDatabase();
+  const columnsSql = DRAFT_MATCH_COLUMNS.join(", ");
+  const sql = `SELECT ${columnsSql} FROM questionnaire_drafts WHERE ${whereSql}${
+    orderBySql ? ` ORDER BY ${orderBySql}` : ""
+  }`;
+  const row = typeof db.getFirstAsync === "function"
+    ? await db.getFirstAsync(sql, params)
+    : db.getFirstSync(sql, params);
+  return row ? decodeDraftMatchRow(row) : null;
 }
 
 // form_code/form_version/user_id are components of both buildDraftIdentityKey
@@ -560,7 +626,9 @@ let summaryQueryUnsupported = false;
 async function queryActiveDraftSummaryRows() {
   const db = await getNativeDatabase();
   const sql = buildActiveDraftSummarySql();
-  const rows = db.getAllSync(sql, []);
+  const rows = typeof db.getAllAsync === "function"
+    ? await db.getAllAsync(sql, [])
+    : db.getAllSync(sql, []);
   return rows.map(decodeSummaryRow);
 }
 
@@ -742,37 +810,29 @@ export async function saveQuestionnaireDraft({
   if (storage) {
     const rows = await readRows();
     const newestRows = sortNewestFirst(rows);
+    const activeRows = newestRows.filter((row) => row.draft_status === "active");
     existing =
       newestRows.find((row) => row.draft_id === draftId) ||
-      newestRows.find(
-        (row) =>
-          row.draft_status === "active" &&
-          (
-            row.draft_key === draftKey ||
-            getDraftIdentityKey(row) === draftIdentityKey ||
-            getDraftHouseholdUserKey(row) === draftHouseholdUserKey
-          ),
-      ) ||
+      activeRows.find((row) => row.draft_key === draftKey) ||
+      activeRows.find((row) => getDraftIdentityKey(row) === draftIdentityKey) ||
+      activeRows.find((row) => getDraftHouseholdUserKey(row) === draftHouseholdUserKey) ||
       null;
   } else {
     // At most two SELECTs total: an optional direct draft_id lookup, plus one
     // narrowed active-scope candidate query that is reused below both to find
     // the "existing" draft (draft_key / identity-key / household-key match)
     // and, unchanged, as the duplicate set for supersedeDuplicateActiveDrafts.
-    const byId = draftId ? await queryFirstRow("draft_id = ?", [draftId]) : null;
-    candidateRows = await queryRows(
+    const byId = draftId ? await queryFirstDraftMatchRow("draft_id = ?", [draftId]) : null;
+    candidateRows = await queryDraftMatchRows(
       activeScopeWhereSql(),
       activeScopeParams(formCode, formVersion, userId),
       "updated_at DESC",
     );
     existing =
       byId ||
-      candidateRows.find(
-        (row) =>
-          row.draft_key === draftKey ||
-          getDraftIdentityKey(row) === draftIdentityKey ||
-          getDraftHouseholdUserKey(row) === draftHouseholdUserKey,
-      ) ||
+      candidateRows.find((row) => row.draft_key === draftKey) ||
+      candidateRows.find((row) => getDraftIdentityKey(row) === draftIdentityKey) ||
+      candidateRows.find((row) => getDraftHouseholdUserKey(row) === draftHouseholdUserKey) ||
       null;
   }
 

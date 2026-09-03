@@ -1,9 +1,19 @@
-import { formCatalog } from "../../data/formCatalog";
+import { formCatalog } from "../../data/formMetadata.js";
 import { getFormDisplayCode } from "../../lib/formDisplayCodes.js";
 
 const FORM_TITLES_BY_CODE = new Map(
   (formCatalog || []).map((form) => [String(form.form_code).toUpperCase(), form.title])
 );
+
+export function listStandardTaskTypeOptions() {
+  return formCatalog
+    .map((form) => ({
+      value: String(form.form_code || "").toUpperCase(),
+      label: getTaskTypeLabel(form.form_code),
+    }))
+    .filter((option) => option.value)
+    .sort((left, right) => left.value.localeCompare(right.value));
+}
 
 export function getTaskTypeLabel(taskType) {
   const code = String(taskType || "").trim().toUpperCase();

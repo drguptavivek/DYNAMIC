@@ -1,4 +1,5 @@
 import { getDb } from "./taskSchema.js";
+import { getLocalCalendarDate } from "../../lib/localDate.js";
 
 export function listTasks(filters = {}) {
   const db = getDb();
@@ -23,7 +24,7 @@ export function listTasks(filters = {}) {
   }
 
   if (overdue) {
-    const today = new Date().toISOString().split("T")[0];
+    const today = getLocalCalendarDate();
     sql += " AND target_date < ?";
     params.push(today);
   }
@@ -36,6 +37,289 @@ export function listTasks(filters = {}) {
   } catch (error) {
     console.error("Error listing tasks:", error);
     return [];
+  }
+}
+
+const TERMINAL_TASK_STATUSES = [
+  "completed",
+  "missed",
+  "cancelled",
+  "superseded",
+  "closed",
+  "closed_final_reason",
+];
+const WORKLIST_PAGE_SIZE = 100;
+
+function isTerminalWorklistRow(task) {
+  return TERMINAL_TASK_STATUSES.includes(task?.status) ||
+    TERMINAL_TASK_STATUSES.includes(task?.lifecycle_status);
+}
+
+function matchesDraftRow(task, draftMap) {
+  const values = draftMap.get(String(task?.task_type || "").toUpperCase());
+  if (!values) return false;
+  return [task?.id, task?.task_key, task?.household_id, task?.subject_id]
+    .some((value) => values.has(String(value || "").trim()));
+}
+
+function filterWorklistRowsForSyncFallback(rows, filters) {
+  const today = filters.today || getLocalCalendarDate();
+  const stage = String(filters.stage || "");
+  const normalizedSearch = String(filters.search || "").trim().toLowerCase();
+  const draftMap = draftIdentityValues(filters.activeDrafts || []);
+  const isBaseline = (task) => ["HHQ", "WQ"].includes(String(task?.task_type || "").toUpperCase());
+  const protocolDate = (task) => task?.target_date || task?.window_start || "";
+  const opensOn = (task) => task?.window_start || task?.target_date || "";
+  const isFuture = (task) =>
+    String(task?.lifecycle_status || task?.status || "").toLowerCase() === "planned" &&
+    !isBaseline(task) && Boolean(opensOn(task) && opensOn(task) > today);
+  const matches = (task) => {
+    if (isTerminalWorklistRow(task)) return false;
+    if (filters.status && task?.status !== filters.status) return false;
+    if (filters.task_type && task?.task_type !== filters.task_type) return false;
+    if (filters.locality_code && task?.assigned_locality_code !== filters.locality_code) return false;
+    if (normalizedSearch && normalizedSearch.length >= 3) {
+      const found = [task?.id, task?.task_key, task?.task_type, task?.household_id, task?.subject_id,
+        task?.subject_name, task?.subject_type, task?.protocol_visit_label,
+        task?.assigned_locality_code].some((value) =>
+        String(value || "").toLowerCase().startsWith(normalizedSearch));
+      if (!found) return false;
+    }
+    const draft = matchesDraftRow(task, draftMap);
+    const actionable = isBaseline(task) ||
+      String(task?.lifecycle_status || task?.status || "").toLowerCase() !== "planned" ||
+      !opensOn(task) || opensOn(task) <= today;
+    if (stage === "future_planned") return isFuture(task);
+    if (!actionable) return false;
+    if (stage === "draft") return draft;
+    if (stage === "outdated") return protocolDate(task) < today;
+    if (stage === "current") return protocolDate(task) === today && !draft;
+    if (stage === "upcoming") return (protocolDate(task) > today || !protocolDate(task)) && !draft;
+    return true;
+  };
+  return rows.filter(matches).sort((left, right) => {
+    if (!stage) {
+      const draftOrder = Number(matchesDraftRow(left, draftMap)) - Number(matchesDraftRow(right, draftMap));
+      if (draftOrder) return -draftOrder;
+    }
+    const leftDate = protocolDate(left);
+    const rightDate = protocolDate(right);
+    return leftDate.localeCompare(rightDate) ||
+      String(left?.task_key || left?.id || "").localeCompare(String(right?.task_key || right?.id || ""));
+  });
+}
+
+function draftIdentityValues(drafts = []) {
+  const byForm = new Map();
+  for (const draft of drafts || []) {
+    const formCode = String(draft?.form_code || "").trim().toUpperCase();
+    if (!formCode) continue;
+    const values = byForm.get(formCode) || new Set();
+    for (const value of [
+      draft?.task_id,
+      draft?.draft_id,
+      draft?.draft_key,
+      draft?.subject_id,
+      draft?.woman_id,
+      draft?.household_id,
+    ]) {
+      const normalized = String(value || "").trim();
+      if (normalized) values.add(normalized);
+    }
+    byForm.set(formCode, values);
+  }
+  return byForm;
+}
+
+function buildDraftPredicate(drafts = []) {
+  const byForm = draftIdentityValues(drafts);
+  const clauses = [];
+  const params = [];
+  for (const [formCode, values] of byForm) {
+    if (values.size === 0) continue;
+    const valuesJson = JSON.stringify([...values]);
+    clauses.push(
+      `(UPPER(COALESCE(t.task_type, '')) = ? AND (` +
+        "t.id IN (SELECT value FROM json_each(?)) OR " +
+        "t.task_key IN (SELECT value FROM json_each(?)) OR " +
+        "t.household_id IN (SELECT value FROM json_each(?)) OR " +
+        "t.subject_id IN (SELECT value FROM json_each(?))) )",
+    );
+    params.push(formCode, valuesJson, valuesJson, valuesJson, valuesJson);
+  }
+  return { sql: clauses.length ? `(${clauses.join(" OR ")})` : "0", params };
+}
+
+function buildWorklistWhere(filters = {}) {
+  const {
+    status,
+    task_type: taskType,
+    locality_code: localityCode,
+    stage,
+    search,
+    today = getLocalCalendarDate(),
+    activeDrafts = [],
+  } = filters;
+  const params = [];
+  const conditions = [
+    `COALESCE(t.status, t.lifecycle_status, 'open') NOT IN (${TERMINAL_TASK_STATUSES.map(() => "?").join(",")})`,
+    `COALESCE(t.lifecycle_status, t.status, 'open') NOT IN (${TERMINAL_TASK_STATUSES.map(() => "?").join(",")})`,
+  ];
+  params.push(...TERMINAL_TASK_STATUSES, ...TERMINAL_TASK_STATUSES);
+
+  if (status) {
+    conditions.push("t.status = ?");
+    params.push(status);
+  }
+  if (taskType) {
+    conditions.push("t.task_type = ?");
+    params.push(taskType);
+  }
+  if (localityCode) {
+    conditions.push("t.assigned_locality_code = ?");
+    params.push(localityCode);
+  }
+
+  const normalizedSearch = String(search || "").trim();
+  if (normalizedSearch.length >= 3) {
+    const searchColumns = [
+      "t.id",
+      "t.task_key",
+      "t.task_type",
+      "t.household_id",
+      "t.subject_id",
+      "t.subject_name",
+      "t.subject_type",
+      "t.protocol_visit_label",
+      "t.assigned_locality_code",
+      "h.household_head_name",
+      "h.address",
+    ];
+    conditions.push(`(${searchColumns.map((column) => `${column} LIKE ? COLLATE NOCASE`).join(" OR ")})`);
+    params.push(...searchColumns.map(() => `${normalizedSearch}%`));
+  }
+
+  const lifecycle = "LOWER(COALESCE(t.lifecycle_status, t.status, ''))";
+  const taskTypeExpr = "UPPER(COALESCE(t.task_type, ''))";
+  const opensOn = "COALESCE(NULLIF(t.window_start, ''), NULLIF(t.target_date, ''))";
+  const protocolDate = "COALESCE(NULLIF(t.target_date, ''), NULLIF(t.window_start, ''), '')";
+  const baseline = `${taskTypeExpr} IN ('HHQ', 'WQ')`;
+  const actionable = `(${baseline} OR ${lifecycle} <> 'planned' OR ${opensOn} IS NULL OR ${opensOn} = '' OR ${opensOn} <= ?)`;
+  const futurePlanned = `(${lifecycle} = 'planned' AND ${taskTypeExpr} NOT IN ('HHQ', 'WQ') AND ${opensOn} > ?)`;
+  const draftPredicate = buildDraftPredicate(activeDrafts);
+  const hasDrafts = draftPredicate.sql !== "0";
+
+  if (stage === "future_planned") {
+    conditions.push(futurePlanned);
+    params.push(today);
+  } else if (stage === "draft") {
+    conditions.push(actionable, draftPredicate.sql);
+    params.push(today, ...draftPredicate.params);
+  } else {
+    conditions.push(actionable);
+    params.push(today);
+    if (stage === "outdated") {
+      conditions.push(`${protocolDate} < ?`);
+      params.push(today);
+    } else if (stage === "current") {
+      conditions.push(`${protocolDate} = ?`);
+      params.push(today);
+      if (hasDrafts) {
+        conditions.push(`NOT ${draftPredicate.sql}`);
+        params.push(...draftPredicate.params);
+      }
+    } else if (stage === "upcoming") {
+      conditions.push(`(${protocolDate} > ? OR ${protocolDate} = '')`);
+      params.push(today);
+      if (hasDrafts) {
+        conditions.push(`NOT ${draftPredicate.sql}`);
+        params.push(...draftPredicate.params);
+      }
+    }
+  }
+
+  return { sql: conditions.join(" AND "), params, draftPredicate };
+}
+
+/**
+ * Fetches one database-backed worklist page and its exact matching count.
+ * The page size is deliberately capped here so every caller gets bounded
+ * SQLite -> JS transfer even if a UI forgets to pass a limit.
+ */
+export async function listTasksPage(filters = {}) {
+  const db = getDb();
+  const requestedLimit = Number(filters.limit);
+  const limit = Number.isFinite(requestedLimit)
+    ? Math.max(1, Math.min(WORKLIST_PAGE_SIZE, Math.trunc(requestedLimit)))
+    : WORKLIST_PAGE_SIZE;
+  const requestedOffset = Number(filters.offset);
+  const offset = Number.isFinite(requestedOffset) ? Math.max(0, Math.trunc(requestedOffset)) : 0;
+
+  // The web SQLite shim exposes only the synchronous compatibility API. Keep
+  // that path functional while native Expo uses bounded async SQL below.
+  if (typeof db.getAllAsync !== "function") {
+    const allRows = db.getAllSync("SELECT * FROM follow_up_tasks WHERE 1=1", []) || [];
+    const matchingRows = filterWorklistRowsForSyncFallback(allRows, filters);
+    const pageRows = matchingRows.slice(offset, offset + limit);
+    return {
+      tasks: pageRows,
+      total: matchingRows.length,
+      limit,
+      offset,
+      hasMore: offset + pageRows.length < matchingRows.length,
+    };
+  }
+
+  const { sql: whereSql, params: whereParams, draftPredicate } = buildWorklistWhere(filters);
+  const fromSql = "FROM follow_up_tasks t LEFT JOIN households h ON h.household_id = t.household_id";
+  const countSql = `SELECT COUNT(*) AS total ${fromSql} WHERE ${whereSql}`;
+  const countRow = typeof db.getFirstAsync === "function"
+    ? await db.getFirstAsync(countSql, whereParams)
+    : db.getFirstSync(countSql, whereParams);
+  const total = Math.max(0, Number(countRow?.total || 0));
+
+  const orderDraftSql = filters.stage ? "0" : draftPredicate.sql;
+  const orderParams = filters.stage ? [] : draftPredicate.params;
+  const sql = `SELECT t.* ${fromSql} WHERE ${whereSql}
+    ORDER BY CASE WHEN ${orderDraftSql} THEN 0 ELSE 1 END,
+             COALESCE(NULLIF(t.target_date, ''), NULLIF(t.window_start, ''), '') ASC,
+             COALESCE(t.task_key, t.id, '') ASC
+    LIMIT ? OFFSET ?`;
+  const params = [...whereParams, ...orderParams, limit, offset];
+  const rows = typeof db.getAllAsync === "function"
+    ? await db.getAllAsync(sql, params)
+    : db.getAllSync(sql, params);
+  return { tasks: rows || [], total, limit, offset, hasMore: offset + (rows || []).length < total };
+}
+
+/**
+ * Returns only the household IDs needed to scope the field-worker HHQ list.
+ * Keep this separate from listTasks: worklist callers still need complete task
+ * rows, while household search should never synchronously materialize them.
+ */
+export async function listOpenHhqHouseholdIds() {
+  const db = getDb();
+  try {
+    if (typeof db.getAllAsync !== "function") {
+      return [...new Set(
+        listTasks({ status: "open", task_type: "HHQ" })
+          .map((row) => String(row.household_id || "").trim())
+          .filter(Boolean),
+      )];
+    }
+    const rows = await db.getAllAsync(
+      `SELECT DISTINCT household_id
+         FROM follow_up_tasks
+        WHERE status = ?
+          AND task_type = ?
+          AND household_id IS NOT NULL
+        ORDER BY household_id ASC`,
+      ["open", "HHQ"],
+    );
+    return [...new Set((rows || []).map((row) => String(row.household_id || "")).filter(Boolean))];
+  } catch (error) {
+    console.error("Error listing open HHQ household IDs:", error);
+    throw error;
   }
 }
 
@@ -695,6 +979,81 @@ export function saveTaskClosure(taskId, taskState) {
   }
 }
 
+const FORM_RESPONSE_DISPLAY_COLUMNS = [
+  "id",
+  "form_code",
+  "form_version",
+  "household_id",
+  "site_id",
+  "locality_code",
+  "subject_type",
+  "subject_id",
+  "submitted_at",
+  "sync_status",
+  "sync_error",
+  "sync_error_at",
+  "server_response_status",
+  "created_at",
+  "updated_at",
+];
+const FORM_RESPONSE_DISPLAY_SELECT = FORM_RESPONSE_DISPLAY_COLUMNS.join(", ");
+const FORM_RESPONSE_BATCH_SIZE = 100;
+
+/**
+ * Return the pending response count without materializing answers_json rows.
+ * Native Expo SQLite uses the async API; the web shim only has the sync
+ * compatibility surface, so keep that fallback intentionally small.
+ */
+export async function countPendingResponses() {
+  const db = getDb();
+  try {
+    const sql = "SELECT COUNT(*) AS total FROM form_responses WHERE sync_status = 'pending'";
+    const row = typeof db.getFirstAsync === "function"
+      ? await db.getFirstAsync(sql, [])
+      : db.getFirstSync(sql, []);
+    if (row && row.total !== undefined && row.total !== null) {
+      return Math.max(0, Number(row.total || 0));
+    }
+    // The browser compatibility shim predates aggregate queries. Its
+    // fallback remains bounded in practice (browser storage already holds
+    // deserialized rows), while native SQLite uses COUNT(*) above.
+    return (db.getAllSync(
+      "SELECT * FROM form_responses WHERE sync_status = 'pending' ORDER BY created_at ASC",
+      [],
+    ) || []).length;
+  } catch (error) {
+    console.error("Error counting pending responses:", error);
+    throw error;
+  }
+}
+
+/**
+ * Read one bounded upload batch. answers_json is required by buildPushRecords
+ * and is therefore intentionally selected here, but never in history/list
+ * reads. Rows remain ordered by their stable local creation order.
+ */
+export async function getPendingResponseBatch(limit = FORM_RESPONSE_BATCH_SIZE) {
+  const db = getDb();
+  const boundedLimit = Math.max(1, Math.min(FORM_RESPONSE_BATCH_SIZE, Math.trunc(Number(limit) || FORM_RESPONSE_BATCH_SIZE)));
+  const sql = `SELECT * FROM form_responses
+    WHERE sync_status = 'pending'
+    ORDER BY created_at ASC, id ASC
+    LIMIT ?`;
+  try {
+    const rows = typeof db.getAllAsync === "function"
+      ? await db.getAllAsync(sql, [boundedLimit])
+      : db.getAllSync(sql, [boundedLimit]);
+    return (rows || []).slice(0, boundedLimit);
+  } catch (error) {
+    console.error("Error getting pending response batch:", error);
+    throw error;
+  }
+}
+
+/**
+ * Legacy synchronous accessor retained for callers outside the sync hot path.
+ * New upload/status screens should use countPendingResponses/getPendingResponseBatch.
+ */
 export function getPendingResponses() {
   const db = getDb();
   try {
@@ -705,6 +1064,35 @@ export function getPendingResponses() {
     return responses || [];
   } catch (error) {
     console.error("Error getting pending responses:", error);
+    throw error;
+  }
+}
+
+/**
+ * Read complete form-response metadata for history filters and HHQ grouping.
+ * This intentionally excludes answers_json, which can be substantially larger
+ * than the display model. No LIMIT is applied: the caller owns incremental
+ * presentation, while this method preserves complete filter/group semantics.
+ */
+export async function listFormResponseSummaries(filters = {}) {
+  const db = getDb();
+  const { sync_status: syncStatus } = filters;
+  const params = [];
+  let sql = `SELECT ${FORM_RESPONSE_DISPLAY_SELECT} FROM form_responses WHERE 1=1`;
+
+  if (syncStatus) {
+    sql += " AND sync_status = ?";
+    params.push(syncStatus);
+  }
+
+  sql += " ORDER BY submitted_at DESC, created_at DESC, id DESC";
+
+  try {
+    return typeof db.getAllAsync === "function"
+      ? (await db.getAllAsync(sql, params)) || []
+      : db.getAllSync(sql, params) || [];
+  } catch (error) {
+    console.error("Error listing form response summaries:", error);
     throw error;
   }
 }
