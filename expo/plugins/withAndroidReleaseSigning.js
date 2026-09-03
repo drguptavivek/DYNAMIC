@@ -99,6 +99,16 @@ function setGradleProperty(items, key, value) {
   return [...items, nextItem];
 }
 
+// Gradle JVM heap for the generated android/ project. Expo's default
+// (-Xmx2048m) is too small for D8 dex merging of this app's dependency set
+// in release builds ("java.lang.OutOfMemoryError: Java heap space" on the
+// 16 GB GitHub runner), so raise it for every prebuild, CI or local.
+const GRADLE_JVM_ARGS = "-Xmx4096m -XX:MaxMetaspaceSize=1024m";
+
+function applyGradleJvmArgs(items) {
+  return setGradleProperty(items, "org.gradle.jvmargs", GRADLE_JVM_ARGS);
+}
+
 function withAndroidReleaseSigning(config) {
   const {
     ANDROID_RELEASE_KEYSTORE_PATH,
@@ -130,9 +140,15 @@ function withAndroidReleaseSigning(config) {
     Boolean(ANDROID_RELEASE_KEY_ALIAS) &&
     Boolean(ANDROID_RELEASE_KEY_PASSWORD);
 
+  config = withGradleProperties(config, (config) => {
+    config.modResults = applyGradleJvmArgs(config.modResults);
+    return config;
+  });
+
   if (!hasReleaseSigningEnv) {
-    // No-op: local dev / any build without release signing secrets keeps the
-    // default debug-signed release buildType that `expo prebuild` generates.
+    // Signing is a no-op: local dev / any build without release signing
+    // secrets keeps the default debug-signed release buildType that
+    // `expo prebuild` generates. (The JVM heap setting above still applies.)
     return config;
   }
 
@@ -172,3 +188,5 @@ function withAndroidReleaseSigning(config) {
 
 module.exports = withAndroidReleaseSigning;
 module.exports.applyReleaseSigningToBuildGradle = applyReleaseSigningToBuildGradle;
+module.exports.applyGradleJvmArgs = applyGradleJvmArgs;
+module.exports.GRADLE_JVM_ARGS = GRADLE_JVM_ARGS;

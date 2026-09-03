@@ -117,4 +117,20 @@ function releaseBuildTypeBlock(source) {
   );
 }
 
+// Gradle JVM heap: replaces Expo's default org.gradle.jvmargs and is idempotent.
+{
+  const { applyGradleJvmArgs, GRADLE_JVM_ARGS } = pluginModule;
+  assert.match(GRADLE_JVM_ARGS, /-Xmx4096m/);
+  const items = [
+    { type: "property", key: "org.gradle.jvmargs", value: "-Xmx2048m -XX:MaxMetaspaceSize=512m" },
+    { type: "property", key: "android.useAndroidX", value: "true" },
+  ];
+  const once = applyGradleJvmArgs(items);
+  assert.equal(once.filter((item) => item.key === "org.gradle.jvmargs").length, 1);
+  assert.equal(once.find((item) => item.key === "org.gradle.jvmargs").value, GRADLE_JVM_ARGS);
+  assert.equal(once.find((item) => item.key === "android.useAndroidX").value, "true");
+  assert.deepEqual(applyGradleJvmArgs(once), once);
+  assert.equal(applyGradleJvmArgs([]).length, 1, "added when absent");
+}
+
 console.log("validateAndroidSigningPlugin: all assertions passed");

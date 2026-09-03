@@ -264,9 +264,16 @@ jobs:
       # The signing secrets were already written into android/gradle.properties
       # by the withAndroidReleaseSigning plugin during the prebuild step above,
       # so Gradle doesn't need the ANDROID_RELEASE_* env vars again here.
-      - name: Assemble + bundle release
+      # APK and AAB are built in separate Gradle invocations to keep peak
+      # memory down; the JVM heap itself is set in gradle.properties by the
+      # withAndroidReleaseSigning plugin during prebuild.
+      - name: Assemble release APK
         working-directory: expo/android
-        run: ./gradlew assembleRelease bundleRelease --no-daemon
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Bundle release AAB
+        working-directory: expo/android
+        run: ./gradlew bundleRelease --no-daemon
 
       - name: Upload release APK
         uses: actions/upload-artifact@v4
