@@ -40,3 +40,7 @@ context-snapshot.json
 
 # Runtime upload artifacts created when the API is started from the repo root
 uploads/
+
+# Android release signing keys - never commit
+*.keystore
+*.jks
