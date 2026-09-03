@@ -442,6 +442,117 @@ export async function listActiveQuestionnaireDrafts() {
   return dedupeActiveDrafts(rows);
 }
 
+// Non-payload columns returned by the lightweight summary query below. Kept
+// as an explicit list (rather than "SELECT *") so the summary row shape is
+// predictable and never accidentally widens to include json_payload.
+const SUMMARY_NON_PAYLOAD_COLUMNS = [
+  "draft_id",
+  "draft_key",
+  "form_code",
+  "form_version",
+  "task_id",
+  "subject_type",
+  "subject_id",
+  "device_id",
+  "user_id",
+  "completion_state",
+  "draft_status",
+  "submitted_form_response_id",
+  "created_at",
+  "updated_at",
+];
+
+// The only json_payload keys any draft-to-task matching helper reads: the
+// getDraftSiteId/getDraftSubjectId/getDraftHouseholdId/getDraftComparableIds/
+// draftMatchesTask helpers in draftPendingForms.js, plus getPayloadHouseholdId
+// (used by getDraftIdentityKey/getDraftHouseholdUserKey below, which
+// dedupeActiveDrafts relies on). Extracting only these via json_extract lets
+// the summary query skip decoding the full (often large) json_payload blob.
+const SUMMARY_PAYLOAD_KEYS = [
+  "hhq_site_id",
+  "site_id",
+  "hhq_household_id",
+  "household_id",
+  "hhq_locality_code",
+  "hhq_structure_map_id",
+  "hhq_household_number",
+  "wq_enter_structure_id_woman",
+  "individual_id",
+  "woman_id",
+  "subject_id",
+];
+
+function summaryPayloadAlias(key) {
+  return `payload_${key}`;
+}
+
+function buildActiveDraftSummarySql() {
+  const columnsSql = SUMMARY_NON_PAYLOAD_COLUMNS.join(", ");
+  const payloadSql = SUMMARY_PAYLOAD_KEYS.map(
+    (key) => `json_extract(json_payload, '$.${key}') AS ${summaryPayloadAlias(key)}`,
+  ).join(", ");
+  return (
+    `SELECT ${columnsSql}, ${payloadSql} FROM questionnaire_drafts` +
+    " WHERE draft_status = 'active' ORDER BY updated_at DESC"
+  );
+}
+
+function decodeSummaryRow(row) {
+  const payload = {};
+  for (const key of SUMMARY_PAYLOAD_KEYS) {
+    const value = row[summaryPayloadAlias(key)];
+    if (value !== null && value !== undefined) payload[key] = value;
+  }
+
+  const summary = {};
+  for (const column of SUMMARY_NON_PAYLOAD_COLUMNS) {
+    summary[column] = row[column];
+  }
+  summary.json_payload = payload;
+  summary.completion_state = parseJson(summary.completion_state, {});
+  return summary;
+}
+
+// Set once a json_extract-based summary query has failed (e.g. a SQLite
+// build without the JSON1 extension), so every subsequent call falls back
+// straight to the full decode path instead of retrying and re-throwing.
+let summaryQueryUnsupported = false;
+
+async function queryActiveDraftSummaryRows() {
+  const db = await getNativeDatabase();
+  const sql = buildActiveDraftSummarySql();
+  const rows = db.getAllSync(sql, []);
+  return rows.map(decodeSummaryRow);
+}
+
+// Lightweight variant of listActiveQuestionnaireDrafts() for callers that
+// only need to match drafts against tasks (worklist enrichment, resolving a
+// task's active draft id) rather than read full answer payloads. On native,
+// this selects the non-payload columns plus a handful of json_extract'd
+// payload keys instead of decoding every row's full json_payload, so it
+// avoids JSON.parse-ing potentially large answer blobs on every worklist
+// load / task open. Falls back to listActiveQuestionnaireDrafts() if the
+// json_extract query is unsupported (e.g. no JSON1) or on the web storage
+// path, where there is no payload-decoding cost to avoid.
+export async function listActiveQuestionnaireDraftSummaries() {
+  const storage = getWebStorage();
+  if (storage) return listActiveQuestionnaireDrafts();
+
+  if (summaryQueryUnsupported) return listActiveQuestionnaireDrafts();
+
+  try {
+    const rows = await queryActiveDraftSummaryRows();
+    return dedupeActiveDrafts(rows);
+  } catch (err) {
+    summaryQueryUnsupported = true;
+    console.warn(
+      "listActiveQuestionnaireDraftSummaries: json_extract query failed, falling back to full draft decode",
+      err,
+    );
+    return listActiveQuestionnaireDrafts();
+  }
+}
+
 export async function listQuestionnaireDraftsForSync(userId) {
   const storage = getWebStorage();
   if (storage) {

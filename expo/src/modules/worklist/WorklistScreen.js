@@ -24,7 +24,7 @@ import {
   getHouseholdSync,
   getHouseholdsByIdsSync,
 } from "../../lib/householdSync.js";
-import { listActiveQuestionnaireDrafts } from "../questionnaires/questionnaireDraftRepository.js";
+import { listActiveQuestionnaireDraftSummaries } from "../questionnaires/questionnaireDraftRepository.js";
 import { draftMatchesTask } from "../questionnaires/draftPendingForms.js";
 import { useListPaging } from "../../lib/useListPaging.js";
 
@@ -480,7 +480,7 @@ export function WorklistScreen({
   async function loadTasks() {
     setLoading(true);
     try {
-      const activeDrafts = await listActiveQuestionnaireDrafts();
+      const activeDrafts = await listActiveQuestionnaireDraftSummaries();
       const candidateTasks = listTaskWorklistCandidates({
         locality_code: selectedLocalityCode || undefined,
       });

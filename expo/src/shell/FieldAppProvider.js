@@ -10,7 +10,7 @@ import { initializeHouseholdRepository, listLocalities } from "../modules/househ
 import {
   getActiveQuestionnaireDraft,
   getQuestionnaireDraftById,
-  listActiveQuestionnaireDrafts,
+  listActiveQuestionnaireDraftSummaries,
 } from "../modules/questionnaires/questionnaireDraftRepository.js";
 import { draftMatchesTask } from "../modules/questionnaires/draftPendingForms.js";
 import * as syncService from "../modules/sync/syncService.js";
@@ -287,7 +287,7 @@ export function FieldAppProvider({ children }) {
     const existingDraft = await getQuestionnaireDraftById(task.active_draft_id);
     if (existingDraft) return existingDraft;
     const currentUserId = String(user?.user_id || user?.id || user?.username || "dev-user");
-    const matchingDraft = (await listActiveQuestionnaireDrafts()).find(
+    const matchingDraft = (await listActiveQuestionnaireDraftSummaries()).find(
       (draft) => String(draft.user_id || "") === currentUserId && draftMatchesTask(draft, task),
     );
     if (matchingDraft) return matchingDraft;
