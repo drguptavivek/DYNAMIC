@@ -144,6 +144,55 @@ assert.deepEqual(
   "Ages must never go below zero, even for an unknown-month newborn"
 );
 
+// --- calculateWqResidenceAgeMessage (Q9 vs Q11) ------------------------------
+
+const {
+  WQ_RESIDENCE_YEARS_FIELD,
+  calculateWqResidenceAgeMessage,
+  calculateWqQ11ConsistencyMessage,
+} = await import("../lib/womanSurveyBehaviors.js");
+
+assert.equal(
+  calculateWqResidenceAgeMessage({ [WQ_RESIDENCE_YEARS_FIELD]: "12", [WQ_AGE_FIELD]: "" }),
+  null,
+  "Residence check waits for Q11"
+);
+assert.equal(
+  calculateWqResidenceAgeMessage({ [WQ_RESIDENCE_YEARS_FIELD]: "12", [WQ_AGE_FIELD]: "27" }),
+  null
+);
+assert.equal(
+  calculateWqResidenceAgeMessage({ [WQ_RESIDENCE_YEARS_FIELD]: "27", [WQ_AGE_FIELD]: "27" }),
+  null,
+  "Equal is allowed"
+);
+assert.equal(
+  calculateWqResidenceAgeMessage({ [WQ_RESIDENCE_YEARS_FIELD]: 95, [WQ_AGE_FIELD]: "20" }),
+  null,
+  "95 always is skipped"
+);
+assert.equal(
+  calculateWqResidenceAgeMessage({ [WQ_RESIDENCE_YEARS_FIELD]: "96", [WQ_AGE_FIELD]: "20" }),
+  null,
+  "96 visitor is skipped"
+);
+assert.equal(
+  calculateWqResidenceAgeMessage({ [WQ_RESIDENCE_YEARS_FIELD]: "30", [WQ_AGE_FIELD]: "27" }),
+  "Q9 says 30 years living here but Q11 age is 27. Compare and correct 9 and/or 11."
+);
+assert.equal(
+  calculateWqQ11ConsistencyMessage(
+    {
+      [WQ_BIRTH_MONTH_YEAR_FIELD]: { month: "03", year: "1999" },
+      [WQ_AGE_FIELD]: "27",
+      [WQ_RESIDENCE_YEARS_FIELD]: "30",
+    },
+    new Date(2026, 7, 14)
+  ),
+  "Q9 says 30 years living here but Q11 age is 27. Compare and correct 9 and/or 11.",
+  "Combined Q11 message carries only the failing rule"
+);
+
 // --- calculateWqAgeConsistencyMessage --------------------------------------
 
 assert.equal(
@@ -232,6 +281,26 @@ assert.equal(
   "Correcting Q11 to a consistent age must clear the message"
 );
 assert.equal(model.validate(), true, "A consistent model must pass validation");
+
+// Q9 residence years above Q11 age blocks on Q11 and clears when corrected;
+// the 95/96 special codes never block.
+model.setValue(WQ_RESIDENCE_YEARS_FIELD, "30");
+applyWqAgeConsistencyCheck(model);
+assert.ok(
+  ageQuestion.errors.some((error) =>
+    (error.getText ? error.getText() : String(error)).includes("Compare and correct 9 and/or 11")
+  ),
+  "Q11 must display the residence inconsistency message"
+);
+assert.equal(model.validate(), false, "Residence years above age must block validation");
+model.setValue(WQ_RESIDENCE_YEARS_FIELD, 95);
+applyWqAgeConsistencyCheck(model);
+assert.equal(ageQuestion.errors.length, 0, "95 always must not block");
+assert.equal(model.validate(), true);
+model.setValue(WQ_RESIDENCE_YEARS_FIELD, "10");
+applyWqAgeConsistencyCheck(model);
+assert.equal(model.validate(), true, "Residence years below age passes");
+assert.equal(shouldRecalculateWqAgeConsistency(WQ_RESIDENCE_YEARS_FIELD), true);
 
 assert.equal(shouldRecalculateWqAgeConsistency(WQ_BIRTH_MONTH_YEAR_FIELD), true);
 assert.equal(shouldRecalculateWqAgeConsistency(WQ_AGE_FIELD), true);

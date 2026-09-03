@@ -1,4 +1,6 @@
 export const WQ_AGE_FIELD = "wq_age_last_birthday";
+export const WQ_RESIDENCE_YEARS_FIELD = "wq_01_respondent_s_backgr_how_long_have_you_been_living_continuously";
+export const WQ_RESIDENCE_SPECIAL_CODES = [95, 96]; // 95 always, 96 visitor
 export const WQ_CURRENT_MARITAL_STATUS_FIELD = "wq_current_marital_status";
 export const WQ_SECTION_TWO_COMPLETION_MARITAL_VALUES = [2, 3, 4, 5, 6];
 export const WQ_LMP_FIELD = "wq_02_reproduction_when_did_your_last_menstrual_period_start";
@@ -721,10 +723,33 @@ export function calculateWqAgeConsistencyMessage(answers = {}, referenceDate) {
   return `Q10 gives ${formatWqAgeList(ages)} years (born ${birthLabel}) but Q11 says ${actualAge}. Compare and correct 10 and/or 11.`;
 }
 
+// Q9 (years living continuously here; 95 always, 96 visitor) cannot exceed
+// Q11 (age in completed years). Checked once Q11 is answered.
+export function calculateWqResidenceAgeMessage(answers = {}) {
+  const ageValue = answers[WQ_AGE_FIELD];
+  if (ageValue === undefined || ageValue === null || ageValue === "") return null;
+  const age = toFiniteNumber(ageValue);
+  const residence = toFiniteNumber(answers[WQ_RESIDENCE_YEARS_FIELD]);
+  if (age === null || residence === null) return null;
+  if (WQ_RESIDENCE_SPECIAL_CODES.includes(residence)) return null;
+  if (residence <= age) return null;
+  return `Q9 says ${residence} years living here but Q11 age is ${age}. Compare and correct 9 and/or 11.`;
+}
+
+// Everything that ends up as a blocking error on Q11.
+export function calculateWqQ11ConsistencyMessage(answers = {}, referenceDate) {
+  const messages = [
+    calculateWqAgeConsistencyMessage(answers, referenceDate),
+    calculateWqResidenceAgeMessage(answers),
+  ].filter(Boolean);
+  return messages.length ? messages.join(" ") : null;
+}
+
 function getWqAgeConsistencyAnswers(model) {
   return {
     [WQ_BIRTH_MONTH_YEAR_FIELD]: model?.getValue?.(WQ_BIRTH_MONTH_YEAR_FIELD),
     [WQ_AGE_FIELD]: model?.getValue?.(WQ_AGE_FIELD),
+    [WQ_RESIDENCE_YEARS_FIELD]: model?.getValue?.(WQ_RESIDENCE_YEARS_FIELD),
   };
 }
 
@@ -734,7 +759,7 @@ export function applyWqAgeConsistencyCheck(model) {
   const question = model?.getQuestionByName?.(WQ_AGE_FIELD);
   if (!question) return null;
   const referenceDate = wqReferenceDate(model?.getValue?.(WQ_INTERVIEW_DATE_FIELD));
-  const message = calculateWqAgeConsistencyMessage(getWqAgeConsistencyAnswers(model), referenceDate);
+  const message = calculateWqQ11ConsistencyMessage(getWqAgeConsistencyAnswers(model), referenceDate);
   const previous = wqAgeConsistencyMessages.get(question);
   if (previous && previous !== message) removeQuestionMessage(question, previous);
   if (message) {
@@ -777,12 +802,17 @@ export function applyWqCheck8Confirmation(model) {
 // above only produces the immediate inline display while the interviewer types.
 export function attachWqValidation(model) {
   model?.onValidateQuestion?.add((sender, options) => {
-    if (options.name === WQ_AGE_FIELD || options.name === WQ_BIRTH_MONTH_YEAR_FIELD) {
+    if (
+      options.name === WQ_AGE_FIELD ||
+      options.name === WQ_BIRTH_MONTH_YEAR_FIELD ||
+      options.name === WQ_RESIDENCE_YEARS_FIELD
+    ) {
       const referenceDate = wqReferenceDate(sender.getValue(WQ_INTERVIEW_DATE_FIELD));
-      const message = calculateWqAgeConsistencyMessage(
-        getWqAgeConsistencyAnswers(sender),
-        referenceDate
-      );
+      const answers = getWqAgeConsistencyAnswers(sender);
+      const message =
+        options.name === WQ_RESIDENCE_YEARS_FIELD
+          ? calculateWqResidenceAgeMessage(answers)
+          : calculateWqQ11ConsistencyMessage(answers, referenceDate);
       if (message) options.error = message;
     }
     if (
@@ -844,6 +874,7 @@ export function shouldRecalculateWqAgeConsistency(fieldName) {
   return (
     fieldName === WQ_BIRTH_MONTH_YEAR_FIELD ||
     fieldName === WQ_AGE_FIELD ||
+    fieldName === WQ_RESIDENCE_YEARS_FIELD ||
     fieldName === WQ_INTERVIEW_DATE_FIELD
   );
 }
