@@ -1,4 +1,5 @@
 import { recordServerTime } from "./trustedClock.js";
+import { startTiming } from "../../lib/perfLog.js";
 import { getDb } from "../tasks/taskSchema.js";
 import * as taskRepository from "../tasks/taskRepository.js";
 import * as authStore from "../auth/authStore.js";
@@ -781,6 +782,7 @@ export async function pushSync() {
 
 export async function syncAll(options = {}) {
   const { onProgress } = options;
+  const endSync = startTiming("sync.all");
   try {
     emitProgress(onProgress, {
       stage: "clock-check",
@@ -858,7 +860,7 @@ export async function syncAll(options = {}) {
       staleDraftsRemoved: pushResult.staleDraftsRemoved || 0,
       clockStatus: getClockStatus(),
     });
-    return {
+    const result = {
       success: true,
       clockStatus: getClockStatus(),
       localities: assignmentResult.localityCodes.length,
@@ -875,7 +877,16 @@ export async function syncAll(options = {}) {
       draftsPulled: pulledDrafts,
       staleDraftsRemoved: pushResult.staleDraftsRemoved || 0,
     };
+    endSync({
+      ok: true,
+      pulled: pullResult.pulled,
+      pushed: pushResult.pushed,
+      households: pullResult.pulledHouseholds,
+      formsUpdated: pullResult.formsUpdated,
+    });
+    return result;
   } catch (error) {
+    endSync({ ok: false, error: error?.name || "Error" });
     console.error("Sync all error:", error);
     throw error;
   }

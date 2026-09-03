@@ -36,6 +36,7 @@ import { getPreparedSurveyJson } from "../questionnaires/questionnaireSurveyJson
 import { buildHhqPrefill, mergePrefillIntoBlankValues } from "../../lib/prefillMapper.js";
 import { getHouseholdSync } from "../../lib/householdSync.js";
 import { applyQuestionnaireLanguageFromLocale } from "../../lib/questionnaireLanguageField.js";
+import { startTiming } from "../../lib/perfLog.js";
 import { applyHhqTaskHouseholdPrefill } from "./hhqTaskPrefill.js";
 import { buildHouseholdIdFromHhqData } from "./householdIds.js";
 import { extractHouseholdRegistryFields } from "./householdRepository.js";
@@ -318,6 +319,7 @@ export function BaselineHouseholdForm({
   }, [draftContext, draftLookupKey]);
 
   const model = useMemo(() => {
+    const endOpen = startTiming("form.open", { form: "HHQ" });
     const surveyJson = applyHouseholdMasterChoices(getPreparedSurveyJson(form), {
       user,
       localities,
@@ -448,6 +450,7 @@ export function BaselineHouseholdForm({
       }
     });
     survey.onCurrentPageChanged.add(() => setRevision((value) => value + 1));
+    endOpen({ questions: survey.getAllQuestions().length });
     return survey;
   }, [draftLookup, draftLookupKey, form, user, localities, selectedLocalityCode, taskContext]);
 
@@ -515,6 +518,7 @@ export function BaselineHouseholdForm({
       answerSnapshotRef.current = cloneSurveyData(payload);
       setRenderAnswerData(cloneSurveyData(payload) || {});
       const savedAnswerCount = countDraftAnswers(payload);
+      const endSave = startTiming("draft.save", { form: "HHQ", manual });
       const draft = await saveQuestionnaireDraft({
         ...draftContext,
         draftId: draftIdRef.current,
@@ -525,6 +529,7 @@ export function BaselineHouseholdForm({
           locale,
         },
       });
+      endSave({ answers: savedAnswerCount });
       draftIdRef.current = draft.draft_id;
       dirtyRef.current = false;
       if (!silent) {

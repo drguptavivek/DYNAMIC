@@ -1,4 +1,5 @@
 import { getFormDisplayCode } from "../../lib/formDisplayCodes.js";
+import { startTiming } from "../../lib/perfLog.js";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Model } from "survey-core";
@@ -358,6 +359,7 @@ export function QuestionnaireDashboard({
     };
     answerSnapshotRef.current = payload;
     setRendererAnswerData(payload);
+    const endSave = startTiming("draft.save", { form: form?.form_code, manual });
     const draft = await saveQuestionnaireDraft({
       ...draftContext,
       draftId: draftIdRef.current,
@@ -366,6 +368,7 @@ export function QuestionnaireDashboard({
         currentPageName: model.currentPage?.name || null,
       },
     });
+    endSave({ answers: Object.keys(payload).length });
     draftIdRef.current = draft.draft_id;
     setDraftId(draft.draft_id);
     setLastSavedAt(draft.updated_at);
@@ -464,6 +467,7 @@ export function QuestionnaireDashboard({
 
   const survey = useMemo(() => {
     if (!showForm || !form) return null;
+    const endOpen = startTiming("form.open", { form: form.form_code });
     const surveyJson = getPreparedSurveyJson(form);
     const model = new Model(surveyJson);
     model.showCompletedPage = false;
@@ -727,6 +731,7 @@ export function QuestionnaireDashboard({
     });
 
     model.onComplete.add(async (sender) => {
+      const endSubmit = startTiming("submission.save", { form: form.form_code });
       const submission = await saveQuestionnaireSubmission({
         formCode: form.form_code,
         formVersion: form.version,
@@ -735,6 +740,7 @@ export function QuestionnaireDashboard({
         taskContext,
         deviceId: user?.device_id || "dev-device",
       });
+      endSubmit();
       if (draftIdRef.current) {
         await markQuestionnaireDraftSubmitted({
           draftId: draftIdRef.current,
@@ -771,6 +777,7 @@ export function QuestionnaireDashboard({
         navigateTo(ROUTES.completedForms);
       }
     });
+    endOpen({ questions: model.getAllQuestions().length });
     return model;
   }, [showForm, form, formCode, prefillData, readOnlyFields, taskContext, draftContext]);
 
@@ -843,6 +850,7 @@ export function QuestionnaireDashboard({
     restoredDraftKeyRef.current = restoreKey;
 
     async function restoreDraft() {
+      const endRestore = startTiming("draft.restore", { form: form?.form_code });
       const draft = await getActiveQuestionnaireDraft(draftContext);
       if (cancelled) return;
 
@@ -899,6 +907,7 @@ export function QuestionnaireDashboard({
       // switcher language always wins.
       applyQuestionnaireLanguageFromLocale(survey, activeLocaleRef.current);
       updateSurveyStatus(survey);
+      endRestore({ found: Boolean(draft) });
     }
 
     restoreDraft();

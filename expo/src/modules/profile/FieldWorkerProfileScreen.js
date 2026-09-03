@@ -1,9 +1,10 @@
-import React, { useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Alert, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { buildFieldWorkerProfile } from "./profileData.js";
 import { listTasks } from "../tasks/taskRepository.js";
 import { useFieldApp } from "../../shell/FieldAppProvider.js";
+import { buildTimingExport, clearTimings, listTimings, summarizeTimings } from "../../lib/perfLog.js";
 
 function formatRole(role) {
   return String(role || "")
@@ -220,7 +221,114 @@ export function FieldWorkerProfileScreen({ user, localities }) {
           </View>
         )}
       </View>
+
+      <AppTimingSection />
     </ScrollView>
+  );
+}
+
+function formatMs(value) {
+  const ms = Number(value) || 0;
+  return ms >= 10000 ? `${(ms / 1000).toFixed(1)} s` : `${Math.round(ms)} ms`;
+}
+
+/**
+ * Release-build performance log: per-operation summary, JSON export via the
+ * share sheet (email, Drive, WhatsApp...), and a clear button.
+ */
+function AppTimingSection() {
+  const [rows, setRows] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const summary = useMemo(() => summarizeTimings(rows), [rows]);
+
+  const reload = useCallback(async () => {
+    try {
+      setRows(await listTimings());
+    } catch (error) {
+      console.warn("Could not load app timings:", error);
+    }
+  }, []);
+
+  useEffect(() => {
+    reload();
+  }, [reload]);
+
+  async function shareLogs() {
+    setBusy(true);
+    try {
+      const latest = await listTimings();
+      setRows(latest);
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+      await Share.share(
+        {
+          title: `DYNAMIC app timings ${stamp}`,
+          message: buildTimingExport(latest),
+        },
+        { dialogTitle: "Export app timing logs" }
+      );
+    } catch (error) {
+      Alert.alert("Could not export timing logs", String(error?.message || error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function confirmClear() {
+    Alert.alert("Clear timing logs?", "This removes the logs from this device only.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Clear",
+        style: "destructive",
+        onPress: async () => {
+          await clearTimings();
+          await reload();
+        },
+      },
+    ]);
+  }
+
+  return (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>App Timing Logs</Text>
+      <Text style={styles.perfHint}>
+        {`${rows.length} recorded operations on this device. Export as JSON to analyse form open, draft save, sync and worklist timings.`}
+      </Text>
+      {summary.length ? (
+        <View style={styles.perfTable}>
+          <View style={[styles.perfRow, styles.perfHeaderRow]}>
+            <Text style={[styles.perfCell, styles.perfNameCell, styles.perfHeaderText]}>Operation</Text>
+            <Text style={[styles.perfCell, styles.perfHeaderText]}>Count</Text>
+            <Text style={[styles.perfCell, styles.perfHeaderText]}>Avg</Text>
+            <Text style={[styles.perfCell, styles.perfHeaderText]}>p95</Text>
+            <Text style={[styles.perfCell, styles.perfHeaderText]}>Max</Text>
+          </View>
+          {summary.map((item) => (
+            <View key={item.name} style={styles.perfRow}>
+              <Text style={[styles.perfCell, styles.perfNameCell]} numberOfLines={1}>{item.name}</Text>
+              <Text style={styles.perfCell}>{item.count}</Text>
+              <Text style={styles.perfCell}>{formatMs(item.avgMs)}</Text>
+              <Text style={styles.perfCell}>{formatMs(item.p95Ms)}</Text>
+              <Text style={styles.perfCell}>{formatMs(item.maxMs)}</Text>
+            </View>
+          ))}
+        </View>
+      ) : (
+        <View style={styles.emptyBox}>
+          <Text style={styles.emptyText}>No timings recorded yet.</Text>
+        </View>
+      )}
+      <View style={styles.perfActions}>
+        <Pressable disabled={busy || !rows.length} onPress={shareLogs} style={[styles.perfButton, styles.perfButtonPrimary, (busy || !rows.length) && styles.perfButtonDisabled]}>
+          <Text style={styles.perfButtonPrimaryText}>{busy ? "Preparing..." : "Share logs (JSON)"}</Text>
+        </Pressable>
+        <Pressable disabled={busy || !rows.length} onPress={confirmClear} style={[styles.perfButton, (busy || !rows.length) && styles.perfButtonDisabled]}>
+          <Text style={styles.perfButtonText}>Clear</Text>
+        </Pressable>
+        <Pressable disabled={busy} onPress={reload} style={styles.perfButton}>
+          <Text style={styles.perfButtonText}>Refresh</Text>
+        </Pressable>
+      </View>
+    </View>
   );
 }
 
@@ -428,4 +536,17 @@ const styles = StyleSheet.create({
     color: "#667085",
     fontWeight: "600"
   }
+  perfHint: { color: "#667085", fontSize: 13, lineHeight: 18, marginBottom: 10 },
+  perfTable: { borderWidth: 1, borderColor: "#d0d5dd", borderRadius: 8, overflow: "hidden" },
+  perfRow: { flexDirection: "row", alignItems: "center", paddingVertical: 8, paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: "#eef2f6" },
+  perfHeaderRow: { backgroundColor: "#f8fafc" },
+  perfHeaderText: { fontWeight: "800", color: "#475467" },
+  perfCell: { flex: 1, fontSize: 13, color: "#18202a", textAlign: "right" },
+  perfNameCell: { flex: 2.2, textAlign: "left", fontWeight: "700" },
+  perfActions: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 12 },
+  perfButton: { minHeight: 42, justifyContent: "center", paddingHorizontal: 14, borderRadius: 8, borderWidth: 1, borderColor: "#98a2b3", backgroundColor: "#ffffff" },
+  perfButtonPrimary: { borderColor: "#1f6feb", backgroundColor: "#1f6feb" },
+  perfButtonPrimaryText: { color: "#ffffff", fontWeight: "800" },
+  perfButtonText: { color: "#18202a", fontWeight: "700" },
+  perfButtonDisabled: { opacity: 0.45 },
 });

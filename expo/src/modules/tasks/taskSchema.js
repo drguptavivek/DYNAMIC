@@ -154,6 +154,18 @@ export function initTaskDb() {
   `);
 
   db.runSync(`
+    CREATE TABLE IF NOT EXISTS app_timings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      duration_ms REAL NOT NULL,
+      meta TEXT,
+      at TEXT NOT NULL,
+      app_version TEXT,
+      device_id TEXT
+    )
+  `);
+
+  db.runSync(`
     CREATE TABLE IF NOT EXISTS domain_events_outbox (
       id TEXT PRIMARY KEY,
       event_type TEXT NOT NULL,
@@ -205,6 +217,7 @@ export function initTaskDb() {
     "CREATE INDEX IF NOT EXISTS form_responses_sync_status_submitted_at_idx ON form_responses (sync_status, submitted_at)",
     "CREATE INDEX IF NOT EXISTS form_responses_household_id_idx ON form_responses (household_id)",
     "CREATE INDEX IF NOT EXISTS task_attempts_task_id_idx ON task_attempts (task_id)",
+    "CREATE INDEX IF NOT EXISTS app_timings_name_at_idx ON app_timings (name, at)",
   ]) {
     try {
       db.runSync(statement);

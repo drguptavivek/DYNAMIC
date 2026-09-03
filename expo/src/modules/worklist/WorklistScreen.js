@@ -1,5 +1,6 @@
 import { getFormDisplayCode } from "../../lib/formDisplayCodes.js";
 import { describeNetworkError } from "../../lib/networkErrors.js";
+import { startTiming } from "../../lib/perfLog.js";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
@@ -481,6 +482,7 @@ export function WorklistScreen({
 
   async function loadTasks() {
     setLoading(true);
+    const endLoad = startTiming("worklist.load");
     try {
       const activeDrafts = await listActiveQuestionnaireDraftSummaries();
       const candidateTasks = listTaskWorklistCandidates({
@@ -494,7 +496,9 @@ export function WorklistScreen({
       );
       setTasks(allTasks);
       setSyncError(null);
+      endLoad({ tasks: allTasks.length, drafts: activeDrafts.length });
     } catch (error) {
+      endLoad({ ok: false });
       console.error("Error loading tasks:", error);
       setSyncError(error.message);
     } finally {

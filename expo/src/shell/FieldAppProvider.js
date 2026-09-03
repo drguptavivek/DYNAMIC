@@ -20,6 +20,8 @@ import { getRouteForTaskForm } from "../navigation/appNavigation.js";
 import { setNavigationHandler } from "../navigation/routes.js";
 import { loadLocalePreference, saveLocalePreference } from "../modules/preferences/localePreference.js";
 import { evaluateDeviceClock } from "../modules/sync/trustedClock.js";
+import { configurePerfLog, startTiming } from "../lib/perfLog.js";
+import * as Application from "expo-application";
 
 const FieldAppContext = createContext(null);
 
@@ -80,7 +82,9 @@ export function FieldAppProvider({ children }) {
 
   useEffect(() => {
     async function initApp() {
+      const endInit = startTiming("app.init");
       try {
+        configurePerfLog({ appVersion: Application.nativeApplicationVersion || "" });
         initTaskDb();
         setTaskDbReady(true);
         setLocaleState(await loadLocalePreference());
@@ -96,13 +100,19 @@ export function FieldAppProvider({ children }) {
 
         await refreshLocalities();
         setClockStatus(syncService.getClockStatus());
+        endInit({ ok: true, loggedIn: Boolean(restoreUser) });
       } catch (error) {
         console.error("App init error:", error);
+        endInit({ ok: false });
       }
     }
 
     initApp();
   }, []);
+
+  useEffect(() => {
+    configurePerfLog({ deviceId: user?.device_id || "" });
+  }, [user?.device_id]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (nextState) => {
