@@ -922,14 +922,18 @@ export function QuestionnaireDashboard({
         : sections,
     [survey, form, memberSummaryOpen, previewOpen, memberSummaryConfirmed, previewConfirmed, sections],
   );
-  const memberSummaryRows = survey
-    ? buildHouseholdMemberSummaryRows(survey.data || {}, form, activeLocale)
-    : [];
+  const memberSummaryRows = useMemo(
+    () => (survey ? buildHouseholdMemberSummaryRows(survey.data || {}, form, activeLocale) : []),
+    [survey, form, activeLocale, rendererAnswerData],
+  );
   const hideDashboardShell = showForm && compact;
-  const activeRendererAnswerData = {
-    ...(rendererAnswerData || {}),
-    ...(answerSnapshotRef.current || {}),
-  };
+  const activeRendererAnswerData = useMemo(
+    () => ({
+      ...(rendererAnswerData || {}),
+      ...(answerSnapshotRef.current || {}),
+    }),
+    [rendererAnswerData],
+  );
 
   return (
     <View style={styles.wrap}>

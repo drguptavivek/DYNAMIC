@@ -2,6 +2,7 @@
 import React from "react";
 
 import { getNativeRendererKind } from "../nativeSurveyModel.js";
+import { areQuestionRendererPropsEqual } from "../questionRenderMemo.js";
 
 import { CalculateRenderer } from "./CalculateRenderer.js";
 import { CameraRenderer } from "./CameraRenderer.js";
@@ -95,15 +96,3 @@ function NativeQuestionRendererBase({
 }
 
 export const NativeQuestionRenderer = React.memo(NativeQuestionRendererBase, areQuestionRendererPropsEqual);
-
-function areQuestionRendererPropsEqual(previous, next) {
-  return (
-    previous.answerData === next.answerData &&
-    previous.locale === next.locale &&
-    previous.question === next.question &&
-    previous.onChange === next.onChange &&
-    previous.onRequestTopLevelFocus === next.onRequestTopLevelFocus &&
-    previous.renderQuestion === next.renderQuestion &&
-    previous.renderRevision === next.renderRevision
-  );
-}

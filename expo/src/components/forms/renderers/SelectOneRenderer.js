@@ -1,5 +1,5 @@
 /** Renders one localized choice as an accessible native single-select control. */
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
 import { getNativeQuestionChoices, getNativeQuestionValue, setNativeQuestionValue } from "../nativeSurveyModel.js";
@@ -59,7 +59,8 @@ export function SelectOneRenderer({ answerData, locale, question, onChange }) {
     [answerData, disabled, onChange, question]
   );
 
-  const choiceValues = getNativeQuestionChoices(question, locale).map((choice) => String(choice.value));
+  const choices = useMemo(() => getNativeQuestionChoices(question, locale), [question, locale]);
+  const choiceValues = useMemo(() => choices.map((choice) => String(choice.value)), [choices]);
   const yearsValue =
     usesYearsEntry && selectedValue !== undefined && !choiceValues.includes(String(selectedValue))
       ? String(selectedValue)
@@ -88,7 +89,7 @@ export function SelectOneRenderer({ answerData, locale, question, onChange }) {
         </View>
       ) : null}
       <View style={controlStyles.options}>
-        {getNativeQuestionChoices(question, locale).map((choice) => {
+        {choices.map((choice) => {
           const selected = String(selectedValue) === String(choice.value);
           return (
             <TouchableOpacity

@@ -11,6 +11,7 @@ import {
   hasNativeValidationProblem,
   stripSurveyHtml,
 } from "./nativeSurveyModel.js";
+import { buildQuestionRenderSignature } from "./questionRenderMemo.js";
 import { NativeQuestionRenderer } from "./renderers/NativeQuestionRenderer.js";
 import { SectionNavigator } from "./SectionNavigator.js";
 import { getLogicalSurveySectionPosition } from "../../modules/questionnaires/surveyNavigation.js";
@@ -99,25 +100,42 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
     }
   }, [questionIndex, visibleQuestions.length]);
 
+  // Hold render-affecting values in refs so renderQuestion/scrollToQuestionByName
+  // keep a stable identity across keystrokes: NativeQuestionRenderer's memo
+  // compares these callbacks by reference, so a fresh identity on every
+  // revision bump would defeat the memo for every dependent (non-leaf)
+  // question that receives renderQuestion/onRequestTopLevelFocus as a prop.
+  const answerDataRef = useRef(answerData);
+  answerDataRef.current = answerData;
+  const localeRef = useRef(locale);
+  localeRef.current = locale;
+  const revisionRef = useRef(revision);
+  revisionRef.current = revision;
+  const pageRef = useRef(page);
+  pageRef.current = page;
+  const scrollToQuestionRef = useRef(null);
+
   const renderQuestion = useCallback((question, key = question.id || question.name) => (
     <NativeQuestionRenderer
       key={key}
-      answerData={answerData}
-      locale={locale}
+      answerData={answerDataRef.current}
+      locale={localeRef.current}
       question={question}
       onChange={refresh}
       onRequestTopLevelFocus={scrollToQuestionByName}
       renderQuestion={renderQuestion}
-      renderRevision={revision}
+      renderRevision={revisionRef.current}
+      renderSignature={buildQuestionRenderSignature(question, localeRef.current)}
     />
-  ), [answerData, locale, page?.name, refresh, revision]);
+  ), [refresh]);
 
-  function scrollToQuestionByName(name) {
-    const target = getVisiblePageQuestions(page).find((item) => item.name === name);
+  const scrollToQuestionByName = useCallback((name) => {
+    const target = getVisiblePageQuestions(pageRef.current).find((item) => item.name === name);
     if (!target) return false;
-    scrollToQuestion(target);
+    scrollToQuestionRef.current?.(target);
     return true;
-  }
+  }, []);
+
   const renderTopLevelQuestion = useCallback((question) => (
     <View
       key={question.id || question.name}
@@ -176,6 +194,7 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
       });
     });
   }
+  scrollToQuestionRef.current = scrollToQuestion;
 
   useImperativeHandle(
     ref,
