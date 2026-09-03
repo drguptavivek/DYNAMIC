@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "expo-router";
 import { AppState } from "react-native";
 
@@ -18,12 +18,20 @@ import { initTaskDb } from "../modules/tasks/taskSchema.js";
 import { getTask } from "../modules/tasks/taskRepository.js";
 import { getRouteForTaskForm } from "../navigation/appNavigation.js";
 import { setNavigationHandler } from "../navigation/routes.js";
+import { loadLocalePreference, saveLocalePreference } from "../modules/preferences/localePreference.js";
 
 const FieldAppContext = createContext(null);
 
 export function FieldAppProvider({ children }) {
   const router = useRouter();
-  const [locale, setLocale] = useState("default");
+  const [locale, setLocaleState] = useState("default");
+  // The chosen questionnaire language is a device preference: every form
+  // opens in it until it is switched again, including after a restart.
+  const setLocale = useCallback((nextLocale) => {
+    const normalized = String(nextLocale || "default");
+    setLocaleState(normalized);
+    saveLocalePreference(normalized);
+  }, []);
   const [user, setUser] = useState(null);
   const [taskDbReady, setTaskDbReady] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
@@ -58,6 +66,7 @@ export function FieldAppProvider({ children }) {
       try {
         initTaskDb();
         setTaskDbReady(true);
+        setLocaleState(await loadLocalePreference());
 
         const restoreUser = await authStore.restoreSession();
         if (restoreUser) {
