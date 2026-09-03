@@ -21,6 +21,7 @@ import {
   normalizeFormResponse,
   uniqueOptions,
 } from "./formSubmissionHistory.js";
+import { useListPaging } from "../../lib/useListPaging.js";
 
 function formatDateTime(value) {
   if (!value) return "-";
@@ -195,6 +196,14 @@ export function FormSubmissionListScreen({ mode }) {
     [uploaded, displayItems, filteredResponses],
   );
 
+  const {
+    pagedItems: pagedListData,
+    hasMore,
+    showMore,
+    shown,
+    total: pagedTotal,
+  } = useListPaging(listData);
+
   const loadResponses = useCallback(() => {
     const rows = listFormResponses({ sync_status: syncStatus }).map(normalizeFormResponse);
     setResponses(rows);
@@ -285,6 +294,12 @@ export function FormSubmissionListScreen({ mode }) {
     </>
   );
 
+  const listFooter = hasMore ? (
+    <Pressable onPress={showMore} style={styles.showMoreButton}>
+      <Text style={styles.showMoreText}>{`Show more (${shown} of ${pagedTotal})`}</Text>
+    </Pressable>
+  ) : null;
+
   const listEmpty = (
     <View style={styles.emptyCard}>
       <Text style={styles.emptyTitle}>
@@ -334,13 +349,19 @@ export function FormSubmissionListScreen({ mode }) {
         </View>
       ) : (
         <FlatList
-          data={listData}
+          data={pagedListData}
           renderItem={renderItem}
           keyExtractor={keyExtractor}
           contentContainerStyle={styles.list}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
           ListHeaderComponent={listHeader}
+          ListFooterComponent={listFooter}
           ListEmptyComponent={listEmpty}
+          onEndReached={showMore}
+          onEndReachedThreshold={0.5}
+          initialNumToRender={20}
+          windowSize={7}
+          removeClippedSubviews
         />
       )}
     </View>
@@ -512,6 +533,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "800",
     color: "#667085",
+  },
+  showMoreButton: {
+    minHeight: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#c8d0d9",
+    backgroundColor: "#ffffff",
+    marginTop: 4,
+  },
+  showMoreText: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#0369a1",
   },
   card: {
     gap: 8,

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -25,6 +25,7 @@ import {
 } from "../../lib/householdSync.js";
 import { listActiveQuestionnaireDrafts } from "../questionnaires/questionnaireDraftRepository.js";
 import { draftMatchesTask } from "../questionnaires/draftPendingForms.js";
+import { useListPaging } from "../../lib/useListPaging.js";
 
 const BADGE_COLORS = {
   HHQ: "#e74c3c",
@@ -490,6 +491,67 @@ export function WorklistScreen({
     onOpenTask(task);
   }
 
+  const localityOptions = useMemo(
+    () => buildTaskLocalityOptions(tasks, localities),
+    [tasks, localities],
+  );
+  const filteredTasks = useMemo(
+    () =>
+      filterTaskWorklist(tasks, {
+        search: searchText,
+        locality_code: localityFilter,
+        stage: stageFilter,
+      }),
+    [tasks, searchText, localityFilter, stageFilter],
+  );
+  const grouped = useMemo(
+    () => groupTasksByUrgency(filteredTasks, { stageFilter }),
+    [filteredTasks, stageFilter],
+  );
+
+  const sections = useMemo(() => {
+    const built = [];
+
+    if (grouped.draft.length > 0) {
+      built.push({ id: "draft-header", type: "header", title: "Draft" });
+      grouped.draft.forEach((task) => {
+        built.push({ id: task.id, type: "task", task });
+      });
+    }
+
+    if (grouped.overdue.length > 0) {
+      built.push({ id: "overdue-header", type: "header", title: "Overdue" });
+      grouped.overdue.forEach((task) => {
+        built.push({ id: task.id, type: "task", task });
+      });
+    }
+
+    if (grouped.today.length > 0) {
+      built.push({ id: "today-header", type: "header", title: "Today" });
+      grouped.today.forEach((task) => {
+        built.push({ id: task.id, type: "task", task });
+      });
+    }
+
+    if (grouped.upcoming.length > 0) {
+      built.push({ id: "upcoming-header", type: "header", title: "Upcoming" });
+      grouped.upcoming.forEach((task) => {
+        built.push({ id: task.id, type: "task", task });
+      });
+    }
+
+    if (grouped.futurePlanned.length > 0) {
+      built.push({ id: "future-planned-header", type: "header", title: "Future Planned" });
+      grouped.futurePlanned.forEach((task) => {
+        built.push({ id: task.id, type: "task", task });
+      });
+    }
+
+    return built;
+  }, [grouped]);
+
+  const { pagedItems: pagedSections, hasMore, showMore, shown, total } = useListPaging(sections);
+
   if (loading) {
     return (
       <View style={styles.centerContainer}>
@@ -499,13 +561,6 @@ export function WorklistScreen({
     );
   }
 
-  const localityOptions = buildTaskLocalityOptions(tasks, localities);
-  const filteredTasks = filterTaskWorklist(tasks, {
-    search: searchText,
-    locality_code: localityFilter,
-    stage: stageFilter,
-  });
-  const grouped = groupTasksByUrgency(filteredTasks, { stageFilter });
   const hasAnyTasks =
     grouped.draft.length > 0 ||
     grouped.overdue.length > 0 ||
@@ -549,83 +604,6 @@ export function WorklistScreen({
     );
   }
 
-  const sections = [];
-
-  if (grouped.draft.length > 0) {
-    sections.push({
-      id: "draft-header",
-      type: "header",
-      title: "Draft",
-    });
-    grouped.draft.forEach((task) => {
-      sections.push({
-        id: task.id,
-        type: "task",
-        task,
-      });
-    });
-  }
-
-  if (grouped.overdue.length > 0) {
-    sections.push({
-      id: "overdue-header",
-      type: "header",
-      title: "Overdue",
-    });
-    grouped.overdue.forEach((task) => {
-      sections.push({
-        id: task.id,
-        type: "task",
-        task,
-      });
-    });
-  }
-
-  if (grouped.today.length > 0) {
-    sections.push({
-      id: "today-header",
-      type: "header",
-      title: "Today",
-    });
-    grouped.today.forEach((task) => {
-      sections.push({
-        id: task.id,
-        type: "task",
-        task,
-      });
-    });
-  }
-
-  if (grouped.upcoming.length > 0) {
-    sections.push({
-      id: "upcoming-header",
-      type: "header",
-      title: "Upcoming",
-    });
-    grouped.upcoming.forEach((task) => {
-      sections.push({
-        id: task.id,
-        type: "task",
-        task,
-      });
-    });
-  }
-
-  if (grouped.futurePlanned.length > 0) {
-    sections.push({
-      id: "future-planned-header",
-      type: "header",
-      title: "Future Planned",
-    });
-    grouped.futurePlanned.forEach((task) => {
-      sections.push({
-        id: task.id,
-        type: "task",
-        task,
-      });
-    });
-  }
-
   function renderWorklistItem(item) {
     if (item.type === "header") {
       return (
@@ -643,6 +621,12 @@ export function WorklistScreen({
     );
   }
 
+  const showMoreFooter = hasMore ? (
+    <Pressable onPress={showMore} style={styles.showMoreButton}>
+      <Text style={styles.showMoreText}>{`Show more (${shown} of ${total})`}</Text>
+    </Pressable>
+  ) : null;
+
   if (Platform.OS === "web") {
     return (
       <ScrollView
@@ -651,9 +635,10 @@ export function WorklistScreen({
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
       >
         {filterPanel}
-        {sections.map((item) => (
+        {pagedSections.map((item) => (
           <React.Fragment key={item.id}>{renderWorklistItem(item)}</React.Fragment>
         ))}
+        {showMoreFooter}
         {syncError && (
           <View style={styles.centerContainer}>
             <Text style={styles.errorText}>{syncError}</Text>
@@ -673,10 +658,16 @@ export function WorklistScreen({
       <View style={styles.fixedFilterHeader}>{filterPanel}</View>
       <FlatList
         style={styles.taskList}
-        data={sections}
+        data={pagedSections}
         keyExtractor={(item) => item.id}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
         renderItem={({ item }) => renderWorklistItem(item)}
+        onEndReached={showMore}
+        onEndReachedThreshold={0.5}
+        initialNumToRender={20}
+        windowSize={7}
+        removeClippedSubviews
+        ListFooterComponent={showMoreFooter}
         ListEmptyComponent={
           syncError ? (
             <View style={styles.centerContainer}>
@@ -852,6 +843,22 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     marginTop: 8,
     marginBottom: 4,
+  },
+  showMoreButton: {
+    minHeight: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#d8dee4",
+    backgroundColor: "#ffffff",
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  showMoreText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#0b5bd3",
   },
   sectionHeaderText: {
     fontSize: 13,
