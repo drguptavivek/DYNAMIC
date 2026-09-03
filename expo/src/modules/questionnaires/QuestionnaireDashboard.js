@@ -51,15 +51,18 @@ import {
   WQ_CURRENT_MARITAL_STATUS_FIELD,
   WQ_OTHER_PREGNANCIES_FIELD,
   applyWqSectionTwoCompletion,
+  applyWqAgeConsistencyCheck,
   applyWqDomesticViolenceCalculations,
   applyWqLmpTimingChecks,
    applyWqPregnancyHistoryCalculations,
    applyWqPregnancyTrackingEligibility,
    applyWqReproductionSummary,
+  attachWqValidation,
   buildWqHusbandPartnerChoices,
   hasIncompleteWqBornAliveChildFollowups,
   requestNextWqPregnancy,
   shouldCompleteWqAfterReproduction,
+   shouldRecalculateWqAgeConsistency,
    shouldRecalculateWqDomesticViolence,
    shouldRecalculateWqLmpTimingChecks,
   shouldRecalculateWqPregnancyHistory,
@@ -475,12 +478,14 @@ export function QuestionnaireDashboard({
     }
 
     if (isWomanQuestionnaire(form)) {
+      attachWqValidation(model);
       applyWqVisitNo(model, taskContext);
       applyWqReproductionSummary(model);
        applyWqPregnancyHistoryCalculations(model);
       applyWqLmpTimingChecks(model);
        applyWqPregnancyTrackingEligibility(model);
       applyWqDomesticViolenceCalculations(model);
+      applyWqAgeConsistencyCheck(model);
     }
 
     if (isHouseholdQuestionnaire(form)) {
@@ -578,6 +583,9 @@ export function QuestionnaireDashboard({
         }
         if (shouldRecalculateWqDomesticViolence(options.name)) {
           applyWqDomesticViolenceCalculations(sender);
+        }
+        if (shouldRecalculateWqAgeConsistency(options.name)) {
+          applyWqAgeConsistencyCheck(sender);
         }
       }
       if (
@@ -832,6 +840,7 @@ export function QuestionnaireDashboard({
           applyWqLmpTimingChecks(survey);
            applyWqPregnancyTrackingEligibility(survey);
           applyWqDomesticViolenceCalculations(survey);
+          applyWqAgeConsistencyCheck(survey);
           routeWqStopToOutcome(survey, { navigate: false });
         }
         if (isPregnancySurveillanceForm(form)) {

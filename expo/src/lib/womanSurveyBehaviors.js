@@ -9,6 +9,10 @@ export const WQ_HYSTERECTOMY_FIELD = "wq_02_reproduction_some_women_undergo_an_o
 export const WQ_STERILIZATION_FIELD = "wq_02_reproduction_are_you_or_your_partner_sterilized_probe_w";
 export const WQ_PREGNANT_FIELD = "wq_pregnant";
 export const WQ_INTERVIEW_DATE_FIELD = "wq_interview_date";
+export const WQ_BIRTH_MONTH_YEAR_FIELD =
+  "wq_01_respondent_s_backgr_in_what_month_and_year_were_you_born";
+export const WQ_CHECK8_CONFIRMATION_FIELD =
+  "wq_02_reproduction_check_8_just_to_make_sure_that_i_have_this";
  export const WQ_PREGNANCY_TRACKING_ELIGIBLE_FIELD = "wq_pregnancy_tracking_eligible";
 export const WQ_HUSBAND_NOT_IN_HOUSEHOLD_VALUE = "Husband not in household";
 export const WQ_EVER_GIVEN_BIRTH_FIELD = "wq_02_reproduction_now_i_would_like_to_ask_about_all_the_birt";
@@ -564,6 +568,129 @@ export function applyWqLmpTimingChecks(model) {
   } else {
     setModelValueIfChanged(model, WQ_NOT_PREGNANT_OR_UNSURE_FIELD, undefined);
   }
+}
+
+function getErrorText(error) {
+  if (typeof error === "string") return error;
+  if (typeof error?.text === "string") return error.text;
+  if (typeof error?.getText === "function") return error.getText();
+  return String(error || "");
+}
+
+function removeQuestionMessage(question, message) {
+  if (!message || !Array.isArray(question?.errors)) return;
+  question.errors = question.errors.filter((error) => getErrorText(error) !== message);
+}
+
+function addQuestionMessage(question, message) {
+  if (!question?.addError) return;
+  const hasMessage = Array.isArray(question.errors)
+    ? question.errors.some((error) => getErrorText(error) === message)
+    : false;
+  if (!hasMessage) {
+    question.addError(message);
+  }
+}
+
+function wqReferenceDate(interviewDateValue) {
+  return wqLmpReferenceDate(interviewDateValue);
+}
+
+function formatWqBirthMonthYear(month, year) {
+  const monthNum = toFiniteNumber(month);
+  if (monthNum !== null && monthNum >= 1 && monthNum <= 12) {
+    return `${String(monthNum).padStart(2, "0")}/${year}`;
+  }
+  return String(year);
+}
+
+function formatWqAgeList(ages) {
+  return [...ages].sort((a, b) => a - b).join(" or ");
+}
+
+// Q10 asks for month/year of birth; month may be unknown (98), which leaves
+// two possible completed ages depending on whether the birthday has passed
+// relative to the interview date (Q3), or today if Q3 is not yet answered.
+export function calculateWqAgesFromBirthDate({ month, year, referenceDate } = {}) {
+  const yearNum = toFiniteNumber(year);
+  if (yearNum === null || yearNum === 9998) return null;
+  const refDate =
+    referenceDate instanceof Date && !Number.isNaN(referenceDate.getTime())
+      ? referenceDate
+      : new Date();
+  const refYear = refDate.getFullYear();
+  const refMonth = refDate.getMonth() + 1;
+  const baseAge = refYear - yearNum;
+  const monthNum = toFiniteNumber(month);
+  if (monthNum !== null && monthNum >= 1 && monthNum <= 12) {
+    const age = baseAge - (refMonth < monthNum ? 1 : 0);
+    return [Math.max(0, age)];
+  }
+  const ages = [...new Set([baseAge, baseAge - 1].filter((age) => age >= 0))];
+  return ages.length ? ages : [0];
+}
+
+export function calculateWqAgeConsistencyMessage(answers = {}, referenceDate) {
+  const ageValue = answers[WQ_AGE_FIELD];
+  if (ageValue === undefined || ageValue === null || ageValue === "") return null;
+  const actualAge = toFiniteNumber(ageValue);
+  if (actualAge === null) return null;
+  const birthValue = answers[WQ_BIRTH_MONTH_YEAR_FIELD];
+  const month = birthValue && typeof birthValue === "object" ? birthValue.month : undefined;
+  const year = birthValue && typeof birthValue === "object" ? birthValue.year : undefined;
+  const ages = calculateWqAgesFromBirthDate({ month, year, referenceDate });
+  if (ages === null || ages.includes(actualAge)) return null;
+  const birthLabel = formatWqBirthMonthYear(month, year);
+  return `Q10 gives ${formatWqAgeList(ages)} years (born ${birthLabel}) but Q11 says ${actualAge}. Compare and correct 10 and/or 11.`;
+}
+
+function getWqAgeConsistencyAnswers(model) {
+  return {
+    [WQ_BIRTH_MONTH_YEAR_FIELD]: model?.getValue?.(WQ_BIRTH_MONTH_YEAR_FIELD),
+    [WQ_AGE_FIELD]: model?.getValue?.(WQ_AGE_FIELD),
+  };
+}
+
+const wqAgeConsistencyMessages = new WeakMap();
+
+export function applyWqAgeConsistencyCheck(model) {
+  const question = model?.getQuestionByName?.(WQ_AGE_FIELD);
+  if (!question) return null;
+  const referenceDate = wqReferenceDate(model?.getValue?.(WQ_INTERVIEW_DATE_FIELD));
+  const message = calculateWqAgeConsistencyMessage(getWqAgeConsistencyAnswers(model), referenceDate);
+  const previous = wqAgeConsistencyMessages.get(question);
+  if (previous && previous !== message) removeQuestionMessage(question, previous);
+  if (message) {
+    addQuestionMessage(question, message);
+    wqAgeConsistencyMessages.set(question, message);
+  } else {
+    wqAgeConsistencyMessages.delete(question);
+  }
+  return message;
+}
+
+// SurveyJS discards question.addError() messages on re-validation triggered by
+// page navigation, so blocking must happen here via options.error; addError
+// above only produces the immediate inline display while the interviewer types.
+export function attachWqValidation(model) {
+  model?.onValidateQuestion?.add((sender, options) => {
+    if (options.name === WQ_AGE_FIELD || options.name === WQ_BIRTH_MONTH_YEAR_FIELD) {
+      const referenceDate = wqReferenceDate(sender.getValue(WQ_INTERVIEW_DATE_FIELD));
+      const message = calculateWqAgeConsistencyMessage(
+        getWqAgeConsistencyAnswers(sender),
+        referenceDate
+      );
+      if (message) options.error = message;
+    }
+  });
+}
+
+export function shouldRecalculateWqAgeConsistency(fieldName) {
+  return (
+    fieldName === WQ_BIRTH_MONTH_YEAR_FIELD ||
+    fieldName === WQ_AGE_FIELD ||
+    fieldName === WQ_INTERVIEW_DATE_FIELD
+  );
 }
 
 export function applyWqPregnancyHistoryCalculations(model) {
