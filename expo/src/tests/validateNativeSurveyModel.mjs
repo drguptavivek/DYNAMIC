@@ -97,7 +97,7 @@ assert.equal(model.visiblePages.length, 3);
 
 const roster = model.getQuestionByName("hhq_household_members");
 assert.equal(roster.dynamicAutoOpenFirstEntry, true);
-assert.equal(roster.dynamicHideAddButton, true);
+assert.equal(roster.dynamicHideAddButton, false);
 assert.equal(roster.addPanelText, "Add household member");
 roster.value = [
   {
