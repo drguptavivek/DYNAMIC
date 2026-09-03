@@ -538,6 +538,15 @@ function ClockDriftAlert({ alert }) {
   );
 }
 
+// Show the locality name and its code together ("Sunped (01)"); the code
+// alone only when no name has been synced yet.
+function formatLocalityOptionLabel(locality) {
+  const code = String(locality?.locality_code || "");
+  const name = String(locality?.locality_name || "").trim();
+  if (!name || name === code) return `Locality ${code}`;
+  return `${name} (${code})`;
+}
+
 function LocalitySwitcher({ inDrawer = false }) {
   const app = useFieldApp();
   const localityOptions = useMemo(() => {
@@ -608,7 +617,7 @@ function LocalitySwitcher({ inDrawer = false }) {
                 style={[styles.localityOptionText, active && styles.localityOptionTextActive]}
                 numberOfLines={1}
               >
-                {locality.locality_name || locality.locality_code}
+                {formatLocalityOptionLabel(locality)}
               </Text>
             </Pressable>
           );

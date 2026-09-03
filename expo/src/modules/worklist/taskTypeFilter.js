@@ -1,4 +1,17 @@
+import { formCatalog } from "../../data/formCatalog";
 import { getFormDisplayCode } from "../../lib/formDisplayCodes.js";
+
+const FORM_TITLES_BY_CODE = new Map(
+  (formCatalog || []).map((form) => [String(form.form_code).toUpperCase(), form.title])
+);
+
+export function getTaskTypeLabel(taskType) {
+  const code = String(taskType || "").trim().toUpperCase();
+  if (!code) return "";
+  const display = getFormDisplayCode(code);
+  const title = FORM_TITLES_BY_CODE.get(code);
+  return title ? `${display} · ${title}` : display;
+}
 export function buildTaskTypeOptions(tasks) {
   const values = new Set();
   for (const task of tasks || []) {
@@ -8,7 +21,7 @@ export function buildTaskTypeOptions(tasks) {
   }
   return Array.from(values)
     .sort()
-    .map((value) => ({ value, label: getFormDisplayCode(value) }));
+    .map((value) => ({ value, label: getTaskTypeLabel(value) }));
 }
 
 export function filterTasksByType(tasks, taskType) {
