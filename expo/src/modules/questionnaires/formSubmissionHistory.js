@@ -1,3 +1,64 @@
+export function normalizeFormResponse(row) {
+  const normalized = {
+    id: row.id || row.submission_id,
+    form_code: row.form_code || "-",
+    form_version: row.form_version || "",
+    household_id: row.household_id || "",
+    subject_type: row.subject_type || "",
+    subject_id: row.subject_id || "",
+    site_id: row.site_id ?? "",
+    locality_code: row.locality_code || "",
+    submitted_at: row.submitted_at || row.created_at || "",
+    sync_status: row.sync_status || "pending",
+    sync_error: row.sync_error || "",
+    sync_error_at: row.sync_error_at || "",
+    server_response_status: row.server_response_status || "",
+  };
+  normalized.search_text = responseSearchText(normalized);
+  return normalized;
+}
+
+export function uniqueOptions(rows, field) {
+  return [...new Set(rows.map((row) => String(row[field] ?? "").trim()).filter(Boolean))].sort(
+    (left, right) => left.localeCompare(right),
+  );
+}
+
+export function responseSearchText(response) {
+  return [
+    response.id,
+    response.form_code,
+    response.form_version,
+    response.household_id,
+    response.subject_type,
+    response.subject_id,
+    response.site_id,
+    response.locality_code,
+    response.sync_status,
+    response.sync_error,
+    response.submitted_at,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+export function filterResponses(responses, filters) {
+  const search = String(filters.search || "").trim().toLowerCase();
+  const siteId = String(filters.siteId || "").trim();
+  const formId = String(filters.formId || "").trim().toLowerCase();
+  const localityCode = String(filters.localityCode || "").trim();
+
+  return responses.filter((response) => {
+    const searchText = response.search_text || responseSearchText(response);
+    if (search && !searchText.includes(search)) return false;
+    if (siteId && String(response.site_id) !== siteId) return false;
+    if (formId && String(response.form_code || "").toLowerCase() !== formId) return false;
+    if (localityCode && String(response.locality_code || "") !== localityCode) return false;
+    return true;
+  });
+}
+
 const HHQ_RESULT_LABELS = {
   primary: "Completed",
   revisit_needed: "Revisit needed",

@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useFocusEffect } from "expo-router";
 import {
   ActivityIndicator,
+  FlatList,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -15,72 +16,17 @@ import {
 import { listFormResponses } from "../tasks/taskRepository.js";
 import {
   buildSubmissionDisplayItems,
+  filterResponses,
   getHhqVisitResultLabel,
+  normalizeFormResponse,
+  uniqueOptions,
 } from "./formSubmissionHistory.js";
-
-function normalizeFormResponse(row) {
-  return {
-    id: row.id || row.submission_id,
-    form_code: row.form_code || "-",
-    form_version: row.form_version || "",
-    household_id: row.household_id || "",
-    subject_type: row.subject_type || "",
-    subject_id: row.subject_id || "",
-    site_id: row.site_id ?? "",
-    locality_code: row.locality_code || "",
-    submitted_at: row.submitted_at || row.created_at || "",
-    sync_status: row.sync_status || "pending",
-    sync_error: row.sync_error || "",
-    sync_error_at: row.sync_error_at || "",
-    server_response_status: row.server_response_status || "",
-  };
-}
 
 function formatDateTime(value) {
   if (!value) return "-";
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return String(value);
   return parsed.toLocaleString();
-}
-
-function uniqueOptions(rows, field) {
-  return [...new Set(rows.map((row) => String(row[field] ?? "").trim()).filter(Boolean))].sort(
-    (left, right) => left.localeCompare(right),
-  );
-}
-
-function responseSearchText(response) {
-  return [
-    response.id,
-    response.form_code,
-    response.form_version,
-    response.household_id,
-    response.subject_type,
-    response.subject_id,
-    response.site_id,
-    response.locality_code,
-    response.sync_status,
-    response.sync_error,
-    response.submitted_at,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-}
-
-function filterResponses(responses, filters) {
-  const search = String(filters.search || "").trim().toLowerCase();
-  const siteId = String(filters.siteId || "").trim();
-  const formId = String(filters.formId || "").trim().toLowerCase();
-  const localityCode = String(filters.localityCode || "").trim();
-
-  return responses.filter((response) => {
-    if (search && !responseSearchText(response).includes(search)) return false;
-    if (siteId && String(response.site_id) !== siteId) return false;
-    if (formId && String(response.form_code || "").toLowerCase() !== formId) return false;
-    if (localityCode && String(response.locality_code || "") !== localityCode) return false;
-    return true;
-  });
 }
 
 function FilterChip({ label, active, onPress, compact }) {
@@ -215,16 +161,39 @@ export function FormSubmissionListScreen({ mode }) {
   const [formId, setFormId] = useState("");
   const [localityCode, setLocalityCode] = useState("");
   const syncStatus = uploadErrors ? "upload_error" : uploaded ? "synced" : "pending";
-  const siteOptions = uniqueOptions(responses, "site_id");
-  const formOptions = uniqueOptions(responses, "form_code");
-  const localityOptions = uniqueOptions(responses, "locality_code");
-  const filteredResponses = filterResponses(responses, {
-    search,
-    siteId,
-    formId,
-    localityCode,
-  });
-  const displayItems = uploaded ? buildSubmissionDisplayItems(filteredResponses) : [];
+  const { siteOptions, formOptions, localityOptions } = useMemo(
+    () => ({
+      siteOptions: uniqueOptions(responses, "site_id"),
+      formOptions: uniqueOptions(responses, "form_code"),
+      localityOptions: uniqueOptions(responses, "locality_code"),
+    }),
+    [responses],
+  );
+  const filteredResponses = useMemo(
+    () =>
+      filterResponses(responses, {
+        search,
+        siteId,
+        formId,
+        localityCode,
+      }),
+    [responses, search, siteId, formId, localityCode],
+  );
+  const displayItems = useMemo(
+    () => (uploaded ? buildSubmissionDisplayItems(filteredResponses) : []),
+    [uploaded, filteredResponses],
+  );
+  const listData = useMemo(
+    () =>
+      uploaded
+        ? displayItems
+        : filteredResponses.map((response) => ({
+            type: "submission",
+            key: response.id,
+            response,
+          })),
+    [uploaded, displayItems, filteredResponses],
+  );
 
   const loadResponses = useCallback(() => {
     const rows = listFormResponses({ sync_status: syncStatus }).map(normalizeFormResponse);
@@ -254,6 +223,91 @@ export function FormSubmissionListScreen({ mode }) {
     }
   }, [loadResponses]);
 
+  const renderItem = useCallback(
+    ({ item }) =>
+      item.type === "hhq-history" ? (
+        <HhqHistoryCard group={item} />
+      ) : (
+        <FormCard response={item.response} />
+      ),
+    [],
+  );
+
+  const keyExtractor = useCallback((item) => item.key || item.response?.id, []);
+
+  const listHeader = (
+    <>
+      <View style={[styles.filterPanel, compact && styles.filterPanelCompact]}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={[styles.filterRow, compact && styles.filterRowCompact]}
+        >
+          <TextInput
+            style={[styles.searchInput, compact && styles.searchInputCompact]}
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Search"
+            placeholderTextColor="#7b8794"
+          />
+          <InlineFilter
+            label="Site"
+            value={siteId}
+            options={siteOptions}
+            onChange={setSiteId}
+            compact={compact}
+          />
+          <InlineFilter
+            label="Form"
+            value={formId}
+            options={formOptions}
+            onChange={setFormId}
+            compact={compact}
+          />
+          <InlineFilter
+            label="Locality"
+            value={localityCode}
+            options={localityOptions}
+            onChange={setLocalityCode}
+            compact={compact}
+          />
+        </ScrollView>
+      </View>
+
+      <Text style={styles.countText}>
+        {uploaded
+          ? `Showing ${displayItems.length} records (${filteredResponses.length} submissions)`
+          : filteredResponses.length === 1
+            ? "Showing 1 form"
+            : `Showing ${filteredResponses.length} of ${responses.length} forms`}
+      </Text>
+    </>
+  );
+
+  const listEmpty = (
+    <View style={styles.emptyCard}>
+      <Text style={styles.emptyTitle}>
+        {responses.length
+          ? "No matching forms"
+          : uploadErrors
+            ? "No upload errors"
+            : uploaded
+              ? "No uploaded forms"
+              : "No completed forms"}
+      </Text>
+      <Text style={styles.emptyText}>
+        {responses.length
+          ? "Change or clear filters to see more forms."
+          : uploadErrors
+            ? "Duplicate or rejected submissions will appear here after Sync Now."
+            : uploaded
+            ? "Synced submissions will appear here after a successful Sync Now."
+            : "Forms will appear here after final submit and before sync upload."}
+      </Text>
+    </View>
+  );
+
   return (
     <View style={[styles.wrap, compact && styles.wrapCompact]}>
       <View style={[styles.header, compact && styles.headerCompact]}>
@@ -279,90 +333,15 @@ export function FormSubmissionListScreen({ mode }) {
           <ActivityIndicator color="#17202a" />
         </View>
       ) : (
-        <ScrollView
+        <FlatList
+          data={listData}
+          renderItem={renderItem}
+          keyExtractor={keyExtractor}
           contentContainerStyle={styles.list}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
-        >
-          <View style={[styles.filterPanel, compact && styles.filterPanelCompact]}>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-              contentContainerStyle={[styles.filterRow, compact && styles.filterRowCompact]}
-            >
-            <TextInput
-              style={[styles.searchInput, compact && styles.searchInputCompact]}
-              value={search}
-              onChangeText={setSearch}
-              placeholder="Search"
-              placeholderTextColor="#7b8794"
-            />
-            <InlineFilter
-              label="Site"
-              value={siteId}
-              options={siteOptions}
-              onChange={setSiteId}
-              compact={compact}
-            />
-            <InlineFilter
-              label="Form"
-              value={formId}
-              options={formOptions}
-              onChange={setFormId}
-              compact={compact}
-            />
-            <InlineFilter
-              label="Locality"
-              value={localityCode}
-              options={localityOptions}
-              onChange={setLocalityCode}
-              compact={compact}
-            />
-            </ScrollView>
-          </View>
-
-          <Text style={styles.countText}>
-            {uploaded
-              ? `Showing ${displayItems.length} records (${filteredResponses.length} submissions)`
-              : filteredResponses.length === 1
-                ? "Showing 1 form"
-                : `Showing ${filteredResponses.length} of ${responses.length} forms`}
-          </Text>
-          {filteredResponses.length ? (
-            uploaded ? (
-              displayItems.map((item) =>
-                item.type === "hhq-history" ? (
-                  <HhqHistoryCard key={item.key} group={item} />
-                ) : (
-                  <FormCard key={item.key} response={item.response} />
-                ),
-              )
-            ) : (
-              filteredResponses.map((response) => <FormCard key={response.id} response={response} />)
-            )
-          ) : (
-            <View style={styles.emptyCard}>
-              <Text style={styles.emptyTitle}>
-                {responses.length
-                  ? "No matching forms"
-                  : uploadErrors
-                    ? "No upload errors"
-                    : uploaded
-                      ? "No uploaded forms"
-                      : "No completed forms"}
-              </Text>
-              <Text style={styles.emptyText}>
-                {responses.length
-                  ? "Change or clear filters to see more forms."
-                  : uploadErrors
-                    ? "Duplicate or rejected submissions will appear here after Sync Now."
-                    : uploaded
-                    ? "Synced submissions will appear here after a successful Sync Now."
-                    : "Forms will appear here after final submit and before sync upload."}
-              </Text>
-            </View>
-          )}
-        </ScrollView>
+          ListHeaderComponent={listHeader}
+          ListEmptyComponent={listEmpty}
+        />
       )}
     </View>
   );

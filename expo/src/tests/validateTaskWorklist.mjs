@@ -118,12 +118,18 @@ assert.deepEqual(
   selectTasksForStage([confirmedTask, futurePlannedTask], "future_planned").map((task) => task.id),
   ["future-planned-hrf-filter"],
 );
+const futureDatedTask = {
+  ...confirmedTask,
+  id: "future-dated-task",
+  task_key: "future-dated-task-key",
+  target_date: "2099-06-01",
+};
 assert.deepEqual(
-  selectTasksForStage([confirmedTask, overdueDraftTask], "outdated").map((task) => task.id),
+  selectTasksForStage([futureDatedTask, overdueDraftTask], "outdated").map((task) => task.id),
   ["overdue-draft-task"],
 );
 assert.deepEqual(
-  selectTasksForStage([confirmedTask, overdueDraftTask], "draft").map((task) => task.id),
+  selectTasksForStage([futureDatedTask, overdueDraftTask], "draft").map((task) => task.id),
   ["overdue-draft-task"],
 );
 assert.deepEqual(

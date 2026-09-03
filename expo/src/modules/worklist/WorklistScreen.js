@@ -18,7 +18,11 @@ import * as syncService from "../sync/syncService.js";
 import { listTaskWorklistCandidates } from "./taskWorklistRepository.js";
 import { buildTaskLocalityOptions, filterTaskWorklist, getTaskStage } from "./taskWorklist.js";
 import { getTaskOpenBlockReason } from "./taskOpenPolicy.js";
-import { getHouseholdMemberCountSync, getHouseholdSync } from "../../lib/householdSync.js";
+import {
+  getHouseholdMemberCountSync,
+  getHouseholdSync,
+  getHouseholdsByIdsSync,
+} from "../../lib/householdSync.js";
 import { listActiveQuestionnaireDrafts } from "../questionnaires/questionnaireDraftRepository.js";
 import { draftMatchesTask } from "../questionnaires/draftPendingForms.js";
 
@@ -235,8 +239,12 @@ function findDraftForTask(task, drafts = []) {
   return drafts.find((draft) => draftMatchesTask(draft, task));
 }
 
-function enrichTaskForWorklist(task, drafts = []) {
-  const household = task.household_id ? getHouseholdSync(task.household_id) : null;
+function enrichTaskForWorklist(task, drafts = [], householdsById = null) {
+  const household = task.household_id
+    ? householdsById
+      ? householdsById.get(task.household_id) || null
+      : getHouseholdSync(task.household_id)
+    : null;
   const activeDraft = findDraftForTask(task, drafts);
   return {
     ...task,
@@ -440,9 +448,15 @@ export function WorklistScreen({
     setLoading(true);
     try {
       const activeDrafts = await listActiveQuestionnaireDrafts();
-      const allTasks = listTaskWorklistCandidates({
+      const candidateTasks = listTaskWorklistCandidates({
         locality_code: selectedLocalityCode || undefined,
-      }).map((task) => enrichTaskForWorklist(task, activeDrafts));
+      });
+      const householdsById = getHouseholdsByIdsSync(
+        candidateTasks.map((task) => task.household_id)
+      );
+      const allTasks = candidateTasks.map((task) =>
+        enrichTaskForWorklist(task, activeDrafts, householdsById)
+      );
       setTasks(allTasks);
       setSyncError(null);
     } catch (error) {

@@ -103,6 +103,11 @@ export function initTaskDb() {
   `);
 
   db.runSync(`
+    CREATE INDEX IF NOT EXISTS questionnaire_drafts_active_scope_idx
+    ON questionnaire_drafts (draft_status, form_code, user_id, updated_at)
+  `);
+
+  db.runSync(`
     CREATE TABLE IF NOT EXISTS eligible_women (
       woman_id TEXT PRIMARY KEY,
       household_member_id TEXT NOT NULL,
@@ -189,6 +194,22 @@ export function initTaskDb() {
       db.runSync(statement);
     } catch {
       // Column already exists on upgraded local stores.
+    }
+  }
+
+  for (const statement of [
+    "CREATE INDEX IF NOT EXISTS follow_up_tasks_status_target_date_idx ON follow_up_tasks (status, target_date)",
+    "CREATE INDEX IF NOT EXISTS follow_up_tasks_locality_status_idx ON follow_up_tasks (assigned_locality_code, status)",
+    "CREATE INDEX IF NOT EXISTS follow_up_tasks_sync_status_idx ON follow_up_tasks (sync_status)",
+    "CREATE INDEX IF NOT EXISTS follow_up_tasks_household_id_idx ON follow_up_tasks (household_id)",
+    "CREATE INDEX IF NOT EXISTS form_responses_sync_status_submitted_at_idx ON form_responses (sync_status, submitted_at)",
+    "CREATE INDEX IF NOT EXISTS form_responses_household_id_idx ON form_responses (household_id)",
+    "CREATE INDEX IF NOT EXISTS task_attempts_task_id_idx ON task_attempts (task_id)",
+  ]) {
+    try {
+      db.runSync(statement);
+    } catch {
+      // Index target column missing on an unexpected schema variant; skip rather than brick startup.
     }
   }
 
