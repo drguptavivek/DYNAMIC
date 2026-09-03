@@ -454,4 +454,201 @@ assert.equal(
   "Interview date changes must trigger the pregnancy-history recalculation hook"
 );
 
+// --- calculateWqPregnancyBirthDateMessage / Q20_i --------------------------
+
+const referenceDate2026 = new Date(Date.UTC(2026, 7, 14)); // 14 Aug 2026
+
+assert.equal(
+  calculateWqPregnancyBirthDateMessage(
+    { day: "30", month: "02", year: "2020" },
+    referenceDate2026,
+    null
+  ),
+  "20_i is not a valid calendar date (entered 30/02/2020).",
+  "30 February is not a real calendar date"
+);
+assert.equal(
+  calculateWqPregnancyBirthDateMessage(
+    { day: "01", month: "01", year: "2030" },
+    referenceDate2026,
+    null
+  ),
+  "20_i cannot be after the interview date (entered 01/01/2030).",
+  "A date after the reference date must be flagged"
+);
+assert.equal(
+  calculateWqPregnancyBirthDateMessage(
+    { day: "01", month: "01", year: "1995" },
+    referenceDate2026,
+    1999
+  ),
+  "20_i year cannot be before the mother's own birth year 1999 (entered 01/01/1995).",
+  "A pregnancy dated before the mother's own birth year must be flagged"
+);
+assert.equal(
+  calculateWqPregnancyBirthDateMessage(
+    { day: "12", month: "03", year: "2019" },
+    referenceDate2026,
+    1999
+  ),
+  null,
+  "A valid, past, post-maternal-birth date is consistent"
+);
+assert.equal(
+  calculateWqPregnancyBirthDateMessage({ day: "12", month: "03", year: "" }, referenceDate2026, null),
+  null,
+  "An incomplete Q20_i must skip the check"
+);
+
+// --- calculateWqChildAgeAtLastBirthdayMessage / Q25_i ----------------------
+
+const wqBirthDate20190312 = { day: "12", month: "03", year: "2019" };
+
+assert.equal(
+  calculateWqChildAgeAtLastBirthdayMessage(wqBirthDate20190312, "05", referenceDate2026),
+  "Born 12/03/2019, so age at last birthday should be 7 (entered 5).",
+  "An off-by-two Q25_i must be flagged with the documented message"
+);
+assert.equal(
+  calculateWqChildAgeAtLastBirthdayMessage(wqBirthDate20190312, "07", referenceDate2026),
+  null,
+  "The correct completed age must not be flagged"
+);
+assert.equal(
+  calculateWqChildAgeAtLastBirthdayMessage(wqBirthDate20190312, "", referenceDate2026),
+  null,
+  "An empty Q25_i must skip the check"
+);
+assert.equal(
+  calculateWqChildAgeAtLastBirthdayMessage({ day: "12", month: "03", year: "" }, "07", referenceDate2026),
+  null,
+  "An incomplete Q20_i must skip the Q25_i check"
+);
+
+// --- calculateWqDeathAgeMessage / Q28_i -------------------------------------
+
+assert.equal(
+  calculateWqDeathAgeMessage(
+    { days: "10", months: "02", years: "" },
+    wqBirthDate20190312,
+    referenceDate2026
+  ),
+  "28_i must record only one of days, months, or years (entered days, months).",
+  "Filling more than one unit must be flagged"
+);
+assert.equal(
+  calculateWqDeathAgeMessage({ days: "", months: "30", years: "" }, wqBirthDate20190312, referenceDate2026),
+  "28_i months must be 1 to 23 for a death under 2 years old (entered 30).",
+  "Months outside 1-23 must be flagged"
+);
+assert.equal(
+  calculateWqDeathAgeMessage({ days: "", months: "", years: "01" }, wqBirthDate20190312, referenceDate2026),
+  "28_i years must be 2 or more for a death 2 years or older (entered 1).",
+  "Years below 2 must be flagged"
+);
+assert.equal(
+  calculateWqDeathAgeMessage({ days: "", months: "", years: "10" }, wqBirthDate20190312, referenceDate2026),
+  "28_i age at death (about 3653 days) cannot exceed 2712 days since birth (20_i).",
+  "A death age longer than the time since birth must be flagged"
+);
+assert.equal(
+  calculateWqDeathAgeMessage({ days: "", months: "", years: "05" }, wqBirthDate20190312, referenceDate2026),
+  null,
+  "A death age within the time since birth is consistent"
+);
+assert.equal(
+  calculateWqDeathAgeMessage({ days: "", months: "", years: "" }, wqBirthDate20190312, referenceDate2026),
+  null,
+  "An unanswered Q28_i must skip the check"
+);
+assert.equal(
+  calculateWqDeathAgeMessage(
+    { days: "", months: "", years: "05" },
+    { day: "12", month: "03", year: "" },
+    referenceDate2026
+  ),
+  null,
+  "An incomplete Q20_i must skip the Q28_i check"
+);
+
+// --- live model: Q20_i/Q25_i/Q28_i wired through the dynamic panels -------
+
+const datesModel = createReproductionHistoryModel();
+attachWqValidation(datesModel);
+datesModel.setValue(WQ_BIRTH_MONTH_YEAR_FIELD, { month: "06", year: "1990" });
+const datesHistoryPanel = addPregnancyHistoryPanel(datesModel);
+panelQuestion(datesHistoryPanel, WQ_PREGNANCY_BIRTH_RESULT_FIELD).value = 1;
+panelQuestion(datesHistoryPanel, WQ_PREGNANCY_DURATION_FIELD).value = { weeks: "39" };
+panelQuestion(datesHistoryPanel, WQ_PREGNANCY_BIRTH_DATE_FIELD).value = {
+  day: "12",
+  month: "03",
+  year: "2019",
+};
+applyWqPregnancyHistoryCalculations(datesModel);
+
+const datesFollowupQuestion = question(datesModel, "wq_born_alive_child_followups");
+assert.equal(datesFollowupQuestion.panels.length, 1, "The born-alive child must open a follow-up row");
+// The follow-up loop rebuilds its rows (and their underlying Question
+// instances) whenever a change makes the row's data differ, so the current
+// panel must be re-resolved after every applyWqPregnancyHistoryCalculations
+// call rather than reusing a cached panel reference.
+function currentDatesFollowupPanel() {
+  return datesFollowupQuestion.panels[0];
+}
+assert.equal(
+  panelQuestion(currentDatesFollowupPanel(), WQ_PREGNANCY_ROW_ID_FIELD).value,
+  panelQuestion(datesHistoryPanel, WQ_PREGNANCY_ROW_ID_FIELD).value,
+  "The follow-up row must link back to its pregnancy row"
+);
+
+panelQuestion(currentDatesFollowupPanel(), "pregnancy_02_reproduction_is_name_still_alive").value = 1;
+panelQuestion(currentDatesFollowupPanel(), WQ_PREGNANCY_CHILD_AGE_FIELD).value = "05";
+applyWqPregnancyHistoryCalculations(datesModel);
+assert.ok(
+  questionHasErrorText(
+    panelQuestion(currentDatesFollowupPanel(), WQ_PREGNANCY_CHILD_AGE_FIELD),
+    "so age at last birthday should be 7 (entered 5)"
+  ),
+  "Q25_i must show the inline mismatch against Q20_i"
+);
+assert.equal(
+  datesModel.validate(),
+  false,
+  "The model must fail validation while Q25_i contradicts Q20_i"
+);
+
+panelQuestion(currentDatesFollowupPanel(), WQ_PREGNANCY_CHILD_AGE_FIELD).value = "07";
+applyWqPregnancyHistoryCalculations(datesModel);
+assert.equal(
+  panelQuestion(currentDatesFollowupPanel(), WQ_PREGNANCY_CHILD_AGE_FIELD).errors.length,
+  0,
+  "Correcting Q25_i must clear the message"
+);
+
+panelQuestion(currentDatesFollowupPanel(), "pregnancy_02_reproduction_is_name_still_alive").value = 2;
+panelQuestion(currentDatesFollowupPanel(), WQ_PREGNANCY_DEATH_AGE_FIELD).value = { years: "10" };
+applyWqPregnancyHistoryCalculations(datesModel);
+assert.ok(
+  questionHasErrorText(
+    panelQuestion(currentDatesFollowupPanel(), WQ_PREGNANCY_DEATH_AGE_FIELD),
+    "cannot exceed"
+  ),
+  "Q28_i must flag a death age longer than the time since Q20_i"
+);
+assert.equal(
+  datesModel.validate(),
+  false,
+  "The model must fail validation while Q28_i exceeds the time since Q20_i"
+);
+
+panelQuestion(currentDatesFollowupPanel(), WQ_PREGNANCY_DEATH_AGE_FIELD).value = { years: "05" };
+applyWqPregnancyHistoryCalculations(datesModel);
+assert.equal(
+  panelQuestion(currentDatesFollowupPanel(), WQ_PREGNANCY_DEATH_AGE_FIELD).errors.length,
+  0,
+  "Correcting Q28_i must clear the message"
+);
+
+assert.equal(shouldRecalculateWqPregnancyHistory(WQ_PREGNANCY_DEATH_AGE_FIELD), true);
+
 console.log("Validated WQ interviewer-consistency checks.");

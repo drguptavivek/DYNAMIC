@@ -978,9 +978,17 @@ const WQ_MONTH_DAYS = 30.44;
 const WQ_YEAR_DAYS = 365.25;
 
 function wqFilledDeathAgeUnits(deathAge) {
-  return ["days", "months", "years"].filter(
-    (key) => deathAge && typeof deathAge === "object" && String(deathAge[key] ?? "") !== ""
-  );
+  if (!deathAge || typeof deathAge !== "object") return [];
+  const provided = ["days", "months", "years"].filter((key) => String(deathAge[key] ?? "") !== "");
+  if (provided.length <= 1) return provided;
+  // applyWqPregnancyHistoryCalculations backfills the units the interviewer
+  // did not answer to "00" once any unit has an answer (so the followup row
+  // always carries all three keys). Ignore those synthetic zeros so a
+  // genuinely single answer is not mistaken for "answered in two units".
+  const nonZero = provided.filter((key) => (toFiniteNumber(deathAge[key]) ?? 0) > 0);
+  if (nonZero.length === 1) return nonZero;
+  if (nonZero.length === 0) return [provided[0]];
+  return nonZero;
 }
 
 // Q28_i (age at death for a born-alive child who has since died) must record
