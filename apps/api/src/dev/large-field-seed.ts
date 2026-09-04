@@ -2,6 +2,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { db, schema } from "../db";
 import { smokeUser, upsertDevSeed } from "./dev-seed";
+import { generateEligibleWomanWqTaskDescriptors } from "@dynamic/event-core";
 
 const SITES = [
   { site_id: 1, site_code: "BRL", site_name: "Bareilly" },
@@ -371,8 +372,7 @@ export async function upsertLargeFieldSeed() {
     )
     .orderBy(schema.households.household_id)
     .limit(HHQ_TASK_HOUSEHOLDS);
-  await db.insert(schema.followUpTasks).values(
-    taskHouseholds.map((household) => ({
+  const hhqTasks = taskHouseholds.map((household) => ({
       task_id: randomUUID(),
       task_key: buildHhqTaskKey(household.household_id, taskDate),
       site_id: household.site_id,
@@ -395,9 +395,46 @@ export async function upsertLargeFieldSeed() {
       action_state: "enabled",
       created_at: now,
       updated_at: now,
+    }));
+  const seededWomen = await db
+    .select({ woman_id: schema.eligibleWomen.household_member_id, household_id: schema.eligibleWomen.household_id, eligibility_start_date: schema.eligibleWomen.eligibility_start_date })
+    .from(schema.eligibleWomen)
+    .where(sql`site_id in (${sql.join(SEEDED_SITE_IDS.map((id) => sql`${id}`), sql`, `)})`);
+  const wqTasks = seededWomen.flatMap((woman) =>
+    generateEligibleWomanWqTaskDescriptors({
+      household_id: woman.household_id,
+      woman_id: woman.woman_id,
+      eligibility_start_date: woman.eligibility_start_date ?? "2026-09-01",
+      source_event_id: `large-field-seed:${woman.woman_id}`,
+    }).map((descriptor) => ({
+      task_id: randomUUID(),
+      task_key: descriptor.task_key,
+      site_id: Number(descriptor.household_id.split("-")[0]),
+      locality_code: descriptor.household_id.split("-")[1] || "",
+      household_id: descriptor.household_id,
+      subject_type: descriptor.subject_type,
+      subject_id: descriptor.subject_id,
+      woman_id: descriptor.woman_id,
+      task_type: descriptor.task_type,
+      form_code: descriptor.form_code,
+      expected_forms: ["WQ"],
+      protocol_visit_label: descriptor.protocol_visit_label,
+      generation_source: descriptor.generation_source,
+      source_event_id: descriptor.source_event_id,
+      anchor_date: descriptor.anchor_date,
+      window_start: descriptor.window_start,
+      target_date: descriptor.target_date,
+      deadline_date: descriptor.deadline_date,
+      status: "planned",
+      rules_version: descriptor.rules_version,
+      form_availability: descriptor.form_availability,
+      action_state: descriptor.action_state,
+      created_at: now,
+      updated_at: now,
     })),
   );
-  console.log(`Created ${taskHouseholds.length} pending HHQ tasks.`);
+  await db.insert(schema.followUpTasks).values([...hhqTasks, ...wqTasks]).onConflictDoNothing();
+  console.log(`Created ${hhqTasks.length} pending HHQ tasks and ${wqTasks.length} pending WQ tasks.`);
 }
 
 upsertLargeFieldSeed()

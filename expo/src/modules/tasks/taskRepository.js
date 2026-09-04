@@ -2,7 +2,7 @@ import { getDb } from "./taskSchema.js";
 
 export function listTasks(filters = {}) {
   const db = getDb();
-  const { status, task_type, locality_code, overdue } = filters;
+  const { status, task_type, locality_code, overdue, limit, offset = 0 } = filters;
 
   let sql = "SELECT * FROM follow_up_tasks WHERE 1=1";
   const params = [];
@@ -29,6 +29,10 @@ export function listTasks(filters = {}) {
   }
 
   sql += " ORDER BY target_date ASC";
+  if (Number.isFinite(limit) && limit > 0) {
+    sql += " LIMIT ? OFFSET ?";
+    params.push(Math.floor(limit), Math.max(0, Math.floor(offset)));
+  }
 
   try {
     const tasks = db.getAllSync(sql, params);
@@ -92,7 +96,7 @@ export function saveTask(task) {
     closed_at,
     form_availability = "available",
     disabled_reason,
-    assigned_locality_code,
+    assigned_locality_code = task.assigned_locality_code || task.locality_code,
     rules_version,
     generation_source,
     source_event_id,

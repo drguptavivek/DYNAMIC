@@ -262,6 +262,8 @@ export function listTaskWorklistCandidates(filters = {}, repository) {
       status: filters.status,
       locality_code: filters.locality_code,
       task_type: filters.task_type,
+      limit: filters.limit,
+      offset: filters.offset,
     })
     .filter((task) => !isTerminalTask(task))
     .sort(sortByProtocolDate);

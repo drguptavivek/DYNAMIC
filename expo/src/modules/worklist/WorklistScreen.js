@@ -427,6 +427,8 @@ export function WorklistScreen({
   const [localityFilter, setLocalityFilter] = useState(selectedLocalityCode || "");
   const [stageFilter, setStageFilter] = useState("");
   const [selectedHouseholdTask, setSelectedHouseholdTask] = useState(null);
+  const [hasMoreTasks, setHasMoreTasks] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   useEffect(() => {
     loadTasks();
@@ -442,8 +444,11 @@ export function WorklistScreen({
       const activeDrafts = await listActiveQuestionnaireDrafts();
       const allTasks = listTaskWorklistCandidates({
         locality_code: selectedLocalityCode || undefined,
+        limit: 50,
+        offset: 0,
       }).map((task) => enrichTaskForWorklist(task, activeDrafts));
       setTasks(allTasks);
+      setHasMoreTasks(allTasks.length === 50);
       setSyncError(null);
     } catch (error) {
       console.error("Error loading tasks:", error);
@@ -533,6 +538,23 @@ export function WorklistScreen({
         />
       </View>
     );
+  }
+
+  async function loadMoreTasks() {
+    if (loadingMore || !hasMoreTasks) return;
+    setLoadingMore(true);
+    try {
+      const activeDrafts = await listActiveQuestionnaireDrafts();
+      const nextTasks = listTaskWorklistCandidates({
+        locality_code: selectedLocalityCode || undefined,
+        limit: 50,
+        offset: tasks.length,
+      }).map((task) => enrichTaskForWorklist(task, activeDrafts));
+      setTasks((current) => [...current, ...nextTasks]);
+      setHasMoreTasks(nextTasks.length === 50);
+    } finally {
+      setLoadingMore(false);
+    }
   }
 
   const sections = [];
@@ -640,6 +662,7 @@ export function WorklistScreen({
         {sections.map((item) => (
           <React.Fragment key={item.id}>{renderWorklistItem(item)}</React.Fragment>
         ))}
+        {hasMoreTasks && <Pressable style={styles.loadMoreButton} onPress={loadMoreTasks}><Text style={styles.loadMoreText}>{loadingMore ? "Loading…" : "Load 50 more households"}</Text></Pressable>}
         {syncError && (
           <View style={styles.centerContainer}>
             <Text style={styles.errorText}>{syncError}</Text>
@@ -671,6 +694,7 @@ export function WorklistScreen({
           ) : null
         }
         contentContainerStyle={styles.taskListContent}
+        ListFooterComponent={hasMoreTasks ? <Pressable style={styles.loadMoreButton} onPress={loadMoreTasks}><Text style={styles.loadMoreText}>{loadingMore ? "Loading…" : "Load 50 more households"}</Text></Pressable> : null}
       />
       <HouseholdDetailsModal
         visible={Boolean(selectedHouseholdTask)}
@@ -1040,6 +1064,17 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 10,
     padding: 14,
+  },
+  loadMoreButton: {
+    margin: 12,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: "center",
+    backgroundColor: "#e8f1ff",
+  },
+  loadMoreText: {
+    color: "#1d4ed8",
+    fontWeight: "700",
   },
   detailRow: {
     width: "48%",

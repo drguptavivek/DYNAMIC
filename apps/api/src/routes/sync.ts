@@ -517,12 +517,14 @@ router.get(
         householdsData.map((household) => `${household.site_id}|${household.locality_code}`),
       ),
     ];
+    const localityNameByKey = new Map<string, string>();
     const localityTypeByKey = new Map<string, string | null>();
     if (localityPairs.length > 0) {
       const localityRows = await db
         .select({
           site_id: schema.studyLocalities.site_id,
           locality_code: schema.studyLocalities.locality_code,
+          locality_name: schema.studyLocalities.locality_name,
           locality_type: schema.studyLocalities.locality_type,
         })
         .from(schema.studyLocalities)
@@ -539,10 +541,14 @@ router.get(
         );
       for (const row of localityRows) {
         localityTypeByKey.set(`${row.site_id}|${row.locality_code}`, row.locality_type ?? null);
+        localityNameByKey.set(`${row.site_id}|${row.locality_code}`, row.locality_name);
       }
     }
     const householdsResult = householdsData.slice(0, pageSize).map((household) => ({
       ...household,
+      locality_name:
+        localityNameByKey.get(`${household.site_id}|${household.locality_code}`) ??
+        household.locality_code,
       locality_type:
         localityTypeByKey.get(`${household.site_id}|${household.locality_code}`) ?? null,
     }));
