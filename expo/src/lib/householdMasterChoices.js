@@ -38,8 +38,14 @@ export function getAssignedLocalities(
   today = new Date().toISOString().split("T")[0]
 ) {
   const assignments = Array.isArray(user?.area_assignments) ? user.area_assignments : [];
-  const localitiesByCode = new Map(
-    localities.map((locality) => [String(locality.locality_code), locality])
+  // Locality codes repeat between sites (for example, code 01 can exist at
+  // several sites). Always resolve the master row by the complete location
+  // identity so one site's name cannot leak into another site's UI.
+  const localitiesBySiteAndCode = new Map(
+    localities.map((locality) => [
+      `${Number(locality.site_id)}:${String(locality.locality_code)}`,
+      locality,
+    ])
   );
   const activeAssignments = assignments
     .filter((assignment) => isActiveAssignment(assignment, today))
@@ -60,7 +66,9 @@ export function getAssignedLocalities(
   const choices = [...activeAssignments, ...fallbackLocalities]
     .map((assignment) => {
       const code = String(assignment.locality_code);
-      const locality = localitiesByCode.get(code);
+      const locality = localitiesBySiteAndCode.get(
+        `${Number(assignment.site_id)}:${code}`
+      );
       return {
         value: code,
         text: {

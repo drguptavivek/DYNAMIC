@@ -28,14 +28,18 @@ export function listTasks(filters = {}) {
     params.push(today);
   }
 
+  if (Array.isArray(locality_codes) && locality_codes.length > 0) {
+    sql += ` AND assigned_locality_code IN (${locality_codes.map(() => "?").join(",")})`;
+    params.push(...locality_codes.map(String));
+  }
+
+  // Filters must be added before ORDER/LIMIT. Appending locality_codes after
+  // LIMIT produced invalid SQL and the catch-all handler returned an empty
+  // worklist whenever assigned locality codes were supplied.
   sql += " ORDER BY target_date ASC";
   if (Number.isFinite(limit) && limit > 0) {
     sql += " LIMIT ? OFFSET ?";
     params.push(Math.floor(limit), Math.max(0, Math.floor(offset)));
-  }
-  if (Array.isArray(locality_codes) && locality_codes.length > 0) {
-    sql += ` AND assigned_locality_code IN (${locality_codes.map(() => "?").join(",")})`;
-    params.push(...locality_codes.map(String));
   }
 
   try {
