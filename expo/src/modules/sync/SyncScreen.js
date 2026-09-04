@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Alert } from "react-native";
 import * as syncService from "../sync/syncService.js";
 import * as eventOutbox from "../events/eventOutbox.js";
 import * as taskRepository from "../tasks/taskRepository.js";
@@ -57,6 +57,12 @@ export function SyncScreen({ onClockStatusChange } = {}) {
     try {
       const result = await syncService.syncAll();
       setSyncMessage(formatSyncCompletionMessage(result));
+      if (result.uploadErrors > 0) {
+        Alert.alert(
+          "Duplicate submission detected",
+          `${result.uploadErrors} form${result.uploadErrors === 1 ? " was" : "s were"} already submitted by another user. The form${result.uploadErrors === 1 ? " is" : "s are"} in Upload Errors and removed from this worklist.`,
+        );
+      }
       loadSyncInfo();
     } catch (error) {
       console.error("Sync error:", error);

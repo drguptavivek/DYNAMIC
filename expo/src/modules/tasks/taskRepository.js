@@ -712,6 +712,21 @@ export function markResponseUploadError(id, message) {
   }
 }
 
+export function markTaskUploadConflict(taskId) {
+  if (!taskId) return;
+  const db = getDb();
+  try {
+    db.runSync(
+      `UPDATE follow_up_tasks
+       SET status = 'completed', lifecycle_status = 'completed', updated_at = ?
+       WHERE id = ? OR task_key = ?`,
+      [new Date().toISOString(), taskId, taskId],
+    );
+  } catch (error) {
+    console.error("Error closing duplicate task:", error);
+  }
+}
+
 export function getTaskAttempts(taskId) {
   const db = getDb();
   try {

@@ -257,7 +257,7 @@ export function formatSyncCompletionMessage(result = {}) {
   }
 
   if (typeof result.uploadErrors === "number" && result.uploadErrors > 0) {
-    parts.push(`${pluralize(result.uploadErrors, "upload error")} saved`);
+    parts.push(`${pluralize(result.uploadErrors, "duplicate or upload error")} moved to Upload Errors`);
   }
 
   if (typeof result.draftsPushed === "number") {

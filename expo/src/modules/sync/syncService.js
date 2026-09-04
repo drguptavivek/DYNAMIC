@@ -644,6 +644,9 @@ export async function pushSync() {
     for (const item of pending) {
       if (uploadErrorById.has(item.id)) {
         await taskRepository.markResponseUploadError(item.id, uploadErrorById.get(item.id));
+        if (typeof taskRepository.markTaskUploadConflict === "function") {
+          taskRepository.markTaskUploadConflict(item.task_id || item.task_key);
+        }
         const { markQuestionnaireSubmissionUploadError } = await import(
           "../questionnaires/questionnaireSubmissionRepository.js"
         );
