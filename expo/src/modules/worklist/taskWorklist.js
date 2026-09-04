@@ -261,6 +261,7 @@ export function listTaskWorklistCandidates(filters = {}, repository) {
     .listTasks({
       status: filters.status,
       locality_code: filters.locality_code,
+      locality_codes: filters.locality_codes,
       task_type: filters.task_type,
       limit: filters.limit,
       offset: filters.offset,

@@ -2,7 +2,7 @@ import { getDb } from "./taskSchema.js";
 
 export function listTasks(filters = {}) {
   const db = getDb();
-  const { status, task_type, locality_code, overdue, limit, offset = 0 } = filters;
+  const { status, task_type, locality_code, locality_codes, overdue, limit, offset = 0 } = filters;
 
   let sql = "SELECT * FROM follow_up_tasks WHERE 1=1";
   const params = [];
@@ -32,6 +32,10 @@ export function listTasks(filters = {}) {
   if (Number.isFinite(limit) && limit > 0) {
     sql += " LIMIT ? OFFSET ?";
     params.push(Math.floor(limit), Math.max(0, Math.floor(offset)));
+  }
+  if (Array.isArray(locality_codes) && locality_codes.length > 0) {
+    sql += ` AND assigned_locality_code IN (${locality_codes.map(() => "?").join(",")})`;
+    params.push(...locality_codes.map(String));
   }
 
   try {

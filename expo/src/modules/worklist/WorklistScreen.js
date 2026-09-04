@@ -21,6 +21,7 @@ import { getTaskOpenBlockReason } from "./taskOpenPolicy.js";
 import { getHouseholdMemberCountSync, getHouseholdSync } from "../../lib/householdSync.js";
 import { listActiveQuestionnaireDrafts } from "../questionnaires/questionnaireDraftRepository.js";
 import { draftMatchesTask } from "../questionnaires/draftPendingForms.js";
+import { getAssignedLocalities } from "../sync/syncService.js";
 
 const BADGE_COLORS = {
   HHQ: "#e74c3c",
@@ -444,6 +445,7 @@ export function WorklistScreen({
       const activeDrafts = await listActiveQuestionnaireDrafts();
       const allTasks = listTaskWorklistCandidates({
         locality_code: selectedLocalityCode || undefined,
+        locality_codes: getAssignedLocalities(),
         limit: 50,
         offset: 0,
       }).map((task) => enrichTaskForWorklist(task, activeDrafts));
@@ -547,6 +549,7 @@ export function WorklistScreen({
       const activeDrafts = await listActiveQuestionnaireDrafts();
       const nextTasks = listTaskWorklistCandidates({
         locality_code: selectedLocalityCode || undefined,
+        locality_codes: getAssignedLocalities(),
         limit: 50,
         offset: tasks.length,
       }).map((task) => enrichTaskForWorklist(task, activeDrafts));
