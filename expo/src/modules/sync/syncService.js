@@ -751,6 +751,13 @@ export async function syncAll(options = {}) {
         uploadErrors: pushResult.uploadErrors,
       });
       clearHouseholdCacheForSync();
+    } else {
+      // Native SQLite needs the same authoritative projection reset as web
+      // storage; otherwise old users' households/localities survive sync.
+      clearHouseholdCacheForSync();
+    }
+    if (typeof taskRepository.clearSyncedTaskCacheForSync === "function") {
+      taskRepository.clearSyncedTaskCacheForSync();
     }
     const pullResult = await pullSync({ onProgress });
     const draftParams = new URLSearchParams({

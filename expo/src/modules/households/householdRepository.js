@@ -51,7 +51,31 @@ export function getHouseholdCacheInfo() {
 
 export function clearHouseholdCacheForSync() {
   const storage = getStorage();
-  if (!storage) return;
+  if (!storage) {
+    // Native devices keep the household registry in SQLite. Reconcile the
+    // server projection on every sync so records from a previous user or
+    // assignment cannot remain visible. Preserve households referenced by
+    // unsynced local responses/drafts for offline recovery.
+    try {
+      const db = getOfflineDatabase();
+      const protectedRows = db.getAllSync(
+        `SELECT household_id FROM form_responses
+         WHERE household_id IS NOT NULL
+           AND sync_status NOT IN ('synced', 'confirmed', 'upload_error')
+         UNION
+         SELECT subject_id AS household_id FROM questionnaire_drafts
+         WHERE subject_id IS NOT NULL`,
+      );
+      const protectedIds = protectedRows.map((row) => String(row.household_id)).filter(Boolean);
+      const placeholders = protectedIds.map(() => "?").join(",");
+      const suffix = protectedIds.length ? ` AND household_id NOT IN (${placeholders})` : "";
+      db.runSync(`DELETE FROM household_members WHERE 1=1${suffix}`, protectedIds);
+      db.runSync(`DELETE FROM households WHERE 1=1${suffix}`, protectedIds);
+    } catch (error) {
+      console.warn("Could not clear native household cache for sync:", error);
+    }
+    return;
+  }
   cleanupObsoleteWebStorage(storage);
   storage.removeItem(HOUSEHOLD_STORAGE_KEY);
   storage.removeItem(MEMBER_STORAGE_KEY);
