@@ -259,8 +259,24 @@ router.get("/me", requireAuth, async (req: Request, res: Response) => {
     }
 
     const areaAssignments = await db
-      .select()
+      .select({
+        assignment_id: schema.userAreaAssignments.assignment_id,
+        user_id: schema.userAreaAssignments.user_id,
+        site_id: schema.userAreaAssignments.site_id,
+        locality_code: schema.userAreaAssignments.locality_code,
+        active_from: schema.userAreaAssignments.active_from,
+        active_to: schema.userAreaAssignments.active_to,
+        locality_name: schema.studyLocalities.locality_name,
+        locality_type: schema.studyLocalities.locality_type,
+      })
       .from(schema.userAreaAssignments)
+      .leftJoin(
+        schema.studyLocalities,
+        and(
+          eq(schema.studyLocalities.site_id, schema.userAreaAssignments.site_id),
+          eq(schema.studyLocalities.locality_code, schema.userAreaAssignments.locality_code),
+        ),
+      )
       .where(eq(schema.userAreaAssignments.user_id, req.user!.sub));
 
     sendSuccess(res, {

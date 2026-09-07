@@ -8,15 +8,18 @@ function isActiveAssignment(assignment, today) {
 
 export function buildFieldWorkerProfile(user, localities = [], today = new Date().toISOString().split("T")[0]) {
   const localitiesByCode = new Map(
-    localities.map((locality) => [String(locality.locality_code), locality])
+    localities.map((locality) => [
+      `${Number(locality.site_id)}:${String(locality.locality_code)}`,
+      locality,
+    ])
   );
   const assignments = Array.isArray(user?.area_assignments) ? user.area_assignments : [];
   let activeAssignments = assignments
     .filter((assignment) => isActiveAssignment(assignment, today))
     .map((assignment) => {
       const localityCode = String(assignment.locality_code);
-      const locality = localitiesByCode.get(localityCode);
-      const siteId = Number(assignment.site_id || locality?.site_id || user?.site_id || 0);
+      const siteId = Number(assignment.site_id || user?.site_id || 0);
+      const locality = localitiesByCode.get(`${siteId}:${localityCode}`);
       return {
         site_id: siteId || null,
         site_name: getStudySiteName(siteId),
@@ -32,8 +35,8 @@ export function buildFieldWorkerProfile(user, localities = [], today = new Date(
       .filter(Boolean)
       .sort()
       .map((localityCode) => {
-        const locality = localitiesByCode.get(localityCode);
-        const siteId = Number(locality?.site_id || user?.site_id || 0);
+        const siteId = Number(user?.site_id || 0);
+        const locality = localitiesByCode.get(`${siteId}:${localityCode}`);
         return {
           site_id: siteId || null,
           site_name: getStudySiteName(siteId),
