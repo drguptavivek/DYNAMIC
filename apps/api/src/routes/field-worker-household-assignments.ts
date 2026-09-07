@@ -8,6 +8,7 @@ import { sendError, sendSuccess } from "../lib/errors";
 import { addDays, parseISODate, toISODate } from "@dynamic/shared-workflow";
 
 const router = Router();
+const HHQ_ASSIGNMENT_WINDOW_DAYS = 180;
 
 const assignmentListSchema = z.object({
   site_id: z.coerce.number().int().positive(),
@@ -144,7 +145,12 @@ router.post(
       const uniqueUserIds = [...new Set(data.user_ids)];
       const now = new Date();
       const assignmentDate = toISODate(now);
-      const assignmentDeadline = toISODate(addDays(parseISODate(assignmentDate), 30));
+      // The initial HHQ remains actionable for six months from the date the
+      // household is assigned. Revisit tasks generated after an interview
+      // continue to use their protocol-specific windows.
+      const assignmentDeadline = toISODate(
+        addDays(parseISODate(assignmentDate), HHQ_ASSIGNMENT_WINDOW_DAYS),
+      );
 
       const fieldWorkers = await db
         .select({
