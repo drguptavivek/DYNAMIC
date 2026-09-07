@@ -3,8 +3,6 @@ import * as taskRepository from "../tasks/taskRepository.js";
 import * as authStore from "../auth/authStore.js";
 import { reconcilePulledTasks } from "../worklist/taskWorklistRepository.js";
 import {
-  clearHouseholdCacheForSync,
-  getHouseholdCacheInfo,
   saveSyncedHouseholdsAndMembers,
 } from "../households/householdRepository.js";
 import { API_BASE_URL } from "./apiConfig.js";
@@ -741,24 +739,10 @@ export async function syncAll(options = {}) {
       staleDraftsRemoved: pushResult.staleDraftsRemoved,
       clockStatus: getClockStatus(),
     });
-    if (getHouseholdCacheInfo().isWebStorage) {
-      emitProgress(onProgress, {
-        stage: "clear-household-cache",
-        message: "Clearing browser household cache",
-        localities: assignmentResult.localityCodes.length,
-        pushed: pushResult.pushed,
-        events: pushResult.events,
-        uploadErrors: pushResult.uploadErrors,
-      });
-      clearHouseholdCacheForSync();
-    } else {
-      // Native SQLite needs the same authoritative projection reset as web
-      // storage; otherwise old users' households/localities survive sync.
-      clearHouseholdCacheForSync();
-    }
-    if (typeof taskRepository.clearSyncedTaskCacheForSync === "function") {
-      taskRepository.clearSyncedTaskCacheForSync();
-    }
+    // Do not clear local projections before an incremental pull. Existing
+    // rows may be older than the sync cursor and therefore will not be sent
+    // back, which would make a second Sync erase the worklist. Full device
+    // cleanup belongs to logout/login; incremental sync only upserts deltas.
     const pullResult = await pullSync({ onProgress });
     const draftParams = new URLSearchParams({
       device_id: getMeta("device_id") || "unregistered-device",
