@@ -239,6 +239,26 @@ router.post(
         .set({ updated_at: now })
         .where(inArray(schema.households.household_id, uniqueHouseholdIds));
 
+      // A reassignment starts one new HHQ visit window for the household. Do
+      // not leave an older pending assignment-date task actionable alongside
+      // it; completed/closed evidence is preserved for audit and is not
+      // touched here.
+      await db
+        .update(schema.followUpTasks)
+        .set({
+          status: "superseded",
+          action_state: "disabled",
+          disabled_reason: "Superseded by household reassignment",
+          updated_at: now,
+        })
+        .where(
+          and(
+            inArray(schema.followUpTasks.household_id, uniqueHouseholdIds),
+            eq(schema.followUpTasks.task_type, "HHQ"),
+            inArray(schema.followUpTasks.status, ["planned", "open", "in_progress"]),
+          ),
+        );
+
       const hhqTaskValues = households
         .filter((household) => (household.baseline_enrollment_status ?? "pending") === "pending")
         .map((household) => ({
