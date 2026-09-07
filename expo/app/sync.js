@@ -8,7 +8,10 @@ export default function SyncRoute() {
   const app = useFieldApp();
   return (
     <FieldAppShell route={{ view: "sync" }} title="Sync Status">
-      <SyncScreen onClockStatusChange={app.setClockStatus} />
+      <SyncScreen
+        onClockStatusChange={app.setClockStatus}
+        onSyncComplete={app.refreshLocalities}
+      />
     </FieldAppShell>
   );
 }

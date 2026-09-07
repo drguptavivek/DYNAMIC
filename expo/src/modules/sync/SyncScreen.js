@@ -5,7 +5,7 @@ import * as eventOutbox from "../events/eventOutbox.js";
 import * as taskRepository from "../tasks/taskRepository.js";
 import { formatSyncCompletionMessage, summarizePendingSyncData } from "./syncWorkflow.js";
 
-export function SyncScreen({ onClockStatusChange } = {}) {
+export function SyncScreen({ onClockStatusChange, onSyncComplete } = {}) {
   const [lastSync, setLastSync] = useState(null);
   const [pendingSummary, setPendingSummary] = useState({
     responses: 0,
@@ -56,6 +56,9 @@ export function SyncScreen({ onClockStatusChange } = {}) {
 
     try {
       const result = await syncService.syncAll();
+      if (typeof onSyncComplete === "function") {
+        await onSyncComplete();
+      }
       setSyncMessage(formatSyncCompletionMessage(result));
       if (result.uploadErrors > 0) {
         Alert.alert(
