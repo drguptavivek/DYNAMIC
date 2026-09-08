@@ -60,6 +60,7 @@ export function parseISODate(s: string): Date {
 
 /**
  * Generate HRF task schedule from baseline_completed_date through study_end_date.
+ * Household rounds recur every six calendar months.
  */
 export function generateHrfSchedule(params: {
   baseline_completed_date: string;
@@ -78,7 +79,7 @@ export function generateHrfSchedule(params: {
   let round = 1;
 
   while (true) {
-    const target = addCalendarMonths(anchor, round * 2);
+    const target = addCalendarMonths(anchor, round * 6);
     if (target > studyEnd) {
       break;
     }

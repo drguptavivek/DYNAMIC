@@ -104,7 +104,9 @@ export function HouseholdMembersModule({ householdId = "", selectedLocalityCode 
 
       <View style={styles.table}>
         <View style={styles.paginationBar}>
-          <Text style={styles.paginationTitle}>Members</Text>
+          <Text style={styles.paginationTitle}>
+            {householdId ? `Members (${members.length})` : `${groupMembersByHousehold(members).length} households · ${members.length} members`}
+          </Text>
           <View style={styles.paginationActions}>
             <Text style={styles.paginationPage}>{`Page ${page + 1}`}</Text>
             <Pressable
@@ -123,42 +125,49 @@ export function HouseholdMembersModule({ householdId = "", selectedLocalityCode 
             </Pressable>
           </View>
         </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={true}>
-          <View style={styles.tableContent}>
-            <View style={[styles.row, styles.headerRow]}>
-              <Text style={[styles.cell, styles.memberCell]} numberOfLines={1}>Member</Text>
-              <Text style={[styles.cell, styles.hhCell]} numberOfLines={1}>HH ID</Text>
-              <Text style={[styles.cell, styles.metaCell]} numberOfLines={1}>Age / sex</Text>
-              <Text style={[styles.cell, styles.relationCell]} numberOfLines={2}>Relation to HOH</Text>
-              <Text style={[styles.cell, styles.statusCell]} numberOfLines={1}>Status</Text>
-            </View>
-            <ScrollView style={styles.rows}>
-              {members.map((member) => (
-                <View key={member.individual_id} style={styles.row}>
-                  <Text style={[styles.cell, styles.memberCell]} numberOfLines={2}>
-                    {member.member_name || member.individual_id}
+        <ScrollView style={styles.rows} contentContainerStyle={styles.householdCards}>
+          {groupMembersByHousehold(members, household).map((group) => (
+            <View key={group.household_id} style={styles.householdCard}>
+              <View style={styles.householdCardHeader}>
+                <View style={styles.householdCardHeading}>
+                  <Text style={styles.householdCardTitle} numberOfLines={1} selectable>
+                    {group.household_label}
                   </Text>
-                  <Pressable
-                    style={[styles.cellPressable, styles.hhCell]}
-                    onPress={() => navigateTo(ROUTES.householdMembersForHousehold(member.household_id))}
-                  >
-                    <Text style={styles.linkText} numberOfLines={1} selectable>
-                      {member.household_id}
+                  <Text style={styles.householdCardSubtitle} numberOfLines={2} selectable>
+                    {group.locality_label}
+                    {group.address ? ` · ${group.address}` : ""}
+                  </Text>
+                </View>
+                <View style={styles.memberCountBadge}>
+                  <Text style={styles.memberCountText}>{`${group.members.length} ${group.members.length === 1 ? "member" : "members"}`}</Text>
+                </View>
+              </View>
+              {group.members.map((member) => (
+                <View key={member.individual_id} style={styles.memberDetailRow}>
+                  <View style={styles.memberDetailIdentity}>
+                    <Text style={styles.memberDetailName} numberOfLines={1} selectable>
+                      {member.member_name || member.individual_id}
                     </Text>
-                  </Pressable>
-                  <Text style={[styles.cell, styles.metaCell]} numberOfLines={1}>
-                    {`${member.age_years ?? "-"} / ${formatSex(member.sex)}`}
-                  </Text>
-                  <Text style={[styles.cell, styles.relationCell]} numberOfLines={2}>
-                    {formatRelationship(member.relationship_to_head)}
-                  </Text>
-                  <Text style={[styles.cell, styles.statusCell]} numberOfLines={2}>
+                    <Text style={styles.memberDetailMeta} numberOfLines={1}>
+                      {`${member.age_years ?? "-"} years · ${formatSex(member.sex)} · ${formatRelationship(member.relationship_to_head)}`}
+                    </Text>
+                  </View>
+                  <Text style={styles.memberDetailStatus} numberOfLines={2}>
                     {formatMemberStatus(member)}
                   </Text>
                 </View>
               ))}
-            </ScrollView>
-          </View>
+              {!householdId ? (
+                <Pressable
+                  style={styles.householdCardLink}
+                  onPress={() => navigateTo(ROUTES.householdMembersForHousehold(group.household_id))}
+                >
+                  <Text style={styles.householdCardLinkText}>View household details</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          ))}
+          {members.length === 0 ? <Text style={styles.emptyText}>No household members found.</Text> : null}
         </ScrollView>
       </View>
     </View>
@@ -184,6 +193,33 @@ function formatMemberStatus(member) {
   if (Number(member.relationship_to_head) === 1) return "Household head";
   if (member.woman_questionnaire_eligible) return "WQ eligible";
   return "Active member";
+}
+
+function groupMembersByHousehold(rows, householdContext = null) {
+  const groups = new Map();
+  for (const member of rows) {
+    const householdId = member.household_id || "unknown-household";
+    let group = groups.get(householdId);
+    if (!group) {
+      const displayNumber = [
+        householdContext?.structure_number || member.structure_number,
+        householdContext?.household_number || member.household_number,
+      ].filter(Boolean).join("-");
+      group = {
+        household_id: householdId,
+        household_label: displayNumber || householdId,
+        locality_label: [
+          householdContext?.locality_name || member.locality_name,
+          householdContext?.locality_code || member.locality_code,
+        ].filter(Boolean).join(" · "),
+        address: householdContext?.address || member.address || "",
+        members: [],
+      };
+      groups.set(householdId, group);
+    }
+    group.members.push(member);
+  }
+  return [...groups.values()];
 }
 
 const styles = StyleSheet.create({
@@ -262,7 +298,92 @@ const styles = StyleSheet.create({
     minWidth: 820,
   },
   rows: {
-    maxHeight: 420,
+    maxHeight: 560,
+  },
+  householdCards: {
+    gap: 12,
+    padding: 12,
+  },
+  householdCard: {
+    gap: 10,
+    padding: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#d8dee4",
+    backgroundColor: "#ffffff",
+  },
+  householdCardHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  householdCardHeading: {
+    flex: 1,
+    gap: 4,
+  },
+  householdCardTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#18202a",
+  },
+  householdCardSubtitle: {
+    fontSize: 12,
+    color: "#667085",
+  },
+  memberCountBadge: {
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: "#eef6ff",
+  },
+  memberCountText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#1f6feb",
+  },
+  memberDetailRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: "#eef2f5",
+  },
+  memberDetailIdentity: {
+    flex: 1,
+    gap: 3,
+  },
+  memberDetailName: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#18202a",
+  },
+  memberDetailMeta: {
+    fontSize: 12,
+    color: "#667085",
+  },
+  memberDetailStatus: {
+    maxWidth: 110,
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#475467",
+    textAlign: "right",
+  },
+  householdCardLink: {
+    alignSelf: "flex-start",
+    paddingTop: 2,
+  },
+  householdCardLinkText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#1f6feb",
+  },
+  emptyText: {
+    padding: 18,
+    textAlign: "center",
+    color: "#667085",
   },
   row: {
     flexDirection: "row",

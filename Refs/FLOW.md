@@ -116,7 +116,7 @@ The authoritative forms summary table is `Refs/pretsing forms/forms_summary tabl
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | 1 | HHQ | Baseline Household Questionnaire | Any adult able to provide information | Baseline | Face-to-face | Household listing and baseline household characteristics | WQ for ever-married women aged 18-49; HRF for households without eligible women |
 | 2 | WQ | Baseline Woman's Questionnaire | Ever-married women aged 18-49 | Baseline | Face-to-face | Baseline woman's characteristics and retrospective pregnancy histories | PEF for women pregnant at baseline; HRF for eligible women |
-| 3 | HRF | Household Rounds Form | Eligible women; any adults for households without eligible women | Bi-monthly | Telephonic | Detect new pregnancies; identify new eligible women | PEF for pregnant woman; WQ for new eligible women |
+| 3 | HRF | Household Rounds Form | Eligible women; any adults for households without eligible women | Every 6 calendar months | Telephonic | Detect new pregnancies; identify new eligible women | PEF for pregnant woman; WQ for new eligible women |
 | 4 | PEF | Pregnancy Enrollment Form | Mother | Once new pregnancy is detected | Face-to-face | Baseline pregnancy information | UF when first ultrasound is completed; PFF |
 | 5 | UF | Ultrasound Form | Mother provides USG report | Once first USG has been performed | Extracted from USG report | USG-based gestational age | None |
 | 6 | PFF | Pregnancy Follow-Up Form | Mother | Monthly | Alternate face-to-face and telephonic | Pregnancy progress and other maternal variables | UF when first ultrasound is completed; POF once pregnancy completed |

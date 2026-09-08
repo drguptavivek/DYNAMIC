@@ -269,7 +269,7 @@ router.post(
         .filter((household) => (household.baseline_enrollment_status ?? "pending") === "pending")
         .map((household) => ({
           task_id: randomUUID(),
-          task_key: buildHhqTaskKey(household.household_id, assignmentDate),
+          task_key: buildHhqTaskKey(household.household_id, assignmentDeadline),
           site_id: household.site_id,
           locality_code: household.locality_code,
           household_id: household.household_id,
@@ -282,7 +282,7 @@ router.post(
           generation_source: "field_worker_household_assignment",
           anchor_date: assignmentDate,
           window_start: assignmentDate,
-          target_date: assignmentDate,
+          target_date: assignmentDeadline,
           deadline_date: assignmentDeadline,
           status: "planned",
           rules_version: "1.0.0",

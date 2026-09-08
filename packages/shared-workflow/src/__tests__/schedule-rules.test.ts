@@ -84,7 +84,7 @@ describe("schedule-rules", () => {
       expect(schedules[1].label).toBe("HRF-R2");
     });
 
-    it("should use bi-monthly intervals", () => {
+    it("should use six-month intervals", () => {
       const schedules = generateHrfSchedule({
         baseline_completed_date: "2026-09-01",
         study_end_date: "2028-09-01",
@@ -94,7 +94,7 @@ describe("schedule-rules", () => {
       const date2 = parseISODate(schedules[1].target_date);
       const monthDiff =
         (date2.getFullYear() - date1.getFullYear()) * 12 + (date2.getMonth() - date1.getMonth());
-      expect(monthDiff).toBe(2);
+      expect(monthDiff).toBe(6);
     });
 
     it("should apply correct window offsets", () => {

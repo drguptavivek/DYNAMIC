@@ -70,9 +70,9 @@ Suggested columns:
 
 | Indicator | Draft rule |
 | --- | --- |
-| `hrf_due` | Household is enrolled and next bi-monthly household contact is due |
+| `hrf_due` | Household is enrolled and next 6-month household contact is due |
 | `hrf_overdue` | HRF/contact due date has passed beyond grace period |
-| `hrf_completed_this_window` | HRF or accepted combined household contact completed in current two-month window |
+| `hrf_completed_this_window` | HRF or accepted combined household contact completed in current six-month window |
 
 Open: define exact grace period and whether combined PFF/NFF contact counts as HRF contact.
 
