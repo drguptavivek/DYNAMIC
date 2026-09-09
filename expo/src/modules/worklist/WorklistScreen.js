@@ -18,7 +18,11 @@ import * as syncService from "../sync/syncService.js";
 import { listTaskWorklistCandidates } from "./taskWorklistRepository.js";
 import { buildTaskLocalityOptions, filterTaskWorklist, getTaskStage } from "./taskWorklist.js";
 import { getTaskOpenBlockReason } from "./taskOpenPolicy.js";
-import { getHouseholdMemberCountSync, getHouseholdSync } from "../../lib/householdSync.js";
+import {
+  getHouseholdMemberCountSync,
+  getHouseholdMemberSync,
+  getHouseholdSync,
+} from "../../lib/householdSync.js";
 import { listActiveQuestionnaireDrafts } from "../questionnaires/questionnaireDraftRepository.js";
 import { draftMatchesTask } from "../questionnaires/draftPendingForms.js";
 import { getAssignedLocalities } from "../sync/syncService.js";
@@ -238,9 +242,14 @@ function findDraftForTask(task, drafts = []) {
 
 function enrichTaskForWorklist(task, drafts = []) {
   const household = task.household_id ? getHouseholdSync(task.household_id) : null;
+  const member =
+    String(task.task_type || "").toUpperCase() === "WQ" && task.subject_id
+      ? getHouseholdMemberSync(task.subject_id)
+      : null;
   const activeDraft = findDraftForTask(task, drafts);
   return {
     ...task,
+    woman_name: member?.member_name || task.subject_name || "",
     household_head_name: household?.household_head_name || task.household_head_name || "",
     household_address: household?.address || task.household_address || task.address || "",
     household_locality_name: household?.locality_name || "",
@@ -343,6 +352,10 @@ function TaskRow({ task, onPress, onLongPress, onViewHousehold }) {
   const visitNo = getTaskVisitNo(task);
   const showVisitBadge = String(task.task_type || "").toUpperCase() === "HHQ";
   const isOutdatedDisplay = task.worklist_display_stage === "outdated";
+  const displayName =
+    String(task.task_type || "").toUpperCase() === "WQ"
+      ? task.woman_name || task.subject_name || task.household_head_name
+      : task.household_head_name;
 
   return (
     <View
@@ -364,9 +377,9 @@ function TaskRow({ task, onPress, onLongPress, onViewHousehold }) {
             <View style={[styles.taskTypeBadge, { backgroundColor: badgeColor }]}>
               <Text style={styles.taskTypeBadgeText}>{task.task_type}</Text>
             </View>
-            {task.household_head_name ? (
+            {displayName ? (
               <Text style={styles.taskHeaderHeadName}>
-                {task.household_head_name}
+                {displayName}
               </Text>
             ) : null}
           </View>
