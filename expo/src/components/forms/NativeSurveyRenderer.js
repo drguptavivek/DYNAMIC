@@ -221,7 +221,6 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
     if (canMoveToPreviousQuestion()) {
       setQuestionIndex((value) => Math.max(0, value - 1));
       scrollToTop();
-      await onSaveDraft?.({ silent: true, reason: "previous-question" });
       return;
     }
     model.prevPage();
@@ -241,7 +240,6 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
       }
       setQuestionIndex((value) => Math.min(visibleQuestions.length - 1, value + 1));
       scrollToTop();
-      await onSaveDraft?.({ silent: true, reason: "next-question" });
       return;
     }
     const currentPage = model.currentPage;

@@ -745,6 +745,7 @@ export async function pushSync() {
     const deviceId = getMeta("device_id") || "unregistered-device";
     let syncedDrafts = 0;
     let staleDraftsRemoved = 0;
+    let draftSyncErrors = [];
     if (drafts.length > 0) {
       const draftResponse = await fetch(`${API_BASE_URL}/sync/drafts`, {
         method: "POST",
@@ -769,11 +770,10 @@ export async function pushSync() {
         }
       }
       if (blockingErrors.length > 0) {
-        throw new Error(
-          `Draft sync rejected ${blockingErrors.length} record(s): ${blockingErrors
-            .map((item) => `${item.id}: ${item.error}`)
-            .join("; ")}`,
-        );
+        // A draft write failure must not prevent the pull phase. The draft is
+        // intentionally retained locally for retry, while newly assigned
+        // households and tasks can still be downloaded in this sync.
+        draftSyncErrors = blockingErrors;
       }
       syncedDrafts = Number(draftResult.synced || 0);
     }
@@ -818,6 +818,7 @@ export async function pushSync() {
       uploadErrors,
       drafts: syncedDrafts,
       staleDraftsRemoved,
+      draftSyncErrors,
     };
   } catch (error) {
     console.error("Push sync error:", error);
@@ -855,6 +856,7 @@ export async function syncAll(options = {}) {
       events: pushResult.events,
       uploadErrors: pushResult.uploadErrors,
       staleDraftsRemoved: pushResult.staleDraftsRemoved,
+      draftSyncErrors: pushResult.draftSyncErrors,
       clockStatus: getClockStatus(),
     });
     if (getHouseholdCacheInfo().isWebStorage) {
@@ -903,6 +905,7 @@ export async function syncAll(options = {}) {
       draftsPushed: pushResult.drafts || 0,
       draftsPulled: pulledDrafts,
       staleDraftsRemoved: pushResult.staleDraftsRemoved || 0,
+      draftSyncErrors: pushResult.draftSyncErrors || [],
       clockStatus: getClockStatus(),
     });
     const result = {
@@ -921,6 +924,7 @@ export async function syncAll(options = {}) {
       draftsPushed: pushResult.drafts || 0,
       draftsPulled: pulledDrafts,
       staleDraftsRemoved: pushResult.staleDraftsRemoved || 0,
+      draftSyncErrors: pushResult.draftSyncErrors || [],
     };
     endSync({
       ok: true,

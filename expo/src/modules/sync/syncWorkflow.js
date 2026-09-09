@@ -272,6 +272,10 @@ export function formatSyncCompletionMessage(result = {}) {
     parts.push(`${pluralize(result.staleDraftsRemoved, "stale draft")} removed`);
   }
 
+  if (Array.isArray(result.draftSyncErrors) && result.draftSyncErrors.length > 0) {
+    parts.push(`${pluralize(result.draftSyncErrors.length, "draft")} kept locally for retry`);
+  }
+
   if (Object.prototype.hasOwnProperty.call(result, "formsUpdated")) {
     parts.push(`${pluralize(result.formsUpdated, "questionnaire")} refreshed`);
   }

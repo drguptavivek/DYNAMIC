@@ -335,13 +335,16 @@ router.post(
             ...draft,
             answers_json: draft.json_payload,
           };
-          if (draft.task_id && (!Number.isFinite(Number(draft.site_id)) || !draft.locality_code)) {
+          if (draft.task_id) {
             const [task] = await db
               .select({ site_id: schema.followUpTasks.site_id, locality_code: schema.followUpTasks.locality_code, household_id: schema.followUpTasks.household_id })
               .from(schema.followUpTasks)
               .where(eq(schema.followUpTasks.task_id, String(draft.task_id)))
               .limit(1);
             if (task) {
+              // Task scope is authoritative. A task draft can be saved before
+              // the form payload contains household_id, and the same
+              // household may legitimately be assigned to multiple users.
               scopeSource = { ...scopeSource, ...task };
             }
           }

@@ -250,6 +250,7 @@ export function BaselineHouseholdForm({
     formVersion: form.version,
     taskId: taskContext?.id || null,
     keyTaskId: null,
+    householdId: taskContext?.household_id || null,
     subjectType: taskContext?.subject_type || (taskContext?.household_id ? "household" : "locality"),
     subjectId: getHhqDraftSubjectId(taskContext, selectedLocalityCode),
     deviceId: user?.device_id || "dev-device",

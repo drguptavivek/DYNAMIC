@@ -773,6 +773,7 @@ export async function saveQuestionnaireDraft({
   keyTaskId,
   subjectType,
   subjectId,
+  householdId,
   deviceId = "unknown",
   userId = "unknown",
 }) {
@@ -795,6 +796,7 @@ export async function saveQuestionnaireDraft({
     deviceId,
     userId,
     payload,
+    householdId,
   });
   const draftHouseholdUserKey = buildDraftHouseholdUserKey({
     formCode,
@@ -802,6 +804,7 @@ export async function saveQuestionnaireDraft({
     subjectId,
     userId,
     payload,
+    householdId,
   });
 
   let existing = null;
@@ -844,6 +847,7 @@ export async function saveQuestionnaireDraft({
     task_id: taskId || null,
     subject_type: subjectType || null,
     subject_id: subjectId || null,
+    household_id: householdId || null,
     device_id: deviceId,
     user_id: userId,
     json_payload: payload || {},

@@ -329,6 +329,7 @@ export function QuestionnaireDashboard({
       taskId: taskContext?.id,
       subjectType: taskContext?.subject_type,
       subjectId: taskContext?.subject_id,
+      householdId: taskContext?.household_id,
       deviceId: user?.device_id || "dev-device",
       userId: user?.user_id || user?.id || user?.username || "dev-user",
     };
@@ -392,7 +393,6 @@ export function QuestionnaireDashboard({
 
   async function openPreviewFromModel(model) {
     if (!model) return;
-    await saveDraftFromModel(model, { silent: true });
     setPreviewOpen(true);
     setMemberSummaryOpen(false);
     setSectionDrawerOpen(false);
