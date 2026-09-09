@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
 import { randomUUID } from "node:crypto";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db, schema } from "../db";
 import { requireAuth, requireRole } from "../middleware/auth";
@@ -261,6 +261,22 @@ router.post(
           and(
             inArray(schema.followUpTasks.household_id, uniqueHouseholdIds),
             eq(schema.followUpTasks.task_type, "HHQ"),
+            inArray(schema.followUpTasks.status, ["planned", "open", "in_progress"]),
+          ),
+        );
+
+      // Assignment changes also need to make already-created actionable work
+      // visible to a device that did not previously have this household. The
+      // mobile pull is incremental and keys task delivery by updated_at; an
+      // assignment-row change alone would otherwise leave existing WQ/visit
+      // tasks outside that device's next pull window.
+      await db
+        .update(schema.followUpTasks)
+        .set({ updated_at: now })
+        .where(
+          and(
+            inArray(schema.followUpTasks.household_id, uniqueHouseholdIds),
+            ne(schema.followUpTasks.task_type, "HHQ"),
             inArray(schema.followUpTasks.status, ["planned", "open", "in_progress"]),
           ),
         );
