@@ -522,6 +522,11 @@ router.get(
     if (!sinceDate) {
       return sendError(res, 400, "INVALID_SYNC_CURSOR", "Invalid sync cursor");
     }
+    // Explicit household assignment is the authoritative field-worker
+    // worklist scope. Refresh that scoped snapshot on every pull so a device
+    // cannot miss a newly assigned household because its old incremental
+    // cursor is newer than the assignment/related task watermark.
+    const entitySinceDate = req.user!.role === "field_worker" ? new Date(0) : sinceDate;
     const formResponseSinceDate = parseSyncCursorDate(
       typeof formResponseSince === "string" ? formResponseSince : sinceCursor,
     );
@@ -535,7 +540,7 @@ router.get(
 
     // Query each entity
     const householdConditions: any[] = [
-      gt(schema.households.updated_at, sinceDate),
+      gt(schema.households.updated_at, entitySinceDate),
       lte(schema.households.updated_at, syncCursorDate),
       ...buildLocationConditions(schema.households, siteId, localityCodes),
     ];
@@ -603,7 +608,7 @@ router.get(
     // Query household members only when requested. Large offline sync pulls
     // households first, then pulls members for each household page.
     const memberConditions: any[] = [
-      gt(schema.householdMembers.updated_at, sinceDate),
+      gt(schema.householdMembers.updated_at, entitySinceDate),
       lte(schema.householdMembers.updated_at, syncCursorDate),
       ...buildLocationConditions(schema.householdMembers, siteId, localityCodes),
     ];
@@ -621,7 +626,7 @@ router.get(
 
     // Query eligible women
     const womenConditions: any[] = [
-      gt(schema.eligibleWomen.updated_at, sinceDate),
+      gt(schema.eligibleWomen.updated_at, entitySinceDate),
       lte(schema.eligibleWomen.updated_at, syncCursorDate),
       ...buildLocationConditions(schema.eligibleWomen, siteId, localityCodes),
     ];
@@ -637,7 +642,7 @@ router.get(
 
     // Query pregnancies
     const pregnanciesConditions: any[] = [
-      gt(schema.pregnancies.updated_at, sinceDate),
+      gt(schema.pregnancies.updated_at, entitySinceDate),
       lte(schema.pregnancies.updated_at, syncCursorDate),
       ...buildLocationConditions(schema.pregnancies, siteId, localityCodes),
     ];
@@ -654,7 +659,7 @@ router.get(
     // Query children. Children do not carry locality_code, so locality scope is
     // applied through households instead of materializing a large household_id IN list.
     const childrenBaseConditions: any[] = [
-      gt(schema.children.updated_at, sinceDate),
+      gt(schema.children.updated_at, entitySinceDate),
       lte(schema.children.updated_at, syncCursorDate),
     ];
     if (localityCodes.length > 0) {
@@ -695,7 +700,7 @@ router.get(
 
     // Query tasks
     const tasksConditions: any[] = [
-      gt(schema.followUpTasks.updated_at, sinceDate),
+      gt(schema.followUpTasks.updated_at, entitySinceDate),
       lte(schema.followUpTasks.updated_at, syncCursorDate),
     ];
     if (localityCodes.length > 0) {
