@@ -12,6 +12,7 @@ import {
 
 import { listTaskWorklistCandidates } from "../worklist/taskWorklistRepository.js";
 import { listActiveQuestionnaireDraftSummaries } from "./questionnaireDraftRepository.js";
+import { getHouseholdMemberSync, getHouseholdSync } from "../../lib/householdSync.js";
 import { useListPaging } from "../../lib/useListPaging.js";
 import {
   countDraftAnswers,
@@ -38,6 +39,28 @@ function formatDateTime(value) {
 
 function normalizeDraft(draft) {
   const householdId = draft.household_id || getDraftHouseholdId(draft);
+  const answers = draft.json_payload || {};
+  const formCode = String(draft.form_code || "").toUpperCase();
+  const household = householdId ? getHouseholdSync(householdId) : null;
+  const member =
+    ["WQ", "BWQ"].includes(formCode) && draft.subject_id
+      ? getHouseholdMemberSync(draft.subject_id)
+      : null;
+  const womanName =
+    member?.member_name ||
+    answers.wq_name_woman ||
+    answers.wq_woman_name ||
+    answers.woman_name ||
+    "";
+  const householdHeadName =
+    household?.household_head_name ||
+    answers.hhq_household_head_name ||
+    answers.wq_household_head_name ||
+    "";
+  const displayName =
+    ["WQ", "BWQ"].includes(formCode)
+      ? womanName || draft.respondent_label || householdId || draft.subject_id || draft.draft_id
+      : householdHeadName || draft.respondent_label || householdId || draft.subject_id || draft.draft_id;
   return {
     id: draft.draft_id,
     form_code: draft.form_code || "-",
@@ -48,7 +71,9 @@ function normalizeDraft(draft) {
     subject_id: draft.subject_id || "",
     current_page: draft.completion_state?.currentPageName || "",
     answer_count: typeof draft.answer_count === "number" ? draft.answer_count : countDraftAnswers(draft),
-    respondent_label: draft.respondent_label || householdId || draft.subject_id || draft.draft_id,
+    respondent_label: displayName,
+    household_head_name: householdHeadName,
+    woman_name: womanName,
     updated_at: draft.updated_at || "",
   };
 }
@@ -60,31 +85,20 @@ function DraftCard({ draft }) {
         <Text style={styles.formBadge}>{getFormDisplayCode(draft.form_code)}</Text>
         <View style={styles.cardTitleBlock}>
           <Text style={styles.cardTitle}>{draft.respondent_label}</Text>
-          <Text style={styles.cardSubtle}>Continue filling from Worklist only</Text>
+          <Text style={styles.cardSubtle} numberOfLines={1}>
+            Household: {draft.household_id || "-"}
+          </Text>
         </View>
       </View>
 
-      <View style={styles.detailGrid}>
-        <View style={styles.detailItem}>
-          <Text style={styles.detailLabel}>Draft Status</Text>
-          <Text style={styles.detailValue}>Pending</Text>
-        </View>
-        <View style={styles.detailItem}>
-          <Text style={styles.detailLabel}>Last Saved</Text>
-          <Text style={styles.detailValue}>{formatDateTime(draft.updated_at)}</Text>
-        </View>
-        <View style={styles.detailItem}>
-          <Text style={styles.detailLabel}>Form Version</Text>
-          <Text style={styles.detailValue}>{draft.form_version || "-"}</Text>
-        </View>
-        <View style={styles.detailItem}>
-          <Text style={styles.detailLabel}>Current Page</Text>
-          <Text style={styles.detailValue}>{draft.current_page || "-"}</Text>
-        </View>
-        <View style={styles.detailItem}>
-          <Text style={styles.detailLabel}>Saved Answers</Text>
-          <Text style={styles.detailValue}>{draft.answer_count}</Text>
-        </View>
+      <View style={styles.compactDetails}>
+        <Text style={styles.compactValue}>Pending · {draft.answer_count} answers</Text>
+        <Text style={styles.compactValue} numberOfLines={1}>
+          Saved: {formatDateTime(draft.updated_at)}
+        </Text>
+        <Text style={styles.compactValue} numberOfLines={1}>
+          Page: {draft.current_page || "-"} · Version: {draft.form_version || "-"}
+        </Text>
       </View>
     </View>
   );
@@ -248,8 +262,8 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   card: {
-    gap: 8,
-    padding: 10,
+    gap: 5,
+    padding: 8,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: "#f59e0b",
@@ -261,15 +275,15 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   formBadge: {
-    minWidth: 44,
+    minWidth: 40,
     overflow: "hidden",
     borderRadius: 6,
     paddingHorizontal: 7,
-    paddingVertical: 6,
+    paddingVertical: 5,
     textAlign: "center",
     color: "#ffffff",
     backgroundColor: "#ef4444",
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "900",
   },
   cardTitleBlock: {
@@ -278,38 +292,24 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     color: "#17202a",
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "900",
   },
   cardSubtle: {
-    marginTop: 1,
+    marginTop: 0,
     color: "#92400e",
-    fontSize: 13,
-    fontWeight: "800",
+    fontSize: 11,
+    fontWeight: "700",
   },
-  detailGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 6,
-  },
-  detailItem: {
-    width: "47%",
-    minWidth: 110,
+  compactDetails: {
     gap: 2,
-    padding: 7,
-    borderRadius: 8,
-    backgroundColor: "#ffffff",
+    paddingTop: 2,
   },
-  detailLabel: {
-    color: "#667085",
-    fontSize: 12,
-    fontWeight: "900",
-    textTransform: "uppercase",
-  },
-  detailValue: {
+  compactValue: {
     color: "#17202a",
-    fontSize: 14,
-    fontWeight: "800",
+    fontSize: 11,
+    lineHeight: 15,
+    fontWeight: "700",
   },
   emptyState: {
     flex: 1,
