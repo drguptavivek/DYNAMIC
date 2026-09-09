@@ -297,7 +297,7 @@ async function promoteWq(
         .insert(schema.followUpTasks)
         .values({
           task_id: randomUUID(),
-          task_key: `${householdId}:person:${womanId}:WQ:${protocolVisitLabel}:${targetDate}:v1`,
+          task_key: `${householdId}|person|${womanId}|WQ|${protocolVisitLabel}|${targetDate}|v1`,
           site_id: hh.site_id,
           locality_code: hh.locality_code,
           household_id: householdId,

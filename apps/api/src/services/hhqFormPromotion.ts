@@ -134,7 +134,7 @@ async function promoteHhqEarlyStop(
     .insert(schema.followUpTasks)
     .values({
       task_id: randomUUID(),
-      task_key: `${household.household_id}:household:${household.household_id}:HHQ:${protocolVisitLabel}:${targetDate}:v1`,
+      task_key: `${household.household_id}|household|${household.household_id}|HHQ|${protocolVisitLabel}|${targetDate}|v1`,
       site_id: household.site_id,
       locality_code: household.locality_code,
       household_id: household.household_id,

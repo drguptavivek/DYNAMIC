@@ -14,7 +14,26 @@ const BASELINE_MAX_FAILED_ATTEMPTS = 3;
 const BASELINE_TASK_TYPES = new Set(["HHQ", "WQ"]);
 
 function taskIdentity(task) {
-  return task?.task_key || task?.id || null;
+  const key = String(task?.task_key || "").trim();
+  if (key) {
+    // Older server-generated baseline keys used ':' while the shared,
+    // offline-first workflow uses '|'. Treat both encodings as one task.
+    const parts = key.split(/[|:]/);
+    if (parts.length === 7) return parts.join("|");
+    return key;
+  }
+  if (task?.household_id && task?.subject_id && task?.task_type) {
+    return [
+      task.household_id,
+      task.subject_type || "",
+      task.subject_id,
+      task.task_type,
+      task.protocol_visit_label || "",
+      task.target_date || "",
+      task.rules_version || "",
+    ].join("|");
+  }
+  return task?.id || null;
 }
 
 function isConfirmedTask(task) {
@@ -250,14 +269,17 @@ export function listTaskWorklist(filters = {}, repository) {
     locality_code: filters.locality_code,
     task_type: filters.task_type,
   });
-  return filterTaskWorklist(tasks, { search: filters.search, stage: filters.stage });
+  return filterTaskWorklist(mergeTaskWorklist({ incomingTasks: tasks }), {
+    search: filters.search,
+    stage: filters.stage,
+  });
 }
 
 export function listTaskWorklistCandidates(filters = {}, repository) {
   if (!repository || typeof repository.listTasks !== "function") {
     throw new Error("Task Worklist repository adapter must provide listTasks");
   }
-  return repository
+  const candidates = repository
     .listTasks({
       status: filters.status,
       locality_code: filters.locality_code,
@@ -268,6 +290,7 @@ export function listTaskWorklistCandidates(filters = {}, repository) {
     })
     .filter((task) => !isTerminalTask(task))
     .sort(sortByProtocolDate);
+  return mergeTaskWorklist({ incomingTasks: candidates });
 }
 
 export function listTaskAttempts(taskId, repository) {
