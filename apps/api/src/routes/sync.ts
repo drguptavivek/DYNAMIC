@@ -93,6 +93,24 @@ const buildDraftContextKey = (userId: string, draft: any): string =>
     draft.subject_id || draft.household_id || "none",
   ].join("|");
 
+const describeDraftSyncError = (error: unknown): string => {
+  const candidate = error as {
+    message?: unknown;
+    cause?: { message?: unknown; detail?: unknown; hint?: unknown; code?: unknown; constraint?: unknown };
+  } | null;
+  const cause = candidate?.cause;
+  const details = [
+    cause?.message,
+    cause?.detail,
+    cause?.hint,
+    cause?.constraint ? `constraint=${cause.constraint}` : null,
+    cause?.code ? `code=${cause.code}` : null,
+  ]
+    .filter((value): value is string => typeof value === "string" && value.length > 0)
+    .join("; ");
+  return details || (typeof candidate?.message === "string" ? candidate.message : "Invalid draft");
+};
+
 const mapDraftForExpo = (draft: typeof schema.questionnaireDrafts.$inferSelect) => ({
   draft_id: draft.draft_id,
   form_code: draft.form_code,
@@ -404,7 +422,7 @@ router.post(
           }
           synced += 1;
         } catch (error) {
-          const message = error instanceof Error ? error.message : "Invalid draft";
+          const message = describeDraftSyncError(error);
           console.error("Draft sync rejected", {
             draft_id: draftId || "unknown",
             user_id: req.user!.sub,
@@ -413,6 +431,7 @@ router.post(
             site_id: draft?.site_id || null,
             locality_code: draft?.locality_code || null,
             error: message,
+            error_code: (error as { cause?: { code?: string } } | null)?.cause?.code || null,
           });
           errors.push({ id: draftId || "unknown", error: message });
         }
