@@ -377,7 +377,7 @@ router.post(
             throw new Error("Invalid draft timestamp");
           }
           const contextKey = buildDraftContextKey(req.user!.sub, draft);
-          const [existing] = await db
+          const matchingDrafts = await db
             .select()
             .from(schema.questionnaireDrafts)
             .where(
@@ -385,8 +385,22 @@ router.post(
                 eq(schema.questionnaireDrafts.draft_id, draftId),
                 eq(schema.questionnaireDrafts.context_key, contextKey),
               ),
-            )
-            .limit(1);
+            );
+          const existingByContext = matchingDrafts.find((row) => row.context_key === contextKey);
+          const existingById = matchingDrafts.find((row) => row.draft_id === draftId);
+
+          // A previous client version could create a second draft_id for the
+          // same workflow context. Keep the context-key row as canonical and
+          // retire the stale draft-id row before updating it; otherwise the
+          // unique context_key constraint rejects every retry.
+          if (existingByContext && existingById && existingByContext.draft_id !== existingById.draft_id) {
+            await db
+              .update(schema.questionnaireDrafts)
+              .set({ draft_status: "superseded", server_updated_at: new Date() })
+              .where(eq(schema.questionnaireDrafts.draft_id, existingById.draft_id));
+          }
+
+          const existing = existingByContext || existingById;
           if (existing && existing.client_updated_at >= clientUpdatedAt) {
             continue;
           }
