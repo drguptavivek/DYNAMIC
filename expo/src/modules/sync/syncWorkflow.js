@@ -278,6 +278,9 @@ export function formatSyncCompletionMessage(result = {}) {
 
   if (Array.isArray(result.draftSyncErrors) && result.draftSyncErrors.length > 0) {
     parts.push(`${pluralize(result.draftSyncErrors.length, "draft")} kept locally for retry`);
+    for (const item of result.draftSyncErrors.slice(0, 3)) {
+      if (item?.id && item?.error) parts.push(`${item.id}: ${item.error}`);
+    }
   }
 
   if (Object.prototype.hasOwnProperty.call(result, "formsUpdated")) {

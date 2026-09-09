@@ -63,6 +63,15 @@ export function SyncScreen({ onClockStatusChange } = {}) {
           `${result.duplicateErrors} form submission${result.duplicateErrors === 1 ? " was" : "s were"} already submitted first by another user. The later form was moved to Upload Errors and its task was closed.`,
         );
       }
+      if (result.draftSyncErrors?.length > 0) {
+        Alert.alert(
+          "Draft was not backed up",
+          result.draftSyncErrors
+            .slice(0, 3)
+            .map((item) => `${item.id}: ${item.error}`)
+            .join("\n\n"),
+        );
+      }
       loadSyncInfo();
     } catch (error) {
       console.error("Sync error:", error);

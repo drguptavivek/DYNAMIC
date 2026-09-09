@@ -404,7 +404,17 @@ router.post(
           }
           synced += 1;
         } catch (error) {
-          errors.push({ id: draftId || "unknown", error: error instanceof Error ? error.message : "Invalid draft" });
+          const message = error instanceof Error ? error.message : "Invalid draft";
+          console.error("Draft sync rejected", {
+            draft_id: draftId || "unknown",
+            user_id: req.user!.sub,
+            task_id: draft?.task_id || null,
+            household_id: draft?.household_id || null,
+            site_id: draft?.site_id || null,
+            locality_code: draft?.locality_code || null,
+            error: message,
+          });
+          errors.push({ id: draftId || "unknown", error: message });
         }
       }
       sendSuccess(res, { synced, errors });
