@@ -177,7 +177,7 @@ function PregnancyDurationInput({ answerData, locale, onChange, question }) {
             <TextInput
               accessibilityLabel={`${question.name}.${selectedUnit}`}
               editable={!question.isReadOnly}
-              keyboardType="numeric"
+              keyboardType="number-pad"
               maxLength={2}
               onBlur={() => {
                 question.validate?.();
@@ -231,7 +231,7 @@ function MultipleTextItemInput({ item, itemValue, question, unknownSelected, onC
   const externalText =
     itemValue === undefined || itemValue === null || unknownSelected ? "" : String(itemValue);
   const [textValue, setTextValue] = useState(externalText);
-  const { usesNumericKeyboard } = normalizeMultipleTextInputValue(item, externalText);
+  const { keyboardType } = normalizeMultipleTextInputValue(item, externalText);
 
   useEffect(() => {
     setTextValue(externalText);
@@ -242,7 +242,7 @@ function MultipleTextItemInput({ item, itemValue, question, unknownSelected, onC
       accessibilityLabel={`${question.name}.${item.name}`}
       value={textValue}
       editable={!question.isReadOnly && !unknownSelected}
-      keyboardType={usesNumericKeyboard ? "numeric" : "default"}
+      keyboardType={keyboardType}
       maxLength={item.maxLength > 0 ? item.maxLength : item.jsonObj?.maxLength}
       placeholder={unknownSelected ? "" : item.placeholder}
       onChangeText={(value) => {

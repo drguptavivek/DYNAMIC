@@ -1,11 +1,16 @@
+import { recordServerTime } from "./trustedClock.js";
+import { startTiming } from "../../lib/perfLog.js";
 import { getDb } from "../tasks/taskSchema.js";
 import * as taskRepository from "../tasks/taskRepository.js";
 import * as authStore from "../auth/authStore.js";
 import { reconcilePulledTasks } from "../worklist/taskWorklistRepository.js";
 import {
+  clearHouseholdCacheForSync,
+  getHouseholdCacheInfo,
   saveSyncedHouseholdsAndMembers,
 } from "../households/householdRepository.js";
 import { API_BASE_URL } from "./apiConfig.js";
+import { CHUNK_SIZE, forEachChunk } from "../../lib/yieldToUi.js";
 import {
   buildPushRecords,
   classifyDraftSyncErrors,
@@ -155,6 +160,9 @@ function setClockMetadata(clock) {
 
   if (typeof clock.server_time_utc === "string") {
     setMeta("sync_clock_server_time_utc", clock.server_time_utc);
+    // Server time is the strongest evidence of "real" time; raise the
+    // device's trusted high-water mark so a later rewind is detectable.
+    recordServerTime(clock.server_time_utc).catch(() => {});
   }
   if (typeof clock.device_time_utc === "string") {
     setMeta("sync_clock_device_time_utc", clock.device_time_utc);
@@ -234,26 +242,79 @@ function cacheProtocolForms(forms) {
   for (const form of forms) {
     setMeta(`form_json_${String(form.form_code).toUpperCase()}`, JSON.stringify(form.json));
   }
+  // Bump the generation so getCachedProtocolForm's stamp check below no
+  // longer matches, forcing a fresh SQLite read for whatever codes changed
+  // (and, harmlessly, for any code sharing the same checksum-less state).
+  protocolFormCacheGeneration += 1;
 }
 
-const parsedProtocolFormCache = new Map();
+// getCachedProtocolForm reads a 200-350 KB JSON blob from sync_meta. It is
+// called on every questionnaire open (often twice - see
+// runtimeFormCatalog.getRuntimeFormByCode), so the parsed result is cached
+// per form code behind a cheap "stamp": the checksum recorded for that code
+// in form_versions plus a module-level generation counter bumped whenever
+// cacheProtocolForms() writes new form JSON. SQLite is only touched again
+// when the stamp changes (or the cache is empty/cleared).
+let protocolFormCacheGeneration = 0;
+const protocolFormCache = new Map();
 
 export function getCachedProtocolForm(formCode) {
-  const metaKey = `form_json_${String(formCode).toUpperCase()}`;
-  const value = getMeta(metaKey);
-  if (!value) return null;
-  const cached = parsedProtocolFormCache.get(metaKey);
-  if (cached && cached.raw === value) {
+  const normalizedCode = String(formCode || "").toUpperCase();
+  const metaKey = `form_json_${normalizedCode}`;
+  const versionEntry = getCachedFormVersions().find(
+    (entry) => String(entry?.form_code).toUpperCase() === normalizedCode,
+  );
+  const checksum = versionEntry?.checksum || null;
+  const cached = protocolFormCache.get(metaKey);
+
+  if (checksum) {
+    const stamp = `${checksum}:${protocolFormCacheGeneration}`;
+    if (cached && cached.stamp === stamp) {
+      return cached.parsed;
+    }
+    const value = getMeta(metaKey);
+    if (!value) {
+      protocolFormCache.delete(metaKey);
+      return null;
+    }
+    try {
+      const parsed = JSON.parse(value);
+      protocolFormCache.set(metaKey, { stamp, raw: value, parsed });
+      return parsed;
+    } catch (error) {
+      console.error("Error parsing cached protocol form:", error);
+      return null;
+    }
+  }
+
+  // Legacy fallback: form_versions has no checksum entry for this code (e.g.
+  // a form cached before form_versions existed, or synced out of band), so
+  // there's no cheap stamp to compare against. Do the old raw-string read
+  // and compare only once (a cache miss, i.e. first call or right after
+  // clearProtocolFormCache); once resolved, trust the cache without hitting
+  // SQLite again until it's explicitly invalidated.
+  const legacyStamp = `legacy:${protocolFormCacheGeneration}`;
+  if (cached && cached.stamp === legacyStamp) {
     return cached.parsed;
+  }
+  const value = getMeta(metaKey);
+  if (!value) {
+    protocolFormCache.delete(metaKey);
+    return null;
   }
   try {
     const parsed = JSON.parse(value);
-    parsedProtocolFormCache.set(metaKey, { raw: value, parsed });
+    protocolFormCache.set(metaKey, { stamp: legacyStamp, raw: value, parsed });
     return parsed;
   } catch (error) {
     console.error("Error parsing cached protocol form:", error);
     return null;
   }
+}
+
+export function clearProtocolFormCache() {
+  protocolFormCache.clear();
+  protocolFormCacheGeneration += 1;
 }
 
 export async function refreshProtocolForms(formVersions = []) {
@@ -436,23 +497,31 @@ export async function pullSync(options = {}) {
       }
 
       if (tasks.length > 0) {
-        reconcilePulledTasks(tasks);
+        await forEachChunk(tasks, CHUNK_SIZE, async (chunk) => {
+          reconcilePulledTasks(chunk);
+        });
         pulledTasks += tasks.length;
         pulledOpenTasks += countOpenPulledTasks(tasks);
       }
 
       if (eligibleWomen.length > 0) {
-        taskRepository.saveEligibleWomenBatch(eligibleWomen);
+        await forEachChunk(eligibleWomen, CHUNK_SIZE, async (chunk) => {
+          taskRepository.saveEligibleWomenBatch(chunk);
+        });
         pulledEligibleWomen += eligibleWomen.length;
       }
 
       if (pregnancies.length > 0) {
-        taskRepository.savePregnancyBatch(pregnancies);
+        await forEachChunk(pregnancies, CHUNK_SIZE, async (chunk) => {
+          taskRepository.savePregnancyBatch(chunk);
+        });
         pulledPregnancies += pregnancies.length;
       }
 
       if (formResponses.length > 0) {
-        pulledFormResponses += taskRepository.saveSyncedFormResponsesBatch(formResponses);
+        await forEachChunk(formResponses, CHUNK_SIZE, async (chunk) => {
+          pulledFormResponses += taskRepository.saveSyncedFormResponsesBatch(chunk);
+        });
       }
 
       const formRefresh = await refreshProtocolForms(formVersions);
@@ -527,13 +596,136 @@ async function pullMembersForHouseholds(token, householdIds) {
   return Array.isArray(data.household_members) ? data.household_members : [];
 }
 
+const PUSH_FORM_RESPONSE_BATCH_SIZE = 100;
+
+async function pushRecordBatch({ token, deviceId, formResponses = [], domainEvents = [] }) {
+  const records = buildPushRecords({ formResponses, domainEvents });
+  if (records.length === 0) {
+    return { pushed: 0, events: 0, uploadErrors: 0 };
+  }
+
+  const response = await fetch(`${API_BASE_URL}/sync/push`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      device_id: deviceId,
+      client_time_utc: new Date().toISOString(),
+      records,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Push sync failed: ${response.statusText}`);
+  }
+
+  const result = unwrapApiData(await response.json());
+  setClockMetadata(result.clock);
+  const acceptedIds = collectAcceptedSyncIds(result);
+  const serverErrors = Array.isArray(result.errors) ? result.errors : [];
+  const serverDuplicates = Array.isArray(result.duplicates) ? result.duplicates : [];
+  const classifiedRecords = Array.isArray(result.classified_records) ? result.classified_records : [];
+  const uploadErrorById = new Map();
+
+  for (const id of serverDuplicates) {
+    uploadErrorById.set(id, "Record already exists on the server");
+  }
+  for (const item of classifiedRecords) {
+    if (!item?.id) continue;
+    const status = item.status || "upload_error";
+    if (status === "duplicate" || status === "held_for_review" || status === "invalid_rejected") {
+      uploadErrorById.set(item.id, item.error || `Server classified this form as ${status}`);
+    }
+  }
+  for (const item of serverErrors) {
+    if (item?.id) {
+      uploadErrorById.set(item.id, item.error || "Server rejected this form");
+    }
+  }
+
+  const uploadErrorItems = [];
+  const syncedIds = [];
+  for (const item of formResponses) {
+    if (uploadErrorById.has(item.id)) {
+      uploadErrorItems.push({ id: item.id, message: uploadErrorById.get(item.id) });
+    } else if (acceptedIds.has(item.id)) {
+      syncedIds.push(item.id);
+    }
+  }
+
+  taskRepository.markResponsesUploadErrorBatch(uploadErrorItems);
+  taskRepository.markResponsesSyncedBatch(syncedIds);
+  const { markQuestionnaireSubmissionSynced, markQuestionnaireSubmissionUploadError } =
+    await import("../questionnaires/questionnaireSubmissionRepository.js");
+  for (const item of uploadErrorItems) {
+    markQuestionnaireSubmissionUploadError(item.id, item.message);
+  }
+  for (const id of syncedIds) {
+    markQuestionnaireSubmissionSynced(id);
+  }
+
+  const { markEventSynced } = await import("../events/eventOutbox.js");
+  const pendingEventIds = new Set(domainEvents.map((event) => event.id));
+  const handledEventErrorIds = new Set();
+  for (const event of domainEvents) {
+    if (acceptedIds.has(event.id)) {
+      markEventSynced(event.id);
+    }
+  }
+
+  for (const item of serverErrors) {
+    const message = String(item?.error || "");
+    if (
+      item?.id &&
+      pendingEventIds.has(item.id) &&
+      message.includes("Domain event does not match a server-promoted canonical event")
+    ) {
+      markEventSynced(item.id);
+      handledEventErrorIds.add(item.id);
+    }
+  }
+
+  const unhandledErrors = serverErrors.filter(
+    (item) =>
+      !formResponses.some((responseItem) => responseItem.id === item.id) &&
+      !handledEventErrorIds.has(item.id),
+  );
+  if (unhandledErrors.length > 0) {
+    const errorText = unhandledErrors.map((item) => `${item.id}: ${item.error}`).join("; ");
+    throw new Error(`Push sync accepted ${acceptedIds.size} records with errors: ${errorText}`);
+  }
+
+  const processedResponseIds = new Set([
+    ...syncedIds,
+    ...uploadErrorItems.map((item) => item.id),
+  ]);
+  const processedEventIds = new Set([
+    ...domainEvents.filter((event) => acceptedIds.has(event.id)).map((event) => event.id),
+    ...handledEventErrorIds,
+  ]);
+  if (
+    processedResponseIds.size < formResponses.length ||
+    processedEventIds.size < domainEvents.length
+  ) {
+    throw new Error("Push sync made no progress for one or more records; pending records were not classified by the server");
+  }
+
+  return {
+    pushed: syncedIds.length,
+    events: processedEventIds.size,
+    uploadErrors: uploadErrorItems.length,
+  };
+}
+
 export async function pushSync() {
   const token = authStore.getToken();
   if (!token) {
     throw new Error("Not authenticated");
   }
 
-  const pending = taskRepository.getPendingResponses();
+  const pendingResponseCount = await taskRepository.countPendingResponses();
   const { getPendingEvents } = await import("../events/eventOutbox.js");
   const pendingEvents = getPendingEvents();
 
@@ -545,16 +737,11 @@ export async function pushSync() {
   const user = authStore.getUser();
   const drafts = await listQuestionnaireDraftsForSync(user?.user_id || user?.id);
 
-  if (pending.length === 0 && pendingEvents.length === 0 && drafts.length === 0) {
+  if (pendingResponseCount === 0 && pendingEvents.length === 0 && drafts.length === 0) {
     return { pushed: 0, events: 0, drafts: 0, staleDraftsRemoved: 0 };
   }
 
   try {
-    const records = buildPushRecords({
-      formResponses: pending,
-      domainEvents: pendingEvents,
-    });
-
     const deviceId = getMeta("device_id") || "unregistered-device";
     let syncedDrafts = 0;
     let staleDraftsRemoved = 0;
@@ -591,113 +778,43 @@ export async function pushSync() {
       syncedDrafts = Number(draftResult.synced || 0);
     }
 
-    if (pending.length === 0 && pendingEvents.length === 0) {
-      return { pushed: 0, events: 0, drafts: syncedDrafts, staleDraftsRemoved };
-    }
-
-    const response = await fetch(`${API_BASE_URL}/sync/push`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        device_id: deviceId,
-        client_time_utc: new Date().toISOString(),
-        records,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Push sync failed: ${response.statusText}`);
-    }
-
-    const result = unwrapApiData(await response.json());
-    setClockMetadata(result.clock);
-    const acceptedIds = collectAcceptedSyncIds(result);
-    const serverErrors = Array.isArray(result.errors) ? result.errors : [];
-    const serverDuplicates = Array.isArray(result.duplicates) ? result.duplicates : [];
-    const classifiedRecords = Array.isArray(result.classified_records) ? result.classified_records : [];
-    const uploadErrorById = new Map();
-
-    for (const id of serverDuplicates) {
-      uploadErrorById.set(id, "Record already exists on the server");
-    }
-    for (const item of classifiedRecords) {
-      if (!item?.id) continue;
-      const status = item.status || "upload_error";
-      if (status === "duplicate" || status === "held_for_review" || status === "invalid_rejected") {
-        uploadErrorById.set(
-          item.id,
-          item.error || `Server classified this form as ${status}`,
-        );
-      }
-    }
-    for (const item of serverErrors) {
-      if (item?.id) {
-        uploadErrorById.set(item.id, item.error || "Server rejected this form");
-      }
-    }
-
-    for (const item of pending) {
-      if (uploadErrorById.has(item.id)) {
-        await taskRepository.markResponseUploadError(item.id, uploadErrorById.get(item.id));
-        if (typeof taskRepository.markTaskUploadConflict === "function") {
-          taskRepository.markTaskUploadConflict(item.task_id || item.task_key);
+    let pushed = 0;
+    let events = 0;
+    let uploadErrors = 0;
+    let eventsSent = false;
+    while (true) {
+      const pendingBatch = await taskRepository.getPendingResponseBatch(PUSH_FORM_RESPONSE_BATCH_SIZE);
+      if (pendingBatch.length === 0) {
+        if (!eventsSent && pendingEvents.length > 0) {
+          const eventResult = await pushRecordBatch({
+            token,
+            deviceId,
+            formResponses: [],
+            domainEvents: pendingEvents,
+          });
+          pushed += eventResult.pushed;
+          events += eventResult.events;
+          uploadErrors += eventResult.uploadErrors;
+          eventsSent = true;
         }
-        const { markQuestionnaireSubmissionUploadError } = await import(
-          "../questionnaires/questionnaireSubmissionRepository.js"
-        );
-        markQuestionnaireSubmissionUploadError(item.id, uploadErrorById.get(item.id));
-      } else if (acceptedIds.has(item.id)) {
-        await taskRepository.markResponseSynced(item.id);
-        const { markQuestionnaireSubmissionSynced } = await import(
-          "../questionnaires/questionnaireSubmissionRepository.js"
-        );
-        markQuestionnaireSubmissionSynced(item.id);
+        break;
       }
-    }
 
-    const { markEventSynced } = await import("../events/eventOutbox.js");
-    const pendingEventIds = new Set(pendingEvents.map((event) => event.id));
-    const handledEventErrorIds = new Set();
-    for (const event of pendingEvents) {
-      if (acceptedIds.has(event.id)) {
-        markEventSynced(event.id);
-      }
+      const batchResult = await pushRecordBatch({
+        token,
+        deviceId,
+        formResponses: pendingBatch,
+        domainEvents: eventsSent ? [] : pendingEvents,
+      });
+      pushed += batchResult.pushed;
+      events += batchResult.events;
+      uploadErrors += batchResult.uploadErrors;
+      eventsSent = true;
     }
-
-    for (const item of serverErrors) {
-      const message = String(item?.error || "");
-      if (
-        item?.id &&
-        pendingEventIds.has(item.id) &&
-        message.includes("Domain event does not match a server-promoted canonical event")
-      ) {
-        markEventSynced(item.id);
-        handledEventErrorIds.add(item.id);
-      }
-    }
-
-    const unhandledErrors = serverErrors.filter(
-      (item) => !pending.some((response) => response.id === item.id) && !handledEventErrorIds.has(item.id),
-    );
-    if (unhandledErrors.length > 0) {
-      const errorText = unhandledErrors.map((item) => `${item.id}: ${item.error}`).join("; ");
-      throw new Error(`Push sync accepted ${acceptedIds.size} records with errors: ${errorText}`);
-    }
-
-    const acceptedResponses = pending.filter(
-      (item) => acceptedIds.has(item.id) && !uploadErrorById.has(item.id),
-    ).length;
-    const uploadErrors = pending.filter((item) => uploadErrorById.has(item.id)).length;
-    const acceptedEvents = pendingEvents.filter(
-      (event) => acceptedIds.has(event.id) || handledEventErrorIds.has(event.id),
-    ).length;
 
     return {
-      pushed: acceptedResponses,
-      events: acceptedEvents,
+      pushed,
+      events,
       uploadErrors,
       drafts: syncedDrafts,
       staleDraftsRemoved,
@@ -710,6 +827,7 @@ export async function pushSync() {
 
 export async function syncAll(options = {}) {
   const { onProgress } = options;
+  const endSync = startTiming("sync.all");
   try {
     emitProgress(onProgress, {
       stage: "clock-check",
@@ -739,10 +857,17 @@ export async function syncAll(options = {}) {
       staleDraftsRemoved: pushResult.staleDraftsRemoved,
       clockStatus: getClockStatus(),
     });
-    // Do not clear local projections before an incremental pull. Existing
-    // rows may be older than the sync cursor and therefore will not be sent
-    // back, which would make a second Sync erase the worklist. Full device
-    // cleanup belongs to logout/login; incremental sync only upserts deltas.
+    if (getHouseholdCacheInfo().isWebStorage) {
+      emitProgress(onProgress, {
+        stage: "clear-household-cache",
+        message: "Clearing browser household cache",
+        localities: assignmentResult.localityCodes.length,
+        pushed: pushResult.pushed,
+        events: pushResult.events,
+        uploadErrors: pushResult.uploadErrors,
+      });
+      clearHouseholdCacheForSync();
+    }
     const pullResult = await pullSync({ onProgress });
     const draftParams = new URLSearchParams({
       device_id: getMeta("device_id") || "unregistered-device",
@@ -780,7 +905,7 @@ export async function syncAll(options = {}) {
       staleDraftsRemoved: pushResult.staleDraftsRemoved || 0,
       clockStatus: getClockStatus(),
     });
-    return {
+    const result = {
       success: true,
       clockStatus: getClockStatus(),
       localities: assignmentResult.localityCodes.length,
@@ -797,7 +922,16 @@ export async function syncAll(options = {}) {
       draftsPulled: pulledDrafts,
       staleDraftsRemoved: pushResult.staleDraftsRemoved || 0,
     };
+    endSync({
+      ok: true,
+      pulled: pullResult.pulled,
+      pushed: pushResult.pushed,
+      households: pullResult.pulledHouseholds,
+      formsUpdated: pullResult.formsUpdated,
+    });
+    return result;
   } catch (error) {
+    endSync({ ok: false, error: error?.name || "Error" });
     console.error("Sync all error:", error);
     throw error;
   }

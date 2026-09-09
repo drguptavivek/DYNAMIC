@@ -1,10 +1,16 @@
-import React, { useEffect, useRef, useState } from "react";
+import { getFormDisplayCode } from "../../lib/formDisplayCodes.js";
+import { describeNetworkError } from "../../lib/networkErrors.js";
+import { startTiming } from "../../lib/perfLog.js";
+import { useCommittedSearch } from "../../lib/useCommittedSearch.js";
+import { getLocalCalendarDate } from "../../lib/localDate.js";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
   Platform,
+  AppState,
   Pressable,
   ScrollView,
   ActivityIndicator,
@@ -15,17 +21,18 @@ import {
 } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import * as syncService from "../sync/syncService.js";
-import { listTaskWorklistCandidates } from "./taskWorklistRepository.js";
-import { buildTaskLocalityOptions, filterTaskWorklist, getTaskStage } from "./taskWorklist.js";
+import { listTaskWorklistPage } from "./taskWorklistRepository.js";
+import { buildTaskLocalityOptions, filterTaskWorklist, getTaskUrgencyBucket } from "./taskWorklist.js";
+import { filterTasksByType, listStandardTaskTypeOptions } from "./taskTypeFilter.js";
 import { getTaskOpenBlockReason } from "./taskOpenPolicy.js";
 import {
   getHouseholdMemberCountSync,
   getHouseholdMemberSync,
   getHouseholdSync,
+  getHouseholdsByIdsSync,
 } from "../../lib/householdSync.js";
-import { listActiveQuestionnaireDrafts } from "../questionnaires/questionnaireDraftRepository.js";
+import { listActiveQuestionnaireDraftSummaries } from "../questionnaires/questionnaireDraftRepository.js";
 import { draftMatchesTask } from "../questionnaires/draftPendingForms.js";
-import { getAssignedLocalities } from "../sync/syncService.js";
 
 const BADGE_COLORS = {
   HHQ: "#e74c3c",
@@ -53,7 +60,7 @@ const STAGE_FILTER_OPTIONS = [
 
 function groupTasksByUrgency(tasks, options = {}) {
   const { stageFilter = "" } = options;
-  const today = new Date().toISOString().split("T")[0];
+  const today = getLocalCalendarDate();
 
   const groups = {
     draft: [],
@@ -66,20 +73,11 @@ function groupTasksByUrgency(tasks, options = {}) {
   for (const task of tasks) {
     if (task.status === "completed" || task.status === "missed") continue;
 
-    const stage = getTaskStage(task, today);
     const protocolDate = task.target_date || task.window_start || "";
     if (stageFilter === "outdated" && protocolDate && protocolDate < today) {
       groups.overdue.push({ ...task, worklist_display_stage: "outdated" });
-    } else if (stage === "draft") {
-      groups.draft.push(task);
-    } else if (stage === "future_planned") {
-      groups.futurePlanned.push(task);
-    } else if (task.target_date < today) {
-      groups.overdue.push(task);
-    } else if (task.target_date === today) {
-      groups.today.push(task);
     } else {
-      groups.upcoming.push(task);
+      groups[getTaskUrgencyBucket(task, today)].push(task);
     }
   }
 
@@ -94,11 +92,16 @@ function WorklistFilters({
   localityOptions,
   stageFilter,
   onStageFilterChange,
+  taskTypeFilter,
+  onTaskTypeFilterChange,
+  taskTypeOptions,
   filteredCount,
   totalCount,
+  searchAwaitingMinimum,
 }) {
   const localityButtonRef = useRef(null);
   const stageButtonRef = useRef(null);
+  const typeButtonRef = useRef(null);
   const [openDropdown, setOpenDropdown] = useState(null);
   const [dropdownAnchor, setDropdownAnchor] = useState(null);
   const selectedLocality = localityOptions.find((option) => option.code === localityFilter);
@@ -106,6 +109,8 @@ function WorklistFilters({
   const localityChoices = [{ code: "", label: "All localities" }, ...localityOptions];
   const selectedStage =
     STAGE_FILTER_OPTIONS.find((option) => option.value === stageFilter) || STAGE_FILTER_OPTIONS[0];
+  const typeChoices = [{ value: "", label: "All forms" }, ...taskTypeOptions];
+  const selectedType = typeChoices.find((option) => option.value === taskTypeFilter) || typeChoices[0];
 
   function toggleDropdown(type, buttonRef) {
     if (openDropdown === type) {
@@ -120,7 +125,12 @@ function WorklistFilters({
     });
   }
 
-  const dropdownChoices = openDropdown === "locality" ? localityChoices : STAGE_FILTER_OPTIONS;
+  const dropdownChoices =
+    openDropdown === "locality"
+      ? localityChoices
+      : openDropdown === "type"
+      ? typeChoices
+      : STAGE_FILTER_OPTIONS;
 
   return (
     <View style={styles.filterPanel}>
@@ -157,10 +167,25 @@ function WorklistFilters({
           <Text style={styles.localityDropdownIcon}>v</Text>
         </Pressable>
       </View>
+      <View style={styles.localityDropdownWrap}>
+        <Pressable
+          ref={typeButtonRef}
+          onPress={() => toggleDropdown("type", typeButtonRef)}
+          style={styles.localityDropdownButton}
+        >
+          <Text style={styles.localityDropdownLabel} numberOfLines={1}>
+            {selectedType.label}
+          </Text>
+          <Text style={styles.localityDropdownIcon}>v</Text>
+        </Pressable>
+      </View>
       </View>
       <Text style={styles.filterCount}>
         Showing {filteredCount} of {totalCount} tasks
       </Text>
+      {searchAwaitingMinimum ? (
+        <Text style={styles.searchHint}>Enter at least 3 characters to search.</Text>
+      ) : null}
 
       <Modal
         visible={Boolean(openDropdown && dropdownAnchor)}
@@ -197,7 +222,12 @@ function WorklistFilters({
               >
                 {dropdownChoices.map((option) => {
                   const optionValue = openDropdown === "locality" ? option.code : option.value;
-                  const selectedValue = openDropdown === "locality" ? localityFilter : stageFilter;
+                  const selectedValue =
+                    openDropdown === "locality"
+                      ? localityFilter
+                      : openDropdown === "type"
+                      ? taskTypeFilter
+                      : stageFilter;
                   const isActive = selectedValue === optionValue;
                   return (
                     <Pressable
@@ -205,6 +235,8 @@ function WorklistFilters({
                       onPress={() => {
                         if (openDropdown === "locality") {
                           onLocalityFilterChange(optionValue);
+                        } else if (openDropdown === "type") {
+                          onTaskTypeFilterChange(optionValue);
                         } else {
                           onStageFilterChange(optionValue);
                         }
@@ -240,8 +272,12 @@ function findDraftForTask(task, drafts = []) {
   return drafts.find((draft) => draftMatchesTask(draft, task));
 }
 
-function enrichTaskForWorklist(task, drafts = []) {
-  const household = task.household_id ? getHouseholdSync(task.household_id) : null;
+function enrichTaskForWorklist(task, drafts = [], householdsById = null) {
+  const household = task.household_id
+    ? householdsById
+      ? householdsById.get(task.household_id) || null
+      : getHouseholdSync(task.household_id)
+    : null;
   const member =
     String(task.task_type || "").toUpperCase() === "WQ" && task.subject_id
       ? getHouseholdMemberSync(task.subject_id)
@@ -282,6 +318,10 @@ function getTaskVisitNo(task) {
     return Math.min(3, Math.max(1, Math.trunc(failedAttempts) + 1));
   }
   return 1;
+}
+
+function getCalendarDate() {
+  return getLocalCalendarDate();
 }
 
 function DetailRow({ label, value, fullWidth, blankWhenEmpty }) {
@@ -352,10 +392,7 @@ function TaskRow({ task, onPress, onLongPress, onViewHousehold }) {
   const visitNo = getTaskVisitNo(task);
   const showVisitBadge = String(task.task_type || "").toUpperCase() === "HHQ";
   const isOutdatedDisplay = task.worklist_display_stage === "outdated";
-  const displayName =
-    String(task.task_type || "").toUpperCase() === "WQ"
-      ? task.woman_name || task.subject_name || task.household_head_name
-      : task.household_head_name;
+  const displayName = task.woman_name || task.household_head_name || "";
 
   return (
     <View
@@ -375,7 +412,7 @@ function TaskRow({ task, onPress, onLongPress, onViewHousehold }) {
         <View style={styles.taskHeader}>
           <View style={styles.taskTitleLine}>
             <View style={[styles.taskTypeBadge, { backgroundColor: badgeColor }]}>
-              <Text style={styles.taskTypeBadgeText}>{task.task_type}</Text>
+              <Text style={styles.taskTypeBadgeText}>{getFormDisplayCode(task.task_type)}</Text>
             </View>
             {displayName ? (
               <Text style={styles.taskHeaderHeadName}>
@@ -434,42 +471,84 @@ export function WorklistScreen({
   worklistRevision,
 }) {
   const [tasks, setTasks] = useState([]);
+  const [totalTaskCount, setTotalTaskCount] = useState(0);
+  const [hasMoreTasks, setHasMoreTasks] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [syncError, setSyncError] = useState(null);
-  const [searchText, setSearchText] = useState("");
+  const {
+    input: searchText,
+    setInput: setSearchText,
+    committed: committedSearch,
+    awaitingMinimum: searchAwaitingMinimum,
+  } = useCommittedSearch();
   const [localityFilter, setLocalityFilter] = useState(selectedLocalityCode || "");
   const [stageFilter, setStageFilter] = useState("");
+  const [taskTypeFilter, setTaskTypeFilter] = useState("");
   const [selectedHouseholdTask, setSelectedHouseholdTask] = useState(null);
-  const [hasMoreTasks, setHasMoreTasks] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
+  const requestIdRef = useRef(0);
+  const [calendarDate, setCalendarDate] = useState(getCalendarDate);
 
   useEffect(() => {
-    loadTasks();
-  }, [selectedLocalityCode, worklistRevision]);
+    loadTasks({ reset: true });
+  }, [selectedLocalityCode, worklistRevision, localityFilter, stageFilter, taskTypeFilter, committedSearch, calendarDate]);
+
+  useEffect(() => {
+    const refreshCalendarDate = () => setCalendarDate(getCalendarDate());
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      if (nextState === "active") refreshCalendarDate();
+    });
+    const interval = setInterval(refreshCalendarDate, 60 * 1000);
+    return () => {
+      subscription.remove();
+      clearInterval(interval);
+    };
+  }, []);
 
   useEffect(() => {
     setLocalityFilter(selectedLocalityCode || "");
   }, [selectedLocalityCode]);
 
-  async function loadTasks() {
-    setLoading(true);
+  async function loadTasks({ reset = true } = {}) {
+    const requestId = ++requestIdRef.current;
+    const offset = reset ? 0 : tasks.length;
+    if (reset) setLoading(true);
+    else setLoadingMore(true);
+    const endLoad = startTiming("worklist.load");
     try {
-      const activeDrafts = await listActiveQuestionnaireDrafts();
-      const allTasks = listTaskWorklistCandidates({
-        locality_code: selectedLocalityCode || undefined,
-        locality_codes: getAssignedLocalities(),
-        limit: 50,
-        offset: 0,
-      }).map((task) => enrichTaskForWorklist(task, activeDrafts));
-      setTasks(allTasks);
-      setHasMoreTasks(allTasks.length === 50);
+      const activeDrafts = await listActiveQuestionnaireDraftSummaries();
+      const result = await listTaskWorklistPage({
+        locality_code: localityFilter || undefined,
+        stage: stageFilter || undefined,
+        task_type: taskTypeFilter || undefined,
+        search: committedSearch,
+        activeDrafts,
+        limit: 100,
+        offset,
+      });
+      if (requestId !== requestIdRef.current) return;
+      const candidateTasks = result.tasks || [];
+      const householdsById = getHouseholdsByIdsSync(
+        candidateTasks.map((task) => task.household_id)
+      );
+      const pageTasks = candidateTasks.map((task) =>
+        enrichTaskForWorklist(task, activeDrafts, householdsById)
+      );
+      setTasks((previous) => (reset ? pageTasks : [...previous, ...pageTasks]));
+      setTotalTaskCount(Number(result.total) || 0);
+      setHasMoreTasks(Boolean(result.hasMore));
       setSyncError(null);
+      endLoad({ tasks: pageTasks.length, total: result.total, drafts: activeDrafts.length });
     } catch (error) {
+      endLoad({ ok: false });
       console.error("Error loading tasks:", error);
-      setSyncError(error.message);
+      if (requestId === requestIdRef.current) setSyncError(error.message);
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) {
+        setLoading(false);
+        setLoadingMore(false);
+      }
     }
   }
 
@@ -478,10 +557,10 @@ export function WorklistScreen({
     try {
       const syncSvc = syncServiceProp || syncService;
       await syncSvc.syncAll();
-      await loadTasks();
+      await loadTasks({ reset: true });
     } catch (error) {
       console.error("Sync error:", error);
-      setSyncError(`Sync failed: ${error.message}`);
+      setSyncError(describeNetworkError(error, { action: "Sync" }));
     } finally {
       setRefreshing(false);
     }
@@ -496,6 +575,76 @@ export function WorklistScreen({
     onOpenTask(task);
   }
 
+  const localityOptions = useMemo(
+    () => buildTaskLocalityOptions(tasks, localities),
+    [tasks, localities],
+  );
+  const taskTypeOptions = useMemo(() => listStandardTaskTypeOptions(), []);
+  const filteredTasks = useMemo(
+    () =>
+      filterTasksByType(
+        filterTaskWorklist(tasks, {
+          stage: stageFilter,
+        }),
+        taskTypeFilter,
+      ),
+    [tasks, stageFilter, taskTypeFilter],
+  );
+  const grouped = useMemo(
+    () => groupTasksByUrgency(filteredTasks, { stageFilter }),
+    [filteredTasks, stageFilter],
+  );
+
+  const sections = useMemo(() => {
+    const built = [];
+
+    if (grouped.draft.length > 0) {
+      built.push({ id: "draft-header", type: "header", title: "Draft" });
+      grouped.draft.forEach((task) => {
+        built.push({ id: task.id, type: "task", task });
+      });
+    }
+
+    if (grouped.overdue.length > 0) {
+      built.push({ id: "overdue-header", type: "header", title: "Overdue" });
+      grouped.overdue.forEach((task) => {
+        built.push({ id: task.id, type: "task", task });
+      });
+    }
+
+    if (grouped.today.length > 0) {
+      built.push({ id: "today-header", type: "header", title: "Today" });
+      grouped.today.forEach((task) => {
+        built.push({ id: task.id, type: "task", task });
+      });
+    }
+
+    if (grouped.upcoming.length > 0) {
+      built.push({ id: "upcoming-header", type: "header", title: "Upcoming" });
+      grouped.upcoming.forEach((task) => {
+        built.push({ id: task.id, type: "task", task });
+      });
+    }
+
+    if (grouped.futurePlanned.length > 0) {
+      built.push({ id: "future-planned-header", type: "header", title: "Future Planned" });
+      grouped.futurePlanned.forEach((task) => {
+        built.push({ id: task.id, type: "task", task });
+      });
+    }
+
+    return built;
+  }, [grouped]);
+
+  const pagedSections = sections;
+  const hasMore = hasMoreTasks;
+  const shown = tasks.length;
+  const total = totalTaskCount;
+  const showMore = () => {
+    if (!hasMoreTasks && !loadingMore) return;
+    if (!loadingMore) loadTasks({ reset: false });
+  };
+
   if (loading) {
     return (
       <View style={styles.centerContainer}>
@@ -505,13 +654,6 @@ export function WorklistScreen({
     );
   }
 
-  const localityOptions = buildTaskLocalityOptions(tasks, localities);
-  const filteredTasks = filterTaskWorklist(tasks, {
-    search: searchText,
-    locality_code: localityFilter,
-    stage: stageFilter,
-  });
-  const grouped = groupTasksByUrgency(filteredTasks, { stageFilter });
   const hasAnyTasks =
     grouped.draft.length > 0 ||
     grouped.overdue.length > 0 ||
@@ -527,8 +669,12 @@ export function WorklistScreen({
       localityOptions={localityOptions}
       stageFilter={stageFilter}
       onStageFilterChange={setStageFilter}
+      taskTypeFilter={taskTypeFilter}
+      onTaskTypeFilterChange={setTaskTypeFilter}
+      taskTypeOptions={taskTypeOptions}
       filteredCount={filteredTasks.length}
-      totalCount={tasks.length}
+      totalCount={totalTaskCount}
+      searchAwaitingMinimum={searchAwaitingMinimum}
     />
   );
 
@@ -544,7 +690,7 @@ export function WorklistScreen({
           ListEmptyComponent={
             <View style={styles.centerContainer}>
               <Text style={styles.emptyText}>
-                {tasks.length > 0 ? "No matching tasks" : "No open tasks"}
+                {totalTaskCount > 0 ? "No matching tasks" : "No open tasks"}
               </Text>
               {syncError && <Text style={styles.errorText}>{syncError}</Text>}
             </View>
@@ -553,101 +699,6 @@ export function WorklistScreen({
         />
       </View>
     );
-  }
-
-  async function loadMoreTasks() {
-    if (loadingMore || !hasMoreTasks) return;
-    setLoadingMore(true);
-    try {
-      const activeDrafts = await listActiveQuestionnaireDrafts();
-      const nextTasks = listTaskWorklistCandidates({
-        locality_code: selectedLocalityCode || undefined,
-        locality_codes: getAssignedLocalities(),
-        limit: 50,
-        offset: tasks.length,
-      }).map((task) => enrichTaskForWorklist(task, activeDrafts));
-      setTasks((current) => [...current, ...nextTasks]);
-      setHasMoreTasks(nextTasks.length === 50);
-    } finally {
-      setLoadingMore(false);
-    }
-  }
-
-  const sections = [];
-
-  if (grouped.draft.length > 0) {
-    sections.push({
-      id: "draft-header",
-      type: "header",
-      title: "Draft",
-    });
-    grouped.draft.forEach((task) => {
-      sections.push({
-        id: task.id,
-        type: "task",
-        task,
-      });
-    });
-  }
-
-  if (grouped.overdue.length > 0) {
-    sections.push({
-      id: "overdue-header",
-      type: "header",
-      title: "Overdue",
-    });
-    grouped.overdue.forEach((task) => {
-      sections.push({
-        id: task.id,
-        type: "task",
-        task,
-      });
-    });
-  }
-
-  if (grouped.today.length > 0) {
-    sections.push({
-      id: "today-header",
-      type: "header",
-      title: "Today",
-    });
-    grouped.today.forEach((task) => {
-      sections.push({
-        id: task.id,
-        type: "task",
-        task,
-      });
-    });
-  }
-
-  if (grouped.upcoming.length > 0) {
-    sections.push({
-      id: "upcoming-header",
-      type: "header",
-      title: "Upcoming",
-    });
-    grouped.upcoming.forEach((task) => {
-      sections.push({
-        id: task.id,
-        type: "task",
-        task,
-      });
-    });
-  }
-
-  if (grouped.futurePlanned.length > 0) {
-    sections.push({
-      id: "future-planned-header",
-      type: "header",
-      title: "Future Planned",
-    });
-    grouped.futurePlanned.forEach((task) => {
-      sections.push({
-        id: task.id,
-        type: "task",
-        task,
-      });
-    });
   }
 
   function renderWorklistItem(item) {
@@ -667,6 +718,13 @@ export function WorklistScreen({
     );
   }
 
+  const showMoreFooter = hasMore ? (
+    <Pressable onPress={showMore} disabled={loadingMore} style={styles.showMoreButton}>
+      {loadingMore ? <ActivityIndicator color="#2563eb" /> : null}
+      <Text style={styles.showMoreText}>{loadingMore ? "Loading…" : `Show more (${shown} of ${total})`}</Text>
+    </Pressable>
+  ) : null;
+
   if (Platform.OS === "web") {
     return (
       <ScrollView
@@ -675,10 +733,10 @@ export function WorklistScreen({
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
       >
         {filterPanel}
-        {sections.map((item) => (
+        {pagedSections.map((item) => (
           <React.Fragment key={item.id}>{renderWorklistItem(item)}</React.Fragment>
         ))}
-        {hasMoreTasks && <Pressable style={styles.loadMoreButton} onPress={loadMoreTasks}><Text style={styles.loadMoreText}>{loadingMore ? "Loading…" : "Load 50 more households"}</Text></Pressable>}
+        {showMoreFooter}
         {syncError && (
           <View style={styles.centerContainer}>
             <Text style={styles.errorText}>{syncError}</Text>
@@ -698,10 +756,16 @@ export function WorklistScreen({
       <View style={styles.fixedFilterHeader}>{filterPanel}</View>
       <FlatList
         style={styles.taskList}
-        data={sections}
+        data={pagedSections}
         keyExtractor={(item) => item.id}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
         renderItem={({ item }) => renderWorklistItem(item)}
+        onEndReached={showMore}
+        onEndReachedThreshold={0.5}
+        initialNumToRender={20}
+        windowSize={7}
+        removeClippedSubviews
+        ListFooterComponent={showMoreFooter}
         ListEmptyComponent={
           syncError ? (
             <View style={styles.centerContainer}>
@@ -710,7 +774,6 @@ export function WorklistScreen({
           ) : null
         }
         contentContainerStyle={styles.taskListContent}
-        ListFooterComponent={hasMoreTasks ? <Pressable style={styles.loadMoreButton} onPress={loadMoreTasks}><Text style={styles.loadMoreText}>{loadingMore ? "Loading…" : "Load 50 more households"}</Text></Pressable> : null}
       />
       <HouseholdDetailsModal
         visible={Boolean(selectedHouseholdTask)}
@@ -786,6 +849,7 @@ const styles = StyleSheet.create({
   },
   filterDropdownRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: 8,
     alignItems: "flex-start",
   },
@@ -794,7 +858,7 @@ const styles = StyleSheet.create({
     zIndex: 40,
     elevation: 24,
     flex: 1,
-    minWidth: 0,
+    minWidth: 110,
   },
   localityDropdownLabel: {
     flex: 1,
@@ -856,6 +920,12 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#667085",
   },
+  searchHint: {
+    color: "#667085",
+    fontSize: 11,
+    fontWeight: "700",
+    marginTop: 3,
+  },
   loadingText: {
     marginTop: 12,
     fontSize: 16,
@@ -878,6 +948,22 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     marginTop: 8,
     marginBottom: 4,
+  },
+  showMoreButton: {
+    minHeight: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#d8dee4",
+    backgroundColor: "#ffffff",
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  showMoreText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#0b5bd3",
   },
   sectionHeaderText: {
     fontSize: 13,
@@ -1080,17 +1166,6 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 10,
     padding: 14,
-  },
-  loadMoreButton: {
-    margin: 12,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: "center",
-    backgroundColor: "#e8f1ff",
-  },
-  loadMoreText: {
-    color: "#1d4ed8",
-    fontWeight: "700",
   },
   detailRow: {
     width: "48%",

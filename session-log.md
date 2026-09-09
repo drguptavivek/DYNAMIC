@@ -1,3 +1,15 @@
+## 2026-09-04 (Expo startup and offline DB performance) [ready]
+Goal: Implement performance round 3, verify it, and publish the next Android prerelease.
+Decisions:
+- Household initialization is once-per-database and retryable, with named local migrations; indexed prefix searches commit after 3 characters/300 ms and retain existing page sizes.
+- Worklist reads use exact-count 100-row SQLite pages and standard filters. Urgency is derived from the device-local date, re-evaluated only when the calendar date changes, and never rewrites all tasks on same-day startup.
+- Submission history reads complete metadata without answer payloads; sync drains pending responses in guarded 100-row batches. Draft autosave uses projected columns and draft/history lists render incrementally.
+- SurveyJS and bundled form JSON are lazy until form open. Provider actions are stable. Integer, decimal, and phone fields select native numeric keyboards while fixed-width strings retain leading zeroes.
+Verification:
+- Full Expo tests pass; Expo lint passes with existing warnings; Android production export passes. Independent audit findings for local-midnight dates, window-only urgency, and large SQLite bind sets were fixed and regression-tested.
+Open:
+- Tag, GitHub CI, and signed APK release verification remain until publication completes.
+
 ## 2026-08-31 (AWS EC2 deployment foundation) [working]
 Goal: Add reviewable Ubuntu EC2 deployment assets without committing, pushing, deploying, or changing app behavior.
 Decisions:

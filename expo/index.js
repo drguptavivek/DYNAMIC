@@ -1,7 +1,16 @@
 /**
- * Registers the Expo Router root after installing native runtime compatibility shims.
+ * Registers the Expo Router root after installing the tiny native runtime
+ * compatibility shim needed by Survey Core. Keep this free of any Survey Core
+ * import so the engine stays out of the cold-start path.
  */
-require("./src/polyfills/surveyCoreNative.js");
+if (typeof window !== "undefined") {
+  if (typeof window.addEventListener !== "function") {
+    window.addEventListener = () => {};
+  }
+  if (typeof window.removeEventListener !== "function") {
+    window.removeEventListener = () => {};
+  }
+}
 
 const React = require("react");
 const { registerRootComponent } = require("expo");

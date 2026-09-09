@@ -6,6 +6,7 @@ import { clearHouseholdCacheForSync } from "../households/householdRepository.js
 import { API_BASE_URL } from "../sync/apiConfig.js";
 import { clearLocalDeviceData } from "../storage/localDeviceDataReset.js";
 import { formatAndroidDeviceId } from "./deviceIdentity.js";
+import { describeHttpFailure, describeNetworkError } from "../../lib/networkErrors.js";
 
 let currentUser = null;
 const DEVICE_ID_PREFIX = "dynamic-field-device";
@@ -114,6 +115,15 @@ async function registerCurrentDevice(accessToken, user) {
   return { deviceId, registration: unwrapApiData(await response.json()) };
 }
 
+async function readErrorMessage(response) {
+  try {
+    const payload = await response.clone().json();
+    return payload?.error?.message || payload?.message || null;
+  } catch {
+    return null;
+  }
+}
+
 export async function login(username, password) {
   try {
     const response = await fetch(`${API_BASE_URL}/auth/login`, {
@@ -123,7 +133,7 @@ export async function login(username, password) {
     });
 
     if (!response.ok) {
-      return { ok: false, error: `Login failed: ${response.statusText}` };
+      return { ok: false, error: describeHttpFailure(response, await readErrorMessage(response), "Login") };
     }
 
     const data = unwrapApiData(await response.json());
@@ -144,7 +154,7 @@ export async function login(username, password) {
     return { ok: true, user: enrichedUser };
   } catch (error) {
     console.error("Login error:", error);
-    return { ok: false, error: error.message };
+    return { ok: false, error: describeNetworkError(error, { action: "Login" }) };
   }
 }
 
@@ -157,7 +167,7 @@ export async function loginWithQrPayload(qrPayload) {
     });
 
     if (!response.ok) {
-      return { ok: false, error: `QR login failed: ${response.statusText}` };
+      return { ok: false, error: describeHttpFailure(response, await readErrorMessage(response), "QR login") };
     }
 
     const data = unwrapApiData(await response.json());
@@ -178,7 +188,7 @@ export async function loginWithQrPayload(qrPayload) {
     return { ok: true, user: enrichedUser };
   } catch (error) {
     console.error("QR login error:", error);
-    return { ok: false, error: error.message };
+    return { ok: false, error: describeNetworkError(error, { action: "QR login" }) };
   }
 }
 

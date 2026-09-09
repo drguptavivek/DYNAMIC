@@ -1,6 +1,7 @@
+import { getFormDisplayCode } from "../../lib/formDisplayCodes.js";
+import { startTiming } from "../../lib/perfLog.js";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
-import { Model } from "survey-core";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { NativeSurveyRenderer } from "../../components/forms/NativeSurveyRenderer.js";
 import { RendererLanguageSwitcher } from "../../components/forms/RendererLanguageSwitcher.js";
@@ -36,8 +37,8 @@ import {
 } from "../../lib/householdRoundsSurveyBehaviors.js";
 import { buildHouseholdMemberSummaryRows } from "./householdMemberSummary";
 import {
+  getPreparedSurveyJson,
   normalizeQuestionnaireSurveyData,
-  prepareQuestionnaireSurveyJson,
 } from "./questionnaireSurveyJsonTransforms";
 import { applyReadOnlyFields } from "./questionnaireReadOnlyFields.js";
 import { mergePrefillIntoBlankValues } from "../../lib/prefillMapper.js";
@@ -47,19 +48,29 @@ import {
 } from "../../lib/pregnancySurveillanceBehaviors.js";
 import { listHouseholdMembers } from "../households/householdRepository.js";
 import { getDraftSavedMessage } from "./draftSaveMessages.js";
+import { applyQuestionnaireLanguageFromLocale } from "../../lib/questionnaireLanguageField.js";
+import { createSurveyModel } from "../../polyfills/surveyCoreNative.js";
 import {
   WQ_CURRENT_MARITAL_STATUS_FIELD,
   WQ_OTHER_PREGNANCIES_FIELD,
+  WQ_BORN_ALIVE_PROBE_FIELD,
+  WQ_CHECK8_CONFIRMATION_FIELD,
+  WQ_CHECK8_CONFIRMATION_MESSAGE,
   applyWqSectionTwoCompletion,
+  applyWqAgeConsistencyCheck,
+  applyWqBornAliveProbe,
+  applyWqCheck8Confirmation,
   applyWqDomesticViolenceCalculations,
   applyWqLmpTimingChecks,
    applyWqPregnancyHistoryCalculations,
    applyWqPregnancyTrackingEligibility,
    applyWqReproductionSummary,
+  attachWqValidation,
   buildWqHusbandPartnerChoices,
   hasIncompleteWqBornAliveChildFollowups,
   requestNextWqPregnancy,
   shouldCompleteWqAfterReproduction,
+   shouldRecalculateWqAgeConsistency,
    shouldRecalculateWqDomesticViolence,
    shouldRecalculateWqLmpTimingChecks,
   shouldRecalculateWqPregnancyHistory,
@@ -348,6 +359,7 @@ export function QuestionnaireDashboard({
     };
     answerSnapshotRef.current = payload;
     setRendererAnswerData(payload);
+    const endSave = startTiming("draft.save", { form: form?.form_code, manual });
     const draft = await saveQuestionnaireDraft({
       ...draftContext,
       draftId: draftIdRef.current,
@@ -356,6 +368,7 @@ export function QuestionnaireDashboard({
         currentPageName: model.currentPage?.name || null,
       },
     });
+    endSave({ answers: Object.keys(payload).length });
     draftIdRef.current = draft.draft_id;
     setDraftId(draft.draft_id);
     setLastSavedAt(draft.updated_at);
@@ -454,8 +467,9 @@ export function QuestionnaireDashboard({
 
   const survey = useMemo(() => {
     if (!showForm || !form) return null;
-    const surveyJson = prepareQuestionnaireSurveyJson(form);
-    const model = new Model(surveyJson);
+    const endOpen = startTiming("form.open", { form: form.form_code });
+    const surveyJson = getPreparedSurveyJson(form);
+    const model = createSurveyModel(surveyJson);
     model.showCompletedPage = false;
     model.showPreviewBeforeComplete = "noPreview";
     model.completeText = "Submit";
@@ -475,12 +489,15 @@ export function QuestionnaireDashboard({
     }
 
     if (isWomanQuestionnaire(form)) {
+      attachWqValidation(model);
       applyWqVisitNo(model, taskContext);
       applyWqReproductionSummary(model);
        applyWqPregnancyHistoryCalculations(model);
       applyWqLmpTimingChecks(model);
        applyWqPregnancyTrackingEligibility(model);
       applyWqDomesticViolenceCalculations(model);
+      applyWqAgeConsistencyCheck(model);
+      applyWqCheck8Confirmation(model);
     }
 
     if (isHouseholdQuestionnaire(form)) {
@@ -556,6 +573,17 @@ export function QuestionnaireDashboard({
           });
         }
         if (
+          options.name === WQ_BORN_ALIVE_PROBE_FIELD ||
+          options.name === WQ_BORN_ALIVE_LATER_DIED_FIELD
+        ) {
+          const focusFieldName = applyWqBornAliveProbe(sender, options.name);
+          if (focusFieldName) {
+            requestAnimationFrame(() => {
+              rendererRef.current?.focusQuestion(focusFieldName);
+            });
+          }
+        }
+        if (
           options.name === WQ_OTHER_PREGNANCIES_FIELD &&
           Number(options.value) === 1 &&
           requestNextWqPregnancy(sender)
@@ -572,12 +600,27 @@ export function QuestionnaireDashboard({
         }
         if (shouldRecalculateWqReproductionSummary(options.name)) {
           applyWqReproductionSummary(sender);
+          // The Q8 total may have just changed and cleared Q9's stale
+          // confirmation; refresh Q9's inline message to match.
+          applyWqCheck8Confirmation(sender);
         }
         if (shouldRecalculateWqPregnancyHistory(options.name)) {
           applyWqPregnancyHistoryCalculations(sender);
         }
         if (shouldRecalculateWqDomesticViolence(options.name)) {
           applyWqDomesticViolenceCalculations(sender);
+        }
+        if (shouldRecalculateWqAgeConsistency(options.name)) {
+          applyWqAgeConsistencyCheck(sender);
+        }
+        if (options.name === WQ_CHECK8_CONFIRMATION_FIELD) {
+          applyWqCheck8Confirmation(sender);
+          if (Number(options.value) === 2) {
+            setSaveMessage(WQ_CHECK8_CONFIRMATION_MESSAGE);
+            requestAnimationFrame(() => {
+              rendererRef.current?.focusQuestion(WQ_EVER_GIVEN_BIRTH_FIELD);
+            });
+          }
         }
       }
       if (
@@ -688,6 +731,7 @@ export function QuestionnaireDashboard({
     });
 
     model.onComplete.add(async (sender) => {
+      const endSubmit = startTiming("submission.save", { form: form.form_code });
       const submission = await saveQuestionnaireSubmission({
         formCode: form.form_code,
         formVersion: form.version,
@@ -696,6 +740,7 @@ export function QuestionnaireDashboard({
         taskContext,
         deviceId: user?.device_id || "dev-device",
       });
+      endSubmit();
       if (draftIdRef.current) {
         await markQuestionnaireDraftSubmitted({
           draftId: draftIdRef.current,
@@ -732,6 +777,7 @@ export function QuestionnaireDashboard({
         navigateTo(ROUTES.completedForms);
       }
     });
+    endOpen({ questions: model.getAllQuestions().length });
     return model;
   }, [showForm, form, formCode, prefillData, readOnlyFields, taskContext, draftContext]);
 
@@ -804,6 +850,7 @@ export function QuestionnaireDashboard({
     restoredDraftKeyRef.current = restoreKey;
 
     async function restoreDraft() {
+      const endRestore = startTiming("draft.restore", { form: form?.form_code });
       const draft = await getActiveQuestionnaireDraft(draftContext);
       if (cancelled) return;
 
@@ -832,6 +879,8 @@ export function QuestionnaireDashboard({
           applyWqLmpTimingChecks(survey);
            applyWqPregnancyTrackingEligibility(survey);
           applyWqDomesticViolenceCalculations(survey);
+          applyWqAgeConsistencyCheck(survey);
+          applyWqCheck8Confirmation(survey);
           routeWqStopToOutcome(survey, { navigate: false });
         }
         if (isPregnancySurveillanceForm(form)) {
@@ -854,7 +903,11 @@ export function QuestionnaireDashboard({
         setRendererAnswerData(answerSnapshotRef.current);
       }
 
+      // The restored draft may carry an older language answer; the active
+      // switcher language always wins.
+      applyQuestionnaireLanguageFromLocale(survey, activeLocaleRef.current);
       updateSurveyStatus(survey);
+      endRestore({ found: Boolean(draft) });
     }
 
     restoreDraft();
@@ -862,6 +915,18 @@ export function QuestionnaireDashboard({
       cancelled = true;
     };
   }, [showForm, survey, draftContext]);
+
+  // "Language of questionnaire" (where a form has it) is recorded from the
+  // language switcher rather than asked; keep it in step with the selection.
+  const activeLocaleRef = useRef(activeLocale);
+  activeLocaleRef.current = activeLocale;
+  useEffect(() => {
+    if (!showForm || !survey) return;
+    if (applyQuestionnaireLanguageFromLocale(survey, activeLocale)) {
+      markDirty();
+      updateSurveyStatus(survey);
+    }
+  }, [showForm, survey, activeLocale]);
 
   useEffect(() => {
     if (!showForm || !survey) return undefined;
@@ -897,14 +962,6 @@ export function QuestionnaireDashboard({
     };
   }, [showForm, survey, draftContext]);
 
-  if (!form) {
-    return (
-      <View style={styles.wrap}>
-        <Text style={styles.title}>Questionnaire not found</Text>
-      </View>
-    );
-  }
-
   const displayedSections = useMemo(
     () =>
       survey
@@ -922,14 +979,26 @@ export function QuestionnaireDashboard({
         : sections,
     [survey, form, memberSummaryOpen, previewOpen, memberSummaryConfirmed, previewConfirmed, sections],
   );
-  const memberSummaryRows = survey
-    ? buildHouseholdMemberSummaryRows(survey.data || {}, form, activeLocale)
-    : [];
+  const memberSummaryRows = useMemo(
+    () => (survey ? buildHouseholdMemberSummaryRows(survey.data || {}, form, activeLocale) : []),
+    [survey, form, activeLocale, rendererAnswerData],
+  );
   const hideDashboardShell = showForm && compact;
-  const activeRendererAnswerData = {
-    ...(rendererAnswerData || {}),
-    ...(answerSnapshotRef.current || {}),
-  };
+  const activeRendererAnswerData = useMemo(
+    () => ({
+      ...(rendererAnswerData || {}),
+      ...(answerSnapshotRef.current || {}),
+    }),
+    [rendererAnswerData],
+  );
+
+  if (!form) {
+    return (
+      <View style={styles.wrap}>
+        <Text style={styles.title}>Questionnaire not found</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.wrap}>
@@ -958,7 +1027,7 @@ export function QuestionnaireDashboard({
           ) : null}
           <View style={[styles.formWindowHeader, compact && styles.formWindowHeaderHidden]}>
             <View style={[styles.titleBlock, compact && styles.formHeaderTitleBlockCompact]}>
-              <Text style={styles.code}>{form.form_code}</Text>
+              <Text style={styles.code}>{getFormDisplayCode(form.form_code)}</Text>
               <View>
                 <Text numberOfLines={compact ? 1 : undefined} style={[styles.formWindowTitle, compact && styles.formWindowTitleCompact]}>{form.title?.default || form.title}</Text>
                 <Text style={styles.subtle}>
@@ -1072,7 +1141,7 @@ export function QuestionnaireDashboard({
                           <Text style={styles.memberSummaryCell}>Age</Text>
                           <Text style={styles.memberSummaryCell}>Sex</Text>
                           <Text style={[styles.memberSummaryCell, styles.memberSummaryRelationCell]}>Relation</Text>
-                          <Text style={styles.memberSummaryCell}>WQ Eligible</Text>
+                          <Text style={styles.memberSummaryCell}>BWQ Eligible</Text>
                         </View>
                         {memberSummaryRows.length ? (
                           memberSummaryRows.map((row) => (
@@ -1147,7 +1216,7 @@ export function QuestionnaireDashboard({
         <>
       <View style={styles.toolbar}>
         <View style={styles.titleBlock}>
-          <Text style={styles.code}>{form.form_code}</Text>
+          <Text style={styles.code}>{getFormDisplayCode(form.form_code)}</Text>
           <View>
             <Text style={styles.title}>{form.title?.default || form.title}</Text>
             <Text style={styles.subtle}>

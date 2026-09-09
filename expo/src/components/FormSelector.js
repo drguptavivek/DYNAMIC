@@ -1,3 +1,4 @@
+import { getFormDisplayCode } from "../lib/formDisplayCodes.js";
 import React from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
@@ -14,7 +15,7 @@ export function FormSelector({ forms, selectedCode, onSelect }) {
               onPress={() => onSelect(form.form_code)}
               style={[styles.item, active && styles.activeItem]}
             >
-              <Text style={[styles.code, active && styles.activeText]}>{form.form_code}</Text>
+              <Text style={[styles.code, active && styles.activeText]}>{getFormDisplayCode(form.form_code)}</Text>
               <View style={styles.itemText}>
                 <Text style={[styles.title, active && styles.activeText]} numberOfLines={2}>
                   {form.title}

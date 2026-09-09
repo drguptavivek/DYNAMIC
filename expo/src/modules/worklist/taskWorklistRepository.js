@@ -6,6 +6,7 @@ import {
   saveProvisionalTasks as saveProvisionalTasksWithRepository,
   listTaskAttempts as listTaskAttemptsWithRepository,
   listTaskWorklistCandidates as listTaskWorklistCandidatesWithRepository,
+  listTaskWorklistPage as listTaskWorklistPageWithRepository,
   listTaskWorklist as listTaskWorklistWithRepository,
   recordFailedTaskAttempt as recordFailedTaskAttemptWithRepository,
   reconcilePulledTasks as reconcilePulledTasksWithRepository,
@@ -17,6 +18,10 @@ export function listTaskWorklist(filters = {}) {
 
 export function listTaskWorklistCandidates(filters = {}) {
   return listTaskWorklistCandidatesWithRepository(filters, taskRepository);
+}
+
+export function listTaskWorklistPage(filters = {}) {
+  return listTaskWorklistPageWithRepository(filters, taskRepository);
 }
 
 export function listTaskAttempts(taskId) {

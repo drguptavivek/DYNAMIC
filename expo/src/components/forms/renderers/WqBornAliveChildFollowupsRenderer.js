@@ -253,7 +253,7 @@ export function WqBornAliveChildFollowupsRenderer({
             })}
           </View>
         </ScrollView>
-      ) : <Text style={styles.empty}>The table will be created after the first child's details are added.</Text>}
+      ) : <Text style={styles.empty}>The table will be created after the first child&apos;s details are added.</Text>}
 
       {activePanel ? (
         <View style={styles.editor}>

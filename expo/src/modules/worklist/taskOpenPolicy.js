@@ -1,3 +1,5 @@
+import { getLocalCalendarDate } from "../../lib/localDate.js";
+
 function isVaTask(task) {
   return String(task?.task_type || "").toUpperCase() === "VA";
 }
@@ -22,7 +24,7 @@ export function getTaskOpenBlockReason(task) {
   if (!task) return "Task is not available";
   if (task.status !== "open") return "Task is not open";
   if (!isBaselineTask(task) && String(task.lifecycle_status || "").toLowerCase() === "planned") {
-    const today = new Date().toISOString().split("T")[0];
+    const today = getLocalCalendarDate();
     const opensOn = task.window_start || task.target_date || "";
     if (opensOn && opensOn > today) {
       return `This task opens on ${opensOn}.`;

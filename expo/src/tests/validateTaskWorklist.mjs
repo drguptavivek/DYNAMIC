@@ -14,6 +14,7 @@ const {
   buildTaskLocalityOptions,
   filterTaskWorklist,
   getTaskStage,
+  getTaskUrgencyBucket,
   isFuturePlannedTask,
   listTaskWorklistCandidates,
   normalizeTaskAttemptLimits,
@@ -105,6 +106,14 @@ const futurePlannedTask = {
 assert.equal(isFuturePlannedTask(futurePlannedTask, "2026-08-17"), true);
 assert.equal(getTaskStage(futurePlannedTask, "2026-08-17"), "future_planned");
 assert.equal(getTaskStage({ ...confirmedTask, has_active_draft: true }, "2026-08-17"), "draft");
+assert.equal(
+  getTaskUrgencyBucket({ ...confirmedTask, target_date: null, window_start: "2026-08-17" }, "2026-08-17"),
+  "today",
+);
+assert.equal(
+  getTaskUrgencyBucket({ ...confirmedTask, target_date: null, window_start: "2026-08-16" }, "2026-08-17"),
+  "overdue",
+);
 const overdueDraftTask = {
   ...confirmedTask,
   id: "overdue-draft-task",
@@ -118,12 +127,18 @@ assert.deepEqual(
   selectTasksForStage([confirmedTask, futurePlannedTask], "future_planned").map((task) => task.id),
   ["future-planned-hrf-filter"],
 );
+const futureDatedTask = {
+  ...confirmedTask,
+  id: "future-dated-task",
+  task_key: "future-dated-task-key",
+  target_date: "2099-06-01",
+};
 assert.deepEqual(
-  selectTasksForStage([confirmedTask, overdueDraftTask], "outdated").map((task) => task.id),
+  selectTasksForStage([futureDatedTask, overdueDraftTask], "outdated").map((task) => task.id),
   ["overdue-draft-task"],
 );
 assert.deepEqual(
-  selectTasksForStage([confirmedTask, overdueDraftTask], "draft").map((task) => task.id),
+  selectTasksForStage([futureDatedTask, overdueDraftTask], "draft").map((task) => task.id),
   ["overdue-draft-task"],
 );
 assert.deepEqual(
@@ -190,6 +205,40 @@ assert.equal(savedBatches.length, 1);
 assert.equal(savedBatches[0].length, 1);
 assert.equal(savedBatches[0][0].id, "server-task-1");
 
+const identityCalls = [];
+const identityBatches = [];
+let identityListTasksCalled = false;
+const identityRepository = {
+  listTasks() {
+    identityListTasksCalled = true;
+    return [];
+  },
+  getTasksByIdentities(identities) {
+    identityCalls.push(identities);
+    return [provisionalTask].filter((task) =>
+      identities.includes(task.task_key) || identities.includes(task.id),
+    );
+  },
+  saveTaskBatch(tasks) {
+    identityBatches.push(tasks);
+  },
+};
+
+const identityReconcileResult = reconcilePulledTasks([confirmedTask], identityRepository);
+assert.equal(identityListTasksCalled, false);
+assert.equal(identityCalls.length, 1);
+assert.deepEqual(identityCalls[0], [confirmedTask.task_key]);
+assert.equal(identityReconcileResult.saved, 1);
+assert.deepEqual(identityReconcileResult.reconciled, [
+  {
+    task_key: provisionalTask.task_key,
+    provisional_task_id: "local-task-1",
+    confirmed_task_id: "server-task-1",
+    disposition: "confirmed",
+  },
+]);
+assert.equal(identityBatches.length, 1);
+
 const withdrawnTask = {
   ...confirmedTask,
   id: "server-task-withdrawn",
@@ -201,6 +250,18 @@ assert.equal(withdrawnResult.reconciled[0].disposition, "withdrawn");
 
 const worklist = listTaskWorklist({ locality_code: "02" }, repository);
 assert.deepEqual(worklist.map((task) => task.id), ["local-task-1"]);
+
+assert.deepEqual(
+  buildTaskLocalityOptions([], [
+    { site_id: 1, locality_code: "01", locality_name: "North" },
+    { site_id: 1, locality_code: "02", locality_name: "South" },
+  ]),
+  [
+    { code: "01", label: "North (01)" },
+    { code: "02", label: "South (02)" },
+  ],
+  "assigned locality masters must remain available even when no task currently uses them",
+);
 
 let candidateFilters = null;
 const candidates = listTaskWorklistCandidates({}, {
@@ -288,7 +349,7 @@ assert.deepEqual(
       { site_id: 2, locality_code: "02", locality_name: "02" },
     ],
   ).map((option) => option.code),
-  ["02"],
+  ["01", "02"],
 );
 assert.deepEqual(
   buildTaskLocalityOptions(

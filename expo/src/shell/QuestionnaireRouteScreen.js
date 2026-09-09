@@ -5,6 +5,7 @@ import React, { useMemo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { getRuntimeFormByCode } from "../data/runtimeFormCatalog.js";
+import { getFormDisplayCode } from "../lib/formDisplayCodes.js";
 import { QuestionnaireDashboard } from "../modules/questionnaires/QuestionnaireDashboard.js";
 import { HouseholdModule } from "../modules/households/HouseholdModule.js";
 import { getTask } from "../modules/tasks/taskRepository.js";
@@ -26,7 +27,7 @@ export function QuestionnaireRouteScreen({ draftId, formCode, mode, openKey, tas
   const normalizedFormCode = String(formCode || "").toUpperCase();
   const form = useMemo(() => getRuntimeFormByCode(normalizedFormCode), [normalizedFormCode]);
   const route = { view: "questionnaire", formCode: normalizedFormCode, mode };
-  const title = normalizedFormCode || "Questionnaire";
+  const title = getFormDisplayCode(normalizedFormCode) || "Questionnaire";
   const isEntryRoute = mode === "new";
   const normalizedTaskId = normalizeSearchParam(taskId);
   const routeTaskContext = useMemo(() => resolveRouteTask(normalizedTaskId), [normalizedTaskId]);
@@ -41,6 +42,14 @@ export function QuestionnaireRouteScreen({ draftId, formCode, mode, openKey, tas
     return (
       <FieldAppShell route={route} title={title}>
         <BlockedPanel title="Form not found" message="This questionnaire is not available on this device." />
+      </FieldAppShell>
+    );
+  }
+
+  if (isEntryRoute && app.clockGuard?.status === "blocked") {
+    return (
+      <FieldAppShell route={route} title={title}>
+        <BlockedPanel title="Correct device date and time" message={app.clockGuard.message} />
       </FieldAppShell>
     );
   }

@@ -1,7 +1,11 @@
 /** Renders a dynamic household-member dropdown for task-context linked questions. */
 import React, { useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 
+import {
+  WQ_HUSBAND_NOT_IN_HOUSEHOLD_VALUE,
+  resolveWqHusbandPartnerSelection,
+} from "../../../lib/womanSurveyBehaviors.js";
 import { getNativeQuestionValue, setNativeQuestionValue } from "../nativeSurveyModel.js";
 import { QuestionFrame, controlStyles } from "./QuestionFrame.js";
 
@@ -12,10 +16,13 @@ export function HouseholdMemberDropdownRenderer({ answerData, locale, question, 
   const choices = Array.isArray(question.householdMemberChoices)
     ? question.householdMemberChoices
     : [];
-  const selectedChoice = useMemo(
-    () => choices.find((choice) => String(choice.value) === String(value)),
-    [choices, value]
+  const lineNumberField = question.husbandPartnerLineNumberField;
+  const lineNumberValue = lineNumberField ? question.survey?.getValue?.(lineNumberField) : undefined;
+  const selection = useMemo(
+    () => resolveWqHusbandPartnerSelection({ nameValue: value, lineNumberValue, choices }),
+    [choices, value, lineNumberValue]
   );
+  const selectedChoice = selection.choice;
   const selectedText =
     selectedChoice?.text ||
     (value === undefined || value === null || value === "" ? "Select member" : String(value));
@@ -23,8 +30,8 @@ export function HouseholdMemberDropdownRenderer({ answerData, locale, question, 
   function commitChoice(choice) {
     if (disabled) return;
     const wrote = setNativeQuestionValue(question, choice.value);
-    if (wrote && question.husbandPartnerLineNumberField) {
-      question.survey?.setValue?.(question.husbandPartnerLineNumberField, choice.lineNumber);
+    if (wrote && lineNumberField) {
+      question.survey?.setValue?.(lineNumberField, choice.lineNumber);
     }
     if (wrote && question.husbandPartnerMemberIdField) {
       question.survey?.setValue?.(question.husbandPartnerMemberIdField, choice.memberId || "");
@@ -32,6 +39,17 @@ export function HouseholdMemberDropdownRenderer({ answerData, locale, question, 
     setOpen(false);
     question.validate?.();
     onChange?.();
+  }
+
+  // "Husband not in household": Q18 stores the typed name; while it is empty
+  // the sentinel text is kept so the outside selection survives a reload.
+  function commitOutsideName(text) {
+    if (disabled) return;
+    const trimmed = String(text || "");
+    setNativeQuestionValue(
+      question,
+      trimmed.trim() === "" ? WQ_HUSBAND_NOT_IN_HOUSEHOLD_VALUE : trimmed
+    );
   }
 
   return (
@@ -50,6 +68,28 @@ export function HouseholdMemberDropdownRenderer({ answerData, locale, question, 
       {!choices.length ? (
         <Text style={controlStyles.status}>No household members available on this device.</Text>
       ) : null}
+      {selection.mode === "outside" ? (
+        <View style={styles.outsideName}>
+          <Text style={styles.outsideLabel}>
+            {`Husband's or partner's name (not listed in the household; line number ${
+              selectedChoice?.lineNumber || lineNumberValue || "00"
+            })`}
+          </Text>
+          <TextInput
+            accessibilityLabel={`${question.name}-outside-name`}
+            autoCapitalize="words"
+            editable={!disabled}
+            onBlur={() => {
+              question.validate?.();
+              onChange?.();
+            }}
+            onChangeText={commitOutsideName}
+            placeholder="Type the husband's or partner's name"
+            style={[controlStyles.input, disabled && controlStyles.readOnly]}
+            value={selection.typedName}
+          />
+        </View>
+      ) : null}
       {open ? (
         <View style={styles.inlineMenu}>
           <View style={styles.menuHeader}>
@@ -60,7 +100,7 @@ export function HouseholdMemberDropdownRenderer({ answerData, locale, question, 
           </View>
           <ScrollView nestedScrollEnabled style={styles.choiceList}>
             {choices.map((choice) => {
-              const selected = String(choice.value) === String(value);
+              const selected = selectedChoice ? choice === selectedChoice : false;
               return (
                 <Pressable
                   key={`${choice.lineNumber}-${choice.value}`}
@@ -96,6 +136,8 @@ const styles = StyleSheet.create({
   dropdownText: { flex: 1, color: "#18202a", fontSize: 16, lineHeight: 22 },
   placeholder: { color: "#667085" },
   chevron: { color: "#475467", fontSize: 18, fontWeight: "800" },
+  outsideName: { marginTop: 8, gap: 6 },
+  outsideLabel: { color: "#475467", fontSize: 13, fontWeight: "700" },
   inlineMenu: {
     marginTop: 8,
     overflow: "hidden",

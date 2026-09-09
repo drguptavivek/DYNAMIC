@@ -163,7 +163,7 @@ attachHouseholdSurveyBehaviors(
 );
 
 assert.equal(newModel.getQuestionByName("hhq_household_members").dynamicAutoOpenFirstEntry, true);
-assert.equal(newModel.getQuestionByName("hhq_household_members").dynamicHideAddButton, true);
+assert.equal(newModel.getQuestionByName("hhq_household_members").dynamicHideAddButton, false);
 assert.equal(newModel.getQuestionByName("hhq_household_members").addPanelText, "Add household member");
 
 await newModel.onValueChanged.handlers[0](newModel, {
@@ -225,6 +225,17 @@ assert.deepEqual(duplicateHeadModel.notifications, [
     type: "error"
   }
 ]);
+
+// Committing the second "Head" entry in the roster editor runs
+// question.validate(), which must be blocked via onValidateQuestion.
+const duplicateHeadValidateOptions = {
+  name: "member_relationship_to_head",
+  question: secondRelationshipQuestion,
+  value: 1,
+  error: ""
+};
+duplicateHeadModel.onValidateQuestion.handlers[0](duplicateHeadModel, duplicateHeadValidateOptions);
+assert.equal(duplicateHeadValidateOptions.error, "Only one household member can be marked as Head.");
 
 const duplicateHeadCompletingOptions = { allow: true, allowComplete: true };
 await duplicateHeadModel.onCompleting.handlers[0](

@@ -801,6 +801,14 @@
       },
       "elements": [
         {
+          "type": "html",
+          "name": "hhq_household_schedule_intro",
+          "html": "Now we would like some information about the people who usually live in your household. Please give me the names of the persons who usually live in your household, starting with the head of the household.",
+          "order": 14,
+          "section_order": 2,
+          "sourceType": "section_note"
+        },
+        {
           "type": "paneldynamic",
           "name": "hhq_household_members",
           "title": {

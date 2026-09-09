@@ -2,6 +2,7 @@
  * Initializes task, workflow, response, draft, and outbox tables on the shared offline database.
  */
 import { getOfflineDatabase } from "../storage/offlineDatabase";
+import { deriveDraftIndexFields } from "../questionnaires/draftPendingForms.js";
 
 let schemaInitialized = false;
 
@@ -93,13 +94,26 @@ export function initTaskDb() {
       draft_status TEXT NOT NULL DEFAULT 'active',
       submitted_form_response_id TEXT,
       created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
+      updated_at TEXT NOT NULL,
+      household_id TEXT,
+      site_id TEXT,
+      locality_code TEXT,
+      woman_id TEXT,
+      structure_map_id TEXT,
+      household_number TEXT,
+      answer_count INTEGER,
+      respondent_label TEXT
     )
   `);
 
   db.runSync(`
     CREATE INDEX IF NOT EXISTS questionnaire_drafts_key_status_idx
     ON questionnaire_drafts (draft_key, draft_status, updated_at)
+  `);
+
+  db.runSync(`
+    CREATE INDEX IF NOT EXISTS questionnaire_drafts_active_scope_idx
+    ON questionnaire_drafts (draft_status, form_code, user_id, updated_at)
   `);
 
   db.runSync(`
@@ -149,6 +163,18 @@ export function initTaskDb() {
   `);
 
   db.runSync(`
+    CREATE TABLE IF NOT EXISTS app_timings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      duration_ms REAL NOT NULL,
+      meta TEXT,
+      at TEXT NOT NULL,
+      app_version TEXT,
+      device_id TEXT
+    )
+  `);
+
+  db.runSync(`
     CREATE TABLE IF NOT EXISTS domain_events_outbox (
       id TEXT PRIMARY KEY,
       event_type TEXT NOT NULL,
@@ -184,6 +210,14 @@ export function initTaskDb() {
     "ALTER TABLE follow_up_tasks ADD COLUMN server_commit_sequence INTEGER",
     "ALTER TABLE form_responses ADD COLUMN updated_at TEXT",
     "ALTER TABLE domain_events_outbox ADD COLUMN updated_at TEXT",
+    "ALTER TABLE questionnaire_drafts ADD COLUMN household_id TEXT",
+    "ALTER TABLE questionnaire_drafts ADD COLUMN site_id TEXT",
+    "ALTER TABLE questionnaire_drafts ADD COLUMN locality_code TEXT",
+    "ALTER TABLE questionnaire_drafts ADD COLUMN woman_id TEXT",
+    "ALTER TABLE questionnaire_drafts ADD COLUMN structure_map_id TEXT",
+    "ALTER TABLE questionnaire_drafts ADD COLUMN household_number TEXT",
+    "ALTER TABLE questionnaire_drafts ADD COLUMN answer_count INTEGER",
+    "ALTER TABLE questionnaire_drafts ADD COLUMN respondent_label TEXT",
   ]) {
     try {
       db.runSync(statement);
@@ -192,8 +226,110 @@ export function initTaskDb() {
     }
   }
 
+  for (const statement of [
+    "CREATE INDEX IF NOT EXISTS follow_up_tasks_status_target_date_idx ON follow_up_tasks (status, target_date)",
+    "CREATE INDEX IF NOT EXISTS follow_up_tasks_locality_status_idx ON follow_up_tasks (assigned_locality_code, status)",
+    "CREATE INDEX IF NOT EXISTS follow_up_tasks_sync_status_idx ON follow_up_tasks (sync_status)",
+    "CREATE INDEX IF NOT EXISTS follow_up_tasks_household_id_idx ON follow_up_tasks (household_id)",
+    "CREATE INDEX IF NOT EXISTS follow_up_tasks_household_id_nocase_idx ON follow_up_tasks (household_id COLLATE NOCASE)",
+    "CREATE INDEX IF NOT EXISTS follow_up_tasks_task_key_nocase_idx ON follow_up_tasks (task_key COLLATE NOCASE)",
+    "CREATE INDEX IF NOT EXISTS follow_up_tasks_subject_id_nocase_idx ON follow_up_tasks (subject_id COLLATE NOCASE)",
+    "CREATE INDEX IF NOT EXISTS follow_up_tasks_subject_name_nocase_idx ON follow_up_tasks (subject_name COLLATE NOCASE)",
+    "CREATE INDEX IF NOT EXISTS follow_up_tasks_task_type_nocase_idx ON follow_up_tasks (task_type COLLATE NOCASE)",
+    "CREATE INDEX IF NOT EXISTS follow_up_tasks_protocol_visit_label_nocase_idx ON follow_up_tasks (protocol_visit_label COLLATE NOCASE)",
+    "CREATE INDEX IF NOT EXISTS follow_up_tasks_locality_nocase_idx ON follow_up_tasks (assigned_locality_code COLLATE NOCASE)",
+    "CREATE INDEX IF NOT EXISTS form_responses_sync_status_submitted_at_idx ON form_responses (sync_status, submitted_at)",
+    "CREATE INDEX IF NOT EXISTS form_responses_household_id_idx ON form_responses (household_id)",
+    "CREATE INDEX IF NOT EXISTS task_attempts_task_id_idx ON task_attempts (task_id)",
+    "CREATE INDEX IF NOT EXISTS app_timings_name_at_idx ON app_timings (name, at)",
+    "CREATE INDEX IF NOT EXISTS questionnaire_drafts_status_household_idx ON questionnaire_drafts (draft_status, household_id)",
+    "CREATE INDEX IF NOT EXISTS questionnaire_drafts_status_woman_idx ON questionnaire_drafts (draft_status, woman_id)",
+    "CREATE INDEX IF NOT EXISTS questionnaire_drafts_status_site_locality_idx ON questionnaire_drafts (draft_status, site_id, locality_code)",
+  ]) {
+    try {
+      db.runSync(statement);
+    } catch (error) {
+      // Keep an unexpected legacy schema usable, but make missing performance
+      // indexes visible instead of silently degrading every subsequent read.
+      console.warn(`Could not create local task index: ${statement}`, error);
+    }
+  }
+
   schemaInitialized = true;
   return db;
+}
+
+// One-time backfill (guarded by sync_meta) that populates the
+// questionnaire_drafts index columns (household_id, site_id, locality_code,
+// woman_id, structure_map_id, household_number, answer_count,
+// respondent_label) for rows written before those columns existed. Runs
+// inside a single transaction and is safe to call on an empty table; a
+// second call (or a second process launch, since the meta key persists) is
+// a no-op because it checks sync_meta before doing any work.
+//
+// Deliberately NOT wired into initTaskDb() itself: initTaskDb()/getDb() is
+// shared by every table on the offline database (follow_up_tasks,
+// form_responses, eligible_women, ...), so running this here would add an
+// extra SELECT (and possibly UPDATE/COMMIT) to every caller of getDb(), not
+// just questionnaire-draft callers. Instead, questionnaireDraftRepository.js
+// calls this once, lazily, the first time its native code path actually
+// touches the database.
+const QUESTIONNAIRE_DRAFTS_INDEX_BACKFILL_META_KEY = "questionnaire_drafts_index_backfill_v1";
+
+export function runQuestionnaireDraftIndexBackfill(db) {
+  const metaRow = db.getFirstSync("SELECT value FROM sync_meta WHERE key = ?", [
+    QUESTIONNAIRE_DRAFTS_INDEX_BACKFILL_META_KEY,
+  ]);
+  if (metaRow) return;
+
+  const rows = db.getAllSync(
+    `SELECT draft_id, json_payload, subject_id, household_id, site_id, locality_code,
+      woman_id, structure_map_id, household_number, answer_count, respondent_label
+     FROM questionnaire_drafts
+     WHERE household_id IS NULL AND woman_id IS NULL AND answer_count IS NULL`,
+    [],
+  );
+
+  if (rows.length > 0) {
+    db.runSync("BEGIN");
+    try {
+      for (const row of rows) {
+        let payload;
+        try {
+          payload = JSON.parse(row.json_payload || "") || {};
+        } catch {
+          payload = {};
+        }
+        const derived = deriveDraftIndexFields({ ...row, json_payload: payload });
+        db.runSync(
+          `UPDATE questionnaire_drafts SET
+            household_id = ?, site_id = ?, locality_code = ?, woman_id = ?,
+            structure_map_id = ?, household_number = ?, answer_count = ?, respondent_label = ?
+           WHERE draft_id = ?`,
+          [
+            derived.household_id,
+            derived.site_id,
+            derived.locality_code,
+            derived.woman_id,
+            derived.structure_map_id,
+            derived.household_number,
+            derived.answer_count,
+            derived.respondent_label,
+            row.draft_id,
+          ],
+        );
+      }
+      db.runSync("COMMIT");
+    } catch (err) {
+      db.runSync("ROLLBACK");
+      throw err;
+    }
+  }
+
+  db.runSync("INSERT OR REPLACE INTO sync_meta (key, value) VALUES (?, ?)", [
+    QUESTIONNAIRE_DRAFTS_INDEX_BACKFILL_META_KEY,
+    "1",
+  ]);
 }
 
 export function getDb() {

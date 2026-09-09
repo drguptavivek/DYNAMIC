@@ -1,11 +1,12 @@
-import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Alert } from "react-native";
+import React, { useCallback, useEffect, useState } from "react";
+import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator } from "react-native";
 import * as syncService from "../sync/syncService.js";
 import * as eventOutbox from "../events/eventOutbox.js";
 import * as taskRepository from "../tasks/taskRepository.js";
-import { formatSyncCompletionMessage, summarizePendingSyncData } from "./syncWorkflow.js";
+import { formatSyncCompletionMessage } from "./syncWorkflow.js";
+import { describeNetworkError } from "../../lib/networkErrors.js";
 
-export function SyncScreen({ onClockStatusChange, onSyncComplete } = {}) {
+export function SyncScreen({ onClockStatusChange } = {}) {
   const [lastSync, setLastSync] = useState(null);
   const [pendingSummary, setPendingSummary] = useState({
     responses: 0,
@@ -18,11 +19,7 @@ export function SyncScreen({ onClockStatusChange, onSyncComplete } = {}) {
   const [syncError, setSyncError] = useState(null);
   const [clockStatus, setClockStatus] = useState(null);
 
-  useEffect(() => {
-    loadSyncInfo();
-  }, []);
-
-  function loadSyncInfo() {
+  const loadSyncInfo = useCallback(async () => {
     try {
       const lastSyncAt = syncService.getLastSyncAt();
       setLastSync(lastSyncAt);
@@ -35,19 +32,22 @@ export function SyncScreen({ onClockStatusChange, onSyncComplete } = {}) {
         onClockStatusChange(currentClockStatus);
       }
 
-      const pendingResponses = taskRepository.getPendingResponses();
+      const pendingResponses = await taskRepository.countPendingResponses();
       const pendingEvents = eventOutbox.getPendingEvents();
-      setPendingSummary(
-        summarizePendingSyncData({
-          formResponses: pendingResponses,
-          domainEvents: pendingEvents,
-        }),
-      );
+      setPendingSummary({
+        responses: pendingResponses,
+        events: pendingEvents.length,
+        total: pendingResponses + pendingEvents.length,
+      });
     } catch (error) {
       console.error("Error loading sync info:", error);
-      setSyncError(`Failed to load sync info: ${error.message}`);
+      setSyncError(describeNetworkError(error, { action: "Loading sync info" }));
     }
-  }
+  }, [onClockStatusChange]);
+
+  useEffect(() => {
+    loadSyncInfo();
+  }, [loadSyncInfo]);
 
   async function handleSyncNow() {
     setSyncing(true);
@@ -56,20 +56,11 @@ export function SyncScreen({ onClockStatusChange, onSyncComplete } = {}) {
 
     try {
       const result = await syncService.syncAll();
-      if (typeof onSyncComplete === "function") {
-        await onSyncComplete();
-      }
       setSyncMessage(formatSyncCompletionMessage(result));
-      if (result.uploadErrors > 0) {
-        Alert.alert(
-          "Duplicate submission detected",
-          `${result.uploadErrors} form${result.uploadErrors === 1 ? " was" : "s were"} already submitted by another user. The form${result.uploadErrors === 1 ? " is" : "s are"} in Upload Errors and removed from this worklist.`,
-        );
-      }
       loadSyncInfo();
     } catch (error) {
       console.error("Sync error:", error);
-      setSyncError(`Sync failed: ${error.message}`);
+      setSyncError(describeNetworkError(error, { action: "Sync" }));
       loadSyncInfo();
     } finally {
       setSyncing(false);

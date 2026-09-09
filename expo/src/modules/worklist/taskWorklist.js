@@ -1,5 +1,6 @@
 import { evaluateTaskLifecycleTransition } from "@dynamic/event-core";
 import { DEFAULT_PROTOCOL_CONFIG } from "@dynamic/shared-workflow";
+import { getLocalCalendarDate } from "../../lib/localDate.js";
 
 const TERMINAL_STATUSES = new Set([
   "completed",
@@ -54,7 +55,7 @@ function isActionableTask(task) {
     return true;
   }
   if (String(lifecycleStatus).toLowerCase() === "planned") {
-    const today = new Date().toISOString().split("T")[0];
+    const today = getLocalCalendarDate();
     const opensOn = task?.window_start || task?.target_date || "";
     return !opensOn || opensOn <= today;
   }
@@ -75,7 +76,7 @@ function taskOpenDate(task) {
   return task?.window_start || task?.target_date || "";
 }
 
-export function isFuturePlannedTask(task, today = new Date().toISOString().split("T")[0]) {
+export function isFuturePlannedTask(task, today = getLocalCalendarDate()) {
   if (isTerminalTask(task)) return false;
   const lifecycleStatus = String(task?.lifecycle_status || task?.status || "").toLowerCase();
   if (lifecycleStatus !== "planned") return false;
@@ -84,7 +85,7 @@ export function isFuturePlannedTask(task, today = new Date().toISOString().split
   return Boolean(opensOn && opensOn > today);
 }
 
-export function getTaskStage(task, today = new Date().toISOString().split("T")[0]) {
+export function getTaskStage(task, today = getLocalCalendarDate()) {
   if (task?.has_active_draft) return "draft";
   if (isFuturePlannedTask(task, today)) return "future_planned";
   const date = taskProtocolDate(task);
@@ -93,7 +94,17 @@ export function getTaskStage(task, today = new Date().toISOString().split("T")[0
   return "upcoming";
 }
 
-function isOutdatedTask(task, today = new Date().toISOString().split("T")[0]) {
+export function getTaskUrgencyBucket(task, today = getLocalCalendarDate()) {
+  const stage = getTaskStage(task, today);
+  if (stage === "draft") return "draft";
+  if (stage === "future_planned") return "futurePlanned";
+  const protocolDate = taskProtocolDate(task);
+  if (protocolDate && protocolDate < today) return "overdue";
+  if (protocolDate === today) return "today";
+  return "upcoming";
+}
+
+function isOutdatedTask(task, today = getLocalCalendarDate()) {
   const date = taskProtocolDate(task);
   return Boolean(date && date < today);
 }
@@ -228,18 +239,7 @@ export function buildTaskLocalityOptions(tasks = [], localities = []) {
 
   for (const locality of localities || []) {
     const code = String(locality?.locality_code || "").trim();
-    if (!code || !taskSiteIdsByLocality.has(code)) continue;
-
-    const localitySiteId = String(locality?.site_id ?? "").trim();
-    const taskSiteIds = taskSiteIdsByLocality.get(code);
-    if (
-      localitySiteId &&
-      taskSiteIds.size > 0 &&
-      !taskSiteIds.has(localitySiteId) &&
-      !taskSiteIds.has("")
-    ) {
-      continue;
-    }
+    if (!code) continue;
 
     const name = String(locality?.locality_name || "").trim();
     optionsByCode.set(code, {
@@ -291,6 +291,27 @@ export function listTaskWorklistCandidates(filters = {}, repository) {
     .filter((task) => !isTerminalTask(task))
     .sort(sortByProtocolDate);
   return mergeTaskWorklist({ incomingTasks: candidates });
+}
+
+/**
+ * Database-backed worklist page. The repository owns SQL predicates and the
+ * count so callers never infer a total from a truncated task array.
+ */
+export async function listTaskWorklistPage(filters = {}, repository) {
+  if (!repository || typeof repository.listTasksPage !== "function") {
+    throw new Error("Task Worklist repository adapter must provide listTasksPage");
+  }
+  return repository.listTasksPage({
+    status: filters.status,
+    locality_code: filters.locality_code,
+    task_type: filters.task_type,
+    stage: filters.stage,
+    search: filters.search,
+    activeDrafts: filters.activeDrafts || [],
+    today: filters.today,
+    limit: filters.limit,
+    offset: filters.offset,
+  });
 }
 
 export function listTaskAttempts(taskId, repository) {
@@ -439,13 +460,19 @@ export function reconcilePulledTasks(tasks = [], repository) {
     throw new Error("Task Worklist repository adapter must provide listTasks and saveTaskBatch");
   }
 
-  const existingTasks = repository.listTasks({});
   const incomingTasks = tasks.map((task) =>
     normalizeTaskAttemptLimits({
       ...task,
       sync_status: task.sync_status || "synced",
     })
   );
+  const incomingIdentities = incomingTasks
+    .map(taskIdentity)
+    .filter((identity) => identity != null);
+  const existingTasks =
+    typeof repository.getTasksByIdentities === "function"
+      ? repository.getTasksByIdentities(incomingIdentities)
+      : repository.listTasks({});
   const existingByIdentity = new Map(
     existingTasks
       .map((task) => [taskIdentity(task), task])

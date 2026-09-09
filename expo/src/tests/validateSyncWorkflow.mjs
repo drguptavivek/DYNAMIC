@@ -148,7 +148,7 @@ assert.equal(
     uploadErrors: 1,
     formsUpdated: 3,
   }),
-  "Sync complete: 1 open task available, 500 households pulled, 500 members pulled, 12 eligible women pulled, 2 responses pushed, 1 event pushed, 1 upload error saved, 3 questionnaires refreshed",
+  "Sync complete: 1 open task available, 500 households pulled, 500 members pulled, 12 eligible women pulled, 2 responses pushed, 1 event pushed, 1 duplicate or upload error moved to Upload Errors, 3 questionnaires refreshed",
 );
 
 assert.deepEqual(

@@ -462,6 +462,22 @@ export function normalizeQuestionnaireSurveyData(form, data) {
   return next;
 }
 
+// prepareQuestionnaireSurveyJson runs a chain of tree-walking transforms over
+// a 200-350 KB form definition. It's pure (never mutates `form`) and, for a
+// given form object, always produces the same result - so a WeakMap keyed on
+// the form object lets repeat callers (the questionnaire dashboard and the
+// baseline household form both prepare the same form per open) share one
+// transform pass instead of re-running it every time.
+const preparedSurveyJsonCache = new WeakMap();
+
+export function getPreparedSurveyJson(form) {
+  const cached = preparedSurveyJsonCache.get(form);
+  if (cached) return cached;
+  const prepared = prepareQuestionnaireSurveyJson(form);
+  preparedSurveyJsonCache.set(form, prepared);
+  return prepared;
+}
+
 export function prepareQuestionnaireSurveyJson(form) {
   let surveyJson = prepareSurveyJson(form);
   surveyJson = scopeDynamicPanelExpressions(surveyJson);

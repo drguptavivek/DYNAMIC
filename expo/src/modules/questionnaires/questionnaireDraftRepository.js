@@ -1,6 +1,8 @@
 /**
  * Persists mutable questionnaire drafts in browser storage or the shared native SQLite database.
  */
+import { deriveDraftIndexFields } from "./draftPendingForms.js";
+
 const DRAFT_STORAGE_KEY = "dynamic_questionnaire_drafts_v1";
 
 function getWebStorage() {
@@ -28,9 +30,30 @@ function parseJson(value, fallback) {
   }
 }
 
+// Test-only seam: lets tests inject a fake SQLite-like db without touching the
+// real (native-only) taskSchema/offlineDatabase import chain. Left unset in
+// production, so getNativeDatabase() behaves exactly as before.
+let nativeDatabaseOverride = null;
+
+export function __setNativeDatabaseForTests(db) {
+  nativeDatabaseOverride = db;
+}
+
+// Guards the one-time questionnaire_drafts index-column backfill so it only
+// runs once per process (the sync_meta key it writes makes it a no-op across
+// process restarts too). Reset alongside the test-only db override so tests
+// that swap in a fresh fake db can exercise it again if needed.
+let draftIndexBackfillRan = false;
+
 async function getNativeDatabase() {
-  const { getDb } = await import("../tasks/taskSchema.js");
-  return getDb();
+  if (nativeDatabaseOverride) return nativeDatabaseOverride;
+  const { getDb, runQuestionnaireDraftIndexBackfill } = await import("../tasks/taskSchema.js");
+  const db = getDb();
+  if (!draftIndexBackfillRan) {
+    draftIndexBackfillRan = true;
+    runQuestionnaireDraftIndexBackfill(db);
+  }
+  return db;
 }
 
 function decodeNativeRow(row) {
@@ -39,6 +62,115 @@ function decodeNativeRow(row) {
     json_payload: parseJson(row.json_payload, {}),
     completion_state: parseJson(row.completion_state, {}),
   };
+}
+
+// Narrowed native-only query helpers. These never load the whole table: every
+// caller supplies a WHERE clause (even if it is a literal "1=1"), so the hot
+// autosave/worklist paths only decode the rows they actually need.
+async function queryRows(whereSql, params = [], orderBySql) {
+  const db = await getNativeDatabase();
+  const sql = `SELECT * FROM questionnaire_drafts WHERE ${whereSql}${
+    orderBySql ? ` ORDER BY ${orderBySql}` : ""
+  }`;
+  const rows = typeof db.getAllAsync === "function"
+    ? await db.getAllAsync(sql, params)
+    : db.getAllSync(sql, params);
+  return rows.map(decodeNativeRow);
+}
+
+async function queryFirstRow(whereSql, params = [], orderBySql) {
+  const db = await getNativeDatabase();
+  const sql = `SELECT * FROM questionnaire_drafts WHERE ${whereSql}${
+    orderBySql ? ` ORDER BY ${orderBySql}` : ""
+  }`;
+  const row = typeof db.getFirstAsync === "function"
+    ? await db.getFirstAsync(sql, params)
+    : db.getFirstSync(sql, params);
+  return row ? decodeNativeRow(row) : null;
+}
+
+// Native save/resume matching only needs identity, lifecycle, timestamps, and
+// the denormalized matching columns. Keep this projection separate from
+// queryRows(): loading an existing draft by id must not parse its potentially
+// large answer payload just to preserve draft_id/created_at, and candidate
+// rows must not carry payloads into duplicate matching.
+const DRAFT_MATCH_COLUMNS = [
+  "draft_id",
+  "draft_key",
+  "form_code",
+  "form_version",
+  "task_id",
+  "subject_type",
+  "subject_id",
+  "device_id",
+  "user_id",
+  "draft_status",
+  "created_at",
+  "updated_at",
+  "household_id",
+  "site_id",
+  "locality_code",
+  "woman_id",
+  "structure_map_id",
+  "household_number",
+];
+
+function decodeDraftMatchRow(row) {
+  const match = {};
+  for (const column of DRAFT_MATCH_COLUMNS) match[column] = row[column];
+  // Identity helpers intentionally use denormalized columns first. Leaving
+  // this empty makes accidental payload reads visible in tests and prevents
+  // a caller from treating a summary as a resumable full draft.
+  match.json_payload = {};
+  match.completion_state = {};
+  return match;
+}
+
+async function queryDraftMatchRows(whereSql, params = [], orderBySql) {
+  const db = await getNativeDatabase();
+  const columnsSql = DRAFT_MATCH_COLUMNS.join(", ");
+  const sql = `SELECT ${columnsSql} FROM questionnaire_drafts WHERE ${whereSql}${
+    orderBySql ? ` ORDER BY ${orderBySql}` : ""
+  }`;
+  const rows = typeof db.getAllAsync === "function"
+    ? await db.getAllAsync(sql, params)
+    : db.getAllSync(sql, params);
+  return rows.map(decodeDraftMatchRow);
+}
+
+async function queryFirstDraftMatchRow(whereSql, params = [], orderBySql) {
+  const db = await getNativeDatabase();
+  const columnsSql = DRAFT_MATCH_COLUMNS.join(", ");
+  const sql = `SELECT ${columnsSql} FROM questionnaire_drafts WHERE ${whereSql}${
+    orderBySql ? ` ORDER BY ${orderBySql}` : ""
+  }`;
+  const row = typeof db.getFirstAsync === "function"
+    ? await db.getFirstAsync(sql, params)
+    : db.getFirstSync(sql, params);
+  return row ? decodeDraftMatchRow(row) : null;
+}
+
+// form_code/form_version/user_id are components of both buildDraftIdentityKey
+// and buildDraftHouseholdUserKey (see below), so scoping to
+// draft_status='active' AND form_code AND form_version AND user_id is a
+// lossless narrowing for every fallback lookup that needs to inspect
+// json_payload in JS. Null/'' are folded onto the same bucket ("none") that
+// normalizePart() uses for JS key comparisons, so a NULL column still matches
+// an unset context field.
+function activeScopeWhereSql() {
+  // form_code is NOT NULL and always populated, so compare it directly: an
+  // expression on the column would stop SQLite using the
+  // (draft_status, form_code, ...) index prefix.
+  return (
+    "draft_status = 'active'" +
+    " AND form_code = ?" +
+    " AND COALESCE(NULLIF(form_version, ''), 'none') = ?" +
+    " AND COALESCE(NULLIF(user_id, ''), 'none') = ?"
+  );
+}
+
+function activeScopeParams(formCode, formVersion, userId) {
+  return [normalizePart(formCode), normalizePart(formVersion), normalizePart(userId)];
 }
 
 async function readRows() {
@@ -53,12 +185,21 @@ async function readRows() {
 }
 
 async function persistDraft(draft) {
+  // Computed fresh on every write so household_id/site_id/woman_id/etc. stay
+  // in sync with json_payload, whether persistDraft is called with a
+  // brand-new draft (no columns yet) or a decoded existing row (columns
+  // already set from a prior write) that only had draft_status/updated_at
+  // changed — getDraftHouseholdId()/getDraftSiteId()/etc. prefer an existing
+  // column, so recomputing is a no-op in that case.
+  const derived = deriveDraftIndexFields(draft);
+
   const storage = getWebStorage();
   if (storage) {
     const rows = await readRows();
+    const enriched = { ...draft, ...derived };
     const index = rows.findIndex((row) => row.draft_id === draft.draft_id);
-    if (index >= 0) rows[index] = draft;
-    else rows.unshift(draft);
+    if (index >= 0) rows[index] = enriched;
+    else rows.unshift(enriched);
     storage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(rows));
     return;
   }
@@ -68,8 +209,10 @@ async function persistDraft(draft) {
     `INSERT OR REPLACE INTO questionnaire_drafts (
       draft_id, draft_key, form_code, form_version, task_id, subject_type, subject_id,
       device_id, user_id, json_payload, completion_state, draft_status,
-      submitted_form_response_id, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      submitted_form_response_id, created_at, updated_at,
+      household_id, site_id, locality_code, woman_id, structure_map_id,
+      household_number, answer_count, respondent_label
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       draft.draft_id,
       draft.draft_key,
@@ -86,6 +229,14 @@ async function persistDraft(draft) {
       draft.submitted_form_response_id || null,
       draft.created_at,
       draft.updated_at,
+      derived.household_id,
+      derived.site_id,
+      derived.locality_code,
+      derived.woman_id,
+      derived.structure_map_id,
+      derived.household_number,
+      derived.answer_count,
+      derived.respondent_label,
     ],
   );
 }
@@ -112,7 +263,11 @@ export async function removeQuestionnaireDraft(draftId) {
 }
 
 function getHouseholdIdFromDraft(draft) {
-  const candidate = getPayloadHouseholdId(draft?.json_payload || {}, draft?.subject_id);
+  const candidate = getPayloadHouseholdId(
+    draft?.json_payload || {},
+    draft?.subject_id,
+    draft?.household_id,
+  );
   const parts = String(candidate || "").split("-");
   return parts.length >= 4 ? parts.slice(0, 4).join("-") : candidate || null;
 }
@@ -122,7 +277,12 @@ function normalizeHouseholdIdPart(value, width) {
   return text && width ? text.padStart(width, "0") : text;
 }
 
-function getPayloadHouseholdId(payload, subjectId) {
+// Prefers the questionnaire_drafts.household_id column (columnHouseholdId)
+// when present, and only falls back to parsing the payload when it is
+// null/undefined — mirrors the same column-first, payload-fallback pattern
+// as getDraftHouseholdId() in draftPendingForms.js.
+function getPayloadHouseholdId(payload, subjectId, columnHouseholdId) {
+  if (columnHouseholdId) return columnHouseholdId;
   if (payload?.hhq_household_id) return payload.hhq_household_id;
   const siteId = normalizeHouseholdIdPart(payload?.hhq_site_id);
   const localityCode = normalizeHouseholdIdPart(payload?.hhq_locality_code, 2);
@@ -145,8 +305,9 @@ function buildDraftIdentityKey({
   deviceId,
   userId,
   payload,
+  householdId: columnHouseholdId,
 }) {
-  const householdId = getPayloadHouseholdId(payload, subjectId);
+  const householdId = getPayloadHouseholdId(payload, subjectId, columnHouseholdId);
   return [
     formCode,
     formVersion,
@@ -162,8 +323,9 @@ function buildDraftHouseholdUserKey({
   subjectId,
   userId,
   payload,
+  householdId: columnHouseholdId,
 }) {
-  const householdId = getPayloadHouseholdId(payload, subjectId);
+  const householdId = getPayloadHouseholdId(payload, subjectId, columnHouseholdId);
   return [
     formCode,
     formVersion,
@@ -180,6 +342,7 @@ function getDraftIdentityKey(draft) {
     deviceId: draft?.device_id,
     userId: draft?.user_id,
     payload: draft?.json_payload || {},
+    householdId: draft?.household_id,
   });
 }
 
@@ -190,6 +353,7 @@ function getDraftHouseholdUserKey(draft) {
     subjectId: draft?.subject_id,
     userId: draft?.user_id,
     payload: draft?.json_payload || {},
+    householdId: draft?.household_id,
   });
 }
 
@@ -210,8 +374,35 @@ function dedupeActiveDrafts(rows) {
   return drafts;
 }
 
-async function supersedeDuplicateActiveDrafts(draft) {
-  const rows = await readRows();
+async function supersedeDuplicateActiveDrafts(draft, candidateRows) {
+  const storage = getWebStorage();
+  if (storage) {
+    const rows = await readRows();
+    const identityKey = getDraftIdentityKey(draft);
+    const householdUserKey = getDraftHouseholdUserKey(draft);
+    const duplicates = rows.filter(
+      (row) =>
+        row.draft_status === "active" &&
+        row.draft_id !== draft.draft_id &&
+        (getDraftIdentityKey(row) === identityKey || getDraftHouseholdUserKey(row) === householdUserKey),
+    );
+    for (const row of duplicates) {
+      await persistDraft({
+        ...row,
+        draft_status: "superseded",
+        updated_at: draft.updated_at,
+      });
+    }
+    return;
+  }
+
+  const db = await getNativeDatabase();
+  const rows =
+    candidateRows ||
+    (await queryRows(
+      activeScopeWhereSql(),
+      activeScopeParams(draft.form_code, draft.form_version, draft.user_id),
+    ));
   const identityKey = getDraftIdentityKey(draft);
   const householdUserKey = getDraftHouseholdUserKey(draft);
   const duplicates = rows.filter(
@@ -220,12 +411,20 @@ async function supersedeDuplicateActiveDrafts(draft) {
       row.draft_id !== draft.draft_id &&
       (getDraftIdentityKey(row) === identityKey || getDraftHouseholdUserKey(row) === householdUserKey),
   );
-  for (const row of duplicates) {
-    await persistDraft({
-      ...row,
-      draft_status: "superseded",
-      updated_at: draft.updated_at,
-    });
+  if (duplicates.length === 0) return;
+
+  db.runSync("BEGIN");
+  try {
+    for (const row of duplicates) {
+      db.runSync(
+        "UPDATE questionnaire_drafts SET draft_status = ?, updated_at = ? WHERE draft_id = ?",
+        ["superseded", draft.updated_at, row.draft_id],
+      );
+    }
+    db.runSync("COMMIT");
+  } catch (err) {
+    db.runSync("ROLLBACK");
+    throw err;
   }
 }
 
@@ -253,35 +452,81 @@ export function buildDraftKey({
 
 export async function getActiveQuestionnaireDraft(context) {
   const preferredDraftId = context?.preferredDraftId || context?.draftId;
-  const rows = await readRows();
-  const preferredDraft = preferredDraftId
-    ? rows.find((row) => row.draft_id === preferredDraftId && row.draft_status === "active")
-    : null;
+  const storage = getWebStorage();
+
+  if (storage) {
+    const rows = await readRows();
+    const preferredDraft = preferredDraftId
+      ? rows.find((row) => row.draft_id === preferredDraftId && row.draft_status === "active")
+      : null;
+    const draftKey = buildDraftKey(context);
+    let matches = rows.filter((row) => row.draft_key === draftKey && row.draft_status === "active");
+
+    if (matches.length === 0 && context?.keyTaskId !== undefined) {
+      const legacyTaskDraftKey = buildDraftKey({
+        ...context,
+        keyTaskId: undefined,
+      });
+      matches = rows.filter(
+        (row) => row.draft_key === legacyTaskDraftKey && row.draft_status === "active",
+      );
+    }
+
+    if (matches.length === 0) {
+      const identityKey = buildDraftIdentityKey(context);
+      matches = rows.filter(
+        (row) => row.draft_status === "active" && getDraftIdentityKey(row) === identityKey,
+      );
+    }
+
+    if (matches.length === 0) {
+      const householdUserKey = buildDraftHouseholdUserKey(context);
+      matches = rows.filter(
+        (row) => row.draft_status === "active" && getDraftHouseholdUserKey(row) === householdUserKey,
+      );
+    }
+
+    const sortedMatches = sortNewestFirst(matches.length ? matches : preferredDraft ? [preferredDraft] : []);
+    return sortedMatches[0] || null;
+  }
+
   const draftKey = buildDraftKey(context);
-  let matches = rows.filter((row) => row.draft_key === draftKey && row.draft_status === "active");
+  let matches = await queryRows(
+    "draft_key = ? AND draft_status = 'active'",
+    [draftKey],
+    "updated_at DESC",
+  );
 
   if (matches.length === 0 && context?.keyTaskId !== undefined) {
     const legacyTaskDraftKey = buildDraftKey({
       ...context,
       keyTaskId: undefined,
     });
-    matches = rows.filter(
-      (row) => row.draft_key === legacyTaskDraftKey && row.draft_status === "active",
+    matches = await queryRows(
+      "draft_key = ? AND draft_status = 'active'",
+      [legacyTaskDraftKey],
+      "updated_at DESC",
     );
   }
 
   if (matches.length === 0) {
+    const candidates = await queryRows(
+      activeScopeWhereSql(),
+      activeScopeParams(context?.formCode, context?.formVersion, context?.userId),
+      "updated_at DESC",
+    );
     const identityKey = buildDraftIdentityKey(context);
-    matches = rows.filter(
-      (row) => row.draft_status === "active" && getDraftIdentityKey(row) === identityKey,
-    );
+    matches = candidates.filter((row) => getDraftIdentityKey(row) === identityKey);
+
+    if (matches.length === 0) {
+      const householdUserKey = buildDraftHouseholdUserKey(context);
+      matches = candidates.filter((row) => getDraftHouseholdUserKey(row) === householdUserKey);
+    }
   }
 
-  if (matches.length === 0) {
-    const householdUserKey = buildDraftHouseholdUserKey(context);
-    matches = rows.filter(
-      (row) => row.draft_status === "active" && getDraftHouseholdUserKey(row) === householdUserKey,
-    );
+  let preferredDraft = null;
+  if (matches.length === 0 && preferredDraftId) {
+    preferredDraft = await queryFirstRow("draft_id = ? AND draft_status = 'active'", [preferredDraftId]);
   }
 
   const sortedMatches = sortNewestFirst(matches.length ? matches : preferredDraft ? [preferredDraft] : []);
@@ -290,17 +535,140 @@ export async function getActiveQuestionnaireDraft(context) {
 
 export async function getQuestionnaireDraftById(draftId) {
   if (!draftId) return null;
-  const rows = await readRows();
-  return rows.find((row) => row.draft_id === draftId && row.draft_status === "active") || null;
+
+  const storage = getWebStorage();
+  if (storage) {
+    const rows = await readRows();
+    return rows.find((row) => row.draft_id === draftId && row.draft_status === "active") || null;
+  }
+
+  return queryFirstRow("draft_id = ? AND draft_status = 'active'", [draftId]);
 }
 
 export async function listActiveQuestionnaireDrafts() {
-  return dedupeActiveDrafts(await readRows());
+  const storage = getWebStorage();
+  if (storage) return dedupeActiveDrafts(await readRows());
+
+  const rows = await queryRows("draft_status = 'active'", [], "updated_at DESC");
+  return dedupeActiveDrafts(rows);
+}
+
+// Non-payload columns returned by the lightweight summary query below. Kept
+// as an explicit list (rather than "SELECT *") so the summary row shape is
+// predictable and never accidentally widens to include json_payload.
+//
+// household_id/site_id/locality_code/woman_id/structure_map_id/
+// household_number/answer_count/respondent_label are real, indexed columns
+// (see taskSchema.js) that persistDraft() writes on every save and that a
+// one-time backfill populates for pre-existing rows, so this query selects
+// them directly instead of json_extract-ing the equivalent values out of
+// json_payload. The matching helpers in draftPendingForms.js
+// (getDraftSiteId/getDraftSubjectId/getDraftHouseholdId/
+// getDraftComparableIds/draftMatchesTask) and getPayloadHouseholdId below
+// already prefer these columns and only fall back to parsing json_payload
+// when a column is null/undefined, so summary rows (whose json_payload is
+// intentionally left empty below) match full-decode rows exactly as long as
+// the columns are populated -- which the backfill guarantees for native
+// rows that predate this migration.
+const SUMMARY_NON_PAYLOAD_COLUMNS = [
+  "draft_id",
+  "draft_key",
+  "form_code",
+  "form_version",
+  "task_id",
+  "subject_type",
+  "subject_id",
+  "device_id",
+  "user_id",
+  "completion_state",
+  "draft_status",
+  "submitted_form_response_id",
+  "created_at",
+  "updated_at",
+  "household_id",
+  "site_id",
+  "locality_code",
+  "woman_id",
+  "structure_map_id",
+  "household_number",
+  "answer_count",
+  "respondent_label",
+];
+
+function buildActiveDraftSummarySql() {
+  const columnsSql = SUMMARY_NON_PAYLOAD_COLUMNS.join(", ");
+  return (
+    `SELECT ${columnsSql} FROM questionnaire_drafts` +
+    " WHERE draft_status = 'active' ORDER BY updated_at DESC"
+  );
+}
+
+function decodeSummaryRow(row) {
+  const summary = {};
+  for (const column of SUMMARY_NON_PAYLOAD_COLUMNS) {
+    summary[column] = row[column];
+  }
+  // The summary path exists precisely to avoid decoding json_payload, so it
+  // is left empty here; every matching helper reads the columns above
+  // instead. Callers that need the full answer payload (e.g. resuming a
+  // draft for editing) should use listActiveQuestionnaireDrafts() or
+  // getActiveQuestionnaireDraft() instead.
+  summary.json_payload = {};
+  summary.completion_state = parseJson(summary.completion_state, {});
+  return summary;
+}
+
+// Set once the summary query has failed (e.g. an unexpected schema variant
+// missing one of the index columns), so every subsequent call falls back
+// straight to the full decode path instead of retrying and re-throwing.
+let summaryQueryUnsupported = false;
+
+async function queryActiveDraftSummaryRows() {
+  const db = await getNativeDatabase();
+  const sql = buildActiveDraftSummarySql();
+  const rows = typeof db.getAllAsync === "function"
+    ? await db.getAllAsync(sql, [])
+    : db.getAllSync(sql, []);
+  return rows.map(decodeSummaryRow);
+}
+
+// Lightweight variant of listActiveQuestionnaireDrafts() for callers that
+// only need to match drafts against tasks (worklist enrichment, resolving a
+// task's active draft id) rather than read full answer payloads. On native,
+// this selects the dedicated index columns instead of decoding every row's
+// full json_payload, so it avoids JSON.parse-ing potentially large answer
+// blobs on every worklist load / task open. Falls back to
+// listActiveQuestionnaireDrafts() if the summary query is unsupported (e.g.
+// an unmigrated schema variant) or on the web storage path, where there is
+// no payload-decoding cost to avoid.
+export async function listActiveQuestionnaireDraftSummaries() {
+  const storage = getWebStorage();
+  if (storage) return listActiveQuestionnaireDrafts();
+
+  if (summaryQueryUnsupported) return listActiveQuestionnaireDrafts();
+
+  try {
+    const rows = await queryActiveDraftSummaryRows();
+    return dedupeActiveDrafts(rows);
+  } catch (err) {
+    summaryQueryUnsupported = true;
+    console.warn(
+      "listActiveQuestionnaireDraftSummaries: summary column query failed, falling back to full draft decode",
+      err,
+    );
+    return listActiveQuestionnaireDrafts();
+  }
 }
 
 export async function listQuestionnaireDraftsForSync(userId) {
-  const rows = await readRows();
-  return rows.filter((row) => !userId || row.user_id === userId);
+  const storage = getWebStorage();
+  if (storage) {
+    const rows = await readRows();
+    return rows.filter((row) => !userId || row.user_id === userId);
+  }
+
+  if (!userId) return queryRows("1=1", []);
+  return queryRows("user_id = ?", [userId]);
 }
 
 export function toDraftSyncRecord(draft) {
@@ -329,7 +697,8 @@ export function toDraftSyncRecord(draft) {
 
 export async function mergeServerQuestionnaireDrafts(drafts, context = {}) {
   if (!Array.isArray(drafts)) return 0;
-  const rows = await readRows();
+  const storage = getWebStorage();
+  const rows = storage ? await readRows() : null;
   let merged = 0;
 
   for (const incoming of drafts) {
@@ -341,11 +710,25 @@ export async function mergeServerQuestionnaireDrafts(drafts, context = {}) {
       json_payload: incoming.json_payload || {},
     };
     const incomingHouseholdUserKey = getDraftHouseholdUserKey(incomingComparable);
-    const existing = rows.find(
-      (row) =>
-        row.draft_id === incoming.draft_id ||
-        (row.draft_status === "active" && getDraftHouseholdUserKey(row) === incomingHouseholdUserKey),
-    );
+
+    let existing;
+    if (storage) {
+      existing = rows.find(
+        (row) =>
+          row.draft_id === incoming.draft_id ||
+          (row.draft_status === "active" && getDraftHouseholdUserKey(row) === incomingHouseholdUserKey),
+      );
+    } else {
+      existing = await queryFirstRow("draft_id = ?", [incoming.draft_id]);
+      if (!existing) {
+        const candidates = await queryRows(
+          activeScopeWhereSql(),
+          activeScopeParams(incoming.form_code, incoming.form_version, incoming.user_id),
+        );
+        existing =
+          candidates.find((row) => getDraftHouseholdUserKey(row) === incomingHouseholdUserKey) || null;
+      }
+    }
     if (existing && String(existing.updated_at) >= String(incoming.updated_at)) continue;
 
     const draft = {
@@ -393,7 +776,7 @@ export async function saveQuestionnaireDraft({
   deviceId = "unknown",
   userId = "unknown",
 }) {
-  const rows = await readRows();
+  const storage = getWebStorage();
   const timestamp = nowIso();
   const draftKey = buildDraftKey({
     formCode,
@@ -420,19 +803,39 @@ export async function saveQuestionnaireDraft({
     userId,
     payload,
   });
-  const newestRows = sortNewestFirst(rows);
-  const existing =
-    newestRows.find((row) => row.draft_id === draftId) ||
-    newestRows.find(
-      (row) =>
-        row.draft_status === "active" &&
-        (
-          row.draft_key === draftKey ||
-          getDraftIdentityKey(row) === draftIdentityKey ||
-          getDraftHouseholdUserKey(row) === draftHouseholdUserKey
-        ),
-    ) ||
-    null;
+
+  let existing = null;
+  let candidateRows = null;
+
+  if (storage) {
+    const rows = await readRows();
+    const newestRows = sortNewestFirst(rows);
+    const activeRows = newestRows.filter((row) => row.draft_status === "active");
+    existing =
+      newestRows.find((row) => row.draft_id === draftId) ||
+      activeRows.find((row) => row.draft_key === draftKey) ||
+      activeRows.find((row) => getDraftIdentityKey(row) === draftIdentityKey) ||
+      activeRows.find((row) => getDraftHouseholdUserKey(row) === draftHouseholdUserKey) ||
+      null;
+  } else {
+    // At most two SELECTs total: an optional direct draft_id lookup, plus one
+    // narrowed active-scope candidate query that is reused below both to find
+    // the "existing" draft (draft_key / identity-key / household-key match)
+    // and, unchanged, as the duplicate set for supersedeDuplicateActiveDrafts.
+    const byId = draftId ? await queryFirstDraftMatchRow("draft_id = ?", [draftId]) : null;
+    candidateRows = await queryDraftMatchRows(
+      activeScopeWhereSql(),
+      activeScopeParams(formCode, formVersion, userId),
+      "updated_at DESC",
+    );
+    existing =
+      byId ||
+      candidateRows.find((row) => row.draft_key === draftKey) ||
+      candidateRows.find((row) => getDraftIdentityKey(row) === draftIdentityKey) ||
+      candidateRows.find((row) => getDraftHouseholdUserKey(row) === draftHouseholdUserKey) ||
+      null;
+  }
+
   const draft = {
     draft_id: existing?.draft_id || draftId || createDraftId(formCode),
     draft_key: draftKey,
@@ -451,16 +854,30 @@ export async function saveQuestionnaireDraft({
   };
 
   await persistDraft(draft);
-  await supersedeDuplicateActiveDrafts(draft);
+  await supersedeDuplicateActiveDrafts(draft, candidateRows);
   return draft;
 }
 
 export async function markQuestionnaireDraftSubmitted({ draftId, submittedFormResponseId }) {
-  const rows = await readRows();
-  const index = rows.findIndex((row) => row.draft_id === draftId);
-  if (index < 0) return null;
+  const storage = getWebStorage();
+  if (storage) {
+    const rows = await readRows();
+    const index = rows.findIndex((row) => row.draft_id === draftId);
+    if (index < 0) return null;
+    const updated = {
+      ...rows[index],
+      draft_status: "submitted",
+      submitted_form_response_id: submittedFormResponseId,
+      updated_at: nowIso(),
+    };
+    await persistDraft(updated);
+    return updated;
+  }
+
+  const existing = await queryFirstRow("draft_id = ?", [draftId]);
+  if (!existing) return null;
   const updated = {
-    ...rows[index],
+    ...existing,
     draft_status: "submitted",
     submitted_form_response_id: submittedFormResponseId,
     updated_at: nowIso(),

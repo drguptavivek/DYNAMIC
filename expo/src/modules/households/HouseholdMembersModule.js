@@ -9,10 +9,13 @@ import {
 import { ROUTES, navigateTo } from "../../navigation/routes.js";
 
 const PAGE_SIZE = 50;
+const FREE_TEXT_SEARCH_MIN_LENGTH = 3;
+const SEARCH_DEBOUNCE_MS = 300;
 
 export function HouseholdMembersModule({ householdId = "", selectedLocalityCode }) {
   const [members, setMembers] = useState([]);
   const [household, setHousehold] = useState(null);
+  const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [sex, setSex] = useState("");
   const [page, setPage] = useState(0);
@@ -21,6 +24,21 @@ export function HouseholdMembersModule({ householdId = "", selectedLocalityCode 
   useEffect(() => {
     setPage(0);
   }, [householdId, selectedLocalityCode, search, sex]);
+
+  useEffect(() => {
+    const trimmed = searchInput.trim();
+    if (trimmed.length < FREE_TEXT_SEARCH_MIN_LENGTH) {
+      setSearch("");
+      return undefined;
+    }
+    const timeout = setTimeout(() => setSearch(trimmed), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timeout);
+  }, [searchInput]);
+
+  function handleSearchChange(value) {
+    setSearchInput(value);
+    if (value.trim().length < FREE_TEXT_SEARCH_MIN_LENGTH) setSearch("");
+  }
 
   useEffect(() => {
     let active = true;
@@ -78,8 +96,8 @@ export function HouseholdMembersModule({ householdId = "", selectedLocalityCode 
 
       <View style={styles.filters}>
         <TextInput
-          value={search}
-          onChangeText={setSearch}
+          value={searchInput}
+          onChangeText={handleSearchChange}
           placeholder="Search member name"
           style={styles.search}
         />
@@ -191,7 +209,7 @@ function formatRelationship(value) {
 
 function formatMemberStatus(member) {
   if (Number(member.relationship_to_head) === 1) return "Household head";
-  if (member.woman_questionnaire_eligible) return "WQ eligible";
+  if (Number(member.woman_questionnaire_eligible) === 1) return "BWQ eligible";
   return "Active member";
 }
 

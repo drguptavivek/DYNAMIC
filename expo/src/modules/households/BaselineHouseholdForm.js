@@ -4,7 +4,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, AppState, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
-import { Model } from "survey-core";
 
 import { NativeSurveyRenderer } from "../../components/forms/NativeSurveyRenderer.js";
 import { RendererLanguageSwitcher } from "../../components/forms/RendererLanguageSwitcher.js";
@@ -32,12 +31,15 @@ import {
 } from "../questionnaires/questionnaireDraftRepository.js";
 import { getDraftSavedMessage } from "../questionnaires/draftSaveMessages.js";
 import { saveQuestionnaireSubmission } from "../questionnaires/questionnaireSubmissionRepository.js";
-import { prepareQuestionnaireSurveyJson } from "../questionnaires/questionnaireSurveyJsonTransforms.js";
+import { getPreparedSurveyJson } from "../questionnaires/questionnaireSurveyJsonTransforms.js";
 import { buildHhqPrefill, mergePrefillIntoBlankValues } from "../../lib/prefillMapper.js";
 import { getHouseholdSync } from "../../lib/householdSync.js";
+import { applyQuestionnaireLanguageFromLocale } from "../../lib/questionnaireLanguageField.js";
+import { startTiming } from "../../lib/perfLog.js";
 import { applyHhqTaskHouseholdPrefill } from "./hhqTaskPrefill.js";
 import { buildHouseholdIdFromHhqData } from "./householdIds.js";
 import { extractHouseholdRegistryFields } from "./householdRepository.js";
+import { createSurveyModel } from "../../polyfills/surveyCoreNative.js";
 
 const AUTOSAVE_INTERVAL_MS = 30000;
 const MAX_HHQ_VISIT_NO = 3;
@@ -317,11 +319,12 @@ export function BaselineHouseholdForm({
   }, [draftContext, draftLookupKey]);
 
   const model = useMemo(() => {
-    const surveyJson = applyHouseholdMasterChoices(prepareQuestionnaireSurveyJson(form), {
+    const endOpen = startTiming("form.open", { form: "HHQ" });
+    const surveyJson = applyHouseholdMasterChoices(getPreparedSurveyJson(form), {
       user,
       localities,
     });
-    const survey = new Model(surveyJson);
+    const survey = createSurveyModel(surveyJson);
     survey.showCompletedPage = false;
     survey.checkErrorsMode = "onValueChanged";
 
@@ -447,11 +450,16 @@ export function BaselineHouseholdForm({
       }
     });
     survey.onCurrentPageChanged.add(() => setRevision((value) => value + 1));
+    endOpen({ questions: survey.getAllQuestions().length });
     return survey;
   }, [draftLookup, draftLookupKey, form, user, localities, selectedLocalityCode, taskContext]);
 
   useEffect(() => {
     model.locale = locale;
+    // "Language of questionnaire" is recorded from the switcher, not asked.
+    if (applyQuestionnaireLanguageFromLocale(model, locale)) {
+      answerSnapshotRef.current = cloneSurveyData(model.data || {});
+    }
     setRenderAnswerData(cloneSurveyData(answerSnapshotRef.current || model.data || {}) || {});
     setRevision((value) => value + 1);
   }, [model, locale]);
@@ -510,6 +518,7 @@ export function BaselineHouseholdForm({
       answerSnapshotRef.current = cloneSurveyData(payload);
       setRenderAnswerData(cloneSurveyData(payload) || {});
       const savedAnswerCount = countDraftAnswers(payload);
+      const endSave = startTiming("draft.save", { form: "HHQ", manual });
       const draft = await saveQuestionnaireDraft({
         ...draftContext,
         draftId: draftIdRef.current,
@@ -520,6 +529,7 @@ export function BaselineHouseholdForm({
           locale,
         },
       });
+      endSave({ answers: savedAnswerCount });
       draftIdRef.current = draft.draft_id;
       dirtyRef.current = false;
       if (!silent) {

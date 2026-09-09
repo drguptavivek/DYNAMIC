@@ -61,7 +61,22 @@ async function clearNativeSqlite() {
   }
 }
 
+async function clearProtocolFormMemoryCaches() {
+  // The in-memory protocol form caches (syncService's parsed-form cache and
+  // runtimeFormCatalog's merged-form cache) key off objects/rows that are
+  // about to be wiped from sync_meta / localStorage. Clear them too, or a
+  // stale cached form would keep being served after a fresh login.
+  try {
+    const { clearProtocolFormCache } = await import("../sync/syncService.js");
+    clearProtocolFormCache();
+  } catch (error) {
+    console.warn("Could not clear protocol form cache:", error);
+  }
+}
+
 export async function clearLocalDeviceData() {
+  await clearProtocolFormMemoryCaches();
+
   if (typeof window !== "undefined" && window.localStorage) {
     await clearWebLocalStorage();
     return;
