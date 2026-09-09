@@ -628,6 +628,7 @@ async function pushRecordBatch({ token, deviceId, formResponses = [], domainEven
   const serverDuplicates = Array.isArray(result.duplicates) ? result.duplicates : [];
   const classifiedRecords = Array.isArray(result.classified_records) ? result.classified_records : [];
   const uploadErrorById = new Map();
+  const duplicateIds = new Set(serverDuplicates);
 
   for (const id of serverDuplicates) {
     uploadErrorById.set(id, "Record already exists on the server");
@@ -637,6 +638,7 @@ async function pushRecordBatch({ token, deviceId, formResponses = [], domainEven
     const status = item.status || "upload_error";
     if (status === "duplicate" || status === "held_for_review" || status === "invalid_rejected") {
       uploadErrorById.set(item.id, item.error || `Server classified this form as ${status}`);
+      if (status === "duplicate") duplicateIds.add(item.id);
     }
   }
   for (const item of serverErrors) {
@@ -661,6 +663,11 @@ async function pushRecordBatch({ token, deviceId, formResponses = [], domainEven
     await import("../questionnaires/questionnaireSubmissionRepository.js");
   for (const item of uploadErrorItems) {
     markQuestionnaireSubmissionUploadError(item.id, item.message);
+    if (duplicateIds.has(item.id)) {
+      taskRepository.markTaskUploadConflict(
+        formResponses.find((response) => response.id === item.id)?.task_id,
+      );
+    }
   }
   for (const id of syncedIds) {
     markQuestionnaireSubmissionSynced(id);
@@ -716,6 +723,7 @@ async function pushRecordBatch({ token, deviceId, formResponses = [], domainEven
     pushed: syncedIds.length,
     events: processedEventIds.size,
     uploadErrors: uploadErrorItems.length,
+    duplicateErrors: uploadErrorItems.filter((item) => duplicateIds.has(item.id)).length,
   };
 }
 
@@ -781,6 +789,7 @@ export async function pushSync() {
     let pushed = 0;
     let events = 0;
     let uploadErrors = 0;
+    let duplicateErrors = 0;
     let eventsSent = false;
     while (true) {
       const pendingBatch = await taskRepository.getPendingResponseBatch(PUSH_FORM_RESPONSE_BATCH_SIZE);
@@ -795,6 +804,7 @@ export async function pushSync() {
           pushed += eventResult.pushed;
           events += eventResult.events;
           uploadErrors += eventResult.uploadErrors;
+          duplicateErrors += eventResult.duplicateErrors || 0;
           eventsSent = true;
         }
         break;
@@ -809,6 +819,7 @@ export async function pushSync() {
       pushed += batchResult.pushed;
       events += batchResult.events;
       uploadErrors += batchResult.uploadErrors;
+      duplicateErrors += batchResult.duplicateErrors || 0;
       eventsSent = true;
     }
 
@@ -816,6 +827,7 @@ export async function pushSync() {
       pushed,
       events,
       uploadErrors,
+      duplicateErrors,
       drafts: syncedDrafts,
       staleDraftsRemoved,
       draftSyncErrors,
@@ -855,6 +867,7 @@ export async function syncAll(options = {}) {
       pushed: pushResult.pushed,
       events: pushResult.events,
       uploadErrors: pushResult.uploadErrors,
+      duplicateErrors: pushResult.duplicateErrors,
       staleDraftsRemoved: pushResult.staleDraftsRemoved,
       draftSyncErrors: pushResult.draftSyncErrors,
       clockStatus: getClockStatus(),
@@ -896,6 +909,7 @@ export async function syncAll(options = {}) {
       pushed: pushResult.pushed,
       events: pushResult.events,
       uploadErrors: pushResult.uploadErrors,
+      duplicateErrors: pushResult.duplicateErrors,
       pulled: pullResult.pulled,
       pulledOpenTasks: pullResult.pulledOpenTasks,
       pulledHouseholds: pullResult.pulledHouseholds,
@@ -920,6 +934,7 @@ export async function syncAll(options = {}) {
       pushed: pushResult.pushed,
       events: pushResult.events,
       uploadErrors: pushResult.uploadErrors,
+      duplicateErrors: pushResult.duplicateErrors,
       formsUpdated: pullResult.formsUpdated,
       draftsPushed: pushResult.drafts || 0,
       draftsPulled: pulledDrafts,

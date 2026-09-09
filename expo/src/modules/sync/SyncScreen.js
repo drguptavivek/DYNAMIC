@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator } from "react-native";
+import { Alert, View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator } from "react-native";
 import * as syncService from "../sync/syncService.js";
 import * as eventOutbox from "../events/eventOutbox.js";
 import * as taskRepository from "../tasks/taskRepository.js";
@@ -57,6 +57,12 @@ export function SyncScreen({ onClockStatusChange } = {}) {
     try {
       const result = await syncService.syncAll();
       setSyncMessage(formatSyncCompletionMessage(result));
+      if (result.duplicateErrors > 0) {
+        Alert.alert(
+          "Duplicate entry on server",
+          `${result.duplicateErrors} form submission${result.duplicateErrors === 1 ? " was" : "s were"} already submitted first by another user. The later form was moved to Upload Errors and its task was closed.`,
+        );
+      }
       loadSyncInfo();
     } catch (error) {
       console.error("Sync error:", error);

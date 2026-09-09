@@ -260,6 +260,10 @@ export function formatSyncCompletionMessage(result = {}) {
     parts.push(`${pluralize(result.uploadErrors, "duplicate or upload error")} moved to Upload Errors`);
   }
 
+  if (typeof result.duplicateErrors === "number" && result.duplicateErrors > 0) {
+    parts.push(`${pluralize(result.duplicateErrors, "duplicate entry")} rejected; related task closed`);
+  }
+
   if (typeof result.draftsPushed === "number") {
     parts.push(`${pluralize(result.draftsPushed, "draft")} backed up`);
   }
