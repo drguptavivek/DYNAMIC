@@ -3,6 +3,8 @@
  * Maps household and member context to SurveyJS field values
  */
 
+import { listFormResponses } from "../modules/tasks/taskRepository.js";
+
 function formatLocalIsoDate(date = new Date()) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -117,19 +119,67 @@ export function buildHrfPrefill(household, task) {
  * Build prefill for Pregnancy Enrollment Form (PEF)
  * Read-only: woman identifiers
  */
-export function buildPefPrefill(member, household) {
+export function buildPefPrefill(member, household, task = null) {
   if (!member || !household) {
     return { prefill: {}, readOnlyFields: [] };
   }
 
+  const direct = String(task?.generation_source || "").toLowerCase() === "contextual_action";
+  let source = direct ? "direct" : null;
+  if (!source && task?.source_event_id) {
+    const sourceResponse = listFormResponses({ subject_id: member.individual_id }).find(
+      (response) => [response?.id, response?.form_response_id].some(
+        (value) => String(value || "") === String(task.source_event_id),
+      ),
+    );
+    const sourceCode = String(sourceResponse?.form_code || "").toUpperCase();
+    if (sourceCode === "WQ" || sourceCode === "BWQ") source = "wq";
+    if (sourceCode === "PSF") source = "psf";
+  }
+
+  const sourceResponse = source && source !== "direct" && task?.source_event_id
+    ? listFormResponses({ subject_id: member.individual_id }).find(
+        (response) => [response?.id, response?.form_response_id].some(
+          (value) => String(value || "") === String(task.source_event_id),
+        ),
+      )
+    : null;
+  let sourceAnswers = {};
+  try {
+    sourceAnswers = typeof sourceResponse?.answers_json === "object"
+      ? sourceResponse.answers_json
+      : JSON.parse(sourceResponse?.answers_json || "{}");
+  } catch (_error) {
+    sourceAnswers = {};
+  }
+
+  // Direct household-member entry is intentionally manual. Scheduled WQ/PSF
+  // entry gets identity values from the synced household/member roster and
+  // the originating response where available.
+  if (direct) {
+    return {
+      prefill: {},
+      readOnlyFields: [],
+      pefSource: "direct",
+      pefSourceSelectableValues: [3, 4],
+    };
+  }
+
   const prefill = {
-    pef_woman_name: member.member_name,
+    pef_pregnancy_information_source: source === "psf" ? 2 : 1,
     pef_woman_hh_member_id: member.individual_id,
+    pef_woman_name: member.member_name,
+    pef_husband_name: member.husband_name || sourceAnswers.wq_husband_partner_name || sourceAnswers.psf_husband_name || "",
+    pef_household_head_name: household.household_head_name || household.head_name || "",
+    pef_current_address: household.address || sourceAnswers.psf_current_address || "",
   };
 
-  const readOnlyFields = ["pef_woman_name", "pef_woman_hh_member_id"];
+  const readOnlyFields = [
+    "pef_pregnancy_information_source", "pef_woman_hh_member_id", "pef_woman_name",
+    "pef_husband_name", "pef_household_head_name", "pef_current_address",
+  ];
 
-  return { prefill, readOnlyFields };
+  return { prefill, readOnlyFields, pefSource: source || "wq" };
 }
 
 /**
@@ -289,7 +339,7 @@ export function buildPrefillForTask(task, household, member) {
     case "HRF":
       return buildHrfPrefill(household, task);
     case "PEF":
-      return buildPefPrefill(member, household);
+      return buildPefPrefill(member, household, task);
     case "PFF":
       return buildPffPrefill(member, household);
     case "PSF":

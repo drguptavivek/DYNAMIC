@@ -8,7 +8,10 @@ export default function HouseholdMembersRoute() {
   const app = useFieldApp();
   return (
     <FieldAppShell route={{ view: "householdMembers" }} title="Household Members">
-      <HouseholdMembersModule selectedLocalityCode={app.selectedLocalityCode} />
+      <HouseholdMembersModule
+        selectedLocalityCode={app.selectedLocalityCode}
+        onOpenTask={app.openFormFromTask}
+      />
     </FieldAppShell>
   );
 }

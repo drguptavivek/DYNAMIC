@@ -7,12 +7,13 @@ import {
   searchHouseholdMembers,
 } from "./householdRepository.js";
 import { ROUTES, navigateTo } from "../../navigation/routes.js";
+import { createDirectPefTask, getDirectPefEligibility } from "../pregnancy/directPef.js";
 
 const PAGE_SIZE = 50;
 const FREE_TEXT_SEARCH_MIN_LENGTH = 3;
 const SEARCH_DEBOUNCE_MS = 300;
 
-export function HouseholdMembersModule({ householdId = "", selectedLocalityCode }) {
+export function HouseholdMembersModule({ householdId = "", selectedLocalityCode, onOpenTask }) {
   const [members, setMembers] = useState([]);
   const [household, setHousehold] = useState(null);
   const [searchInput, setSearchInput] = useState("");
@@ -38,6 +39,18 @@ export function HouseholdMembersModule({ householdId = "", selectedLocalityCode 
   function handleSearchChange(value) {
     setSearchInput(value);
     if (value.trim().length < FREE_TEXT_SEARCH_MIN_LENGTH) setSearch("");
+  }
+
+  async function handleDirectPef(member, householdContext) {
+    const result = await createDirectPefTask({
+      member,
+      household: householdContext || household || {
+        household_id: member?.household_id,
+        site_id: member?.site_id,
+        locality_code: member?.locality_code,
+      },
+    });
+    if (result.task) await onOpenTask?.(result.task);
   }
 
   useEffect(() => {
@@ -170,9 +183,18 @@ export function HouseholdMembersModule({ householdId = "", selectedLocalityCode 
                       {`${member.age_years ?? "-"} years · ${formatSex(member.sex)} · ${formatRelationship(member.relationship_to_head)}`}
                     </Text>
                   </View>
-                  <Text style={styles.memberDetailStatus} numberOfLines={2}>
-                    {formatMemberStatus(member)}
-                  </Text>
+                  <View style={styles.memberDetailActions}>
+                    <Text style={styles.memberDetailStatus} numberOfLines={2}>
+                      {formatMemberStatus(member)}
+                    </Text>
+                    {Number(member.woman_questionnaire_eligible) === 1 ? (
+                      <DirectPefButton
+                        member={member}
+                        householdId={group.household_id}
+                        onPress={() => handleDirectPef(member, household || group)}
+                      />
+                    ) : null}
+                  </View>
                 </View>
               ))}
               {!householdId ? (
@@ -189,6 +211,28 @@ export function HouseholdMembersModule({ householdId = "", selectedLocalityCode 
         </ScrollView>
       </View>
     </View>
+  );
+}
+
+function DirectPefButton({ member, householdId, onPress }) {
+  const [eligibility, setEligibility] = useState(null);
+  useEffect(() => {
+    let active = true;
+    getDirectPefEligibility({ member, householdId })
+      .then((result) => { if (active) setEligibility(result); })
+      .catch(() => { if (active) setEligibility(null); });
+    return () => { active = false; };
+  }, [member, householdId]);
+
+  if (!eligibility?.eligible) return null;
+  return (
+    <Pressable
+      accessibilityLabel={`Fill PEF for ${member.member_name || member.individual_id}`}
+      onPress={onPress}
+      style={styles.directPefButton}
+    >
+      <Text style={styles.directPefButtonText}>{eligibility.resume ? "Resume PEF" : "Fill PEF"}</Text>
+    </Pressable>
   );
 }
 
@@ -244,11 +288,11 @@ const styles = StyleSheet.create({
   wrap: {
     flex: 1,
     gap: 14,
-    padding: 22,
-    minHeight: "calc(100vh - 76px)",
+    padding: 12,
   },
   header: {
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 16,
@@ -306,6 +350,8 @@ const styles = StyleSheet.create({
     color: "#1f6feb",
   },
   table: {
+    flex: 1,
+    minWidth: 0,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: "#d8dee4",
@@ -316,7 +362,8 @@ const styles = StyleSheet.create({
     minWidth: 820,
   },
   rows: {
-    maxHeight: 560,
+    flex: 1,
+    minWidth: 0,
   },
   householdCards: {
     gap: 12,
@@ -332,6 +379,7 @@ const styles = StyleSheet.create({
   },
   householdCardHeader: {
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "flex-start",
     justifyContent: "space-between",
     gap: 12,
@@ -362,6 +410,7 @@ const styles = StyleSheet.create({
   },
   memberDetailRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 10,
@@ -371,6 +420,7 @@ const styles = StyleSheet.create({
   },
   memberDetailIdentity: {
     flex: 1,
+    minWidth: 150,
     gap: 3,
   },
   memberDetailName: {
@@ -388,6 +438,26 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#475467",
     textAlign: "right",
+  },
+  memberDetailActions: {
+    flexShrink: 1,
+    minWidth: 92,
+    alignItems: "flex-end",
+    gap: 6,
+  },
+  directPefButton: {
+    minHeight: 30,
+    justifyContent: "center",
+    paddingHorizontal: 9,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#0f766e",
+    backgroundColor: "#ecfdf5",
+  },
+  directPefButtonText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#0f766e",
   },
   householdCardLink: {
     alignSelf: "flex-start",
@@ -463,6 +533,7 @@ const styles = StyleSheet.create({
   paginationBar: {
     minHeight: 48,
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 12,
@@ -478,6 +549,7 @@ const styles = StyleSheet.create({
   },
   paginationActions: {
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     gap: 8,
   },

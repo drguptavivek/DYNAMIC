@@ -317,9 +317,11 @@ export function getNativeQuestionChoices(question, locale = "default") {
   const choices = question?.visibleChoices || question?.choices || [];
   return choices.map((choice) => {
     const defaultText = defaultChoiceText(choice);
+    const directAnswer = choice.directAnswer ? ` — ${choice.directAnswer}` : "";
     return {
       value: choice.value,
-      text: localizedText(choice.locText, defaultText || choice.text || choice.value, locale) || defaultText || String(choice.value ?? ""),
+      text: `${localizedText(choice.locText, defaultText || choice.text || choice.value, locale) || defaultText || String(choice.value ?? "")}${directAnswer}`,
+      disabled: choice.disabled === true,
     };
   });
 }

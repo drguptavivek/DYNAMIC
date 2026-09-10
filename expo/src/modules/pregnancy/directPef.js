@@ -19,13 +19,29 @@ function answerNumber(answers, key) {
 function parseAnswers(response) {
   if (!response) return {};
   if (response.answers_json && typeof response.answers_json === "object") return response.answers_json;
-  try { return JSON.parse(response.answers_json || "{}"); } catch { return {}; }
+  if (response.json_payload && typeof response.json_payload === "object") return response.json_payload;
+  try {
+    return JSON.parse(response.answers_json || response.json_payload || "{}");
+  } catch {
+    return {};
+  }
 }
 
 function isFinalizedWq(response) {
   const answers = parseAnswers(response);
-  return answerNumber(answers, "wq_pregnancy_tracking_eligible") === 1 &&
-    [2, 98].includes(answerNumber(answers, "wq_pregnant"));
+  const pregnancyStatus = [
+    "wq_pregnant",
+    "bwq_pregnant",
+    "wq_currently_pregnant",
+    "wq_pregnant_now",
+    "wq_pregnancy_status",
+  ]
+    .map((key) => answerNumber(answers, key))
+    .find((value) => value !== null);
+  // Eligibility is authoritative on the synced household-member record. The
+  // WQ response only needs to prove that the woman was assessed and is not
+  // currently pregnant (2 = no, 98 = unsure).
+  return [2, 98].includes(pregnancyStatus);
 }
 
 function isActiveTask(task) {
@@ -40,11 +56,12 @@ export async function getDirectPefEligibility({ member, householdId } = {}) {
     return { eligible: false, reason: "woman_not_eligible" };
   }
 
-  const wqResponses = listFormResponses({
-    form_code: "WQ",
-    household_id: normalizedHouseholdId,
-    subject_id: womanId,
-  });
+  // WQ is the persisted code; BWQ is its display code. Accept both so
+  // responses restored from older app versions still unlock direct PEF.
+  const wqResponses = listFormResponses({ subject_id: womanId }).filter((response) =>
+    ["WQ", "BWQ"].includes(String(response?.form_code || "").toUpperCase()) &&
+    (!response?.household_id || String(response.household_id) === normalizedHouseholdId),
+  );
   const latestWq = wqResponses.find((response) =>
     response.sync_status !== "upload_error" && isFinalizedWq(response));
   if (!latestWq) return { eligible: false, reason: "wq_not_completed_as_not_pregnant" };
@@ -61,7 +78,7 @@ export async function getDirectPefEligibility({ member, householdId } = {}) {
     subjectId: womanId,
     taskType: "PEF",
   });
-  if (pefTasks.some(isActiveTask)) return { eligible: false, reason: "pef_task_already_present" };
+  const existingTask = pefTasks.find(isActiveTask);
 
   const drafts = await listActiveQuestionnaireDraftSummaries();
   const pefDraft = drafts.find((draft) =>
@@ -69,7 +86,10 @@ export async function getDirectPefEligibility({ member, householdId } = {}) {
     String(draft?.household_id || "") === normalizedHouseholdId &&
     String(draft?.subject_id || draft?.woman_id || "") === womanId,
   );
-  if (pefDraft) return { eligible: false, reason: "pef_draft_already_present" };
+  // A draft or task is resumable work, not a reason to hide the only way to
+  // reach it after an APK reinstall or task-list refresh.
+  if (existingTask) return { eligible: true, existingTask, resume: true, wqResponse: latestWq };
+  if (pefDraft) return { eligible: true, existingDraft: pefDraft, resume: true, wqResponse: latestWq };
 
   return { eligible: true, wqResponse: latestWq };
 }
@@ -85,6 +105,10 @@ export async function createDirectPefTask({ member, household } = {}) {
   const existing = listTasksForSubject({ householdId, subjectId: womanId, taskType: "PEF" })
     .find((task) => task.task_key === taskKey && isActiveTask(task));
   if (existing) return { task: existing, created: false, eligible: true };
+
+  if (eligibility.existingTask) {
+    return { task: eligibility.existingTask, created: false, eligible: true, resume: true };
+  }
 
   const task = {
     id: `local-direct-pef-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
@@ -107,5 +131,12 @@ export async function createDirectPefTask({ member, household } = {}) {
     sync_status: "local",
   };
   saveTask(task);
-  return { task, created: true, eligible: true };
+  return {
+    task: eligibility.existingDraft
+      ? { ...task, active_draft_id: eligibility.existingDraft.draft_id }
+      : task,
+    created: true,
+    eligible: true,
+    resume: Boolean(eligibility.existingDraft),
+  };
 }

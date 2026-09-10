@@ -49,6 +49,16 @@ export function getRuntimeFormByCode(formCode) {
     const cachedForm = getCachedProtocolForm(normalizedCode);
     if (!cachedForm) return bundledForm;
 
+    // The locally bundled PEF workbook is authoritative until the server
+    // publishes the same form version. This prevents an older cached protocol
+    // payload from silently replacing the updated offline questionnaire.
+    if (
+      normalizedCode === "PEF" &&
+      String(cachedForm.version || "") !== String(bundledForm?.version || "")
+    ) {
+      return bundledForm;
+    }
+
     const cachedMerged = mergedFormCache.get(cachedForm);
     if (cachedMerged) return cachedMerged;
 

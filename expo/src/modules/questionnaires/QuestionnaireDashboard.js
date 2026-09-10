@@ -111,6 +111,28 @@ function isPregnancySurveillanceForm(form) {
   return String(form?.form_code || "").toUpperCase() === "PSF";
 }
 
+function isPregnancyEnrollmentForm(form) {
+  return String(form?.form_code || "").toUpperCase() === "PEF";
+}
+
+function applyPefSourceBehavior(model, taskContext, prefillData) {
+  if (!model || !isPregnancyEnrollmentForm({ form_code: "PEF" })) return;
+  const sourceQuestion = model.getQuestionByName?.("pef_pregnancy_information_source");
+  const direct = String(taskContext?.generation_source || "").toLowerCase() === "contextual_action";
+  if (!sourceQuestion || !direct) return;
+
+  // Keep all workbook choices visible for direct entry. Options 1 and 2 are
+  // explicitly No in this context and cannot be selected; options 3 and 4
+  // remain available after the database search.
+  sourceQuestion.choices = (sourceQuestion.choices || []).map((item) => ({
+    ...item,
+    ...(Number(item.value) <= 2 ? { directAnswer: "No", disabled: true } : {}),
+  }));
+  sourceQuestion.description = {
+    default: "Direct household entry: options 1 and 2 are No. Select option 3 or 4 after conducting the database search.",
+  };
+}
+
 function clampWqVisitNo(value) {
   const numericValue = Number(value);
   if (!Number.isFinite(numericValue)) return 1;
@@ -292,6 +314,7 @@ export function QuestionnaireDashboard({
   const hasPreviewedRef = useRef(false);
   const previewSignatureRef = useRef("");
   const memberSummaryConfirmedRef = useRef(false);
+  const pefSearchPromptedRef = useRef(false);
   const surveyRef = useRef(null);
   const answerSnapshotRef = useRef({});
   const rendererRef = useRef(null);
@@ -488,6 +511,11 @@ export function QuestionnaireDashboard({
       applyReadOnlyFields(model, readOnlyFields);
     }
 
+    if (isPregnancyEnrollmentForm(form)) {
+      pefSearchPromptedRef.current = false;
+      applyPefSourceBehavior(model, taskContext, prefillData);
+    }
+
     if (isWomanQuestionnaire(form)) {
       attachWqValidation(model);
       applyWqVisitNo(model, taskContext);
@@ -523,6 +551,19 @@ export function QuestionnaireDashboard({
       }
       answerSnapshotRef.current = nextData;
       setRendererAnswerData(nextData);
+      if (
+        isPregnancyEnrollmentForm(form) &&
+        options.name === "pef_pregnancy_information_source" &&
+        [3, 4].includes(Number(options.value)) &&
+        !pefSearchPromptedRef.current
+      ) {
+        pefSearchPromptedRef.current = true;
+        Alert.alert(
+          "Database search required",
+          "Conduct search procedure in the database to locate women in the database.",
+          [{ text: "OK" }],
+        );
+      }
       if (isWomanQuestionnaire(form)) {
         if (options.name === WQ_INTERVIEW_DATE_FIELD) {
           applyWqVisitNo(sender, taskContext);

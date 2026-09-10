@@ -13,6 +13,7 @@ export default function HouseholdMembersForHouseholdRoute() {
       <HouseholdMembersModule
         householdId={String(householdId || "")}
         selectedLocalityCode={app.selectedLocalityCode}
+        onOpenTask={app.openFormFromTask}
       />
     </FieldAppShell>
   );

@@ -95,11 +95,11 @@ export function SelectOneRenderer({ answerData, locale, question, onChange }) {
             <TouchableOpacity
               key={String(choice.value)}
               accessibilityRole="radio"
-              accessibilityState={{ selected, disabled }}
+              accessibilityState={{ selected, disabled: disabled || choice.disabled === true }}
               activeOpacity={0.82}
-              disabled={disabled}
+              disabled={disabled || choice.disabled === true}
               onPress={() => commitChoice(choice.value)}
-              style={[controlStyles.option, selected && controlStyles.optionSelected]}
+              style={[controlStyles.option, selected && controlStyles.optionSelected, choice.disabled && { opacity: 0.55 }]}
             >
               <View style={[controlStyles.optionMark, selected && controlStyles.optionMarkSelected]} />
               <Text style={controlStyles.optionText}>{choice.text}</Text>
