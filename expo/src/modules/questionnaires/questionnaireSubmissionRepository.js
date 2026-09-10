@@ -621,6 +621,17 @@ export async function saveQuestionnaireSubmission({
   await saveCanonicalFormResponse(response);
   await promoteHhqLocally(response);
   await promotePefLocally(response, taskContext);
+  if (response.form_code === "PEF" && response.household_id && response.subject_id) {
+    try {
+      const taskRepository = await import("../tasks/taskRepository.js");
+      taskRepository.supersedeLocalPsfTasksForWoman?.({
+        householdId: response.household_id,
+        subjectId: response.subject_id,
+      });
+    } catch (error) {
+      console.warn("Could not close local PSF tasks after PEF:", error);
+    }
+  }
 
   if (!storage) {
     return submission;

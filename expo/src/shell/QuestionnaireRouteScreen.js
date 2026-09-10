@@ -80,6 +80,7 @@ export function QuestionnaireRouteScreen({ draftId, formCode, mode, openKey, tas
           draftId={normalizeSearchParam(draftId)}
           onDataSynced={app.refreshLocalities}
           onDraftSaved={app.notifyTaskWorklistChanged}
+          onOpenTask={app.openFormFromTask}
         />
       </FieldAppShell>
     );

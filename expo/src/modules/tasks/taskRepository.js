@@ -1099,7 +1099,7 @@ export async function listFormResponseSummaries(filters = {}) {
 
 export function listFormResponses(filters = {}) {
   const db = getDb();
-  const { sync_status } = filters;
+  const { sync_status, form_code, household_id, subject_id } = filters;
   const params = [];
   let sql = "SELECT * FROM form_responses WHERE 1=1";
 
@@ -1107,6 +1107,9 @@ export function listFormResponses(filters = {}) {
     sql += " AND sync_status = ?";
     params.push(sync_status);
   }
+  if (form_code) { sql += " AND UPPER(form_code) = UPPER(?)"; params.push(form_code); }
+  if (household_id) { sql += " AND household_id = ?"; params.push(household_id); }
+  if (subject_id) { sql += " AND subject_id = ?"; params.push(subject_id); }
 
   sql += " ORDER BY submitted_at DESC, created_at DESC";
 
@@ -1186,6 +1189,24 @@ export function markResponsesUploadErrorBatch(items = []) {
   }
 }
 
+export function listTasksForSubject({ householdId, subjectId, taskType } = {}) {
+  const db = getDb();
+  const clauses = ["1=1"];
+  const params = [];
+  if (householdId) { clauses.push("household_id = ?"); params.push(householdId); }
+  if (subjectId) { clauses.push("subject_id = ?"); params.push(subjectId); }
+  if (taskType) { clauses.push("UPPER(task_type) = UPPER(?)"); params.push(taskType); }
+  try {
+    return db.getAllSync(
+      `SELECT * FROM follow_up_tasks WHERE ${clauses.join(" AND ")} ORDER BY updated_at DESC`,
+      params,
+    ) || [];
+  } catch (error) {
+    console.error("Error listing tasks for subject:", error);
+    return [];
+  }
+}
+
 export function markTaskUploadConflict(taskId) {
   if (!taskId) return;
   const db = getDb();
@@ -1198,6 +1219,57 @@ export function markTaskUploadConflict(taskId) {
     );
   } catch (error) {
     console.error("Error closing duplicate task:", error);
+    throw error;
+  }
+}
+
+export function markPefUploadConflict({ taskId, householdId, subjectId } = {}) {
+  const db = getDb();
+  const now = new Date().toISOString();
+  try {
+    db.runSync("BEGIN TRANSACTION");
+    if (taskId) {
+      db.runSync(
+        `UPDATE follow_up_tasks
+         SET status = 'completed', lifecycle_status = 'completed', updated_at = ?
+         WHERE id = ? OR task_key = ?`,
+        [now, taskId, taskId],
+      );
+    }
+    if (householdId && subjectId) {
+      db.runSync(
+        `UPDATE follow_up_tasks
+         SET status = 'superseded', lifecycle_status = 'superseded',
+             closed_reason = 'duplicate_pef_on_server', closed_at = ?, updated_at = ?
+         WHERE household_id = ? AND subject_id = ? AND UPPER(task_type) = 'PSF'
+           AND status NOT IN ('completed', 'missed', 'cancelled', 'superseded', 'closed', 'closed_final_reason')`,
+        [now, now, householdId, subjectId],
+      );
+    }
+    db.runSync("COMMIT");
+  } catch (error) {
+    db.runSync("ROLLBACK");
+    console.error("Error closing duplicate PEF workflow:", error);
+    throw error;
+  }
+}
+
+export function supersedeLocalPsfTasksForWoman({ householdId, subjectId, reason = "pregnancy_enrolled" } = {}) {
+  if (!householdId || !subjectId) return 0;
+  const db = getDb();
+  const now = new Date().toISOString();
+  try {
+    const result = db.runSync(
+      `UPDATE follow_up_tasks
+       SET status = 'superseded', lifecycle_status = 'superseded',
+           closed_reason = ?, closed_at = ?, updated_at = ?
+       WHERE household_id = ? AND subject_id = ? AND UPPER(task_type) = 'PSF'
+         AND status NOT IN ('completed', 'missed', 'cancelled', 'superseded', 'closed', 'closed_final_reason')`,
+      [reason, now, now, householdId, subjectId],
+    );
+    return Number(result?.changes || 0);
+  } catch (error) {
+    console.error("Error superseding local PSF tasks:", error);
     throw error;
   }
 }

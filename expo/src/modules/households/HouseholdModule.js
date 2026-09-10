@@ -9,6 +9,7 @@ import { getAssignedLocalities, getAssignedSites } from "../../lib/householdMast
 import { ROUTES, navigateTo } from "../../navigation/routes";
 import * as syncService from "../sync/syncService.js";
 import { listOpenHhqHouseholdIds } from "../tasks/taskRepository.js";
+import { createDirectPefTask, getDirectPefEligibility } from "../pregnancy/directPef.js";
 import { BaselineHouseholdForm } from "./BaselineHouseholdForm.js";
 import {
   formatSite,
@@ -41,6 +42,7 @@ export function HouseholdModule({
   draftId,
   onDataSynced,
   onDraftSaved,
+  onOpenTask,
 }) {
   const { width } = useWindowDimensions();
   const compact = width < 760;
@@ -245,6 +247,22 @@ export function HouseholdModule({
     setSelectedHousehold(household || memberOrHousehold);
     setSelectedMember(memberOrHousehold.individual_id ? memberOrHousehold : null);
     setSelectedHouseholdMembers(members);
+  }
+
+  async function handleDirectPef(member) {
+    try {
+      const result = await createDirectPefTask({ member, household: selectedHousehold });
+      if (!result.task) {
+        setSaveMessage("Direct PEF is not available for this woman yet.");
+        return;
+      }
+      if (onOpenTask) {
+        await onOpenTask(result.task);
+      }
+    } catch (error) {
+      console.error("Could not open direct PEF:", error);
+      setSaveMessage(`Could not open PEF: ${error.message}`);
+    }
   }
 
   function closeHouseholdPanel() {
@@ -484,6 +502,7 @@ export function HouseholdModule({
         selectedMember={selectedMember}
         members={selectedHouseholdMembers}
         onClose={closeHouseholdPanel}
+        onDirectPef={handleDirectPef}
       />
     </View>
   );
@@ -687,7 +706,7 @@ function PaginationBar({ label, page, hasNextPage, onPrevious, onNext }) {
   );
 }
 
-function HouseholdSlideout({ household, selectedMember, members, onClose }) {
+function HouseholdSlideout({ household, selectedMember, members, onClose, onDirectPef }) {
   const { width } = useWindowDimensions();
   const compact = width < 760;
   const [copiedMemberId, setCopiedMemberId] = useState(null);
@@ -783,12 +802,37 @@ function HouseholdSlideout({ household, selectedMember, members, onClose }) {
                 <Text style={styles.memberCardFlag}>
                   {formatMemberFlag(member)}
                 </Text>
+                {Number(member.woman_questionnaire_eligible) === 1 ? (
+                  <DirectPefButton member={member} onPress={onDirectPef} />
+                ) : null}
               </View>
             );
           })}
         </ScrollView>
       </View>
     </View>
+  );
+}
+
+function DirectPefButton({ member, onPress }) {
+  const [available, setAvailable] = useState(false);
+  useEffect(() => {
+    let active = true;
+    getDirectPefEligibility({ member, householdId: member?.household_id })
+      .then((result) => { if (active) setAvailable(Boolean(result?.eligible)); })
+      .catch(() => { if (active) setAvailable(false); });
+    return () => { active = false; };
+  }, [member]);
+
+  if (!available) return null;
+  return (
+    <Pressable
+      accessibilityLabel={`Fill PEF for ${member.member_name || member.individual_id}`}
+      onPress={() => onPress?.(member)}
+      style={styles.directPefButton}
+    >
+      <Text style={styles.directPefButtonText}>Fill PEF</Text>
+    </Pressable>
   );
 }
 
@@ -1515,5 +1559,19 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#475467",
     fontWeight: "800"
+  },
+  directPefButton: {
+    minHeight: 32,
+    paddingHorizontal: 10,
+    justifyContent: "center",
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#0f766e",
+    backgroundColor: "#ecfdf5",
+  },
+  directPefButtonText: {
+    color: "#0f766e",
+    fontSize: 12,
+    fontWeight: "800",
   }
 });

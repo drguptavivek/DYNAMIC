@@ -664,9 +664,16 @@ async function pushRecordBatch({ token, deviceId, formResponses = [], domainEven
   for (const item of uploadErrorItems) {
     markQuestionnaireSubmissionUploadError(item.id, item.message);
     if (duplicateIds.has(item.id)) {
-      taskRepository.markTaskUploadConflict(
-        formResponses.find((response) => response.id === item.id)?.task_id,
-      );
+      const response = formResponses.find((candidate) => candidate.id === item.id);
+      if (String(response?.form_code || "").toUpperCase() === "PEF") {
+        taskRepository.markPefUploadConflict?.({
+          taskId: response?.task_id,
+          householdId: response?.household_id,
+          subjectId: response?.subject_id,
+        });
+      } else {
+        taskRepository.markTaskUploadConflict(response?.task_id);
+      }
     }
   }
   for (const id of syncedIds) {

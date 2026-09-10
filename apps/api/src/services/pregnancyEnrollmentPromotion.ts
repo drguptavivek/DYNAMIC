@@ -53,13 +53,34 @@ export async function promotePef(
       .from(schema.pregnancies)
       .where(eq(schema.pregnancies.household_member_id, subjectId));
 
-    if (pregnancies.length === 0) {
-      throw new Error(`No active pregnancy found for woman ${subjectId}`);
-    }
-
     const activePregnancy =
       pregnancies.find((candidate) => candidate.pregnancy_status === "active") ?? null;
-    const pregnancy = activePregnancy ?? pregnancies[0];
+    let pregnancy = activePregnancy ?? pregnancies[0] ?? null;
+    if (!pregnancy) {
+      const now = new Date();
+      const enrollmentDate =
+        typeof answers.pef_enrollment_date === "string" && answers.pef_enrollment_date
+          ? answers.pef_enrollment_date
+          : (response.created_offline_at ?? now).toISOString().slice(0, 10);
+      const [createdPregnancy] = await getDb()
+        .insert(schema.pregnancies)
+        .values({
+          pregnancy_id: randomUUID(),
+          woman_id: subjectId,
+          household_member_id: subjectId,
+          household_id: householdId,
+          site_id: response.site_id,
+          locality_code: response.locality_code,
+          pregnancy_sequence: 1,
+          pregnancy_status: "active",
+          detected_date: enrollmentDate,
+          detection_source: "pef_direct_contextual_action",
+          created_at: now,
+          updated_at: now,
+        })
+        .returning();
+      pregnancy = createdPregnancy;
+    }
 
     const now = new Date();
     const priorResponses = await getDb()
