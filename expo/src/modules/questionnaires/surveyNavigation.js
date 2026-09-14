@@ -55,6 +55,7 @@ function isAnswerableQuestion(question) {
   const type = question?.getType?.() || question?.type;
   return (
     question?.isVisible !== false &&
+    question?.renderAs !== "background" &&
     !question?.isReadOnly &&
     !question?.readOnly &&
     type !== "html" &&

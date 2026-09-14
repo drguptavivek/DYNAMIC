@@ -5,6 +5,8 @@ export function listTasks(filters = {}) {
   const db = getDb();
   const { status, task_type, locality_code, overdue } = filters;
 
+  deduplicateLocalTasks();
+
   let sql = "SELECT * FROM follow_up_tasks WHERE 1=1";
   const params = [];
 
@@ -49,6 +51,81 @@ const TERMINAL_TASK_STATUSES = [
   "closed_final_reason",
 ];
 const WORKLIST_PAGE_SIZE = 100;
+
+// A target-date correction must not create a second active local task. Visit
+// labels still distinguish legitimate repeated visits (HRF-R1 vs HRF-R2).
+function localSemanticTaskKey(task) {
+  const parts = [
+    String(task?.household_id || "").trim().toLowerCase(),
+    String(task?.subject_type || "").trim().toLowerCase(),
+    String(task?.subject_id || "").trim().toLowerCase(),
+    String(task?.task_type || "").trim().toUpperCase(),
+    String(task?.protocol_visit_label || "").trim().toLowerCase(),
+    String(task?.rules_version || "").trim().toLowerCase(),
+  ];
+  return parts.every(Boolean) ? parts.join("|") : null;
+}
+
+function deduplicateLocalTasks() {
+  const db = getDb();
+  const terminal = ["completed", "missed", "cancelled", "superseded", "closed", "closed_final_reason"];
+  const placeholders = terminal.map(() => "?").join(",");
+  let rows;
+  try {
+    rows = db.getAllSync(
+      `SELECT id, household_id, subject_type, subject_id, task_type,
+              protocol_visit_label, rules_version, target_date, updated_at
+         FROM follow_up_tasks
+        WHERE COALESCE(status, lifecycle_status, 'open') NOT IN (${placeholders})
+          AND COALESCE(lifecycle_status, status, 'open') NOT IN (${placeholders})`,
+      [...terminal, ...terminal],
+    ) || [];
+  } catch (error) {
+    console.error("Error reading local tasks for deduplication:", error);
+    return 0;
+  }
+
+  const groups = new Map();
+  for (const row of rows) {
+    const key = localSemanticTaskKey(row);
+    if (!key) continue;
+    const group = groups.get(key) || [];
+    group.push(row);
+    groups.set(key, group);
+  }
+
+  const duplicateIds = [];
+  for (const group of groups.values()) {
+    if (group.length < 2) continue;
+    group.sort((left, right) =>
+      String(left.target_date || "").localeCompare(String(right.target_date || "")) ||
+      String(right.updated_at || "").localeCompare(String(left.updated_at || "")) ||
+      String(left.id || "").localeCompare(String(right.id || "")),
+    );
+    duplicateIds.push(...group.slice(1).map((row) => row.id).filter(Boolean));
+  }
+  if (duplicateIds.length === 0) return 0;
+
+  const now = new Date().toISOString();
+  try {
+    db.runSync("BEGIN TRANSACTION");
+    for (const id of duplicateIds) {
+      db.runSync(
+        `UPDATE follow_up_tasks
+            SET status = 'superseded', lifecycle_status = 'superseded',
+                closed_reason = 'duplicate_local_task', closed_at = ?, updated_at = ?
+          WHERE id = ?`,
+        [now, now, id],
+      );
+    }
+    db.runSync("COMMIT");
+    return duplicateIds.length;
+  } catch (error) {
+    try { db.runSync("ROLLBACK"); } catch {}
+    console.error("Error deduplicating local tasks:", error);
+    return 0;
+  }
+}
 
 function isTerminalWorklistRow(task) {
   return TERMINAL_TASK_STATUSES.includes(task?.status) ||
@@ -248,6 +325,7 @@ function buildWorklistWhere(filters = {}) {
  */
 export async function listTasksPage(filters = {}) {
   const db = getDb();
+  deduplicateLocalTasks();
   const requestedLimit = Number(filters.limit);
   const limit = Number.isFinite(requestedLimit)
     ? Math.max(1, Math.min(WORKLIST_PAGE_SIZE, Math.trunc(requestedLimit)))

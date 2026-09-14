@@ -28,6 +28,7 @@ const HOUSEHOLD_ID_FIELDS = new Set([
 const HOUSEHOLD_NUMBER_FIELD = "hhq_household_number";
 const OPTIONAL_HHQ_QUESTIONS = new Set([
   "hhq_household_usually_make_water_safe_drink_anything_else",
+  "member_living_since_birth",
 ]);
 const MEMBER_NAME_LABEL_FIELDS = new Set([
   "member_relationship_to_head",
@@ -41,6 +42,7 @@ const MEMBER_NAME_LABEL_FIELDS = new Set([
 ]);
 const MEMBER_RELATIONSHIP_FIELD = "member_relationship_to_head";
 const MEMBER_RESIDENCE_DURATION_FIELD = "member_residence_duration";
+const MEMBER_LIVING_SINCE_BIRTH_FIELD = "member_living_since_birth";
 const MEMBER_AGE_YEARS_FIELD = "member_age_years";
 const HEAD_RELATIONSHIP_VALUE = 1;
 const DUPLICATE_HEAD_MESSAGE = "Only one household member can be marked as Head.";
@@ -393,6 +395,7 @@ function parseFiniteNumber(value) {
 }
 
 function getResidenceYears(member) {
+  if (parseFiniteNumber(member?.[MEMBER_LIVING_SINCE_BIRTH_FIELD]) === 95) return null;
   const duration = member?.[MEMBER_RESIDENCE_DURATION_FIELD];
   if (duration && typeof duration === "object" && !Array.isArray(duration)) {
     return parseFiniteNumber(duration.years);

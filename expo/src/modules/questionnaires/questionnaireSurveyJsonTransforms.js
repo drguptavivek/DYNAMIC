@@ -7,10 +7,12 @@ const HHQ_FORM_CODE = "HHQ";
 const HHQ_SINGLE_MOBILE_NAME = "hhq_contact_mobile";
 const HHQ_MOBILE_LIST_NAME = "hhq_contact_mobile_numbers";
 const HHQ_MOBILE_ROW_NAME = "mobile_number";
+const HHQ_MOBILE_HOLDER_ROW_NAME = "mobile_holder_name";
 const HHQ_HOUSEHOLD_NUMBER_NAME = "hhq_household_number";
 const HHQ_HANDWASHING_PLACE_NAME = "hhq_we_like_learn_about_places_that_households_use";
 const HHQ_HANDWASHING_OBSERVATION_NAME = "hhq_observation_only";
 const HHQ_RESULT_INTERVIEW_NAME = "hhq_result_interview";
+const HHQ_HIGHEST_GRADE_NAME = "member_highest_grade_completed";
 const HHQ_OUTCOME_COMPLETED_VALUE = 1;
 const HHQ_OUTCOME_OTHER_SPECIFY_VALUE = 10;
 const HHQ_OUTCOME_COMPLETED_VISIBLE_IF =
@@ -118,6 +120,53 @@ function applyMandatoryHhqSurveyJson(surveyJson) {
   };
 }
 
+function applyHhqHighestGradeInput(surveyJson) {
+  function visit(elements = []) {
+    return elements.map((element) => {
+      const next = { ...element };
+      if (next.name === HHQ_HIGHEST_GRADE_NAME) {
+        return {
+          ...next,
+          renderAs: "years_with_special_codes",
+          renderingHint: { ...(next.renderingHint || {}), render_as: "years_with_special_codes" },
+          sourceType: "integer_or_special_code",
+          rawText: "What is the highest grade (name) has ever completed? |_|_| years 98 Don't know",
+          choices: (next.choices || []).filter((choice) => [0, 98].includes(Number(choice.value))),
+        };
+      }
+      if (Array.isArray(next.elements)) next.elements = visit(next.elements);
+      if (Array.isArray(next.templateElements)) next.templateElements = visit(next.templateElements);
+      return next;
+    });
+  }
+
+  return {
+    ...surveyJson,
+    pages: surveyJson.pages.map((page) => ({ ...page, elements: visit(page.elements) })),
+  };
+}
+
+// The language is selected by the app language switcher and must be retained
+// in answers, but it is not an interviewer-facing HHQ question.
+function hideQuestionnaireLanguageFields(surveyJson) {
+  function visit(elements = []) {
+    return elements.map((element) => {
+      const next = { ...element };
+      if (/_language_questionnaire$/.test(String(next.name || ""))) {
+        next.renderAs = "background";
+      }
+      if (Array.isArray(next.elements)) next.elements = visit(next.elements);
+      if (Array.isArray(next.templateElements)) next.templateElements = visit(next.templateElements);
+      return next;
+    });
+  }
+
+  return {
+    ...surveyJson,
+    pages: surveyJson.pages.map((page) => ({ ...page, elements: visit(page.elements) })),
+  };
+}
+
 function toMultipleMobilePanel(element) {
   return {
     type: "paneldynamic",
@@ -125,7 +174,7 @@ function toMultipleMobilePanel(element) {
     title: element.title,
     description: {
       ...(typeof element.description === "object" ? element.description : {}),
-      default: "Record one or more mobile numbers for the head of household or an adult household member.",
+      default: "Please enter the mobile number and the mobile number holder name.",
     },
     minPanelCount: 1,
     panelCount: 1,
@@ -135,8 +184,14 @@ function toMultipleMobilePanel(element) {
     templateElements: [
       {
         type: "text",
+        name: HHQ_MOBILE_HOLDER_ROW_NAME,
+        title: "Mobile number holder name",
+        inputType: "text",
+      },
+      {
+        type: "text",
         name: HHQ_MOBILE_ROW_NAME,
-        title: "Mobile number",
+        title: "Please enter the mobile number",
         inputType: "tel",
         validators: element.validators || [],
       },
@@ -481,8 +536,10 @@ export function getPreparedSurveyJson(form) {
 export function prepareQuestionnaireSurveyJson(form) {
   let surveyJson = prepareSurveyJson(form);
   surveyJson = scopeDynamicPanelExpressions(surveyJson);
+  surveyJson = hideQuestionnaireLanguageFields(surveyJson);
   if (isHhqForm(form)) {
     surveyJson = allowMultipleHhqMobileNumbers(surveyJson);
+    surveyJson = applyHhqHighestGradeInput(surveyJson);
     surveyJson = markHhqDatabaseCheck(surveyJson);
     surveyJson = applyHhqOutcomeChoiceVisibility(surveyJson);
     surveyJson = applyMandatoryHhqSurveyJson(surveyJson);

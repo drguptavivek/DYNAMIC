@@ -322,6 +322,32 @@ assert.deepEqual(ageQuestion.errors, [
 ]);
 assert.deepEqual(residenceDurationQuestion.errors, []);
 
+const sinceBirthMember = {
+  member_name: "Born Here",
+  member_living_since_birth: 95,
+  member_residence_duration: { months: 0, years: 0 },
+  member_age_years: 11
+};
+const sinceBirthAgeQuestion = createQuestion("member_age_years", sinceBirthMember);
+const sinceBirthResidenceQuestion = createQuestion("member_residence_duration", sinceBirthMember);
+const sinceBirthModel = createModel(
+  { hhq_household_members: [sinceBirthMember] },
+  [sinceBirthResidenceQuestion, sinceBirthAgeQuestion]
+);
+attachHouseholdSurveyBehaviors(
+  sinceBirthModel,
+  { form_code: "HHQ" },
+  () => {},
+  { findExistingHousehold: async () => null }
+);
+sinceBirthModel.onValueChanged.handlers[0](sinceBirthModel, {
+  name: "member_age_years",
+  value: 11,
+  question: sinceBirthAgeQuestion
+});
+assert.deepEqual(sinceBirthAgeQuestion.errors, []);
+assert.deepEqual(sinceBirthResidenceQuestion.errors, []);
+
 const eligibilityMembers = [
   {
     member_name: "Male Adult",

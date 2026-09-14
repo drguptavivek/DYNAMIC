@@ -1,5 +1,6 @@
 /** Dispatches a supported Survey Core question to its exact native renderer with no fallback. */
 import React from "react";
+import { View } from "react-native";
 
 import { getNativeRendererKind } from "../nativeSurveyModel.js";
 import { areQuestionRendererPropsEqual } from "../questionRenderMemo.js";
@@ -39,60 +40,80 @@ function NativeQuestionRendererBase({
 }) {
   const renderer = getNativeRendererKind(question);
   const props = { answerData, locale, question, onChange };
+  let rendered;
   switch (renderer) {
-    case "calculate": return <CalculateRenderer {...props} />;
-    case "camera": return <CameraRenderer {...props} />;
-    case "date": return <DateRenderer {...props} />;
-    case "db-check": return <DbCheckRenderer {...props} />;
-    case "display": return <DisplayRenderer {...props} />;
-    case "dynamic-panel": return (
-      <DynamicPanelRenderer
+    case "calculate": rendered = <CalculateRenderer {...props} />; break;
+    case "camera": rendered = <CameraRenderer {...props} />; break;
+    case "date": rendered = <DateRenderer {...props} />; break;
+    case "db-check": rendered = <DbCheckRenderer {...props} />; break;
+    case "display": rendered = <DisplayRenderer {...props} />; break;
+    case "dynamic-panel": rendered = (
+        <DynamicPanelRenderer
         {...props}
         onRequestTopLevelFocus={onRequestTopLevelFocus}
         renderQuestion={renderQuestion}
       />
-    );
-    case "file-picker": return <FilePickerRenderer {...props} />;
-    case "gps": return <GpsRenderer {...props} />;
-    case "grouped-coded-single-select": return <GroupedCodedSingleSelectRenderer {...props} />;
-    case "household-member-dropdown": return <HouseholdMemberDropdownRenderer {...props} />;
-    case "instruction": return <InstructionRenderer {...props} />;
-    case "multiple-text": return <MultipleTextRenderer {...props} />;
-    case "note": return <NoteRenderer {...props} />;
-    case "number": return <NumberRenderer {...props} />;
-    case "select-many": return <SelectManyRenderer {...props} />;
-    case "select-one": return <SelectOneRenderer {...props} />;
-    case "text": return <TextRenderer {...props} />;
-    case "wq-pregnancy-gap-review": return (
-      <WqPregnancyGapReviewRenderer
+    ); break;
+    case "file-picker": rendered = <FilePickerRenderer {...props} />; break;
+    case "gps": rendered = <GpsRenderer {...props} />; break;
+    case "grouped-coded-single-select": rendered = <GroupedCodedSingleSelectRenderer {...props} />; break;
+    case "household-member-dropdown": rendered = <HouseholdMemberDropdownRenderer {...props} />; break;
+    case "instruction": rendered = <InstructionRenderer {...props} />; break;
+    case "multiple-text": rendered = <MultipleTextRenderer {...props} />; break;
+    case "note": rendered = <NoteRenderer {...props} />; break;
+    case "number": rendered = <NumberRenderer {...props} />; break;
+    case "select-many": rendered = <SelectManyRenderer {...props} />; break;
+    case "select-one": rendered = <SelectOneRenderer {...props} />; break;
+    case "text": rendered = <TextRenderer {...props} />; break;
+    case "wq-pregnancy-gap-review": rendered = (
+        <WqPregnancyGapReviewRenderer
         {...props}
         onRequestTopLevelFocus={onRequestTopLevelFocus}
       />
-    );
-    case "wq-pregnancy-history-confirmation": return (
-      <WqPregnancyHistoryConfirmationRenderer
+    ); break;
+    case "wq-pregnancy-history-confirmation": rendered = (
+        <WqPregnancyHistoryConfirmationRenderer
         {...props}
         onRequestTopLevelFocus={onRequestTopLevelFocus}
       />
-    );
-    case "wq-pregnancy-outcome-review": return <WqPregnancyOutcomeReviewRenderer {...props} />;
-    case "wq-reproduction-comparison": return (
-      <WqReproductionComparisonRenderer
+    ); break;
+    case "wq-pregnancy-outcome-review": rendered = <WqPregnancyOutcomeReviewRenderer {...props} />; break;
+    case "wq-reproduction-comparison": rendered = (
+        <WqReproductionComparisonRenderer
         {...props}
         onRequestTopLevelFocus={onRequestTopLevelFocus}
       />
-    );
-    case "wq-lmp-timing": return <WqLmpTimingRenderer {...props} />;
-    case "wq-born-alive-child-followups": return (
-      <WqBornAliveChildFollowupsRenderer
+    ); break;
+    case "wq-lmp-timing": rendered = <WqLmpTimingRenderer {...props} />; break;
+    case "wq-born-alive-child-followups": rendered = (
+        <WqBornAliveChildFollowupsRenderer
         {...props}
         onRequestTopLevelFocus={onRequestTopLevelFocus}
         renderQuestion={renderQuestion}
       />
-    );
-    case "wq-pregnancy-since-last": return <WqPregnancySinceLastRenderer {...props} />;
+    ); break;
+    case "wq-pregnancy-since-last": rendered = <WqPregnancySinceLastRenderer {...props} />; break;
     default: throw new Error(`Native renderer registry returned unknown renderer: ${renderer}`);
   }
+
+  // React Native keyboard focus can resize/cover the bottom of the viewport.
+  // Capture focus at the question boundary so every input renderer and every
+  // form gets the same scroll-to-question behavior.
+  let focusTarget = question?.name;
+  let ancestor = question?.parent;
+  while (ancestor) {
+    const ancestorType = ancestor.getType?.() || ancestor.type;
+    if (ancestorType === "paneldynamic" && ancestor.name) {
+      focusTarget = ancestor.name;
+      break;
+    }
+    ancestor = ancestor.parent;
+  }
+  return (
+    <View onFocus={() => onRequestTopLevelFocus?.(focusTarget)}>
+      {rendered}
+    </View>
+  );
 }
 
 export const NativeQuestionRenderer = React.memo(NativeQuestionRendererBase, areQuestionRendererPropsEqual);

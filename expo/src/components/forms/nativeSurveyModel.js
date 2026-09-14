@@ -530,7 +530,7 @@ export function getNativeQuestionValue(question, answerData) {
 
 export function getVisiblePageQuestions(page) {
   return (page?.questions || page?.elements || []).filter(
-    (question) => question?.isVisible !== false
+    (question) => question?.isVisible !== false && question?.renderAs !== "background"
   );
 }
 

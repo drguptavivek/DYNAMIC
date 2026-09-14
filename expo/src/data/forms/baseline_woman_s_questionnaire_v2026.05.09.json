@@ -459,7 +459,7 @@
           "type": "text",
           "name": "wq_woman_mobile",
           "title": {
-            "default": "Mobile phone of woman",
+            "default": "Please enter the mobile number of the woman",
             "hi": "",
             "kn": "",
             "mr": "",
@@ -475,6 +475,26 @@
           "inputType": "text",
           "visibleIf": "{wq_woman_available} = 1 and {wq_consent_study} = 1",
           "visibleIfSourceResolved": "Excel 01: respondent background continues only after woman available and study consent yes."
+        },
+        {
+          "type": "text",
+          "name": "wq_woman_mobile_holder_name",
+          "title": {
+            "default": "Please enter the mobile number holder name",
+            "hi": "",
+            "kn": "",
+            "mr": "",
+            "ta": "",
+            "te": "",
+            "ur": ""
+          },
+          "order": 10,
+          "section_order": 1,
+          "sourceType": "app_capture",
+          "rawText": "Mobile number holder name",
+          "inputType": "text",
+          "visibleIf": "{wq_woman_available} = 1 and {wq_consent_study} = 1",
+          "visibleIfSourceResolved": "Captured with the woman's mobile number."
         },
         {
           "type": "radiogroup",
@@ -1817,7 +1837,7 @@
           "type": "text",
           "name": "wq_husband_partner_mobile",
           "title": {
-            "default": "Mobile phone of husband or partner",
+            "default": "Please enter the mobile number of the husband or partner",
             "hi": "",
             "kn": "",
             "mr": "",
@@ -1833,6 +1853,26 @@
           "inputType": "text",
           "visibleIf": "(({wq_current_marital_status} = 1 or {wq_current_marital_status} = 8)) and ({wq_woman_available} = 1 and {wq_consent_study} = 1)",
           "visibleIfSourceResolved": "Excel 01 row 103: never married stops questionnaire; husband/partner details only for current partner.; Excel 01: respondent background continues only after woman available and study consent yes."
+        },
+        {
+          "type": "text",
+          "name": "wq_husband_partner_mobile_holder_name",
+          "title": {
+            "default": "Please enter the mobile number holder name",
+            "hi": "",
+            "kn": "",
+            "mr": "",
+            "ta": "",
+            "te": "",
+            "ur": ""
+          },
+          "order": 24,
+          "section_order": 1,
+          "sourceType": "app_capture",
+          "rawText": "Mobile number holder name",
+          "inputType": "text",
+          "visibleIf": "(({wq_current_marital_status} = 1 or {wq_current_marital_status} = 8)) and ({wq_woman_available} = 1 and {wq_consent_study} = 1)",
+          "visibleIfSourceResolved": "Captured with the husband or partner mobile number."
         }
       ]
     },

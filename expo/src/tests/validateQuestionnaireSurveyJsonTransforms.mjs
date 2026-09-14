@@ -15,6 +15,10 @@ const hhqPath = path.resolve(
   "../data/forms/baseline_household_questionnaire_v2026.05.09.json"
 );
 const hhq = JSON.parse(fs.readFileSync(hhqPath, "utf8"));
+const wq = JSON.parse(fs.readFileSync(path.resolve(
+  root,
+  "../data/forms/baseline_woman_s_questionnaire_v2026.05.09.json"
+), "utf8"));
 
 function findElementByName(surveyJson, name) {
   const queue = surveyJson.pages.flatMap((page) => page.elements || []);
@@ -28,6 +32,7 @@ function findElementByName(surveyJson, name) {
 }
 
 const surveyJson = prepareQuestionnaireSurveyJson(hhq);
+const wqSurveyJson = prepareQuestionnaireSurveyJson(wq);
 const mobilePanel = findElementByName(surveyJson, "hhq_contact_mobile_numbers");
 const singleMobile = findElementByName(surveyJson, "hhq_contact_mobile");
 const memberMaritalStatus = findElementByName(surveyJson, "member_marital_status");
@@ -65,6 +70,10 @@ const consent = findElementByName(
   "hhq_consent_study_provide_pis_explain_study_adult_member",
 );
 const outcomeResult = findElementByName(surveyJson, "hhq_result_interview");
+const languageQuestion = findElementByName(surveyJson, "hhq_language_questionnaire");
+
+assert.equal(languageQuestion.renderAs, "background");
+assert.equal(findElementByName(wqSurveyJson, "wq_language_questionnaire").renderAs, "background");
 
 assert.equal(singleMobile, null);
 assert.equal(mobilePanel.type, "paneldynamic");
@@ -75,11 +84,13 @@ assert.equal(
   "{hhq_consent_study_provide_pis_explain_study_adult_member} = 1"
 );
 assert.equal(mobilePanel.isRequired, undefined);
-assert.equal(mobilePanel.templateElements.length, 1);
-assert.equal(mobilePanel.templateElements[0].name, "mobile_number");
-assert.equal(mobilePanel.templateElements[0].inputType, "tel");
-assert.equal(mobilePanel.templateElements[0].isRequired, true);
-assert.deepEqual(mobilePanel.templateElements[0].validators, [
+assert.equal(mobilePanel.templateElements.length, 2);
+assert.equal(mobilePanel.templateElements[0].name, "mobile_holder_name");
+assert.equal(mobilePanel.templateElements[0].inputType, "text");
+assert.equal(mobilePanel.templateElements[1].name, "mobile_number");
+assert.equal(mobilePanel.templateElements[1].inputType, "tel");
+assert.equal(mobilePanel.templateElements[1].isRequired, true);
+assert.deepEqual(mobilePanel.templateElements[1].validators, [
   {
     type: "regex",
     regex: "^[0-9]{10}$",
@@ -97,6 +108,8 @@ assert.deepEqual(mobilePanel.templateElements[0].validators, [
 assert.equal(memberMaritalStatus.visibleIf, "{panel.member_age_years} >= 13");
 assert.equal(memberBirthRegistration.visibleIf, "{panel.member_age_years} >= 0 and {panel.member_age_years} <= 4");
 assert.equal(memberEverAttendedSchool.visibleIf, "{panel.member_age_years} >= 5");
+assert.equal(memberHighestGrade.renderAs, "years_with_special_codes");
+assert.deepEqual(memberHighestGrade.choices.map((choice) => choice.value), [0, 98]);
 assert.equal(memberHighestGrade.visibleIf, "{panel.member_ever_attended_school} = 1");
 assert.equal(memberEligibility.readOnly, true);
 assert.equal(drinkingWaterSource.renderAs, "grouped_drinking_water_source");

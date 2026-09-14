@@ -67,6 +67,7 @@ export function extractMemberRows(householdId, hhqData, updatedAt) {
   return (hhqData.hhq_household_members || []).map((member, index) => {
     const lineNumber = Number(member.member_line_number || index + 1);
     const residenceDuration = member.member_residence_duration || {};
+    const livingSinceBirth = Number(member.member_living_since_birth) === 95;
     return {
       individual_id: buildIndividualId(householdId, lineNumber),
       household_id: householdId,
@@ -75,8 +76,8 @@ export function extractMemberRows(householdId, hhqData, updatedAt) {
       relationship_to_head: member.member_relationship_to_head || "",
       sex: member.member_sex || "",
       last_residence_place: member.member_last_residence_place || "",
-      residence_months: residenceDuration.months ?? "",
-      residence_years: residenceDuration.years ?? "",
+      residence_months: livingSinceBirth ? "" : residenceDuration.months ?? "",
+      residence_years: livingSinceBirth ? 95 : residenceDuration.years ?? "",
       age_years: member.member_age_years || "",
       marital_status: member.member_marital_status || "",
       woman_questionnaire_eligible: normalizeWomanQuestionnaireEligible(

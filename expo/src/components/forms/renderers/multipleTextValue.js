@@ -76,10 +76,12 @@ export function getNativeKeyboardType(question) {
   const explicitKeyboard = String(metadataValue(question, "keyboardType") || "").toLowerCase();
   const questionText = searchableQuestionText(question);
 
+  const isMobileHolderName = /holder[_ ]?name/i.test(String(question?.name || ""));
   if (
-    ["phone", "tel", "telephone"].includes(inputType) ||
-    renderAs.includes("phone") ||
-    /\b(phone|mobile|telephone)\b/.test(questionText.replace(/_/g, " "))
+    !isMobileHolderName &&
+    (["phone", "tel", "telephone"].includes(inputType) ||
+      renderAs.includes("phone") ||
+      /\b(phone|mobile|telephone)\b/.test(questionText.replace(/_/g, " ")))
   ) {
     return "phone-pad";
   }

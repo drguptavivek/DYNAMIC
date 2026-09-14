@@ -803,7 +803,7 @@
         {
           "type": "html",
           "name": "hhq_household_schedule_intro",
-          "html": "Now we would like some information about the people who usually live in your household. Please give me the names of the persons who usually live in your household, starting with the head of the household.",
+          "html": "Now we would like some information about the people who usually live in your household or who are staying with you now.",
           "order": 14,
           "section_order": 2,
           "sourceType": "section_note"
@@ -1290,7 +1290,7 @@
               "renderingHint": {
                 "render_as": "numeric_textboxes"
               },
-              "rawText": "Since how long (name) is continuously living here? |_|_| months |_|_| years",
+              "rawText": "Since how long (name) is continuously living here? |_|_| years |_|_| months",
               "validationRulesSource": [
                 "If less than 1 year enter months; if less than 1 month enter 00 months."
               ],
@@ -1301,26 +1301,6 @@
               ],
               "logicResolution": "input_instruction_not_skip_logic",
               "items": [
-                {
-                  "name": "months",
-                  "title": {
-                    "default": "Months",
-                    "hi": "",
-                    "kn": "",
-                    "mr": "",
-                    "ta": "",
-                    "te": "",
-                    "ur": ""
-                  },
-                  "inputType": "number",
-                  "validators": [
-                    {
-                      "type": "numeric",
-                      "minValue": 0,
-                      "maxValue": 11
-                    }
-                  ]
-                },
                 {
                   "name": "years",
                   "title": {
@@ -1340,10 +1320,74 @@
                       "maxValue": 95
                     }
                   ]
+                },
+                {
+                  "name": "months",
+                  "title": {
+                    "default": "Months",
+                    "hi": "",
+                    "kn": "",
+                    "mr": "",
+                    "ta": "",
+                    "te": "",
+                    "ur": ""
+                  },
+                  "inputType": "number",
+                  "validators": [
+                    {
+                      "type": "numeric",
+                      "minValue": 0,
+                      "maxValue": 11
+                    }
+                  ]
                 }
               ],
               "description": {
-                "default": "If less than 1 year enter months; if less than 1 month enter 00 months. Record months and years. If less than 1 year, enter months; if less than 1 month, enter 00 months.",
+                "default": "If less than 1 year enter months; if less than 1 month enter 00 months. Record years and months. If less than 1 year, enter months; if less than 1 month, enter 00 months.",
+                "hi": "",
+                "kn": "",
+                "mr": "",
+                "ta": "",
+                "te": "",
+                "ur": ""
+              }
+            },
+            {
+              "type": "radiogroup",
+              "name": "member_living_since_birth",
+              "title": {
+                "default": "",
+                "hi": "",
+                "kn": "",
+                "mr": "",
+                "ta": "",
+                "te": "",
+                "ur": ""
+              },
+              "order": 7.1,
+              "section_order": 2,
+              "sourceCode": "6_i_living_since_birth",
+              "sourceType": "coded",
+              "renderingHint": {
+                "render_as": "radio"
+              },
+              "rawText": "Living since birth",
+              "choices": [
+                {
+                  "value": 95,
+                  "text": {
+                    "default": "Living since birth",
+                    "hi": "",
+                    "kn": "",
+                    "mr": "",
+                    "ta": "",
+                    "te": "",
+                    "ur": ""
+                  }
+                }
+              ],
+              "description": {
+                "default": "Select this option instead of entering years and months when the member has lived here since birth.",
                 "hi": "",
                 "kn": "",
                 "mr": "",
@@ -1371,13 +1415,13 @@
               "renderingHint": {
                 "render_as": "numeric_textbox"
               },
-              "rawText": "How old is (name's) ? |_|_| years 2-digits Record completed years based on date of last birth or on answer 00 = Age less than one year / 95 = age 95 years or more",
+              "rawText": "How old is (name's) ? |_|_| years",
               "validationRulesSource": [
-                "Record completed years. Enter 00 if less than one year; enter 95 if age is 95 years or more."
+                "If age is less than 1, enter 0. If age is greater than 95, enter 95. Otherwise, enter the age as told by the respondent."
               ],
               "inputType": "number",
               "description": {
-                "default": "2-digits Record completed years based on date of last birth or on answer 00 = Age less than one year / 95 = age 95 years or more",
+                "default": "1) If age < 1, enter 0.\n2) If age is greater than 95, enter 95.\n3) Otherwise, enter the age as told by the respondent.",
                 "hi": "",
                 "kn": "",
                 "mr": "",
@@ -1692,7 +1736,7 @@
               "type": "radiogroup",
               "name": "member_ever_attended_school",
               "title": {
-                "default": "If age 5 or older, has {panel.member_name} ever attended school including online classes?",
+                "default": "Has {panel.member_name} ever attended school including online classes?",
                 "hi": "क्या {panel.member_name} ने कभी स्कूल में पढ़ाई की है, ऑनलाइन कक्षाओं सहित?",
                 "kn": "",
                 "mr": "",
@@ -1707,7 +1751,7 @@
               "renderingHint": {
                 "render_as": "radio"
               },
-              "rawText": "if age 5 or older Has (name) ever attended school including online classes? 1 yes 2 no 8 Don't know Ask only if individual is age 5 or older If answer is 2 (no) - SKIP TO NEXT MODULE",
+              "rawText": "Has (name) ever attended school including online classes? 1 yes 2 no 8 Don't know If answer is 2 (no) - SKIP TO NEXT MODULE",
               "choices": [
                 {
                   "value": 1,
@@ -1753,7 +1797,7 @@
               "visibleIfSourceResolved": "Ask only if individual is age 5 or older Has (name) ever attended school including online classes? 2 no If answer is 2 (no), skip to 12_i 8 Don't know; only if individual is age 5 or older Has (name) ever attended school including online classes? 2 no If answer is 2 (no), skip to 12_i 8 Don't know",
               "logicResolution": "resolved_by_visibleif_or_workflow",
               "description": {
-                "default": "Ask only if individual is age 5 or older If answer is 2 (no) - SKIP TO NEXT MODULE",
+                "default": "If answer is 2 (no) - SKIP TO NEXT MODULE",
                 "hi": "",
                 "kn": "",
                 "mr": "",
@@ -1777,11 +1821,11 @@
               "order": 13,
               "section_order": 2,
               "sourceCode": "12_i",
-              "sourceType": "select_one",
+              "sourceType": "integer_or_special_code",
               "renderingHint": {
-                "render_as": "radio"
+                "render_as": "years_with_special_codes"
               },
-              "rawText": "What is the highest grade (name) has ever completed? 0 Less than one year completed 1 One year completed 2 Two years completed 3 3 Years completed … 95 Pre-Primary 98 Don't know Training - refer to NFHS-6 Manual",
+              "rawText": "What is the highest grade (name) has ever completed? |_|_| years 0 Less than one year completed 98 Don't know Training - refer to NFHS-6 Manual",
               "choices": [
                 {
                   "value": 0,
@@ -2147,7 +2191,7 @@
           "addPanelText": "Add household member",
           "removePanelText": "Remove household member",
           "description": {
-            "default": "Now we would like some information about the people who usually live in your household. Please give the names of persons who usually live in your household, starting with the head of the household.",
+            "default": "Now we would like some information about the people who usually live in your household or who are staying with you now.",
             "hi": "",
             "kn": "",
             "mr": "",
