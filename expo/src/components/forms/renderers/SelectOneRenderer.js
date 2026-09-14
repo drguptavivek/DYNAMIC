@@ -41,7 +41,7 @@ export function SelectOneRenderer({ answerData, locale, question, onChange }) {
       pendingValueRef.current = null;
       setSelectedValue(getNativeQuestionValue(question, answerData));
     },
-    [answerData, disabled, onChange, question]
+    [allowYearsOverrideSpecialCodes, answerData, disabled, onChange, question]
   );
 
   const commitYears = useCallback(
@@ -53,6 +53,9 @@ export function SelectOneRenderer({ answerData, locale, question, onChange }) {
       const wrote = setNativeQuestionValue(question, nextValue);
       if (wrote) {
         question.validate?.();
+        if (allowYearsOverrideSpecialCodes && nextValue !== "") {
+          clearRequiredValidationError(question);
+        }
         onChange?.();
         return;
       }
@@ -115,6 +118,18 @@ export function SelectOneRenderer({ answerData, locale, question, onChange }) {
       </View>
     </QuestionFrame>
   );
+}
+
+function clearRequiredValidationError(question) {
+  if (!Array.isArray(question?.errors) || question.errors.length === 0) return;
+  question.errors = question.errors.filter((error) => {
+    const text = typeof error === "string"
+      ? error
+      : typeof error?.getText === "function"
+        ? error.getText()
+        : error?.text || String(error || "");
+    return !/response\s+required|required\s+response/i.test(String(text));
+  });
 }
 
 const styles = StyleSheet.create({
