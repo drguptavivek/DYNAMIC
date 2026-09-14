@@ -110,7 +110,12 @@ function NativeQuestionRendererBase({
     ancestor = ancestor.parent;
   }
   return (
-    <View onFocus={() => onRequestTopLevelFocus?.(focusTarget)}>
+    <View
+      // Use capture as well as bubbling: some Android TextInput versions do
+      // not consistently bubble focus through nested native controls.
+      onFocusCapture={() => onRequestTopLevelFocus?.(focusTarget)}
+      onFocus={() => onRequestTopLevelFocus?.(focusTarget)}
+    >
       {rendered}
     </View>
   );

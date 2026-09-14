@@ -61,6 +61,9 @@ export function SelectOneRenderer({ answerData, locale, question, onChange }) {
 
   const choices = useMemo(() => getNativeQuestionChoices(question, locale), [question, locale]);
   const choiceValues = useMemo(() => choices.map((choice) => String(choice.value)), [choices]);
+  const specialChoiceSelected =
+    usesYearsEntry && selectedValue !== undefined && choiceValues.includes(String(selectedValue));
+  const yearInputDisabled = disabled || specialChoiceSelected;
   const yearsValue =
     usesYearsEntry && selectedValue !== undefined && !choiceValues.includes(String(selectedValue))
       ? String(selectedValue)
@@ -72,7 +75,7 @@ export function SelectOneRenderer({ answerData, locale, question, onChange }) {
         <View style={styles.yearsRow}>
           <TextInput
             accessibilityLabel="Entry"
-            editable={!disabled}
+            editable={!yearInputDisabled}
             keyboardType="number-pad"
             maxLength={2}
             onChangeText={commitYears}
@@ -80,7 +83,7 @@ export function SelectOneRenderer({ answerData, locale, question, onChange }) {
               if (yearsValue.length === 1) commitYears(yearsValue.padStart(2, "0"));
             }}
             placeholder="00"
-            style={[controlStyles.input, styles.yearsInput, disabled && controlStyles.readOnly]}
+            style={[controlStyles.input, styles.yearsInput, yearInputDisabled && controlStyles.readOnly]}
             value={yearsValue}
           />
           <Text style={styles.yearsLabel}>

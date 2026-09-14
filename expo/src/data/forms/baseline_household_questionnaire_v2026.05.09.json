@@ -1300,6 +1300,21 @@
                 }
               ],
               "logicResolution": "input_instruction_not_skip_logic",
+              "specialChoices": [
+                {
+                  "name": "member_living_since_birth",
+                  "value": 95,
+                  "text": {
+                    "default": "Living since birth",
+                    "hi": "",
+                    "kn": "",
+                    "mr": "",
+                    "ta": "",
+                    "te": "",
+                    "ur": ""
+                  }
+                }
+              ],
               "items": [
                 {
                   "name": "years",
@@ -1364,7 +1379,8 @@
                 "te": "",
                 "ur": ""
               },
-              "order": 7.1,
+              "renderAs": "background",
+              "order": 7,
               "section_order": 2,
               "sourceCode": "6_i_living_since_birth",
               "sourceType": "coded",

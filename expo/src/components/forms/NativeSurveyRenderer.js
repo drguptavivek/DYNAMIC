@@ -2,7 +2,7 @@
  * Renders the active Survey Core page using only native controls and explicit section navigation.
  */
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { Keyboard, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
 import {
@@ -34,6 +34,7 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
   const compact = Platform.OS !== "web" || width < 700;
   const [revision, setRevision] = useState(0);
   const [questionIndex, setQuestionIndex] = useState(0);
+  const [keyboardInset, setKeyboardInset] = useState(0);
   const compactScrollRef = useRef(null);
   const desktopScrollRef = useRef(null);
   const questionsOffsetRef = useRef(0);
@@ -41,6 +42,8 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
   const questionsContainerRef = useRef(null);
   const questionRowRefsRef = useRef(new Map());
   const refreshFrameRef = useRef(null);
+  const focusedQuestionRef = useRef(null);
+  const keyboardScrollTimersRef = useRef([]);
   const scrollToTop = useCallback(() => {
     compactScrollRef.current?.scrollTo?.({ animated: false, y: 0 });
     desktopScrollRef.current?.scrollTo?.({ animated: false, y: 0 });
@@ -70,6 +73,8 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
       cancelAnimationFrame(refreshFrameRef.current);
       refreshFrameRef.current = null;
     }
+    keyboardScrollTimersRef.current.forEach((timer) => clearTimeout(timer));
+    keyboardScrollTimersRef.current = [];
   }, []);
 
   if (unsupported.length) {
@@ -130,11 +135,42 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
   ), [refresh]);
 
   const scrollToQuestionByName = useCallback((name) => {
+    focusedQuestionRef.current = name;
     const target = getVisiblePageQuestions(pageRef.current).find((item) => item.name === name);
     if (!target) return false;
-    scrollToQuestionRef.current?.(target);
+    scrollToQuestionRef.current?.(target, { revealInput: true });
     return true;
   }, []);
+
+  // Android reports focus before the keyboard has finished opening. A single
+  // scroll at that point is calculated against the old viewport and the
+  // bottom text/number field can still be hidden by the keyboard. Re-apply
+  // the question scroll after the keyboard frame and its final layout settle.
+  useEffect(() => {
+    const rescheduleFocusedQuestion = () => {
+      const name = focusedQuestionRef.current;
+      if (!name) return;
+      keyboardScrollTimersRef.current.forEach((timer) => clearTimeout(timer));
+      keyboardScrollTimersRef.current = [80, 220, 500].map((delay) => setTimeout(() => {
+        scrollToQuestionByName(name);
+      }, delay));
+    };
+    const updateKeyboardInset = (event) => {
+      const height = Number(event?.endCoordinates?.height);
+      setKeyboardInset(Number.isFinite(height) ? Math.max(0, height) : 0);
+      rescheduleFocusedQuestion();
+    };
+    const subscriptions = [
+      Keyboard.addListener("keyboardDidShow", updateKeyboardInset),
+      Keyboard.addListener("keyboardDidChangeFrame", updateKeyboardInset),
+      Keyboard.addListener("keyboardDidHide", () => setKeyboardInset(0)),
+    ];
+    return () => {
+      subscriptions.forEach((subscription) => subscription.remove());
+      keyboardScrollTimersRef.current.forEach((timer) => clearTimeout(timer));
+      keyboardScrollTimersRef.current = [];
+    };
+  }, [scrollToQuestionByName]);
 
   const renderTopLevelQuestion = useCallback((question) => (
     <View
@@ -152,7 +188,7 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
     </View>
   ), [renderQuestion]);
 
-  function scrollToQuestion(question) {
+  function scrollToQuestion(question, options = {}) {
     if (!question) return;
     // Re-read visibility at call time: answer-driven skips (WQ Section 2
     // Q1 "no" -> Q6) fire before the refresh re-render, so a closure over
@@ -179,7 +215,14 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
         const cachedY = questionOffsetsRef.current.get(question.name);
         const scrollY = (y) => compactScrollRef.current?.scrollTo?.({
           animated: true,
-          y: Math.max(0, questionsOffsetRef.current + (Number.isFinite(y) ? y : 0) - 8),
+          // Focused inputs need only a small lift so the user keeps their
+          // place in the questionnaire. Validation/navigation calls retain
+          // the original top-of-question behavior.
+          y: Math.max(
+            0,
+            questionsOffsetRef.current + (Number.isFinite(y) ? y : 0) -
+              (options.revealInput ? 80 : 8)
+          ),
         });
         const row = questionRowRefsRef.current.get(question.name);
         if (row?.measureLayout && questionsContainerRef.current) {
@@ -315,7 +358,7 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
       {compact ? (
         <ScrollView
           ref={compactScrollRef}
-          contentContainerStyle={styles.compactContent}
+          contentContainerStyle={[styles.compactContent, keyboardInset > 0 && { paddingBottom: keyboardInset + 22 }]}
           keyboardShouldPersistTaps="always"
         >
           {compactListHeader}
@@ -326,7 +369,11 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
           {sections.length ? <SectionNavigator sections={sections} onSelect={onSectionSelect} /> : null}
           {notice ? <Text style={styles.notice}>{notice}</Text> : null}
           {pageHeader}
-          <ScrollView ref={desktopScrollRef} keyboardShouldPersistTaps="always" contentContainerStyle={styles.questions}>
+          <ScrollView
+            ref={desktopScrollRef}
+            keyboardShouldPersistTaps="always"
+            contentContainerStyle={[styles.questions, keyboardInset > 0 && { paddingBottom: keyboardInset + 24 }]}
+          >
             {visibleQuestions.map((question) => renderTopLevelQuestion(question))}
           </ScrollView>
         </>

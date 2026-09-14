@@ -39,14 +39,29 @@ export function MultipleTextRenderer({ answerData, locale, question, onChange })
     : answerData && Object.prototype.hasOwnProperty.call(answerData, question.name)
       ? answerData[question.name]
       : null;
+  const specialChoice = (question.specialChoices || question.jsonObj?.specialChoices || [])[0];
+  const specialQuestion = specialChoice?.name
+    ? question.parent?.getQuestionByName?.(specialChoice.name)
+    : null;
+  const specialSelected = specialQuestion && String(specialQuestion.value) === String(specialChoice.value);
+  const selectSpecialChoice = () => {
+    if (!specialQuestion || question.isReadOnly) return;
+    const nextValue = specialSelected ? undefined : specialChoice.value;
+    setNativeQuestionValue(specialQuestion, nextValue);
+    // Keep Q6_i as one coherent answer for required validation. The special
+    // value is stored in the dedicated background field, not in the years box.
+    setNativeQuestionValue(question, specialSelected ? undefined : { living_since_birth: specialChoice.value });
+    onChange?.();
+  };
   return (
     <QuestionFrame locale={locale} question={question}>
       <View style={styles.items}>
         {(question.items || []).map((item) => {
           const unknownChoice = item.unknownChoice || item.jsonObj?.unknownChoice;
           const unknownValue = unknownChoice?.value;
-          const itemValue =
-            answerValue && Object.prototype.hasOwnProperty.call(answerValue, item.name)
+          const itemValue = specialSelected
+            ? undefined
+            : answerValue && Object.prototype.hasOwnProperty.call(answerValue, item.name)
               ? answerValue[item.name]
               : item.value;
           const unknownSelected =
@@ -75,6 +90,7 @@ export function MultipleTextRenderer({ answerData, locale, question, onChange })
                 itemValue={itemValue}
                 question={question}
                 unknownSelected={unknownSelected}
+                specialSelected={specialSelected}
                 onCommit={commitItemValue}
                 onChange={onChange}
               />
@@ -104,6 +120,19 @@ export function MultipleTextRenderer({ answerData, locale, question, onChange })
             </View>
           );
         })}
+        {specialChoice ? (
+          <TouchableOpacity
+            accessibilityRole="radio"
+            accessibilityState={{ selected: specialSelected, disabled: question.isReadOnly }}
+            activeOpacity={0.82}
+            disabled={question.isReadOnly}
+            onPress={selectSpecialChoice}
+            style={[controlStyles.option, styles.unknownOption, specialSelected && controlStyles.optionSelected]}
+          >
+            <View style={[controlStyles.optionMark, specialSelected && controlStyles.optionMarkSelected]} />
+            <Text style={controlStyles.optionText}>{localizedItemText(specialChoice.text, locale)}</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
     </QuestionFrame>
   );
@@ -227,7 +256,7 @@ function PregnancyDurationInput({ answerData, locale, onChange, question }) {
   );
 }
 
-function MultipleTextItemInput({ item, itemValue, question, unknownSelected, onCommit, onChange }) {
+function MultipleTextItemInput({ item, itemValue, question, unknownSelected, specialSelected, onCommit, onChange }) {
   const externalText =
     itemValue === undefined || itemValue === null || unknownSelected ? "" : String(itemValue);
   const [textValue, setTextValue] = useState(externalText);
@@ -241,7 +270,7 @@ function MultipleTextItemInput({ item, itemValue, question, unknownSelected, onC
     <TextInput
       accessibilityLabel={`${question.name}.${item.name}`}
       value={textValue}
-      editable={!question.isReadOnly && !unknownSelected}
+                editable={!question.isReadOnly && !unknownSelected && !specialSelected}
       keyboardType={keyboardType}
       maxLength={item.maxLength > 0 ? item.maxLength : item.jsonObj?.maxLength}
       placeholder={unknownSelected ? "" : item.placeholder}
@@ -257,7 +286,7 @@ function MultipleTextItemInput({ item, itemValue, question, unknownSelected, onC
       }}
       style={[
         controlStyles.input,
-        (question.isReadOnly || unknownSelected) && controlStyles.readOnly,
+                (question.isReadOnly || unknownSelected || specialSelected) && controlStyles.readOnly,
         unknownSelected && styles.unknownSelectedInput,
       ]}
     />

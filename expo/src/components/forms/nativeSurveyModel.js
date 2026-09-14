@@ -541,6 +541,18 @@ function isEmptyNativeQuestionValue(value) {
   return false;
 }
 
+function clearStaleRequiredError(question) {
+  if (!Array.isArray(question?.errors) || question.errors.length === 0) return;
+  question.errors = question.errors.filter((error) => {
+    const text = typeof error === "string"
+      ? error
+      : typeof error?.getText === "function"
+        ? error.getText()
+        : error?.text || String(error || "");
+    return !/response\s+required|required\s+response/i.test(String(text));
+  });
+}
+
 /**
  * True when the question blocks section navigation: its own errors, a required-but-empty
  * answer, multipletext item errors (stored on the item editor), or any repeat-panel row.
@@ -569,6 +581,7 @@ export function setNativeQuestionValue(question, value) {
       : value === ""
         ? undefined
         : value;
+  const hasAnswer = !isEmptyNativeQuestionValue(normalizedValue);
 
   const parentType = question.parent?.getType?.() || question.parent?.type;
   if (parentType !== "panel") {
@@ -579,14 +592,17 @@ export function setNativeQuestionValue(question, value) {
       question.data.setValue(question.name, normalizedValue);
     }
     question.value = normalizedValue;
+    if (hasAnswer) clearStaleRequiredError(question);
     return true;
   }
 
   if (question.getType?.() === "text" && question.inputType === "number") {
     question.value = normalizedValue;
+    if (hasAnswer) clearStaleRequiredError(question);
     return true;
   }
   question.value = normalizedValue;
+  if (hasAnswer) clearStaleRequiredError(question);
   return true;
 }
 
