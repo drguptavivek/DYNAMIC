@@ -286,11 +286,19 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
       return;
     }
     const currentPage = model.currentPage;
+    const pageQuestions = getVisiblePageQuestions(currentPage);
+    pageQuestions.forEach(validateNativeQuestionTree);
+    refresh();
+    const firstQuestionWithError = pageQuestions.find(hasNativeValidationProblem);
+    if (firstQuestionWithError) {
+      scrollToQuestion(firstQuestionWithError, { revealInput: true });
+      await onSaveDraft?.({ silent: true, reason: "next" });
+      return;
+    }
     model.nextPage();
     refresh();
     if (model.currentPage === currentPage) {
-      const firstQuestionWithError = getVisiblePageQuestions(currentPage).find(hasNativeValidationProblem);
-      scrollToQuestion(firstQuestionWithError);
+      scrollToQuestion(firstQuestionWithError, { revealInput: true });
     } else {
       scrollToTop();
     }
@@ -422,6 +430,18 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
     </View>
   );
 });
+
+function validateNativeQuestionTree(question) {
+  if (!question) return true;
+  question.validate?.();
+  if (question.getType?.() !== "paneldynamic") return true;
+  for (const panel of question.panels || []) {
+    for (const panelQuestion of panel.questions || []) {
+      validateNativeQuestionTree(panelQuestion);
+    }
+  }
+  return true;
+}
 
 const styles = StyleSheet.create({
   wrap: { flex: 1, gap: 10 },

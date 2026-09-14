@@ -30,7 +30,12 @@ function isRenderablePanelQuestion(child, multipleBirth) {
   // Background fields remain in the panel data for promotion/sync but must
   // never render as an extra interviewer-facing question. BHQ Q6_i uses this
   // for the stored living-since-birth code, which is rendered inside Q6_i.
-  if (child?.renderAs === "background") return false;
+  if (
+    child?.renderAs === "background" ||
+    child?.jsonObj?.renderAs === "background" ||
+    child?.name === "member_living_since_birth" ||
+    child?.sourceCode === "6_i_living_since_birth"
+  ) return false;
   if (isNativeInternalPanelField(child?.name)) return false;
   return shouldShowWqPregnancyHistoryQuestion(child, multipleBirth);
 }

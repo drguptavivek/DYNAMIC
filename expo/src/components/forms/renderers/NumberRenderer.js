@@ -1,6 +1,6 @@
 /** Renders and normalizes a numeric Survey Core question using a native text input. */
-import React from "react";
-import { TextInput } from "react-native";
+import React, { useRef } from "react";
+import { Alert, TextInput } from "react-native";
 
 import { getNativeQuestionValue, setNativeQuestionValue } from "../nativeSurveyModel.js";
 import { QuestionFrame, controlStyles } from "./QuestionFrame.js";
@@ -30,6 +30,24 @@ function setQuestionValue(question, value) {
 export function NumberRenderer({ answerData, locale, question, onChange }) {
   const value = getNativeQuestionValue(question, answerData);
   const keyboardType = getNativeKeyboardType(question);
+  const lastPromptedValueRef = useRef("");
+  const isMobileNumber =
+    /mobile|telephone|phone/i.test(String(question?.name || "")) &&
+    !/holder[_ ]?name/i.test(String(question?.name || ""));
+
+  function confirmMobileNumber(candidateValue) {
+    const enteredValue = String(
+      candidateValue ?? getNativeQuestionValue(question, answerData) ?? ""
+    ).trim();
+    if (!isMobileNumber || !enteredValue || enteredValue === lastPromptedValueRef.current) return;
+    lastPromptedValueRef.current = enteredValue;
+    Alert.alert(
+      "Confirm mobile number",
+      "Read this mobile number to the Respondent and confirm whether the number is correct or not.",
+      [{ text: "Yes" }, { text: "No" }],
+    );
+  }
+
   return (
     <QuestionFrame locale={locale} question={question}>
       <TextInput
@@ -42,9 +60,13 @@ export function NumberRenderer({ answerData, locale, question, onChange }) {
           const sanitized = sanitizeNativeInputValue(value, keyboardType);
           setQuestionValue(question, sanitized);
         }}
-        onBlur={() => {
+        onEndEditing={(event) => {
+          confirmMobileNumber(event?.nativeEvent?.text);
+        }}
+        onBlur={(event) => {
           validateRegexQuestion(question);
           onChange?.();
+          confirmMobileNumber(event?.nativeEvent?.text);
         }}
         style={[controlStyles.input, question.isReadOnly && controlStyles.readOnly]}
       />
