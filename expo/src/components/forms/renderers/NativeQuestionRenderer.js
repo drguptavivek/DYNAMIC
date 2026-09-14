@@ -100,21 +100,33 @@ function NativeQuestionRendererBase({
   // Capture focus at the question boundary so every input renderer and every
   // form gets the same scroll-to-question behavior.
   let focusTarget = question?.name;
+  let isPanelChild = false;
   let ancestor = question?.parent;
   while (ancestor) {
     const ancestorType = ancestor.getType?.() || ancestor.type;
     if (ancestorType === "paneldynamic" && ancestor.name) {
       focusTarget = ancestor.name;
+      isPanelChild = true;
       break;
     }
     ancestor = ancestor.parent;
   }
+  // A dynamic-panel child (for example a BHQ Section 2 member field) lives
+  // inside the editor that is already visible. Scrolling the page to the
+  // panel's top on every focus makes Android jump away from the field the
+  // user tapped. Let the keyboard/inset handling keep the active field visible
+  // instead of issuing a top-level scroll request for nested panel fields.
+  const shouldRequestTopLevelFocus = renderer !== "dynamic-panel" && !isPanelChild;
   return (
     <View
       // Use capture as well as bubbling: some Android TextInput versions do
       // not consistently bubble focus through nested native controls.
-      onFocusCapture={() => onRequestTopLevelFocus?.(focusTarget)}
-      onFocus={() => onRequestTopLevelFocus?.(focusTarget)}
+      onFocusCapture={shouldRequestTopLevelFocus
+        ? () => onRequestTopLevelFocus?.(focusTarget)
+        : undefined}
+      onFocus={shouldRequestTopLevelFocus
+        ? () => onRequestTopLevelFocus?.(focusTarget)
+        : undefined}
     >
       {rendered}
     </View>

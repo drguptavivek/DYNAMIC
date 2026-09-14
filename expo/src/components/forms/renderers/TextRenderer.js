@@ -15,8 +15,10 @@ export function TextRenderer({ answerData, locale, question, onChange }) {
     /mobile|telephone|phone/i.test(String(question?.name || "")) &&
     !/holder[_ ]?name/i.test(String(question?.name || ""));
 
-  function confirmMobileNumber() {
-    const enteredValue = String(getNativeQuestionValue(question) || "").trim();
+  function confirmMobileNumber(candidateValue) {
+    const enteredValue = String(
+      candidateValue ?? getNativeQuestionValue(question, answerData) ?? ""
+    ).trim();
     if (!isMobileNumber || !enteredValue || enteredValue === lastPromptedValueRef.current) return;
     lastPromptedValueRef.current = enteredValue;
     Alert.alert(
@@ -37,10 +39,15 @@ export function TextRenderer({ answerData, locale, question, onChange }) {
         onChangeText={(value) => {
           setNativeQuestionValue(question, value);
         }}
-        onBlur={() => {
+        onEndEditing={(event) => {
+          // Android may emit endEditing with the latest text before the
+          // question model has re-rendered. Use the native event value.
+          confirmMobileNumber(event?.nativeEvent?.text);
+        }}
+        onBlur={(event) => {
           validateRegexQuestion(question);
           onChange?.();
-          confirmMobileNumber();
+          confirmMobileNumber(event?.nativeEvent?.text);
         }}
         style={[controlStyles.input, question.isReadOnly && controlStyles.readOnly]}
       />

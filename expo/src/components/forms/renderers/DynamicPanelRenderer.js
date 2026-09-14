@@ -27,6 +27,10 @@ import { controlStyles } from "./QuestionFrame.js";
 
 function isRenderablePanelQuestion(child, multipleBirth) {
   if (child?.visible === false || child?.isVisible === false) return false;
+  // Background fields remain in the panel data for promotion/sync but must
+  // never render as an extra interviewer-facing question. BHQ Q6_i uses this
+  // for the stored living-since-birth code, which is rendered inside Q6_i.
+  if (child?.renderAs === "background") return false;
   if (isNativeInternalPanelField(child?.name)) return false;
   return shouldShowWqPregnancyHistoryQuestion(child, multipleBirth);
 }
