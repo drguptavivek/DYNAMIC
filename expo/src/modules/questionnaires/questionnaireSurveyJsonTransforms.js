@@ -128,6 +128,7 @@ function applyHhqHighestGradeInput(surveyJson) {
         return {
           ...next,
           renderAs: "years_with_special_codes",
+          allowYearsOverrideSpecialCodes: true,
           renderingHint: { ...(next.renderingHint || {}), render_as: "years_with_special_codes" },
           sourceType: "integer_or_special_code",
           rawText: "What is the highest grade (name) has ever completed? |_|_| years 98 Don't know",

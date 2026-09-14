@@ -63,6 +63,9 @@ export function NumberRenderer({ answerData, locale, question, onChange }) {
         onEndEditing={(event) => {
           confirmMobileNumber(event?.nativeEvent?.text);
         }}
+        onSubmitEditing={(event) => {
+          confirmMobileNumber(event?.nativeEvent?.text);
+        }}
         onBlur={(event) => {
           validateRegexQuestion(question);
           onChange?.();

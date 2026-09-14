@@ -44,6 +44,9 @@ export function TextRenderer({ answerData, locale, question, onChange }) {
           // question model has re-rendered. Use the native event value.
           confirmMobileNumber(event?.nativeEvent?.text);
         }}
+        onSubmitEditing={(event) => {
+          confirmMobileNumber(event?.nativeEvent?.text);
+        }}
         onBlur={(event) => {
           validateRegexQuestion(question);
           onChange?.();

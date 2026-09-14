@@ -39,7 +39,15 @@ export function MultipleTextRenderer({ answerData, locale, question, onChange })
     : answerData && Object.prototype.hasOwnProperty.call(answerData, question.name)
       ? answerData[question.name]
       : null;
-  const specialChoice = (question.specialChoices || question.jsonObj?.specialChoices || [])[0];
+  const specialChoice =
+    (question.specialChoices || question.jsonObj?.specialChoices || [])[0] ||
+    (question.name === "member_residence_duration"
+      ? {
+          name: "member_living_since_birth",
+          value: 95,
+          text: { default: "Living since birth" },
+        }
+      : null);
   const specialQuestion = specialChoice?.name
     ? question.parent?.getQuestionByName?.(specialChoice.name)
     : null;

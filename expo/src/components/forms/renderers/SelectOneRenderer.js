@@ -12,6 +12,9 @@ export function SelectOneRenderer({ answerData, locale, question, onChange }) {
   const disabled = question?.readOnly === true;
   const usesYearsEntry =
     question?.renderAs === "years_with_special_codes" || question?.renderAs === "days_with_special_codes";
+  const allowYearsOverrideSpecialCodes =
+    question?.allowYearsOverrideSpecialCodes === true ||
+    question?.jsonObj?.allowYearsOverrideSpecialCodes === true;
 
   useEffect(() => {
     if (
@@ -63,7 +66,7 @@ export function SelectOneRenderer({ answerData, locale, question, onChange }) {
   const choiceValues = useMemo(() => choices.map((choice) => String(choice.value)), [choices]);
   const specialChoiceSelected =
     usesYearsEntry && selectedValue !== undefined && choiceValues.includes(String(selectedValue));
-  const yearInputDisabled = disabled || specialChoiceSelected;
+  const yearInputDisabled = disabled || (specialChoiceSelected && !allowYearsOverrideSpecialCodes);
   const yearsValue =
     usesYearsEntry && selectedValue !== undefined && !choiceValues.includes(String(selectedValue))
       ? String(selectedValue)
