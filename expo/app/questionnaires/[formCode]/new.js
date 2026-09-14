@@ -4,7 +4,7 @@ import { useLocalSearchParams } from "expo-router";
 import { QuestionnaireRouteScreen } from "../../../src/shell/QuestionnaireRouteScreen.js";
 
 export default function NewQuestionnaireRoute() {
-  const { formCode, taskId, draftId, openKey, testMode } = useLocalSearchParams();
+  const { formCode, taskId, draftId, openKey } = useLocalSearchParams();
   return (
     <QuestionnaireRouteScreen
       draftId={draftId}
@@ -12,7 +12,6 @@ export default function NewQuestionnaireRoute() {
       mode="new"
       openKey={openKey}
       taskId={taskId}
-      testMode={testMode}
     />
   );
 }

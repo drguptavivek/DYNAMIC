@@ -12,7 +12,6 @@ export const FIELD_APP_ROUTES = {
   householdMembersForHousehold: (householdId) =>
     `/household-members/${encodeURIComponent(householdId)}`,
   profile: "/profile",
-  testForms: "/test-forms",
   questionnaire: (formCode) => `/questionnaires/${encodeURIComponent(formCode)}`,
   questionnaireNew: (formCode) => `/questionnaires/${encodeURIComponent(formCode)}/new`,
 };
@@ -36,7 +35,6 @@ export const SHELL_NAV_ITEMS = [
     route: FIELD_APP_ROUTES.householdMembers,
   },
   { id: "profile", label: "Profile", route: FIELD_APP_ROUTES.profile },
-  { id: "testForms", label: "Test HRF/PSF (Temporary)", route: FIELD_APP_ROUTES.testForms },
 ];
 
 export function getRouteForTaskForm(task) {

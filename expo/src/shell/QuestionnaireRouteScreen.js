@@ -22,29 +22,20 @@ function resolveRouteTask(taskId) {
   return getTask(normalizedTaskId);
 }
 
-export function QuestionnaireRouteScreen({ draftId, formCode, mode, openKey, taskId, testMode }) {
+export function QuestionnaireRouteScreen({ draftId, formCode, mode, openKey, taskId }) {
   const app = useFieldApp();
   const normalizedFormCode = String(formCode || "").toUpperCase();
   const form = useMemo(() => getRuntimeFormByCode(normalizedFormCode), [normalizedFormCode]);
   const route = { view: "questionnaire", formCode: normalizedFormCode, mode };
   const title = getFormDisplayCode(normalizedFormCode) || "Questionnaire";
   const isEntryRoute = mode === "new";
-  const isTemporaryTestForm = String(testMode || "") === "1" && ["HRF", "PSF"].includes(normalizedFormCode);
   const normalizedTaskId = normalizeSearchParam(taskId);
   const routeTaskContext = useMemo(() => resolveRouteTask(normalizedTaskId), [normalizedTaskId]);
   const taskContext =
     normalizedTaskId && app.currentTaskContext?.id !== normalizedTaskId
       ? routeTaskContext || app.currentTaskContext
       : app.currentTaskContext || routeTaskContext;
-  const effectiveTaskContext = isTemporaryTestForm
-    ? taskContext || {
-        id: `temporary-${normalizedFormCode.toLowerCase()}-test`,
-        task_type: normalizedFormCode,
-        subject_type: normalizedFormCode === "HRF" ? "household" : "person",
-        generation_source: "test",
-      }
-    : taskContext;
-  const hasValidTaskContext = Boolean(effectiveTaskContext?.id);
+  const hasValidTaskContext = Boolean(taskContext?.id);
   const isHhqHouseholdEntry = normalizedFormCode === "HHQ";
 
   if (!form) {
@@ -85,7 +76,7 @@ export function QuestionnaireRouteScreen({ draftId, formCode, mode, openKey, tas
           user={app.user}
           localities={app.localities}
           selectedLocalityCode={app.selectedLocalityCode}
-          taskContext={effectiveTaskContext}
+          taskContext={taskContext}
           draftId={normalizeSearchParam(draftId)}
           onDataSynced={app.refreshLocalities}
           onDraftSaved={app.notifyTaskWorklistChanged}
@@ -102,7 +93,7 @@ export function QuestionnaireRouteScreen({ draftId, formCode, mode, openKey, tas
         locale={app.locale}
         mode={mode}
         onLocaleChange={app.setLocale}
-        taskContext={effectiveTaskContext}
+        taskContext={taskContext}
         prefillData={app.prefillData}
         readOnlyFields={app.readOnlyFields}
         user={app.user}
