@@ -15,8 +15,10 @@ const {
   getNativeRendererKind,
   getWqPregnancyDurationSummary,
   getVisiblePageQuestions,
+  hasNativeValidationProblem,
   isNativeInternalPanelField,
   setNativeQuestionValue,
+  validateNativeQuestionTree,
 } = await import("../components/forms/nativeSurveyModel.js");
 const { prepareQuestionnaireSurveyJson } = await import(
   "../modules/questionnaires/questionnaireSurveyJsonTransforms.js"
@@ -117,6 +119,26 @@ assert.equal(maritalStatus.isVisible, true);
 assert.match(getNativeQuestionTitle(maritalStatus), /Asha/);
 assert.equal(model.data.hhq_total_household_members, 1);
 assert.equal(model.data.hhq_total_eligible_women, 1);
+
+// Skipped and backend-only fields inside a committed roster row must not block
+// the Section 2 Next button with an error that cannot be shown in the collapsed
+// member card.
+const skippedRequiredQuestion = memberPanel
+  .questions
+  .find((question) => question.isRequired && question.isVisible === false);
+assert.ok(skippedRequiredQuestion, "Expected a skipped required member question");
+skippedRequiredQuestion.errors = [{ text: "Response required." }];
+const backgroundQuestion = memberPanel.getQuestionByName("member_living_since_birth");
+backgroundQuestion.errors = [{ text: "Response required." }];
+validateNativeQuestionTree(roster);
+assert.equal(hasNativeValidationProblem(skippedRequiredQuestion), false);
+assert.equal(hasNativeValidationProblem(backgroundQuestion), false);
+assert.equal(hasNativeValidationProblem({
+  errors: [],
+  getType: () => "paneldynamic",
+  isVisible: true,
+  panels: [{ questions: [skippedRequiredQuestion, backgroundQuestion] }],
+}), false);
 
 const invalidAge = memberPanel.getQuestionByName("member_age_years");
 setNativeQuestionValue(invalidAge, "19");

@@ -540,8 +540,26 @@ export function getNativeQuestionValue(question, answerData) {
 
 export function getVisiblePageQuestions(page) {
   return (page?.questions || page?.elements || []).filter(
-    (question) => question?.isVisible !== false && question?.renderAs !== "background"
+    shouldValidateNativeQuestion
   );
+}
+
+export function shouldValidateNativeQuestion(question) {
+  return Boolean(
+    question && question.isVisible !== false && question.renderAs !== "background"
+  );
+}
+
+export function validateNativeQuestionTree(question) {
+  if (!shouldValidateNativeQuestion(question)) return true;
+  question.validate?.();
+  if (question.getType?.() !== "paneldynamic") return true;
+  for (const panel of question.panels || []) {
+    for (const panelQuestion of panel.questions || []) {
+      validateNativeQuestionTree(panelQuestion);
+    }
+  }
+  return true;
 }
 
 function isEmptyNativeQuestionValue(value) {
@@ -568,7 +586,7 @@ function clearStaleRequiredError(question) {
  * answer, multipletext item errors (stored on the item editor), or any repeat-panel row.
  */
 export function hasNativeValidationProblem(question) {
-  if (!question) return false;
+  if (!shouldValidateNativeQuestion(question)) return false;
   if (Array.isArray(question.errors) && question.errors.length > 0) return true;
   if (question.isRequired && isEmptyNativeQuestionValue(question.value)) return true;
   if (Array.isArray(question.items)) {

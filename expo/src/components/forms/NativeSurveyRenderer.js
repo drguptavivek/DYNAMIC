@@ -10,6 +10,7 @@ import {
   getVisiblePageQuestions,
   hasNativeValidationProblem,
   stripSurveyHtml,
+  validateNativeQuestionTree,
 } from "./nativeSurveyModel.js";
 import { buildQuestionRenderSignature } from "./questionRenderMemo.js";
 import { NativeQuestionRenderer } from "./renderers/NativeQuestionRenderer.js";
@@ -436,18 +437,6 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
     </View>
   );
 });
-
-function validateNativeQuestionTree(question) {
-  if (!question) return true;
-  question.validate?.();
-  if (question.getType?.() !== "paneldynamic") return true;
-  for (const panel of question.panels || []) {
-    for (const panelQuestion of panel.questions || []) {
-      validateNativeQuestionTree(panelQuestion);
-    }
-  }
-  return true;
-}
 
 const styles = StyleSheet.create({
   wrap: { flex: 1, gap: 10 },
