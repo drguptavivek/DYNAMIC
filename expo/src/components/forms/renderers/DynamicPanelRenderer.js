@@ -206,6 +206,12 @@ export function DynamicPanelRenderer({
         child.value !== undefined &&
         child.value !== null &&
         child.value !== "";
+      if (isBHQHighestGradeAnswered) {
+        // Q12_i accepts a numeric year even though its SurveyJS choices are
+        // only the special coded answers. Do not let a residual required
+        // error prevent committing an otherwise valid member row.
+        child.clearErrors?.();
+      }
       return childValid || isBHQHighestGradeAnswered;
     }).every(Boolean);
     onChange?.();
