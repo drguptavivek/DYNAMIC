@@ -139,6 +139,13 @@ assert.equal(hasNativeValidationProblem({
   isVisible: true,
   panels: [{ questions: [skippedRequiredQuestion, backgroundQuestion] }],
 }), false);
+const requiredInstructionModel = new Model({
+  elements: [{ type: "html", name: "section_intro", html: "Instructions", isRequired: true }],
+});
+const requiredInstruction = requiredInstructionModel.getQuestionByName("section_intro");
+requiredInstruction.errors = [{ text: "Response required." }];
+validateNativeQuestionTree(requiredInstruction);
+assert.equal(hasNativeValidationProblem(requiredInstruction), false);
 
 const invalidAge = memberPanel.getQuestionByName("member_age_years");
 setNativeQuestionValue(invalidAge, "19");

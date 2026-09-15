@@ -545,8 +545,12 @@ export function getVisiblePageQuestions(page) {
 }
 
 export function shouldValidateNativeQuestion(question) {
+  const type = question?.getType?.() || question?.type;
   return Boolean(
-    question && question.isVisible !== false && question.renderAs !== "background"
+    question &&
+    type !== "html" &&
+    question.isVisible !== false &&
+    question.renderAs !== "background"
   );
 }
 
