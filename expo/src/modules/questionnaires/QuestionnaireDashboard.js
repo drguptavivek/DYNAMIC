@@ -1239,6 +1239,17 @@ export function QuestionnaireDashboard({
                     model={survey}
                     notice={saveMessage}
                     onCompleteRequested={(activeModel) => activeModel?.doComplete?.()}
+                    onNextRequested={(activeModel, currentPage) => {
+                      if (
+                        isHouseholdQuestionnaire(form) &&
+                        currentPage?.name === HOUSEHOLD_SCHEDULE_PAGE_NAME &&
+                        !memberSummaryConfirmedRef.current
+                      ) {
+                        openMemberSummaryFromModel(activeModel);
+                        return true;
+                      }
+                      return false;
+                    }}
                     onPreviewRequested={() => openPreviewFromModel(survey)}
                     onSaveDraft={(options) => saveDraftFromModel(survey, options)}
                     sectionDrawerOpen={sectionDrawerOpen}

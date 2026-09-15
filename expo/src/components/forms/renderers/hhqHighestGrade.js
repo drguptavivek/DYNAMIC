@@ -1,4 +1,5 @@
 const HHQ_HIGHEST_GRADE_FIELD = "member_highest_grade_completed";
+const HHQ_HIGHEST_GRADE_SPECIAL_CODES = new Set(["0", "98"]);
 
 function errorText(error) {
   if (typeof error === "string") return error;
@@ -10,8 +11,7 @@ export function isHhqHighestGradeYearEntry(question, value = question?.value) {
   if (question?.name !== HHQ_HIGHEST_GRADE_FIELD) return false;
   const normalized = String(value ?? "").trim();
   if (!/^\d{1,2}$/.test(normalized)) return false;
-  const specialCodes = (question.choices || []).map((choice) => String(choice.value));
-  return !specialCodes.includes(normalized);
+  return !HHQ_HIGHEST_GRADE_SPECIAL_CODES.has(normalized);
 }
 
 export function acceptHhqHighestGradeYearEntry(question, value = question?.value) {

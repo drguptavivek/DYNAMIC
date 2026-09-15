@@ -13,6 +13,7 @@ const HHQ_HANDWASHING_PLACE_NAME = "hhq_we_like_learn_about_places_that_househol
 const HHQ_HANDWASHING_OBSERVATION_NAME = "hhq_observation_only";
 const HHQ_RESULT_INTERVIEW_NAME = "hhq_result_interview";
 const HHQ_HIGHEST_GRADE_NAME = "member_highest_grade_completed";
+const HHQ_MEMBER_LIVING_SINCE_BIRTH_NAME = "member_living_since_birth";
 const HHQ_OUTCOME_COMPLETED_VALUE = 1;
 const HHQ_OUTCOME_OTHER_SPECIFY_VALUE = 10;
 const HHQ_OUTCOME_COMPLETED_VISIBLE_IF =
@@ -95,6 +96,7 @@ function applyMandatoryHhqSurveyJson(surveyJson) {
       if (
         next.name &&
         next.name !== "hhq_household_members" &&
+        next.name !== HHQ_MEMBER_LIVING_SINCE_BIRTH_NAME &&
         next.type !== "html" &&
         next.type !== "paneldynamic" &&
         !next.readOnly
@@ -127,6 +129,11 @@ function applyHhqHighestGradeInput(surveyJson) {
       if (next.name === HHQ_HIGHEST_GRADE_NAME) {
         return {
           ...next,
+          // This field accepts arbitrary 1-2 digit completed years in addition
+          // to the two special coded answers. A SurveyJS radiogroup discards
+          // arbitrary values during page/form validation, so keep the native
+          // combined renderer but use a text-backed SurveyJS value model.
+          type: "text",
           renderAs: "years_with_special_codes",
           allowYearsOverrideSpecialCodes: true,
           renderingHint: { ...(next.renderingHint || {}), render_as: "years_with_special_codes" },

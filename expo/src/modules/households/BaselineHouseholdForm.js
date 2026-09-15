@@ -829,6 +829,19 @@ export function BaselineHouseholdForm({
             onSectionDrawerOpenChange={setSectionDrawerOpen}
             onSectionSelect={handleSectionSelect}
             onCompleteRequested={requestFinalReview}
+            onNextRequested={(activeModel, currentPage) => {
+              if (
+                currentPage?.name === HOUSEHOLD_SCHEDULE_PAGE_NAME &&
+                !memberSummaryConfirmedRef.current
+              ) {
+                setFinalReview(false);
+                setView("member-summary");
+                setMemberChecklistStep("a");
+                setMessage("Confirm the household roster before Section 03.");
+                return true;
+              }
+              return false;
+            }}
             onSaveDraft={saveDraft}
           />
         ) : (

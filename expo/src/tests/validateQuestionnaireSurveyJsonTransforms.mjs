@@ -40,6 +40,7 @@ const memberEligibility = findElementByName(surveyJson, "member_woman_questionna
 const memberBirthRegistration = findElementByName(surveyJson, "member_birth_registration_status");
 const memberEverAttendedSchool = findElementByName(surveyJson, "member_ever_attended_school");
 const memberHighestGrade = findElementByName(surveyJson, "member_highest_grade_completed");
+const memberLivingSinceBirth = findElementByName(surveyJson, "member_living_since_birth");
 const drinkingWaterSource = findElementByName(
   surveyJson,
   "hhq_main_source_drinking_water_members_household_piped_water"
@@ -108,9 +109,11 @@ assert.deepEqual(mobilePanel.templateElements[1].validators, [
 assert.equal(memberMaritalStatus.visibleIf, "{panel.member_age_years} >= 13");
 assert.equal(memberBirthRegistration.visibleIf, "{panel.member_age_years} >= 0 and {panel.member_age_years} <= 4");
 assert.equal(memberEverAttendedSchool.visibleIf, "{panel.member_age_years} >= 5");
+assert.equal(memberHighestGrade.type, "text");
 assert.equal(memberHighestGrade.renderAs, "years_with_special_codes");
 assert.deepEqual(memberHighestGrade.choices.map((choice) => choice.value), [0, 98]);
 assert.equal(memberHighestGrade.visibleIf, "{panel.member_ever_attended_school} = 1");
+assert.notEqual(memberLivingSinceBirth.isRequired, true);
 assert.equal(memberEligibility.readOnly, true);
 assert.equal(drinkingWaterSource.renderAs, "grouped_drinking_water_source");
 assert.deepEqual(

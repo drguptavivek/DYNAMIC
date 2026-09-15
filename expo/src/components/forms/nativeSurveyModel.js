@@ -314,7 +314,17 @@ export function getNativeQuestionErrors(question) {
 }
 
 export function getNativeQuestionChoices(question, locale = "default") {
-  const choices = question?.visibleChoices || question?.choices || [];
+  const choices =
+    question?.visibleChoices ||
+    question?.choices ||
+    question?.jsonObj?.choices ||
+    (question?.name === "member_highest_grade_completed"
+      ? [
+          { value: 0, text: "Less than one year completed" },
+          { value: 98, text: "Don't know" },
+        ]
+      : null) ||
+    [];
   return choices.map((choice) => {
     const defaultText = defaultChoiceText(choice);
     const directAnswer = choice.directAnswer ? ` — ${choice.directAnswer}` : "";

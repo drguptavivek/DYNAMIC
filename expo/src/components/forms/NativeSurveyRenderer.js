@@ -22,6 +22,7 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
   locale,
   notice,
   onCompleteRequested,
+  onNextRequested,
   onPreviewRequested,
   onSaveDraft,
   sectionDrawerOpen,
@@ -292,6 +293,11 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
     const firstQuestionWithError = pageQuestions.find(hasNativeValidationProblem);
     if (firstQuestionWithError) {
       scrollToQuestion(firstQuestionWithError, { revealInput: true });
+      await onSaveDraft?.({ silent: true, reason: "next" });
+      return;
+    }
+    if (await onNextRequested?.(model, currentPage)) {
+      refresh();
       await onSaveDraft?.({ silent: true, reason: "next" });
       return;
     }
