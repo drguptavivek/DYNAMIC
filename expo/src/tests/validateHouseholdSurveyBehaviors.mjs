@@ -434,4 +434,56 @@ ageDurationModel.onValueChanged.handlers[0](ageDurationModel, {
 });
 assert.deepEqual(ageQuestion.errors, []);
 
-console.log("Validated HHQ duplicate household checks.");
+const forcedWaterLocationModel = createModel({
+  hhq_main_source_drinking_water_members_household_piped_water: 61,
+  hhq_water_source_located: 1
+});
+attachHouseholdSurveyBehaviors(forcedWaterLocationModel, { form_code: "HHQ" });
+assert.equal(forcedWaterLocationModel.getValue("hhq_water_source_located"), 3);
+
+forcedWaterLocationModel.setValue(
+  "hhq_main_source_drinking_water_members_household_piped_water",
+  11
+);
+forcedWaterLocationModel.onValueChanged.handlers[0](forcedWaterLocationModel, {
+  name: "hhq_main_source_drinking_water_members_household_piped_water",
+  value: 11
+});
+assert.equal(forcedWaterLocationModel.getValue("hhq_water_source_located"), undefined);
+
+const restoredManualWaterLocationModel = createModel({
+  hhq_main_source_drinking_water_members_household_piped_water: 11,
+  hhq_water_source_located: 2
+});
+attachHouseholdSurveyBehaviors(restoredManualWaterLocationModel, { form_code: "HHQ" });
+assert.equal(restoredManualWaterLocationModel.getValue("hhq_water_source_located"), 2);
+
+const waterTreatmentModel = createModel({
+  hhq_household_usually_make_water_safe_drink_anything_else: ["F", "Z"]
+});
+attachHouseholdSurveyBehaviors(waterTreatmentModel, { form_code: "HHQ" });
+assert.deepEqual(
+  waterTreatmentModel.getValue("hhq_household_usually_make_water_safe_drink_anything_else"),
+  ["F"]
+);
+
+waterTreatmentModel.setValue(
+  "hhq_household_usually_make_water_safe_drink_anything_else",
+  ["Z", "A"]
+);
+waterTreatmentModel.onValueChanged.handlers[0](waterTreatmentModel, {
+  name: "hhq_household_usually_make_water_safe_drink_anything_else",
+  value: ["Z", "A"]
+});
+assert.deepEqual(
+  waterTreatmentModel.getValue("hhq_household_usually_make_water_safe_drink_anything_else"),
+  ["A"]
+);
+
+const legacyObservationModel = createModel({
+  hhq_observation_only: ["B", "C"]
+});
+attachHouseholdSurveyBehaviors(legacyObservationModel, { form_code: "HHQ" });
+assert.equal(legacyObservationModel.getValue("hhq_observation_only"), "B");
+
+console.log("Validated HHQ household rules and duplicate checks.");

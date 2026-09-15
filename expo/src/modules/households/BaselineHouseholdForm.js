@@ -39,6 +39,10 @@ import { startTiming } from "../../lib/perfLog.js";
 import { applyHhqTaskHouseholdPrefill } from "./hhqTaskPrefill.js";
 import { buildHouseholdIdFromHhqData } from "./householdIds.js";
 import { extractHouseholdRegistryFields } from "./householdRepository.js";
+import {
+  requestFinalSubmissionConfirmation,
+  waitForSubmissionAcknowledgement,
+} from "./finalSubmissionAlerts.js";
 import { createSurveyModel } from "../../polyfills/surveyCoreNative.js";
 
 const AUTOSAVE_INTERVAL_MS = 30000;
@@ -762,6 +766,7 @@ export function BaselineHouseholdForm({
         onDraftSaved?.();
       }
       setMessage(availabilityStop ? getHhqAvailabilityStopMessage(model) : `Saved household ${registryRecord.household_id}`);
+      await waitForSubmissionAcknowledgement(Alert.alert);
       await onSaved?.(registryRecord);
     } catch (error) {
       setMessage(`Could not save household: ${error.message}`);
@@ -769,6 +774,14 @@ export function BaselineHouseholdForm({
     } finally {
       setSaving(false);
     }
+  }
+
+  function confirmFinalSubmission() {
+    if (saving) return;
+    requestFinalSubmissionConfirmation({
+      showAlert: Alert.alert,
+      onConfirm: submitFinal,
+    });
   }
 
   async function closeForm() {
@@ -908,7 +921,7 @@ export function BaselineHouseholdForm({
                     <Text style={styles.secondaryButtonText}>Edit form</Text>
                   </Pressable>
                   {finalReview ? (
-                    <Pressable disabled={saving} onPress={submitFinal} style={[styles.primaryButton, saving && styles.disabled]}>
+                    <Pressable disabled={saving} onPress={confirmFinalSubmission} style={[styles.primaryButton, saving && styles.disabled]}>
                       <Text style={styles.primaryButtonText}>{saving ? "Saving..." : "Confirm & Save"}</Text>
                     </Pressable>
                   ) : null}

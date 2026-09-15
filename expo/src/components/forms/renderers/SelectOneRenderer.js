@@ -4,6 +4,7 @@ import { StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-nativ
 
 import { getNativeQuestionChoices, getNativeQuestionValue, setNativeQuestionValue } from "../nativeSurveyModel.js";
 import { QuestionFrame, controlStyles } from "./QuestionFrame.js";
+import { acceptHhqHighestGradeYearEntry } from "./hhqHighestGrade.js";
 
 export function SelectOneRenderer({ answerData, locale, question, onChange }) {
   const value = getNativeQuestionValue(question, answerData);
@@ -53,7 +54,8 @@ export function SelectOneRenderer({ answerData, locale, question, onChange }) {
       setSelectedValue(nextValue);
       const wrote = setNativeQuestionValue(question, nextValue);
       if (wrote) {
-        question.validate?.();
+        const acceptedHighestGradeYear = acceptHhqHighestGradeYearEntry(question, nextValue);
+        if (!acceptedHighestGradeYear) question.validate?.();
         if (allowYearsOverrideSpecialCodes && nextValue !== "") {
           clearRequiredValidationError(question);
         }

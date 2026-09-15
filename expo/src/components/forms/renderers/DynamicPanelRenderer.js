@@ -2,7 +2,7 @@
  * Renders repeat entries with a count, explicit row selection, editing, addition, and deletion.
  */
 import React, { useEffect, useRef, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
 import {
@@ -24,6 +24,14 @@ import {
   WQ_PREGNANCY_PLURALITY_FIELD,
 } from "../nativeSurveyModel.js";
 import { controlStyles } from "./QuestionFrame.js";
+import { acceptHhqHighestGradeYearEntry } from "./hhqHighestGrade.js";
+import {
+  confirmCommittedHhqMobileNumber,
+  markHhqMobilePanelChildren,
+} from "./mobileNumberConfirmation.js";
+
+const MOBILE_CONFIRMATION_MESSAGE =
+  "Read this mobile number to the Respondent and confirm whether the number is correct or not.";
 
 function isRenderablePanelQuestion(child, multipleBirth) {
   if (child?.visible === false || child?.isVisible === false) return false;
@@ -198,6 +206,7 @@ export function DynamicPanelRenderer({
       (child) => isRenderablePanelQuestion(child, multipleBirth)
     );
     const valid = visibleQuestions.map((child) => {
+      if (acceptHhqHighestGradeYearEntry(child)) return true;
       clearBHQHighestGradeRequiredError(child);
       const childValid = child.validate?.() !== false;
       clearBHQHighestGradeRequiredError(child);
@@ -249,6 +258,13 @@ export function DynamicPanelRenderer({
     setEditingIndex(null);
     setEditorMode(null);
     onChange?.();
+    confirmCommittedHhqMobileNumber(question, activePanel, () => {
+      Alert.alert(
+        "Confirm mobile number",
+        MOBILE_CONFIRMATION_MESSAGE,
+        [{ text: "Yes" }, { text: "No" }],
+      );
+    });
     if (returnPageName) {
       requestAnimationFrame(() => {
         const returnPage = question.survey?.getPageByName?.(returnPageName);
@@ -287,6 +303,7 @@ export function DynamicPanelRenderer({
             .filter((child) => isRenderablePanelQuestion(child, multipleBirth))
             .map((child) => {
               child.__nativePanelRowNumber = editingIndex + 1;
+              markHhqMobilePanelChildren(question, activePanel);
               return renderQuestion(child, `${question.name}-${editingIndex}-${child.name}`);
             })}
           <Pressable onPress={commitEntry} style={styles.commitButton}>
@@ -425,6 +442,7 @@ export function DynamicPanelRenderer({
             ))
             .map((child) => {
               child.__nativePanelRowNumber = editingIndex + 1;
+              markHhqMobilePanelChildren(question, panels[editingIndex]);
               return renderQuestion(child, `${question.name}-${editingIndex}-${child.name}`);
             })}
           <Pressable onPress={commitEntry} style={styles.commitButton}>

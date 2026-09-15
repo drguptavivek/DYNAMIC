@@ -6,6 +6,7 @@ import { getNativeQuestionValue, setNativeQuestionValue } from "../nativeSurveyM
 import { QuestionFrame, controlStyles } from "./QuestionFrame.js";
 import { validateRegexQuestion } from "../validators/RegexValidator.js";
 import { getNativeKeyboardType } from "./multipleTextValue.js";
+import { shouldDeferMobileConfirmationToPanelCommit } from "./mobileNumberConfirmation.js";
 
 export function TextRenderer({ answerData, locale, question, onChange }) {
   const value = getNativeQuestionValue(question, answerData);
@@ -14,7 +15,8 @@ export function TextRenderer({ answerData, locale, question, onChange }) {
   const latestValueRef = useRef(value === undefined || value === null ? "" : String(value));
   const isMobileNumber =
     /mobile|telephone|phone/i.test(String(question?.name || "")) &&
-    !/holder[_ ]?name/i.test(String(question?.name || ""));
+    !/holder[_ ]?name/i.test(String(question?.name || "")) &&
+    !shouldDeferMobileConfirmationToPanelCommit(question);
 
   function confirmMobileNumber(candidateValue) {
     const enteredValue = String(candidateValue ?? latestValueRef.current ?? "").trim();

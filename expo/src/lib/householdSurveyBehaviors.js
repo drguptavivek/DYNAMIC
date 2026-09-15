@@ -5,6 +5,11 @@ const HHQ_CODE = "HHQ";
 const HH_MEMBER_PANEL = "hhq_household_members";
 const HHQ_HANDWASHING_PLACE_FIELD = "hhq_we_like_learn_about_places_that_households_use";
 const HHQ_HANDWASHING_OBSERVATION_FIELD = "hhq_observation_only";
+const HHQ_MAIN_WATER_SOURCE_FIELD = "hhq_main_source_drinking_water_members_household_piped_water";
+const HHQ_WATER_SOURCE_LOCATION_FIELD = "hhq_water_source_located";
+const HHQ_ELSEWHERE_WATER_SOURCE_VALUES = new Set([61, 71, 81, 91, 92]);
+const HHQ_WATER_TREATMENT_FIELD = "hhq_household_usually_make_water_safe_drink_anything_else";
+const HHQ_WATER_TREATMENT_DONT_KNOW_VALUE = "Z";
 const HHQ_RESULT_INTERVIEW_FIELD = "hhq_result_interview";
 const HHQ_RESULT_INTERVIEW_OTHER_SPECIFY_FIELD = "hhq_result_interview_other_specify";
 const HHQ_OUTCOME_COMPLETED = 1;
@@ -121,6 +126,37 @@ function applyForcedHhqOutcomeResult(model) {
   if (forcedResult !== HHQ_OUTCOME_OTHER_SPECIFY) {
     clearModelValue(model, HHQ_RESULT_INTERVIEW_OTHER_SPECIFY_FIELD);
   }
+}
+
+function normalizeHhqObservationSelection(model) {
+  const value = model.getValue(HHQ_HANDWASHING_OBSERVATION_FIELD);
+  if (!Array.isArray(value)) return;
+  if (value.length === 0) {
+    clearModelValue(model, HHQ_HANDWASHING_OBSERVATION_FIELD);
+    return;
+  }
+  model.setValue(HHQ_HANDWASHING_OBSERVATION_FIELD, value[0]);
+}
+
+function applyWaterSourceLocationRule(model, clearManualAnswer = false) {
+  const mainWaterSource = parseFiniteNumber(model.getValue(HHQ_MAIN_WATER_SOURCE_FIELD));
+  if (!HHQ_ELSEWHERE_WATER_SOURCE_VALUES.has(mainWaterSource)) {
+    if (clearManualAnswer) clearModelValue(model, HHQ_WATER_SOURCE_LOCATION_FIELD);
+    return;
+  }
+  if (model.getValue(HHQ_WATER_SOURCE_LOCATION_FIELD) !== 3) {
+    model.setValue(HHQ_WATER_SOURCE_LOCATION_FIELD, 3);
+  }
+}
+
+function removeConflictingWaterTreatmentDontKnow(model) {
+  const selections = model.getValue(HHQ_WATER_TREATMENT_FIELD);
+  if (!Array.isArray(selections) || selections.length < 2) return;
+  if (!selections.some((value) => String(value) === HHQ_WATER_TREATMENT_DONT_KNOW_VALUE)) return;
+  model.setValue(
+    HHQ_WATER_TREATMENT_FIELD,
+    selections.filter((value) => String(value) !== HHQ_WATER_TREATMENT_DONT_KNOW_VALUE)
+  );
 }
 
 function clearHouseholdListingCalculations(model) {
@@ -607,6 +643,9 @@ export function attachHouseholdSurveyBehaviors(
 
   applyMandatoryHhqQuestions(model);
   configureHouseholdRosterQuestion(model);
+  normalizeHhqObservationSelection(model);
+  applyWaterSourceLocationRule(model);
+  removeConflictingWaterTreatmentDontKnow(model);
   model.checkErrorsMode = "onValueChanged";
 
   let duplicateCheckSequence = 0;
@@ -678,6 +717,9 @@ export function attachHouseholdSurveyBehaviors(
     }
   });
   model.onValueChanged.add((sender, options) => {
+    if (options.name === HHQ_HANDWASHING_OBSERVATION_FIELD) {
+      normalizeHhqObservationSelection(sender);
+    }
     if (HOUSEHOLD_ID_FIELDS.has(options.name)) {
       updateHouseholdIdCalculation(sender);
       updateHouseholdListingCalculations(sender);
@@ -693,6 +735,12 @@ export function attachHouseholdSurveyBehaviors(
       options.name === HHQ_RESULT_INTERVIEW_FIELD
     ) {
       applyForcedHhqOutcomeResult(sender);
+    }
+    if (options.name === HHQ_MAIN_WATER_SOURCE_FIELD) {
+      applyWaterSourceLocationRule(sender, true);
+    }
+    if (options.name === HHQ_WATER_TREATMENT_FIELD) {
+      removeConflictingWaterTreatmentDontKnow(sender);
     }
     if (
       options.name === HH_MEMBER_PANEL ||

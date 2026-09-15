@@ -2234,6 +2234,14 @@
       },
       "elements": [
         {
+          "type": "html",
+          "name": "hhq_household_characteristics_intro",
+          "html": "Now I am going to ask some questions about household environments, household amenities and possessions.",
+          "order": 1,
+          "section_order": 3,
+          "sourceType": "section_note"
+        },
+        {
           "type": "radiogroup",
           "name": "hhq_often_anyone_smoke_inside_house_say_daily_weekly",
           "title": {
@@ -6611,7 +6619,7 @@
             }
           ],
           "description": {
-            "default": "Used as denominator for number of people per sleeping room in wealth index.",
+            "default": "If the number of rooms is greater than 10 or is double digits, ask the respondent the same question again.\nIf they sleep outside, enter 0.",
             "hi": "",
             "kn": "",
             "mr": "",
@@ -7279,7 +7287,7 @@
           "visibleIf": "{hhq_we_like_learn_about_places_that_households_use} = 1"
         },
         {
-          "type": "checkbox",
+          "type": "radiogroup",
           "name": "hhq_observation_only",
           "title": {
             "default": "OBSERVATION ONLY: Observe presence of soap, detergent, or other cleansing aget. RECORD ALL MENTIONED",
@@ -7293,9 +7301,9 @@
           "order": 62,
           "section_order": 3,
           "sourceCode": "62",
-          "sourceType": "select_multiple",
+          "sourceType": "select_one",
           "renderingHint": {
-            "render_as": "checkbox"
+            "render_as": "radio"
           },
           "rawText": "OBSERVATION ONLY: Observe presence of soap, detergent, or other cleansing aget. RECORD ALL MENTIONED A Soap or detergent (bar, liquid, powder, paste) B Ash, mud, sand C None",
           "choices": [
@@ -7337,7 +7345,7 @@
             }
           ],
           "validationRulesSource": [
-            "multiple coded options allowed"
+            "single coded option"
           ],
           "description": {
             "default": "Observation only. Record all mentioned.",
@@ -7479,7 +7487,7 @@
           "name": "hhq_result_interview",
           "visibleIf": "{hhq_competent_respondent_available} = 1 and {hhq_consent_study_provide_pis_explain_study_adult_member} = 1",
           "title": {
-            "default": "Outcome of Interview (4 and 5 are temporary states only to remind the interviewers that these HH have to be revisited and in a reasonable frame of time these will have to change to 1 or 6)",
+            "default": "Outcome of Interview",
             "hi": "",
             "kn": "",
             "mr": "",

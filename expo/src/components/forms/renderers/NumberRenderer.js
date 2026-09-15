@@ -6,6 +6,7 @@ import { getNativeQuestionValue, setNativeQuestionValue } from "../nativeSurveyM
 import { QuestionFrame, controlStyles } from "./QuestionFrame.js";
 import { validateRegexQuestion } from "../validators/RegexValidator.js";
 import { getNativeKeyboardType, sanitizeNativeInputValue } from "./multipleTextValue.js";
+import { shouldDeferMobileConfirmationToPanelCommit } from "./mobileNumberConfirmation.js";
 
 function setQuestionValue(question, value) {
   const preserveString = question?.preserveString === true || question?.jsonObj?.preserveString === true;
@@ -34,7 +35,8 @@ export function NumberRenderer({ answerData, locale, question, onChange }) {
   const latestValueRef = useRef(value === undefined || value === null ? "" : String(value));
   const isMobileNumber =
     /mobile|telephone|phone/i.test(String(question?.name || "")) &&
-    !/holder[_ ]?name/i.test(String(question?.name || ""));
+    !/holder[_ ]?name/i.test(String(question?.name || "")) &&
+    !shouldDeferMobileConfirmationToPanelCommit(question);
 
   function confirmMobileNumber(candidateValue) {
     const enteredValue = String(candidateValue ?? latestValueRef.current ?? "").trim();

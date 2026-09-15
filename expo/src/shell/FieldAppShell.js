@@ -35,7 +35,7 @@ export function FieldAppShell({ route, title, children, topBarCollapsed = false 
     if (loggingOut) return;
     Alert.alert(
       "Logout and delete device data?",
-      "All data stored on this device for the current logged-in user will be deleted. Server data will not be deleted.",
+      "All data stored on this device for the current logged-in user will be deleted. Server data will not be deleted.\n\nPlease SYNC the data before Logout",
       [
         { text: "Cancel", style: "cancel" },
         {
