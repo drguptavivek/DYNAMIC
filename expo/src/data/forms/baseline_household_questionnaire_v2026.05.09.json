@@ -2236,7 +2236,7 @@
         {
           "type": "html",
           "name": "hhq_household_characteristics_intro",
-          "html": "Now I am going to ask some questions about household environments, household amenities and possessions.",
+          "html": "Now I would like to ask some questions about household environment, household amenities and possessions.",
           "order": 1,
           "section_order": 3,
           "sourceType": "section_note"

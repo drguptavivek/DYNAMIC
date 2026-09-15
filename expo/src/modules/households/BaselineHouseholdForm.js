@@ -50,6 +50,8 @@ const AUTOSAVE_INTERVAL_MS = 30000;
 const MAX_HHQ_VISIT_NO = 3;
 const HOUSEHOLD_SCHEDULE_PAGE_NAME = "page_02_household_schedule";
 const HOUSEHOLD_CHARACTERISTICS_PAGE_NAME = "page_03_household_characteristics";
+const HOUSEHOLD_CHARACTERISTICS_INTRO =
+  "Now I would like to ask some questions about household environment, household amenities and possessions.";
 const HOUSEHOLD_CONSENT_FIELD = "hhq_consent_study_provide_pis_explain_study_adult_member";
 const HHQ_INTERVIEW_DATE_FIELD = "hhq_interview_date";
 const HHQ_VISIT_NO_FIELD = "hhq_visit_no";
@@ -834,6 +836,11 @@ export function BaselineHouseholdForm({
             answerData={rendererAnswerData}
             model={model}
             notice={message}
+            pageIntro={
+              model.currentPage?.name === HOUSEHOLD_CHARACTERISTICS_PAGE_NAME
+                ? HOUSEHOLD_CHARACTERISTICS_INTRO
+                : ""
+            }
             onPreviewRequested={() => openPreview()}
             onScrollOffsetChange={onScrollOffsetChange}
             sections={sections}

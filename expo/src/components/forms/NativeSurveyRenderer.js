@@ -22,6 +22,7 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
   answerData,
   locale,
   notice,
+  pageIntro,
   onCompleteRequested,
   onNextRequested,
   onPreviewRequested,
@@ -360,6 +361,7 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
       ) : null}
       {notice ? <Text style={styles.notice}>{notice}</Text> : null}
       {pageHeader}
+      {pageIntro ? <Text style={styles.pageIntro}>{pageIntro}</Text> : null}
       {useCompactPager ? (
         <Text style={styles.questionCounter}>
           {`Question ${activeQuestionIndex + 1} of ${visibleQuestions.length}`}
@@ -384,6 +386,7 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
           {sections.length ? <SectionNavigator sections={sections} onSelect={onSectionSelect} /> : null}
           {notice ? <Text style={styles.notice}>{notice}</Text> : null}
           {pageHeader}
+          {pageIntro ? <Text style={styles.pageIntro}>{pageIntro}</Text> : null}
           <ScrollView
             ref={desktopScrollRef}
             keyboardShouldPersistTaps="always"
@@ -450,6 +453,20 @@ const styles = StyleSheet.create({
   questionRow: { marginBottom: 12 },
   questionCounter: { textAlign: "center", color: "#667085", fontSize: 12, fontWeight: "800" },
   notice: { padding: 9, borderRadius: 7, color: "#1f4d7a", backgroundColor: "#eef6ff", fontSize: 13, fontWeight: "700" },
+  pageIntro: {
+    marginHorizontal: 8,
+    marginBottom: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: "#e4c94d",
+    borderRadius: 8,
+    color: "#5f4b00",
+    backgroundColor: "#fff8cc",
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "700",
+  },
   navigation: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingTop: 8, borderTopWidth: 1, borderTopColor: "#e4e7ec" },
   middleActions: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10 },
   iconButton: { width: 48, minHeight: 40, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#98a2b3", borderRadius: 8, backgroundColor: "#ffffff" },
