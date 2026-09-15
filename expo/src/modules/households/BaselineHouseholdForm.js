@@ -37,6 +37,7 @@ import { getHouseholdSync } from "../../lib/householdSync.js";
 import { applyQuestionnaireLanguageFromLocale } from "../../lib/questionnaireLanguageField.js";
 import { startTiming } from "../../lib/perfLog.js";
 import { applyHhqTaskHouseholdPrefill } from "./hhqTaskPrefill.js";
+import { shouldPersistHhqDraft } from "./hhqDraftPersistence.js";
 import { buildHouseholdIdFromHhqData } from "./householdIds.js";
 import { extractHouseholdRegistryFields } from "./householdRepository.js";
 import {
@@ -243,6 +244,7 @@ export function BaselineHouseholdForm({
   const draftIdRef = useRef(null);
   const answerSnapshotRef = useRef({});
   const dirtyRef = useRef(false);
+  const draftPersistenceEnabledRef = useRef(false);
   const isRestoringDraftRef = useRef(false);
   const draftMutationVersionRef = useRef(0);
   const postRestoreDraftKeyRef = useRef(null);
@@ -356,6 +358,7 @@ export function BaselineHouseholdForm({
       : null;
     if (initialDraft) {
       draftIdRef.current = initialDraft.draft_id;
+      draftPersistenceEnabledRef.current = true;
       isRestoringDraftRef.current = true;
       const restoredData = mergePrefillIntoBlankValues(
         { ...(survey.data || {}), ...(initialDraft.json_payload || {}) },
@@ -366,6 +369,7 @@ export function BaselineHouseholdForm({
       applyHhqVisitNo(survey, taskContext);
       answerSnapshotRef.current = cloneSurveyData(restoredData);
     } else {
+      draftPersistenceEnabledRef.current = false;
       answerSnapshotRef.current = cloneSurveyData(survey.data || {});
     }
 
@@ -505,9 +509,17 @@ export function BaselineHouseholdForm({
     setRevision((value) => value + 1);
   }, [draftLookup, draftLookupKey, model, onLocaleChange, showTransientMessage]);
 
-  const saveDraft = useCallback(async ({ silent = false, manual = false } = {}) => {
+  const saveDraft = useCallback(async ({ silent = false, manual = false, reason = "" } = {}) => {
     try {
       if (isRestoringDraftRef.current) return null;
+      const shouldPersist = shouldPersistHhqDraft({
+        currentPageName: model.currentPage?.name,
+        hasPersistedDraft: draftPersistenceEnabledRef.current || Boolean(draftIdRef.current),
+        manual,
+        reason,
+      });
+      if (!shouldPersist) return { skipped: true };
+      draftPersistenceEnabledRef.current = true;
       draftMutationVersionRef.current += 1;
       applyHhqVisitNo(model, taskContext);
       refreshHouseholdSurveyBehaviors(model, form);
@@ -742,7 +754,7 @@ export function BaselineHouseholdForm({
     }
     setSaving(true);
     try {
-      if (!(await saveDraft({ silent: true }))) return;
+      if (!(await saveDraft({ silent: true, reason: "final-submit" }))) return;
       applyHhqVisitNo(model, taskContext);
       if (!model.validate()) {
         setView("form");

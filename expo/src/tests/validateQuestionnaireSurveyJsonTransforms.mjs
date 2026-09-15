@@ -41,6 +41,11 @@ const memberBirthRegistration = findElementByName(surveyJson, "member_birth_regi
 const memberEverAttendedSchool = findElementByName(surveyJson, "member_ever_attended_school");
 const memberHighestGrade = findElementByName(surveyJson, "member_highest_grade_completed");
 const memberLivingSinceBirth = findElementByName(surveyJson, "member_living_since_birth");
+assert.equal(
+  memberLivingSinceBirth.renderAs,
+  "background",
+  "Q6_i living-since-birth storage must not render or count as a separate question",
+);
 const drinkingWaterSource = findElementByName(
   surveyJson,
   "hhq_main_source_drinking_water_members_household_piped_water"

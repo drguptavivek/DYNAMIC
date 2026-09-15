@@ -68,6 +68,11 @@ superseded
 Rules:
 
 - Autosave writes locally every 30 seconds only when the form has unsaved changes.
+- A newly opened HHQ does not become a draft while the interviewer remains in
+  Section 1. Draft persistence starts after a successful Next transition beyond
+  Section 1 or an explicit Save Draft; until then autosave, backgrounding,
+  preview, and close must not create a draft. Existing HHQ drafts continue to
+  autosave normally.
 - Manual Save Draft writes locally immediately.
 - Form navigation actions save the current local draft after the destination section/page has been resolved.
 - App backgrounding, navigation away, or form close should save dirty drafts before leaving.

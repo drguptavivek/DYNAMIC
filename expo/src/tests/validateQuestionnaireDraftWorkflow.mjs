@@ -36,6 +36,31 @@ const {
   getDraftSubjectId,
 } = await import("../modules/questionnaires/draftPendingForms.js");
 const { getDraftSavedMessage } = await import("../modules/questionnaires/draftSaveMessages.js");
+const { shouldPersistHhqDraft } = await import(
+  "../modules/households/hhqDraftPersistence.js"
+);
+
+assert.equal(shouldPersistHhqDraft({ currentPageName: "page_01_identification" }), false);
+assert.equal(shouldPersistHhqDraft({
+  currentPageName: "page_01_identification",
+  reason: "next",
+}), false);
+assert.equal(shouldPersistHhqDraft({
+  currentPageName: "page_02_household_schedule",
+  reason: "next",
+}), true);
+assert.equal(shouldPersistHhqDraft({
+  currentPageName: "page_01_identification",
+  manual: true,
+}), true);
+assert.equal(shouldPersistHhqDraft({
+  currentPageName: "page_01_identification",
+  hasPersistedDraft: true,
+}), true);
+assert.equal(shouldPersistHhqDraft({
+  currentPageName: "page_01_identification",
+  reason: "final-submit",
+}), true);
 
 const context = {
   formCode: "HHQ",

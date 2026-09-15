@@ -93,6 +93,11 @@ function applyMandatoryHhqSurveyJson(surveyJson) {
   function visit(elements = []) {
     return elements.map((element) => {
       const next = { ...element };
+      if (next.name === HHQ_MEMBER_LIVING_SINCE_BIRTH_NAME) {
+        // This backend code is selected inside the combined Q6_i duration
+        // control. It is not a separate question for rendering or progress.
+        next.renderAs = "background";
+      }
       if (
         next.name &&
         next.name !== "hhq_household_members" &&
