@@ -31,14 +31,13 @@ export function NumberRenderer({ answerData, locale, question, onChange }) {
   const value = getNativeQuestionValue(question, answerData);
   const keyboardType = getNativeKeyboardType(question);
   const lastPromptedValueRef = useRef("");
+  const latestValueRef = useRef(value === undefined || value === null ? "" : String(value));
   const isMobileNumber =
     /mobile|telephone|phone/i.test(String(question?.name || "")) &&
     !/holder[_ ]?name/i.test(String(question?.name || ""));
 
   function confirmMobileNumber(candidateValue) {
-    const enteredValue = String(
-      candidateValue ?? getNativeQuestionValue(question, answerData) ?? ""
-    ).trim();
+    const enteredValue = String(candidateValue ?? latestValueRef.current ?? "").trim();
     if (!isMobileNumber || !enteredValue || enteredValue === lastPromptedValueRef.current) return;
     lastPromptedValueRef.current = enteredValue;
     Alert.alert(
@@ -58,18 +57,20 @@ export function NumberRenderer({ answerData, locale, question, onChange }) {
         maxLength={question.maxLength > 0 ? question.maxLength : question.jsonObj?.maxLength}
         onChangeText={(value) => {
           const sanitized = sanitizeNativeInputValue(value, keyboardType);
+          latestValueRef.current = sanitized;
+          if (!sanitized) lastPromptedValueRef.current = "";
           setQuestionValue(question, sanitized);
         }}
         onEndEditing={(event) => {
-          confirmMobileNumber(event?.nativeEvent?.text);
+          confirmMobileNumber(event?.nativeEvent?.text ?? latestValueRef.current);
         }}
         onSubmitEditing={(event) => {
-          confirmMobileNumber(event?.nativeEvent?.text);
+          confirmMobileNumber(event?.nativeEvent?.text ?? latestValueRef.current);
         }}
         onBlur={(event) => {
           validateRegexQuestion(question);
           onChange?.();
-          confirmMobileNumber(event?.nativeEvent?.text);
+          confirmMobileNumber(event?.nativeEvent?.text ?? latestValueRef.current);
         }}
         style={[controlStyles.input, question.isReadOnly && controlStyles.readOnly]}
       />

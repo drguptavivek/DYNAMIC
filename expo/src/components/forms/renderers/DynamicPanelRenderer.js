@@ -40,6 +40,21 @@ function isRenderablePanelQuestion(child, multipleBirth) {
   return shouldShowWqPregnancyHistoryQuestion(child, multipleBirth);
 }
 
+function clearBHQHighestGradeRequiredError(question) {
+  if (question?.name !== "member_highest_grade_completed") return;
+  const value = question.value;
+  if (value === undefined || value === null || value === "") return;
+  if (!Array.isArray(question.errors) || question.errors.length === 0) return;
+  question.errors = question.errors.filter((error) => {
+    const text = typeof error === "string"
+      ? error
+      : typeof error?.getText === "function"
+        ? error.getText()
+        : error?.text || String(error || "");
+    return !/response\s+required|required\s+response/i.test(String(text));
+  });
+}
+
 export function DynamicPanelRenderer({
   locale,
   question,
@@ -182,7 +197,17 @@ export function DynamicPanelRenderer({
     const visibleQuestions = (activePanel?.questions || []).filter(
       (child) => isRenderablePanelQuestion(child, multipleBirth)
     );
-    const valid = visibleQuestions.map((child) => child.validate?.() !== false).every(Boolean);
+    const valid = visibleQuestions.map((child) => {
+      clearBHQHighestGradeRequiredError(child);
+      const childValid = child.validate?.() !== false;
+      clearBHQHighestGradeRequiredError(child);
+      const isBHQHighestGradeAnswered =
+        child.name === "member_highest_grade_completed" &&
+        child.value !== undefined &&
+        child.value !== null &&
+        child.value !== "";
+      return childValid || isBHQHighestGradeAnswered;
+    }).every(Boolean);
     onChange?.();
     if (!valid || visibleQuestions.some((child) => child.errors?.length)) return;
     if (editorMode === "add" && multipleBirth.index < multipleBirth.count) {

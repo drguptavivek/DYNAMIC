@@ -11,14 +11,13 @@ export function TextRenderer({ answerData, locale, question, onChange }) {
   const value = getNativeQuestionValue(question, answerData);
   const keyboardType = getNativeKeyboardType(question);
   const lastPromptedValueRef = useRef("");
+  const latestValueRef = useRef(value === undefined || value === null ? "" : String(value));
   const isMobileNumber =
     /mobile|telephone|phone/i.test(String(question?.name || "")) &&
     !/holder[_ ]?name/i.test(String(question?.name || ""));
 
   function confirmMobileNumber(candidateValue) {
-    const enteredValue = String(
-      candidateValue ?? getNativeQuestionValue(question, answerData) ?? ""
-    ).trim();
+    const enteredValue = String(candidateValue ?? latestValueRef.current ?? "").trim();
     if (!isMobileNumber || !enteredValue || enteredValue === lastPromptedValueRef.current) return;
     lastPromptedValueRef.current = enteredValue;
     Alert.alert(
@@ -37,20 +36,22 @@ export function TextRenderer({ answerData, locale, question, onChange }) {
         keyboardType={keyboardType}
         autoCapitalize="sentences"
         onChangeText={(value) => {
+          latestValueRef.current = value;
+          if (!value) lastPromptedValueRef.current = "";
           setNativeQuestionValue(question, value);
         }}
         onEndEditing={(event) => {
           // Android may emit endEditing with the latest text before the
           // question model has re-rendered. Use the native event value.
-          confirmMobileNumber(event?.nativeEvent?.text);
+          confirmMobileNumber(event?.nativeEvent?.text ?? latestValueRef.current);
         }}
         onSubmitEditing={(event) => {
-          confirmMobileNumber(event?.nativeEvent?.text);
+          confirmMobileNumber(event?.nativeEvent?.text ?? latestValueRef.current);
         }}
         onBlur={(event) => {
           validateRegexQuestion(question);
           onChange?.();
-          confirmMobileNumber(event?.nativeEvent?.text);
+          confirmMobileNumber(event?.nativeEvent?.text ?? latestValueRef.current);
         }}
         style={[controlStyles.input, question.isReadOnly && controlStyles.readOnly]}
       />

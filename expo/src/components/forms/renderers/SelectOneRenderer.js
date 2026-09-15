@@ -13,6 +13,7 @@ export function SelectOneRenderer({ answerData, locale, question, onChange }) {
   const usesYearsEntry =
     question?.renderAs === "years_with_special_codes" || question?.renderAs === "days_with_special_codes";
   const allowYearsOverrideSpecialCodes =
+    question?.name === "member_highest_grade_completed" ||
     question?.allowYearsOverrideSpecialCodes === true ||
     question?.jsonObj?.allowYearsOverrideSpecialCodes === true;
 
@@ -41,7 +42,7 @@ export function SelectOneRenderer({ answerData, locale, question, onChange }) {
       pendingValueRef.current = null;
       setSelectedValue(getNativeQuestionValue(question, answerData));
     },
-    [allowYearsOverrideSpecialCodes, answerData, disabled, onChange, question]
+    [answerData, disabled, onChange, question]
   );
 
   const commitYears = useCallback(
@@ -62,7 +63,7 @@ export function SelectOneRenderer({ answerData, locale, question, onChange }) {
       pendingValueRef.current = null;
       setSelectedValue(getNativeQuestionValue(question, answerData));
     },
-    [answerData, disabled, onChange, question]
+    [allowYearsOverrideSpecialCodes, answerData, disabled, onChange, question]
   );
 
   const choices = useMemo(() => getNativeQuestionChoices(question, locale), [question, locale]);
@@ -74,6 +75,14 @@ export function SelectOneRenderer({ answerData, locale, question, onChange }) {
     usesYearsEntry && selectedValue !== undefined && !choiceValues.includes(String(selectedValue))
       ? String(selectedValue)
       : "";
+  if (
+    allowYearsOverrideSpecialCodes &&
+    selectedValue !== undefined &&
+    selectedValue !== null &&
+    selectedValue !== ""
+  ) {
+    clearRequiredValidationError(question);
+  }
 
   return (
     <QuestionFrame locale={locale} question={question}>
