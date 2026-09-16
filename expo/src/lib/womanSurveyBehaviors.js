@@ -127,6 +127,18 @@ const WQ_DV_PHYSICAL_VIOLENCE_SOURCE_FIELDS = [
   WQ_DV_FORCE_SEX_THREATS_FIELD,
 ];
 
+export function shouldPromptWqChildBirthday(deathAge) {
+  return Boolean(getWqChildBirthdayPrompt(deathAge));
+}
+
+export function getWqChildBirthdayPrompt(deathAge) {
+  const months = Number(deathAge?.months);
+  const years = Number(deathAge?.years);
+  if (years === 5) return "If the child celebrated fifth birthday?";
+  if (months === 12 || years === 1) return "If the child celebrated first birthday?";
+  return null;
+}
+
 export function shouldCompleteWqAfterReproduction(maritalStatus) {
   return WQ_SECTION_TWO_COMPLETION_MARITAL_VALUES.includes(Number(maritalStatus));
 }

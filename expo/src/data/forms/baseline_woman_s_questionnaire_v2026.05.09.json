@@ -3972,15 +3972,6 @@
           "sourceCode": "32",
           "sourceType": "select_one",
           "rawText": "Are you pregnant now? 1 yes Go to pregnancy enrolment form",
-          "description": {
-            "default": "yes Go to pregnancy enrolment form",
-            "hi": "",
-            "kn": "",
-            "mr": "",
-            "ta": "",
-            "te": "",
-            "ur": ""
-          },
           "choices": [
             {
               "value": 1,
@@ -4276,15 +4267,6 @@
           "sourceCode": "35",
           "sourceType": "integer",
           "rawText": "How old were you when you had your first monthly period? |_|_| age in completed years",
-          "description": {
-            "default": "age in completed years",
-            "hi": "",
-            "kn": "",
-            "mr": "",
-            "ta": "",
-            "te": "",
-            "ur": ""
-          },
           "inputType": "number",
           "validators": [
             {
@@ -4504,16 +4486,16 @@
       "elements": [
         {
           "type": "html",
-          "name": "wq_03_other_health_issues_the_next_set_of_questions_should_be_asked",
-          "html": "The next set of questions should be asked only for those  eligible for pregnancy status tracking (Question 02.38)",
+          "name": "wq_03_other_health_issues_i_would_like_to_ask_some_questions_about_y",
+          "html": "I would like to ask some questions about your current health condition",
           "order": 55,
           "section_order": 3,
           "sourceType": "section_note"
         },
         {
           "type": "html",
-          "name": "wq_03_other_health_issues_i_would_like_to_ask_some_questions_about_y",
-          "html": "I would like to ask some questions about your current health condition",
+          "name": "wq_03_other_health_issues_the_next_set_of_questions_should_be_asked",
+          "html": "The next set of questions should be asked only for those  eligible for pregnancy status tracking (Question 02.38)",
           "order": 56,
           "section_order": 3,
           "sourceType": "section_note"
@@ -5467,10 +5449,18 @@
           "visibleIfSourceResolved": "Excel 03 row 46: Q9a no skips to Q10."
         },
         {
+          "type": "html",
+          "name": "wq_03_smoking_tobacco_intro",
+          "html": "Now I would like to ask you some questions on smoking and tobacco use.",
+          "order": 75,
+          "section_order": 3,
+          "sourceType": "section_note"
+        },
+        {
           "type": "radiogroup",
           "name": "wq_03_other_health_issues_now_i_would_like_to_ask_you_some_questions",
           "title": {
-            "default": "Now I would like to ask you some questions on smoking and tobacco use. Do you currently smoke cigarettes every day, some days, or not at all?",
+            "default": "Do you currently smoke cigarettes every day, some days, or not at all?",
             "hi": "",
             "kn": "",
             "mr": "",
@@ -5847,10 +5837,18 @@
           "visibleIfSourceResolved": "Excel 03 rows 59-60: Q14 some days/not at all skip to Q16."
         },
         {
+          "type": "html",
+          "name": "wq_03_drinking_alcohol_intro",
+          "html": "Now I would like to ask you some questions about drinking alcohol.",
+          "order": 81,
+          "section_order": 3,
+          "sourceType": "section_note"
+        },
+        {
           "type": "radiogroup",
           "name": "wq_03_other_health_issues_now_i_would_like_to_ask_you_some_questions_2",
           "title": {
-            "default": "Now I would like to ask you some questions about drinking alcohol. Have you ever consumed any alcohol, such as beer, wine, spirits, or [ADD OTHER LOCAL EXAMPLES]?",
+            "default": "Have you ever consumed any alcohol, such as beer, wine, spirits, or [ADD OTHER LOCAL EXAMPLES]?",
             "hi": "",
             "kn": "",
             "mr": "",

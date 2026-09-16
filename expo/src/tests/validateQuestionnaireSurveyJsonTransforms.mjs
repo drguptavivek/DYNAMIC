@@ -96,6 +96,71 @@ const wqReproductionQ23 = findElementByName(
   wqSurveyJson,
   "pregnancy_02_reproduction_check_16_17_and_21_if_16_i_1_or_17_i_1_the",
 );
+const wqReproductionQ32 = findElementByName(wqSurveyJson, "wq_pregnant");
+const wqReproductionQ35 = findElementByName(
+  wqSurveyJson,
+  "wq_02_reproduction_how_old_were_you_when_you_had_your_first_m",
+);
+const wqHealthPage = wqSurveyJson.pages.find(
+  (page) => page.name === "page_03_other_health_issues",
+);
+const staleSyncedWqHealthPage = staleSyncedWqSurveyJson.pages.find(
+  (page) => page.name === "page_03_other_health_issues",
+);
+assert.equal(
+  wqHealthPage?.elements?.[0]?.type,
+  "html",
+  "BWQ Section 3 must begin with a read-only instruction",
+);
+assert.equal(
+  wqHealthPage?.elements?.[0]?.html,
+  "I would like to ask some questions about your current health condition",
+  "BWQ Section 3 must show the current-health reading prompt at the top",
+);
+for (const healthPage of [wqHealthPage, staleSyncedWqHealthPage]) {
+  const smokingQuestionIndex = healthPage?.elements?.findIndex(
+    (element) =>
+      element.name ===
+      "wq_03_other_health_issues_now_i_would_like_to_ask_you_some_questions",
+  );
+  assert.ok(smokingQuestionIndex > 0, "BWQ Q10 must remain in Section 3");
+  assert.equal(
+    healthPage.elements[smokingQuestionIndex - 1]?.name,
+    "wq_03_smoking_tobacco_intro",
+    "BWQ Q10 must have its read-only smoking introduction immediately above it",
+  );
+  assert.equal(
+    healthPage.elements[smokingQuestionIndex - 1]?.html,
+    "Now I would like to ask you some questions on smoking and tobacco use.",
+    "BWQ Q10 smoking introduction must use the requested reading text",
+  );
+  assert.equal(
+    healthPage.elements[smokingQuestionIndex]?.title?.default,
+    "Do you currently smoke cigarettes every day, some days, or not at all?",
+    "BWQ Q10 title must contain only the answerable question",
+  );
+  const alcoholQuestionIndex = healthPage?.elements?.findIndex(
+    (element) =>
+      element.name ===
+      "wq_03_other_health_issues_now_i_would_like_to_ask_you_some_questions_2",
+  );
+  assert.ok(alcoholQuestionIndex > 0, "BWQ Q16 must remain in Section 3");
+  assert.equal(
+    healthPage.elements[alcoholQuestionIndex - 1]?.name,
+    "wq_03_drinking_alcohol_intro",
+    "BWQ Q16 must have its read-only alcohol introduction immediately above it",
+  );
+  assert.equal(
+    healthPage.elements[alcoholQuestionIndex - 1]?.html,
+    "Now I would like to ask you some questions about drinking alcohol.",
+    "BWQ Q16 alcohol introduction must use the requested reading text",
+  );
+  assert.equal(
+    healthPage.elements[alcoholQuestionIndex]?.title?.default,
+    "Have you ever consumed any alcohol, such as beer, wine, spirits, or [ADD OTHER LOCAL EXAMPLES]?",
+    "BWQ Q16 title must contain only the answerable question",
+  );
+}
 const singleMobile = findElementByName(surveyJson, "hhq_contact_mobile");
 const memberMaritalStatus = findElementByName(surveyJson, "member_marital_status");
 const memberEligibility = findElementByName(surveyJson, "member_woman_questionnaire_eligible");
@@ -182,6 +247,8 @@ assert.doesNotMatch(
   wqReproductionQ23.title.default || wqReproductionQ23.title,
   /PREGNANCY OUTCOME =/,
 );
+assert.equal(wqReproductionQ32.description, undefined);
+assert.equal(wqReproductionQ35.description, undefined);
 const staleQ1 = findElementByName(
   staleSyncedWqSurveyJson,
   "wq_02_reproduction_now_i_would_like_to_ask_about_all_the_birt",
@@ -194,6 +261,11 @@ const staleQ23 = findElementByName(
   staleSyncedWqSurveyJson,
   "pregnancy_02_reproduction_check_16_17_and_21_if_16_i_1_or_17_i_1_the",
 );
+const staleQ32 = findElementByName(staleSyncedWqSurveyJson, "wq_pregnant");
+const staleQ35 = findElementByName(
+  staleSyncedWqSurveyJson,
+  "wq_02_reproduction_how_old_were_you_when_you_had_your_first_m",
+);
 assert.equal(staleQ1.title.default || staleQ1.title, "1. Have you ever given birth?");
 assert.equal(
   staleQ13.title.default || staleQ13.title,
@@ -205,6 +277,8 @@ assert.equal(
   "23_i. CHECK 16, 17, and 21:",
   "synced WQ definitions must hide the Q23_i calculation instructions",
 );
+assert.equal(staleQ32.description, undefined, "synced WQ definitions must hide the Q32 description");
+assert.equal(staleQ35.description, undefined, "synced WQ definitions must hide the Q35 description");
 assert.equal(findTopLevelElementByName(wqSurveyJson, "wq_woman_mobile"), null);
 assert.equal(findTopLevelElementByName(wqSurveyJson, "wq_woman_mobile_holder_name"), null);
 assert.equal(wqMobilePanel.type, "paneldynamic");

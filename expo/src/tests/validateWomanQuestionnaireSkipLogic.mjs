@@ -45,6 +45,7 @@ const {
    calculateWqPregnancyTrackingEligibilityValue,
   calculateWqLmpMoreThanSixMonthsValue,
   calculateWqNotPregnantOrUnsureValue,
+  getWqChildBirthdayPrompt,
   getWqOutsideHouseholdHusbandLineNumber,
   resolveWqHusbandPartnerSelection,
   requestNextWqPregnancy,
@@ -52,6 +53,7 @@ const {
   shouldRecalculateWqPregnancyHistory,
   shouldRecalculateWqReproductionSummary,
   shouldCompleteWqAfterReproduction,
+  shouldPromptWqChildBirthday,
 } = await import("../lib/womanSurveyBehaviors.js");
 const {
   activateWqProgressiveDobMode,
@@ -65,6 +67,23 @@ assert.equal(sanitizeWqProgressiveDobPart("month", "13", 2), "12");
 assert.equal(sanitizeWqProgressiveDobPart("month", "99", 2), "12");
 assert.equal(sanitizeWqProgressiveDobPart("month", "2", 2), "2");
 assert.equal(sanitizeWqProgressiveDobPart("day", "31", 2), "31");
+assert.equal(shouldPromptWqChildBirthday({ months: "12", years: "00" }), true);
+assert.equal(shouldPromptWqChildBirthday({ months: "00", years: "01" }), true);
+assert.equal(shouldPromptWqChildBirthday({ months: "00", years: "05" }), true);
+assert.equal(shouldPromptWqChildBirthday({ months: "11", years: "00" }), false);
+assert.equal(
+  getWqChildBirthdayPrompt({ months: "12", years: "00" }),
+  "If the child celebrated first birthday?",
+);
+assert.equal(
+  getWqChildBirthdayPrompt({ months: "00", years: "01" }),
+  "If the child celebrated first birthday?",
+);
+assert.equal(
+  getWqChildBirthdayPrompt({ months: "00", years: "05" }),
+  "If the child celebrated fifth birthday?",
+);
+assert.equal(getWqChildBirthdayPrompt({ months: "11", years: "00" }), null);
 
 assert.deepEqual(normalizeWqProgressiveDob({ month: "02", year: "1996" }), {
   mode: "month_year",
@@ -277,6 +296,15 @@ assert.match(
   historyConfirmationRendererSource,
   /Year of Outcome/,
   "Q22b must show the Q20_i outcome year for every pregnancy child row"
+);
+const bornAliveChildRendererSource = fs.readFileSync(
+  path.resolve(root, "../components/forms/renderers/WqBornAliveChildFollowupsRenderer.js"),
+  "utf8"
+);
+assert.match(
+  bornAliveChildRendererSource,
+  /Number\(panelValue\(activePanel, CHILD_LIVING_WITH_FIELD\)\) === 1/,
+  "The extra Q27_i generated-number display must appear only when Q26_i is Yes"
 );
 
 function createWqModel() {
@@ -1506,9 +1534,12 @@ const firstChildDeathAge = firstChildFollowup.getQuestionByName(WQ_PREGNANCY_DEA
 firstChildAlive.value = 1;
 assert.equal(firstChildAge.isVisible, true, "Q24_i Yes must show Q25_i");
 assert.equal(firstChildLivingWith.isVisible, true, "Q24_i Yes must show Q26_i");
-assert.equal(firstChildLine.isVisible, true, "Q24_i Yes must show Q27_i");
+assert.equal(firstChildLine.isVisible, false, "Q27_i must wait for Q26_i Yes");
 assert.equal(firstChildDeathAge.isVisible, false, "Q24_i Yes must skip Q28_i");
+firstChildLivingWith.value = 1;
+assert.equal(firstChildLine.isVisible, true, "Q26_i Yes must show Q27_i");
 firstChildLivingWith.value = 2;
+assert.equal(firstChildLine.isVisible, false, "Q26_i No must hide Q27_i");
 applyWqPregnancyHistoryCalculations(childLoopModel);
 assert.equal(
   childLoop.panels[0].getQuestionByName(WQ_PREGNANCY_CHILD_LINE_FIELD).value,

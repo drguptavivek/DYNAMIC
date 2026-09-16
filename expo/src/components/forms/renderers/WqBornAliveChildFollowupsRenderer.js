@@ -1,5 +1,5 @@
 /** Collects Q24_i-Q28_i one born-alive child at a time, then summarizes committed rows. */
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import {
@@ -11,6 +11,7 @@ import {
   WQ_PREGNANCY_BABY_NAME_FIELD,
 } from "../nativeSurveyModel.js";
 import { controlStyles } from "./QuestionFrame.js";
+import { getWqChildBirthdayPrompt } from "../../../lib/womanSurveyBehaviors.js";
 
 const CHILD_ALIVE_FIELD = "pregnancy_02_reproduction_is_name_still_alive";
 const CHILD_AGE_FIELD = "pregnancy_02_reproduction_if_born_alive_and_still_living_if_18_i_1_b";
@@ -124,6 +125,25 @@ export function WqBornAliveChildFollowupsRenderer({
   const pendingAlive = Number(panelValue(pendingLinePanel, CHILD_ALIVE_FIELD));
   const pendingLivingWith = Number(panelValue(pendingLinePanel, CHILD_LIVING_WITH_FIELD));
   const pendingLine = panelValue(pendingLinePanel, CHILD_LINE_FIELD);
+  const pendingDeathAge = panelValue(pendingLinePanel, CHILD_DEATH_AGE_FIELD);
+  const pendingDeathAgeSignature = ["days", "months", "years"]
+    .map((name) => String(pendingDeathAge?.[name] ?? ""))
+    .join("|");
+  const birthdayPromptStateRef = useRef({ editingIndex: null, signature: "" });
+  useEffect(() => {
+    const previous = birthdayPromptStateRef.current;
+    const panelChanged = previous.editingIndex !== editingIndex;
+    const valueChanged = previous.signature !== pendingDeathAgeSignature;
+    birthdayPromptStateRef.current = {
+      editingIndex,
+      signature: pendingDeathAgeSignature,
+    };
+    const birthdayPrompt = getWqChildBirthdayPrompt(pendingDeathAge);
+    if (!pendingLinePanel || panelChanged || !valueChanged || !birthdayPrompt) {
+      return;
+    }
+    Alert.alert("Confirm child age", birthdayPrompt);
+  }, [editingIndex, pendingDeathAge, pendingDeathAgeSignature, pendingLinePanel]);
   useEffect(() => {
     if (
       pendingLinePanel &&
@@ -265,7 +285,8 @@ export function WqBornAliveChildFollowupsRenderer({
             child,
             `${question.name}-${editingIndex}-${child.name}`
           ))}
-          {Number(panelValue(activePanel, CHILD_ALIVE_FIELD)) === 1 ? (
+          {Number(panelValue(activePanel, CHILD_ALIVE_FIELD)) === 1 &&
+          Number(panelValue(activePanel, CHILD_LIVING_WITH_FIELD)) === 1 ? (
             <View style={styles.generatedLineBox}>
               <Text style={styles.generatedLineLabel}>Q27_i. Automatically generated household child number</Text>
               <Text style={styles.generatedLineValue}>{panelValue(activePanel, CHILD_LINE_FIELD) || "Generating..."}</Text>
