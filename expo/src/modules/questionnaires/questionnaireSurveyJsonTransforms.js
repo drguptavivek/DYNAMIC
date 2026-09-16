@@ -76,20 +76,22 @@ const WQ_Q32_PREGNANT_NAME = "wq_pregnant";
 const WQ_Q35_FIRST_PERIOD_AGE_NAME =
   "wq_02_reproduction_how_old_were_you_when_you_had_your_first_m";
 const WQ_HEALTH_PAGE_NAME = "page_03_other_health_issues";
+const WQ_HEALTH_INTRO_NAME =
+  "wq_03_other_health_issues_i_would_like_to_ask_some_questions_about_y";
 const WQ_Q10_SMOKING_NAME =
   "wq_03_other_health_issues_now_i_would_like_to_ask_you_some_questions";
 const WQ_Q10_SMOKING_INTRO_NAME = "wq_03_smoking_tobacco_intro";
 const WQ_Q10_SMOKING_INTRO_TEXT =
   "Now I would like to ask you some questions on smoking and tobacco use.";
 const WQ_Q10_SMOKING_TITLE =
-  "Do you currently smoke cigarettes every day, some days, or not at all?";
+  "10. Do you currently smoke cigarettes every day, some days, or not at all?";
 const WQ_Q16_ALCOHOL_NAME =
   "wq_03_other_health_issues_now_i_would_like_to_ask_you_some_questions_2";
 const WQ_Q16_ALCOHOL_INTRO_NAME = "wq_03_drinking_alcohol_intro";
 const WQ_Q16_ALCOHOL_INTRO_TEXT =
   "Now I would like to ask you some questions about drinking alcohol.";
 const WQ_Q16_ALCOHOL_TITLE =
-  "Have you ever consumed any alcohol, such as beer, wine, spirits, or [ADD OTHER LOCAL EXAMPLES]?";
+  "16. Have you ever consumed any alcohol, such as beer, wine, spirits, or [ADD OTHER LOCAL EXAMPLES]?";
 const WQ_Q22B_NAME = "wq_02_reproduction_read_the_list_of_pregnancy_outcomes_in_ord";
 const WQ_Q22B_PAGE_NAME = "page_02c_reproduction_confirmation";
 const WQ_COMPARISON_PAGE_NAME = "page_02d_reproduction_comparison";
@@ -658,6 +660,7 @@ function applyWqSmokingQuestionText(surveyJson) {
         type: "html",
         name: WQ_Q10_SMOKING_INTRO_NAME,
         html: WQ_Q10_SMOKING_INTRO_TEXT,
+        renderAs: "instruction",
         order: smokingQuestion.order,
         section_order: smokingQuestion.section_order,
         sourceType: "section_note",
@@ -692,6 +695,7 @@ function applyWqAlcoholQuestionText(surveyJson) {
         type: "html",
         name: WQ_Q16_ALCOHOL_INTRO_NAME,
         html: WQ_Q16_ALCOHOL_INTRO_TEXT,
+        renderAs: "instruction",
         order: alcoholQuestion.order,
         section_order: alcoholQuestion.section_order,
         sourceType: "section_note",
@@ -703,6 +707,24 @@ function applyWqAlcoholQuestionText(surveyJson) {
       const elements = [...elementsWithoutIntro];
       elements.splice(alcoholQuestionIndex, 1, instruction, updatedQuestion);
       return { ...page, elements };
+    }),
+  };
+}
+
+function applyWqHealthSectionIntro(surveyJson) {
+  return {
+    ...surveyJson,
+    pages: surveyJson.pages.map((page) => {
+      if (page.name !== WQ_HEALTH_PAGE_NAME) return page;
+      const intro = page.elements.find((element) => element.name === WQ_HEALTH_INTRO_NAME);
+      if (!intro) return page;
+      return {
+        ...page,
+        elements: [
+          { ...intro, renderAs: "instruction" },
+          ...page.elements.filter((element) => element.name !== WQ_HEALTH_INTRO_NAME),
+        ],
+      };
     }),
   };
 }
@@ -884,6 +906,7 @@ export function prepareQuestionnaireSurveyJson(form) {
   if (isWqForm(form)) {
     surveyJson = allowMultipleWqMobileNumbers(surveyJson);
     surveyJson = applyWqReproductionQuestionText(surveyJson);
+    surveyJson = applyWqHealthSectionIntro(surveyJson);
     surveyJson = applyWqSmokingQuestionText(surveyJson);
     surveyJson = applyWqAlcoholQuestionText(surveyJson);
     surveyJson = applyWqResidenceYearsInput(surveyJson);

@@ -118,6 +118,16 @@ assert.equal(
   "BWQ Section 3 must show the current-health reading prompt at the top",
 );
 for (const healthPage of [wqHealthPage, staleSyncedWqHealthPage]) {
+  assert.equal(
+    healthPage?.elements?.[0]?.name,
+    "wq_03_other_health_issues_i_would_like_to_ask_some_questions_about_y",
+    "BWQ Section 3 current-health instruction must be the first displayed item",
+  );
+  assert.equal(
+    healthPage?.elements?.[0]?.renderAs,
+    "instruction",
+    "BWQ Section 3 current-health text must use the yellow instruction renderer",
+  );
   const smokingQuestionIndex = healthPage?.elements?.findIndex(
     (element) =>
       element.name ===
@@ -135,8 +145,13 @@ for (const healthPage of [wqHealthPage, staleSyncedWqHealthPage]) {
     "BWQ Q10 smoking introduction must use the requested reading text",
   );
   assert.equal(
+    healthPage.elements[smokingQuestionIndex - 1]?.renderAs,
+    "instruction",
+    "BWQ Q10 introduction must use the yellow instruction renderer",
+  );
+  assert.equal(
     healthPage.elements[smokingQuestionIndex]?.title?.default,
-    "Do you currently smoke cigarettes every day, some days, or not at all?",
+    "10. Do you currently smoke cigarettes every day, some days, or not at all?",
     "BWQ Q10 title must contain only the answerable question",
   );
   const alcoholQuestionIndex = healthPage?.elements?.findIndex(
@@ -156,8 +171,13 @@ for (const healthPage of [wqHealthPage, staleSyncedWqHealthPage]) {
     "BWQ Q16 alcohol introduction must use the requested reading text",
   );
   assert.equal(
+    healthPage.elements[alcoholQuestionIndex - 1]?.renderAs,
+    "instruction",
+    "BWQ Q16 introduction must use the yellow instruction renderer",
+  );
+  assert.equal(
     healthPage.elements[alcoholQuestionIndex]?.title?.default,
-    "Have you ever consumed any alcohol, such as beer, wine, spirits, or [ADD OTHER LOCAL EXAMPLES]?",
+    "16. Have you ever consumed any alcohol, such as beer, wine, spirits, or [ADD OTHER LOCAL EXAMPLES]?",
     "BWQ Q16 title must contain only the answerable question",
   );
 }

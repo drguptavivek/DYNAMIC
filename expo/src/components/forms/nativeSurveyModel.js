@@ -600,7 +600,8 @@ export function getVisiblePageQuestions(page) {
   return (page?.questions || page?.elements || []).filter((question) => {
     const type = question?.getType?.() || question?.type;
     const isRenderedHtmlCapability =
-      type === "html" && question?.renderAs === "wq_reproduction_comparison";
+      type === "html" &&
+      ["instruction", "wq_reproduction_comparison"].includes(question?.renderAs);
     return Boolean(
       question &&
       (type !== "html" || isRenderedHtmlCapability) &&
@@ -865,6 +866,8 @@ export function buildNativeSurveyPreview(model, locale = "default") {
   return (model?.visiblePages || model?.pages || []).map((page) => ({
     name: page.name,
     title: localizedText(page.locTitle, page.title || page.name, locale),
-    questions: getVisiblePageQuestions(page).map((question) => previewQuestion(question, locale)),
+    questions: getVisiblePageQuestions(page)
+      .filter((question) => question.renderAs !== "instruction")
+      .map((question) => previewQuestion(question, locale)),
   }));
 }

@@ -176,6 +176,24 @@ assert.equal(
   0,
   "Ordinary HTML instructions must remain outside the native question list"
 );
+const explicitInstructionModel = new Model({
+  elements: [{
+    type: "html",
+    name: "native_instruction",
+    html: "Read this only",
+    renderAs: "instruction",
+  }],
+});
+assert.deepEqual(
+  getVisiblePageQuestions(explicitInstructionModel.pages[0]).map((question) => question.name),
+  ["native_instruction"],
+  "Explicit native instructions must reach the yellow instruction renderer",
+);
+assert.equal(
+  buildNativeSurveyPreview(explicitInstructionModel)[0].questions.length,
+  0,
+  "Read-only instructions must not appear as questionnaire answers in preview",
+);
 const comparisonTableModel = new Model({
   elements: [{
     type: "html",
