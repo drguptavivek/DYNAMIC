@@ -26,6 +26,11 @@ const HHQ_OUTCOME_NORMAL_VISIBLE_IF =
   `{${HHQ_HANDWASHING_PLACE_NAME}} != 4)) and {${HHQ_HANDWASHING_OBSERVATION_NAME}} empty)`;
 
 const WQ_FORM_CODE = "WQ";
+const WQ_SINGLE_MOBILE_NAME = "wq_woman_mobile";
+const WQ_SINGLE_MOBILE_HOLDER_NAME = "wq_woman_mobile_holder_name";
+const WQ_MOBILE_LIST_NAME = "wq_woman_mobile_numbers";
+const WQ_MOBILE_ROW_NAME = "wq_woman_mobile";
+const WQ_MOBILE_HOLDER_ROW_NAME = "wq_woman_mobile_holder_name";
 const WQ_WOMAN_AVAILABLE_NAME = "wq_woman_available";
 const WQ_CONSENT_NAME = "wq_consent_study";
 const WQ_MARITAL_NAME = "wq_current_marital_status";
@@ -45,6 +50,12 @@ export const WQ_REPRODUCTION_COMPARISON_NAME = "wq_reproduction_comparison_table
 const WQ_Q29_NAME = "wq_02_reproduction_compare_12_with_number_of_pregnancy_outcom";
 const WQ_Q30_NAME = "wq_02_reproduction_did_you_ever_experience_a_delivery_by_caes";
 const WQ_Q33A_NAME = "wq_02_reproduction_when_did_your_last_menstrual_period_start";
+const WQ_Q10_DOB_NAME =
+  "wq_01_respondent_s_backgr_in_what_month_and_year_were_you_born";
+const WQ_Q12_GENERAL_HEALTH_NAME =
+  "wq_01_respondent_s_backgr_in_general_would_you_say_your_health_is_ve";
+const WQ_Q14_HIGHEST_GRADE_NAME =
+  "wq_01_respondent_s_backgr_what_is_the_highest_grade_you_completed";
 const WQ_Q22B_NAME = "wq_02_reproduction_read_the_list_of_pregnancy_outcomes_in_ord";
 const WQ_Q22B_PAGE_NAME = "page_02c_reproduction_confirmation";
 const WQ_COMPARISON_PAGE_NAME = "page_02d_reproduction_comparison";
@@ -235,6 +246,60 @@ function allowMultipleHhqMobileNumbers(surveyJson) {
       ...page,
       elements: visit(page.elements),
     })),
+  };
+}
+
+function allowMultipleWqMobileNumbers(surveyJson) {
+  function visit(elements = []) {
+    return elements.flatMap((element) => {
+      if (element.name === WQ_SINGLE_MOBILE_HOLDER_NAME) return [];
+      if (element.name === WQ_SINGLE_MOBILE_NAME && element.type === "text") {
+        return [{
+          type: "paneldynamic",
+          name: WQ_MOBILE_LIST_NAME,
+          title: element.title,
+          description: {
+            default: "Please enter the mobile number and the mobile number holder name.",
+          },
+          order: element.order,
+          section_order: element.section_order,
+          sourceCode: element.sourceCode,
+          sourceType: "repeatable_mobile_contacts",
+          rawText: element.rawText,
+          minPanelCount: 0,
+          panelCount: 0,
+          addPanelText: "Add mobile number",
+          removePanelText: "Remove mobile number",
+          ...(element.visibleIf ? { visibleIf: element.visibleIf } : {}),
+          templateElements: [
+            {
+              type: "text",
+              name: WQ_MOBILE_HOLDER_ROW_NAME,
+              title: "Mobile number holder name",
+              inputType: "text",
+              isRequired: true,
+            },
+            {
+              type: "text",
+              name: WQ_MOBILE_ROW_NAME,
+              title: "Please enter the mobile number",
+              inputType: "tel",
+              isRequired: true,
+              validators: element.validators || [],
+            },
+          ],
+        }];
+      }
+      const next = { ...element };
+      if (Array.isArray(next.elements)) next.elements = visit(next.elements);
+      if (Array.isArray(next.templateElements)) next.templateElements = visit(next.templateElements);
+      return [next];
+    });
+  }
+
+  return {
+    ...surveyJson,
+    pages: surveyJson.pages.map((page) => ({ ...page, elements: visit(page.elements) })),
   };
 }
 
@@ -462,6 +527,54 @@ function markWqLmpTimingControl(surveyJson) {
   };
 }
 
+function markWqProgressiveDobControl(surveyJson) {
+  return {
+    ...surveyJson,
+    pages: surveyJson.pages.map((page) => ({
+      ...page,
+      elements: page.elements.map((element) =>
+        element.name === WQ_Q10_DOB_NAME
+          ? { ...element, renderAs: "wq_progressive_dob" }
+          : element
+      ),
+    })),
+  };
+}
+
+function removeWqQ12TrainingDescription(surveyJson) {
+  return {
+    ...surveyJson,
+    pages: surveyJson.pages.map((page) => ({
+      ...page,
+      elements: page.elements.map((element) =>
+        element.name === WQ_Q12_GENERAL_HEALTH_NAME
+          ? { ...element, description: undefined }
+          : element
+      ),
+    })),
+  };
+}
+
+function applyWqHighestGradeInput(surveyJson) {
+  return {
+    ...surveyJson,
+    pages: surveyJson.pages.map((page) => ({
+      ...page,
+      elements: page.elements.map((element) => {
+        if (element.name !== WQ_Q14_HIGHEST_GRADE_NAME) return element;
+        return {
+          ...element,
+          type: "text",
+          renderAs: "years_with_special_codes",
+          allowYearsOverrideSpecialCodes: true,
+          description: "Training - refer to NFHS-6 Manual",
+          choices: (element.choices || []).filter((choice) => [0, 98].includes(Number(choice.value))),
+        };
+      }),
+    })),
+  };
+}
+
 function applyWqReproductionComparisonTable(surveyJson) {
   return {
     ...surveyJson,
@@ -514,20 +627,33 @@ function applyWqReproductionComparisonTable(surveyJson) {
   };
 }
 export function normalizeQuestionnaireSurveyData(form, data) {
-  if (!isHhqForm(form) || !data || typeof data !== "object") {
+  if (!data || typeof data !== "object") {
     return data || {};
   }
-  if (Array.isArray(data[HHQ_MOBILE_LIST_NAME])) {
-    return data;
+  if (isHhqForm(form)) {
+    if (Array.isArray(data[HHQ_MOBILE_LIST_NAME])) return data;
+    const singleMobile = data[HHQ_SINGLE_MOBILE_NAME];
+    if (!singleMobile) return data;
+    const next = { ...data };
+    next[HHQ_MOBILE_LIST_NAME] = [{ [HHQ_MOBILE_ROW_NAME]: String(singleMobile) }];
+    delete next[HHQ_SINGLE_MOBILE_NAME];
+    return next;
   }
-  const singleMobile = data[HHQ_SINGLE_MOBILE_NAME];
-  if (!singleMobile) {
-    return data;
+  if (isWqForm(form)) {
+    if (Array.isArray(data[WQ_MOBILE_LIST_NAME])) return data;
+    const singleMobile = data[WQ_SINGLE_MOBILE_NAME];
+    const holderName = data[WQ_SINGLE_MOBILE_HOLDER_NAME];
+    if (!singleMobile && !holderName) return data;
+    const next = { ...data };
+    next[WQ_MOBILE_LIST_NAME] = [{
+      ...(holderName ? { [WQ_MOBILE_HOLDER_ROW_NAME]: String(holderName) } : {}),
+      ...(singleMobile ? { [WQ_MOBILE_ROW_NAME]: String(singleMobile) } : {}),
+    }];
+    delete next[WQ_SINGLE_MOBILE_NAME];
+    delete next[WQ_SINGLE_MOBILE_HOLDER_NAME];
+    return next;
   }
-  const next = { ...data };
-  next[HHQ_MOBILE_LIST_NAME] = [{ [HHQ_MOBILE_ROW_NAME]: String(singleMobile) }];
-  delete next[HHQ_SINGLE_MOBILE_NAME];
-  return next;
+  return data;
 }
 
 // prepareQuestionnaireSurveyJson runs a chain of tree-walking transforms over
@@ -558,6 +684,10 @@ export function prepareQuestionnaireSurveyJson(form) {
     surveyJson = applyMandatoryHhqSurveyJson(surveyJson);
   }
   if (isWqForm(form)) {
+    surveyJson = allowMultipleWqMobileNumbers(surveyJson);
+    surveyJson = markWqProgressiveDobControl(surveyJson);
+    surveyJson = removeWqQ12TrainingDescription(surveyJson);
+    surveyJson = applyWqHighestGradeInput(surveyJson);
     surveyJson = applyWqOutcomeChoiceVisibility(surveyJson);
     surveyJson = addWqStablePregnancyRowId(surveyJson);
     surveyJson = applyWqBornAliveChildFollowupLoop(surveyJson);

@@ -1,3 +1,5 @@
+import { validateWqProgressiveDob } from "./wqProgressiveDob.js";
+
 export const WQ_AGE_FIELD = "wq_age_last_birthday";
 export const WQ_RESIDENCE_YEARS_FIELD = "wq_01_respondent_s_backgr_how_long_have_you_been_living_continuously";
 export const WQ_RESIDENCE_SPECIAL_CODES = [95, 96]; // 95 always, 96 visitor
@@ -167,7 +169,7 @@ function memberSexLabel(sex) {
 }
 
 function isEligibleWqHusbandPartnerMember(member) {
-  return String(member?.sex) === "1" && Number(member?.age_years) > 15;
+  return String(member?.sex) === "1" && Number(member?.age_years) > 18;
 }
 
 function isEligibleWqWomanMember(member) {
@@ -813,6 +815,10 @@ export function attachWqValidation(model) {
         options.name === WQ_RESIDENCE_YEARS_FIELD
           ? calculateWqResidenceAgeMessage(answers)
           : calculateWqQ11ConsistencyMessage(answers, referenceDate);
+      if (message) options.error = message;
+    }
+    if (options.name === WQ_BIRTH_MONTH_YEAR_FIELD) {
+      const message = validateWqProgressiveDob(sender.getValue(WQ_BIRTH_MONTH_YEAR_FIELD));
       if (message) options.error = message;
     }
     if (

@@ -62,6 +62,11 @@ const WQ_SECTION_4_MARITAL_STATUS_CHECK_FIELD =
   "wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo";
 const WQ_SECTION_4_HUSBAND_OCCUPATION_FIELD =
   "wq_04_husband_s_backgroun_if_1_1_currently_married_what_is_your_last";
+const WQ_CURRENT_HOUSEHOLD_LOCALITY_FIELD = "wq_village_study_site";
+const WQ_CURRENT_LOCALITY_DURATION_FIELD =
+  "wq_01_respondent_s_backgr_how_long_have_you_been_living_continuously";
+const WQ_PROGRESSIVE_DOB_FIELD =
+  "wq_01_respondent_s_backgr_in_what_month_and_year_were_you_born";
 
 export function isNativeInternalPanelField(name) {
   return NATIVE_INTERNAL_PANEL_FIELDS.has(String(name || ""));
@@ -244,6 +249,22 @@ function childName(question) {
 }
 
 export function getNativeQuestionTitle(question, locale = "default") {
+  if (question?.name === WQ_CURRENT_LOCALITY_DURATION_FIELD) {
+    const originalTitle = localizedText(question?.locTitle, question?.title || "", locale);
+    const localityAndSite = String(
+      getQuestionValueForInterpolation(question, WQ_CURRENT_HOUSEHOLD_LOCALITY_FIELD) || ""
+    ).trim();
+    const localityName = localityAndSite.split(/\s+\/\s+/)[0]?.trim();
+    const displayedLocality = localityName || "the locality of the current household";
+    return (
+      `${sourcePrefixFromTitle(originalTitle)}How long have you been living continuously in ` +
+      `${displayedLocality}?\nIf less than one year, record 00 years`
+    );
+  }
+  if (question?.name === WQ_PROGRESSIVE_DOB_FIELD) {
+    const originalTitle = localizedText(question?.locTitle, question?.title || "", locale);
+    return `${sourcePrefixFromTitle(originalTitle)}What is your date of birth?`;
+  }
   if (question?.name === WQ_PREGNANCY_OUTCOME_DATE_FIELD) {
     const originalTitle = interpolateSurveyValues(
       localizedText(question?.locTitle, question?.title || "", locale),
@@ -255,6 +276,9 @@ export function getNativeQuestionTitle(question, locale = "default") {
         outcome === "Born alive"
           ? `On what day, month, and year was ${childName(question)} born?`
           : "On what day, month, and year did this pregnancy end?";
+      if (outcome === "Born alive") {
+        return `${sourcePrefixFromTitle(originalTitle)}${datePrompt}`;
+      }
       return `${sourcePrefixFromTitle(originalTitle)}${outcome}\n${datePrompt}`;
     }
   }
@@ -680,6 +704,7 @@ export function getNativeRendererKind(question) {
   const isWqBornAliveChildFollowups = question.name === WQ_BORN_ALIVE_CHILD_FOLLOWUPS_FIELD;
   const isWqReproductionComparison = question.name === WQ_REPRODUCTION_COMPARISON_FIELD;
   const isWqLmpTiming = question.name === WQ_LMP_TIMING_FIELD;
+  const isWqProgressiveDob = question.name === WQ_PROGRESSIVE_DOB_FIELD;
   if (renderAs === "readonly_calculated_numeric") return "calculate";
   if (renderAs === "readonly_summary") return "display";
   if (renderAs === "db_check") return "db-check";
@@ -712,6 +737,9 @@ export function getNativeRendererKind(question) {
   }
   if (renderAs === "wq_lmp_timing" || renderAs === "lmp_timing" || isWqLmpTiming) {
     return "wq-lmp-timing";
+  }
+  if (renderAs === "wq_progressive_dob" || isWqProgressiveDob) {
+    return "wq-progressive-dob";
   }
   if (renderAs === "years_with_special_codes" || renderAs === "days_with_special_codes") return "select-one";
   if (type === "radiogroup") return "select-one";

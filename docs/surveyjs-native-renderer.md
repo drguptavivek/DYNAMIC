@@ -43,6 +43,7 @@ Each renderer lives in its own file under `expo/src/components/forms/renderers/`
 | Select one | `type: radiogroup` | `SelectOneRenderer.js` |
 | Select many | `type: checkbox` | `SelectManyRenderer.js` |
 | Compound text | `type: multipletext` | `MultipleTextRenderer.js` |
+| Progressive DOB | `renderAs: wq_progressive_dob` | `WqProgressiveDobRenderer.js` |
 | Repeat section | `type: paneldynamic` | `DynamicPanelRenderer.js` |
 | Instruction | `type: html` | `InstructionRenderer.js` |
 | Calculate | `renderAs: readonly_calculated_numeric` | `CalculateRenderer.js` |

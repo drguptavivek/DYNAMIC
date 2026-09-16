@@ -5,7 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Model } from "survey-core";
 
-const { prepareQuestionnaireSurveyJson } = await import(
+const { normalizeQuestionnaireSurveyData, prepareQuestionnaireSurveyJson } = await import(
   "../modules/questionnaires/questionnaireSurveyJsonTransforms.js"
 );
 
@@ -31,9 +31,28 @@ function findElementByName(surveyJson, name) {
   return null;
 }
 
+function findTopLevelElementByName(surveyJson, name) {
+  return surveyJson.pages
+    .flatMap((page) => page.elements || [])
+    .find((element) => element.name === name) || null;
+}
+
 const surveyJson = prepareQuestionnaireSurveyJson(hhq);
 const wqSurveyJson = prepareQuestionnaireSurveyJson(wq);
 const mobilePanel = findElementByName(surveyJson, "hhq_contact_mobile_numbers");
+const wqMobilePanel = findElementByName(wqSurveyJson, "wq_woman_mobile_numbers");
+const wqProgressiveDob = findElementByName(
+  wqSurveyJson,
+  "wq_01_respondent_s_backgr_in_what_month_and_year_were_you_born",
+);
+const wqGeneralHealth = findElementByName(
+  wqSurveyJson,
+  "wq_01_respondent_s_backgr_in_general_would_you_say_your_health_is_ve",
+);
+const wqHighestGrade = findElementByName(
+  wqSurveyJson,
+  "wq_01_respondent_s_backgr_what_is_the_highest_grade_you_completed",
+);
 const singleMobile = findElementByName(surveyJson, "hhq_contact_mobile");
 const memberMaritalStatus = findElementByName(surveyJson, "member_marital_status");
 const memberEligibility = findElementByName(surveyJson, "member_woman_questionnaire_eligible");
@@ -80,6 +99,55 @@ const languageQuestion = findElementByName(surveyJson, "hhq_language_questionnai
 
 assert.equal(languageQuestion.renderAs, "background");
 assert.equal(findElementByName(wqSurveyJson, "wq_language_questionnaire").renderAs, "background");
+assert.equal(wqProgressiveDob.renderAs, "wq_progressive_dob");
+assert.equal(wqGeneralHealth.description, undefined);
+assert.equal(wqGeneralHealth.choices[0].text.default || wqGeneralHealth.choices[0].text, "Very Good");
+assert.equal(wqHighestGrade.type, "text");
+assert.equal(wqHighestGrade.renderAs, "years_with_special_codes");
+assert.equal(wqHighestGrade.allowYearsOverrideSpecialCodes, true);
+assert.equal(wqHighestGrade.description, "Training - refer to NFHS-6 Manual");
+assert.deepEqual(wqHighestGrade.choices.map((choice) => choice.value), [0, 98]);
+assert.equal(findTopLevelElementByName(wqSurveyJson, "wq_woman_mobile"), null);
+assert.equal(findTopLevelElementByName(wqSurveyJson, "wq_woman_mobile_holder_name"), null);
+assert.equal(wqMobilePanel.type, "paneldynamic");
+assert.equal(wqMobilePanel.minPanelCount, 0);
+assert.equal(wqMobilePanel.panelCount, 0);
+assert.equal(wqMobilePanel.addPanelText, "Add mobile number");
+assert.equal(wqMobilePanel.visibleIf, "{wq_woman_available} = 1 and {wq_consent_study} = 1");
+assert.deepEqual(
+  wqMobilePanel.templateElements.map(({ name, isRequired }) => ({ name, isRequired })),
+  [
+    { name: "wq_woman_mobile_holder_name", isRequired: true },
+    { name: "wq_woman_mobile", isRequired: true },
+  ],
+);
+assert.deepEqual(
+  normalizeQuestionnaireSurveyData(wq, {
+    wq_woman_mobile: "9999999999",
+    wq_woman_mobile_holder_name: "Respondent",
+  }),
+  {
+    wq_woman_mobile_numbers: [{
+      wq_woman_mobile_holder_name: "Respondent",
+      wq_woman_mobile: "9999999999",
+    }],
+  },
+);
+const wqMobileModel = new Model(wqSurveyJson);
+wqMobileModel.setValue("wq_woman_available", 1);
+wqMobileModel.setValue("wq_consent_study", 1);
+const wqMobileQuestion = wqMobileModel.getQuestionByName("wq_woman_mobile_numbers");
+assert.equal(wqMobileQuestion.isVisible, true);
+const firstWqMobilePanel = wqMobileQuestion.addPanel();
+firstWqMobilePanel.getQuestionByName("wq_woman_mobile_holder_name").value = "Respondent";
+firstWqMobilePanel.getQuestionByName("wq_woman_mobile").value = "9999999999";
+const secondWqMobilePanel = wqMobileQuestion.addPanel();
+secondWqMobilePanel.getQuestionByName("wq_woman_mobile_holder_name").value = "Husband";
+secondWqMobilePanel.getQuestionByName("wq_woman_mobile").value = "8888888888";
+assert.deepEqual(wqMobileQuestion.value, [
+  { wq_woman_mobile_holder_name: "Respondent", wq_woman_mobile: "9999999999" },
+  { wq_woman_mobile_holder_name: "Husband", wq_woman_mobile: "8888888888" },
+]);
 
 assert.equal(singleMobile, null);
 assert.equal(mobilePanel.type, "paneldynamic");

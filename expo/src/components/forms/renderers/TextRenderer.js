@@ -6,17 +6,17 @@ import { getNativeQuestionValue, setNativeQuestionValue } from "../nativeSurveyM
 import { QuestionFrame, controlStyles } from "./QuestionFrame.js";
 import { validateRegexQuestion } from "../validators/RegexValidator.js";
 import { getNativeKeyboardType } from "./multipleTextValue.js";
-import { shouldDeferMobileConfirmationToPanelCommit } from "./mobileNumberConfirmation.js";
+import {
+  getMobileNumberConfirmationMessage,
+  shouldConfirmMobileNumberOnInput,
+} from "./mobileNumberConfirmation.js";
 
 export function TextRenderer({ answerData, locale, question, onChange }) {
   const value = getNativeQuestionValue(question, answerData);
   const keyboardType = getNativeKeyboardType(question);
   const lastPromptedValueRef = useRef("");
   const latestValueRef = useRef(value === undefined || value === null ? "" : String(value));
-  const isMobileNumber =
-    /mobile|telephone|phone/i.test(String(question?.name || "")) &&
-    !/holder[_ ]?name/i.test(String(question?.name || "")) &&
-    !shouldDeferMobileConfirmationToPanelCommit(question);
+  const isMobileNumber = shouldConfirmMobileNumberOnInput(question);
 
   function confirmMobileNumber(candidateValue) {
     const enteredValue = String(candidateValue ?? latestValueRef.current ?? "").trim();
@@ -24,7 +24,7 @@ export function TextRenderer({ answerData, locale, question, onChange }) {
     lastPromptedValueRef.current = enteredValue;
     Alert.alert(
       "Confirm mobile number",
-      "Read this mobile number to the Respondent and confirm whether the number is correct or not.",
+      getMobileNumberConfirmationMessage(question),
       [{ text: "Yes" }, { text: "No" }],
     );
   }

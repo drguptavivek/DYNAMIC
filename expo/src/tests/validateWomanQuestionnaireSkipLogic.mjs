@@ -30,6 +30,7 @@ const {
   WQ_PREGNANCY_SIGN_OF_LIFE_FIELD,
   WQ_REPRODUCTION_COMPARISON_RESULT_FIELD,
   WQ_STERILIZATION_FIELD,
+  attachWqValidation,
    applyWqDomesticViolenceCalculations,
   applyWqLmpTimingChecks,
   applyWqSectionTwoCompletion,
@@ -52,6 +53,29 @@ const {
   shouldRecalculateWqReproductionSummary,
   shouldCompleteWqAfterReproduction,
 } = await import("../lib/womanSurveyBehaviors.js");
+const {
+  activateWqProgressiveDobMode,
+  normalizeWqProgressiveDob,
+  validateWqProgressiveDob,
+} = await import("../lib/wqProgressiveDob.js");
+
+assert.deepEqual(normalizeWqProgressiveDob({ month: "02", year: "1996" }), {
+  mode: "month_year",
+  month: "02",
+  year: "1996",
+});
+assert.deepEqual(activateWqProgressiveDobMode({ month: "02", year: "1996" }, "year"), {
+  mode: "year",
+  year: "1996",
+});
+assert.equal(validateWqProgressiveDob({ mode: "exact", day: "29", month: "02", year: "1996" }), null);
+assert.match(
+  validateWqProgressiveDob({ mode: "exact", day: "31", month: "02", year: "1996" }),
+  /valid date of birth/,
+);
+assert.equal(validateWqProgressiveDob({ mode: "month_year", month: "02", year: "1996" }), null);
+assert.equal(validateWqProgressiveDob({ mode: "year", year: "1996" }), null);
+assert.equal(validateWqProgressiveDob({ mode: "unknown" }), null);
 const {
   appendDynamicPanel,
   getNativeQuestionTitle,
@@ -589,12 +613,20 @@ assert.equal(model.getPageByName("page_02_reproduction").isVisible, true);
 assert.equal(question(model, "wq_husband_partner_name").renderAs, "household_member_dropdown");
 assert.deepEqual(
   buildWqHusbandPartnerChoices([
-    { member_name: "Male Fifteen", sex: 1, age_years: 15, line_number: 1, individual_id: "hh-01" },
-    { member_name: "Male Sixteen", sex: 1, age_years: 16, line_number: 2, individual_id: "hh-02" },
-    { member_name: "Female Adult", sex: 2, age_years: 30, line_number: 3, individual_id: "hh-03" },
-    { member_name: "Male Unknown Age", sex: 1, age_years: null, line_number: 4, individual_id: "hh-04" },
+    { member_name: "Male Eighteen", sex: 1, age_years: 18, line_number: 1, individual_id: "hh-01" },
+    {
+      member_name: "Adult Male Head",
+      sex: 1,
+      age_years: 45,
+      relationship_to_head: 1,
+      line_number: 2,
+      individual_id: "hh-02",
+    },
+    { member_name: "Adult Male Member", sex: 1, age_years: 19, line_number: 3, individual_id: "hh-03" },
+    { member_name: "Female Adult", sex: 2, age_years: 30, line_number: 4, individual_id: "hh-04" },
+    { member_name: "Male Unknown Age", sex: 1, age_years: null, line_number: 5, individual_id: "hh-05" },
   ]).map((choice) => choice.value),
-  ["Male Sixteen", "Husband not in household"]
+  ["Adult Male Head", "Adult Male Member", "Husband not in household"]
 );
 const outsideHusbandMembers = [
   { member_name: "Woman One", sex: 2, age_years: 24, line_number: 1, individual_id: "2-02-0003-01-01" },
@@ -1347,7 +1379,7 @@ pregnancyBabyName.value = "Asha";
 assert.match(getNativeQuestionTitle(pregnancyOutcomeDate), /Born dead/);
 assert.match(getNativeQuestionTitle(pregnancyOutcomeDate), /pregnancy end/);
 pregnancyOutcome.value = 1;
-assert.match(getNativeQuestionTitle(pregnancyOutcomeDate), /Born alive/);
+assert.doesNotMatch(getNativeQuestionTitle(pregnancyOutcomeDate), /Born alive/i);
 assert.match(getNativeQuestionTitle(pregnancyOutcomeDate), /Asha born/);
 pregnancyBabySex.value = 1;
 assert.match(getNativeQuestionTitle(pregnancyChildAge), /Asha at his last birthday/);
@@ -2286,6 +2318,26 @@ assert.equal(
   "don't know sentinels must pass item validation"
 );
 assert.equal(itemErrorModel.currentPage.name, "page_02_reproduction");
+
+const progressiveDobValidationModel = createWqModel();
+attachWqValidation(progressiveDobValidationModel);
+const progressiveDobQuestion = question(
+  progressiveDobValidationModel,
+  "wq_01_respondent_s_backgr_in_what_month_and_year_were_you_born",
+);
+progressiveDobValidationModel.setValue(progressiveDobQuestion.name, {
+  mode: "exact",
+  day: "31",
+  month: "02",
+  year: "1996",
+});
+assert.equal(progressiveDobQuestion.validate(), false);
+assert.ok(progressiveDobQuestion.errors.some((error) => /valid date of birth/.test(error.text || "")));
+progressiveDobValidationModel.setValue(progressiveDobQuestion.name, {
+  mode: "year",
+  year: "1996",
+});
+assert.equal(progressiveDobQuestion.validate(), true);
 
 // Section 6 biomarker entry formats (user spec):
 // Q1 height 3 digits cm, Q2 weight 3 digits + . + 2 digits kg,

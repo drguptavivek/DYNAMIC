@@ -28,6 +28,7 @@ import { WqPregnancyHistoryConfirmationRenderer } from "./WqPregnancyHistoryConf
 import { WqPregnancyOutcomeReviewRenderer } from "./WqPregnancyOutcomeReviewRenderer.js";
 import { WqReproductionComparisonRenderer } from "./WqReproductionComparisonRenderer.js";
 import { WqLmpTimingRenderer } from "./WqLmpTimingRenderer.js";
+import { WqProgressiveDobRenderer } from "./WqProgressiveDobRenderer.js";
 import { WqPregnancySinceLastRenderer } from "./WqPregnancySinceLastRenderer.js";
 
 function NativeQuestionRendererBase({
@@ -85,6 +86,7 @@ function NativeQuestionRendererBase({
       />
     ); break;
     case "wq-lmp-timing": rendered = <WqLmpTimingRenderer {...props} />; break;
+    case "wq-progressive-dob": rendered = <WqProgressiveDobRenderer {...props} />; break;
     case "wq-born-alive-child-followups": rendered = (
         <WqBornAliveChildFollowupsRenderer
         {...props}

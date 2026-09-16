@@ -331,6 +331,28 @@ for (const formMeta of formCatalog) {
 }
 
 const wqModel = new Model(prepareQuestionnaireSurveyJson(wq));
+const progressiveDob = wqModel.getQuestionByName(
+  "wq_01_respondent_s_backgr_in_what_month_and_year_were_you_born"
+);
+assert.equal(getNativeRendererKind(progressiveDob), "wq-progressive-dob");
+assert.equal(getNativeQuestionTitle(progressiveDob), "10. What is your date of birth?");
+const wqHighestGrade = wqModel.getQuestionByName(
+  "wq_01_respondent_s_backgr_what_is_the_highest_grade_you_completed"
+);
+assert.equal(getNativeRendererKind(wqHighestGrade), "select-one");
+assert.equal(wqHighestGrade.getType(), "text");
+assert.deepEqual(getNativeQuestionChoices(wqHighestGrade).map((choice) => choice.value), [0, 98]);
+assert.equal(setNativeQuestionValue(wqHighestGrade, "12"), true);
+assert.equal(wqHighestGrade.value, "12");
+const currentLocalityDuration = wqModel.getQuestionByName(
+  "wq_01_respondent_s_backgr_how_long_have_you_been_living_continuously"
+);
+wqModel.setValue("wq_village_study_site", "Sagarpur / 2");
+assert.equal(
+  getNativeQuestionTitle(currentLocalityDuration),
+  "9. How long have you been living continuously in Sagarpur?\nIf less than one year, record 00 years",
+);
+assert.doesNotMatch(getNativeQuestionTitle(currentLocalityDuration), /NAME OF CURRENT CITY/i);
 const pregnancyGapReview = wqModel.getQuestionByName(
   "pregnancy_02_reproduction_if_row_i_1_were_there_any_other_pregnancie"
 );
