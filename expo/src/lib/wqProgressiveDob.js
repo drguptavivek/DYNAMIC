@@ -8,6 +8,14 @@ export function digitsOnly(value, maxLength) {
   return String(value ?? "").replace(/\D/g, "").slice(0, maxLength);
 }
 
+export function sanitizeWqProgressiveDobPart(field, value, maxLength) {
+  const digits = digitsOnly(value, maxLength);
+  if (field === "month" && digits.length === 2 && Number(digits) > 12) {
+    return "12";
+  }
+  return digits;
+}
+
 export function normalizeWqProgressiveDob(value) {
   if (!value || typeof value !== "object") return { mode: "exact" };
   if (MODES.has(value.mode)) return { ...value };

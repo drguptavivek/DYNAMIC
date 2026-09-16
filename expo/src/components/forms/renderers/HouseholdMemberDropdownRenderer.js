@@ -1,6 +1,6 @@
 /** Renders a dynamic household-member dropdown for task-context linked questions. */
 import React, { useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 
 import {
   WQ_HUSBAND_NOT_IN_HOUSEHOLD_VALUE,
@@ -90,31 +90,39 @@ export function HouseholdMemberDropdownRenderer({ answerData, locale, question, 
           />
         </View>
       ) : null}
-      {open ? (
-        <View style={styles.inlineMenu}>
-          <View style={styles.menuHeader}>
-            <Text style={styles.menuTitle}>Select household member</Text>
-            <Pressable onPress={() => setOpen(false)} style={styles.closeButton}>
-              <Text style={styles.closeText}>Close</Text>
-            </Pressable>
-          </View>
-          <ScrollView nestedScrollEnabled style={styles.choiceList}>
-            {choices.map((choice) => {
-              const selected = selectedChoice ? choice === selectedChoice : false;
-              return (
-                <Pressable
-                  key={`${choice.lineNumber}-${choice.value}`}
-                  onPress={() => commitChoice(choice)}
-                  style={[styles.choice, selected && styles.choiceSelected]}
-                >
-                  <Text style={styles.choiceText}>{choice.text}</Text>
-                  {choice.detail ? <Text style={styles.choiceDetail}>{choice.detail}</Text> : null}
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-        </View>
-      ) : null}
+      <Modal
+        animationType="fade"
+        onRequestClose={() => setOpen(false)}
+        statusBarTranslucent
+        transparent
+        visible={open}
+      >
+        <Pressable onPress={() => setOpen(false)} style={styles.modalBackdrop}>
+          <Pressable onPress={() => {}} style={styles.modalMenu}>
+            <View style={styles.menuHeader}>
+              <Text style={styles.menuTitle}>Select household member</Text>
+              <Pressable onPress={() => setOpen(false)} style={styles.closeButton}>
+                <Text style={styles.closeText}>Close</Text>
+              </Pressable>
+            </View>
+            <ScrollView nestedScrollEnabled style={styles.choiceList}>
+              {choices.map((choice) => {
+                const selected = selectedChoice ? choice === selectedChoice : false;
+                return (
+                  <Pressable
+                    key={`${choice.lineNumber}-${choice.value}`}
+                    onPress={() => commitChoice(choice)}
+                    style={[styles.choice, selected && styles.choiceSelected]}
+                  >
+                    <Text style={styles.choiceText}>{choice.text}</Text>
+                    {choice.detail ? <Text style={styles.choiceDetail}>{choice.detail}</Text> : null}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </QuestionFrame>
   );
 }
@@ -138,12 +146,19 @@ const styles = StyleSheet.create({
   chevron: { color: "#475467", fontSize: 18, fontWeight: "800" },
   outsideName: { marginTop: 8, gap: 6 },
   outsideLabel: { color: "#475467", fontSize: 13, fontWeight: "700" },
-  inlineMenu: {
-    marginTop: 8,
+  modalBackdrop: {
+    flex: 1,
+    justifyContent: "center",
+    padding: 20,
+    backgroundColor: "rgba(15, 23, 42, 0.48)",
+  },
+  modalMenu: {
+    width: "100%",
+    maxHeight: "72%",
     overflow: "hidden",
     borderWidth: 1,
     borderColor: "#d0d5dd",
-    borderRadius: 8,
+    borderRadius: 12,
     backgroundColor: "#ffffff",
   },
   menuHeader: {
@@ -167,7 +182,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   closeText: { color: "#18202a", fontWeight: "700" },
-  choiceList: { maxHeight: 260 },
+  choiceList: { maxHeight: 420 },
   choice: {
     gap: 4,
     paddingVertical: 12,

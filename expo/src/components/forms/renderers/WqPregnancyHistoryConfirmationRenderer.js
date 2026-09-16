@@ -53,6 +53,7 @@ export function WqPregnancyHistoryConfirmationRenderer({
               <Text style={[styles.headerText, styles.nameCell]}>Name of child</Text>
               <Text style={[styles.headerText, styles.sexCell]}>Sex</Text>
               <Text style={[styles.headerText, styles.durationCell]}>Pregnancy lasts</Text>
+              <Text style={[styles.headerText, styles.outcomeYearCell]}>Year of Outcome</Text>
             </View>
             {groups.flatMap((group, groupIndex) =>
               group.rows.map(({ panel }, childIndex) => {
@@ -67,6 +68,7 @@ export function WqPregnancyHistoryConfirmationRenderer({
                     <Text style={[styles.cellText, styles.nameCell]}>{child.name}</Text>
                     <Text style={[styles.cellText, styles.sexCell]}>{child.sex}</Text>
                     <Text style={[styles.cellText, styles.durationCell]}>{child.pregnancyLasts}</Text>
+                    <Text style={[styles.cellText, styles.outcomeYearCell]}>{child.outcomeYear}</Text>
                   </View>
                 );
               })
@@ -103,7 +105,7 @@ const styles = StyleSheet.create({
   wrap: { gap: 10 },
   heading: { color: "#18202a", fontSize: 18, fontWeight: "900" },
   help: { color: "#667085", fontSize: 14 },
-  table: { minWidth: 520, overflow: "hidden", borderWidth: 1, borderColor: "#d0d5dd", borderRadius: 8, backgroundColor: "#ffffff" },
+  table: { minWidth: 620, overflow: "hidden", borderWidth: 1, borderColor: "#d0d5dd", borderRadius: 8, backgroundColor: "#ffffff" },
   row: { minHeight: 36, flexDirection: "row", alignItems: "center", paddingHorizontal: 3, borderTopWidth: 1, borderTopColor: "#e4e7ec" },
   headerRow: { borderTopWidth: 0, backgroundColor: "#eef4fb" },
   headerText: { color: "#475467", fontSize: 9, fontWeight: "900", paddingHorizontal: 2 },
@@ -114,6 +116,7 @@ const styles = StyleSheet.create({
   nameCell: { width: 108 },
   sexCell: { width: 52 },
   durationCell: { width: 102 },
+  outcomeYearCell: { width: 100 },
   answerRow: { flexDirection: "row", gap: 10 },
   answerButton: { minHeight: 48, flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderWidth: 1, borderColor: "#b9cbe3", borderRadius: 7, backgroundColor: "#ffffff" },
   answerButtonSelected: { borderColor: "#1f6feb", backgroundColor: "#eaf3ff" },

@@ -171,6 +171,24 @@ const requiredInstruction = requiredInstructionModel.getQuestionByName("section_
 requiredInstruction.errors = [{ text: "Response required." }];
 validateNativeQuestionTree(requiredInstruction);
 assert.equal(hasNativeValidationProblem(requiredInstruction), false);
+assert.equal(
+  getVisiblePageQuestions(requiredInstructionModel.pages[0]).length,
+  0,
+  "Ordinary HTML instructions must remain outside the native question list"
+);
+const comparisonTableModel = new Model({
+  elements: [{
+    type: "html",
+    name: "wq_reproduction_comparison_table",
+    html: "Reproductive history comparison",
+    renderAs: "wq_reproduction_comparison",
+  }],
+});
+assert.deepEqual(
+  getVisiblePageQuestions(comparisonTableModel.pages[0]).map((question) => question.name),
+  ["wq_reproduction_comparison_table"],
+  "The custom WQ reproduction comparison table must render on its dedicated page"
+);
 
 const invalidAge = memberPanel.getQuestionByName("member_age_years");
 setNativeQuestionValue(invalidAge, "19");

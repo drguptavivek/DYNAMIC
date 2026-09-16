@@ -5,7 +5,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Model } from "survey-core";
 
-const { normalizeQuestionnaireSurveyData, prepareQuestionnaireSurveyJson } = await import(
+const {
+  getQuestionnairePageIntro,
+  normalizeQuestionnaireSurveyData,
+  prepareQuestionnaireSurveyJson,
+} = await import(
   "../modules/questionnaires/questionnaireSurveyJsonTransforms.js"
 );
 
@@ -39,11 +43,37 @@ function findTopLevelElementByName(surveyJson, name) {
 
 const surveyJson = prepareQuestionnaireSurveyJson(hhq);
 const wqSurveyJson = prepareQuestionnaireSurveyJson(wq);
+const staleSyncedWq = structuredClone(wq);
+const staleReproductionPage = staleSyncedWq.pages.find(
+  (page) => page.name === "page_02_reproduction",
+);
+staleReproductionPage.elements = staleReproductionPage.elements
+  .filter((element) => element.name !== "wq_02_reproduction_birth_history_intro")
+  .map((element) => {
+    if (element.name === "wq_02_reproduction_now_i_would_like_to_ask_about_all_the_birt") {
+      return {
+        ...element,
+        title: {
+          ...element.title,
+          default: "Now I would like to ask about all the births you have had during your life. Have you ever given birth?",
+        },
+      };
+    }
+    if (element.name === "wq_02_reproduction_check_12") {
+      return { ...element, title: { ...element.title, default: "CHECK 12" } };
+    }
+    return element;
+  });
+const staleSyncedWqSurveyJson = prepareQuestionnaireSurveyJson(staleSyncedWq);
 const mobilePanel = findElementByName(surveyJson, "hhq_contact_mobile_numbers");
 const wqMobilePanel = findElementByName(wqSurveyJson, "wq_woman_mobile_numbers");
 const wqProgressiveDob = findElementByName(
   wqSurveyJson,
   "wq_01_respondent_s_backgr_in_what_month_and_year_were_you_born",
+);
+const wqResidenceYears = findElementByName(
+  wqSurveyJson,
+  "wq_01_respondent_s_backgr_how_long_have_you_been_living_continuously",
 );
 const wqGeneralHealth = findElementByName(
   wqSurveyJson,
@@ -52,6 +82,19 @@ const wqGeneralHealth = findElementByName(
 const wqHighestGrade = findElementByName(
   wqSurveyJson,
   "wq_01_respondent_s_backgr_what_is_the_highest_grade_you_completed",
+);
+const wqReproductionQ1 = findElementByName(
+  wqSurveyJson,
+  "wq_02_reproduction_now_i_would_like_to_ask_about_all_the_birt",
+);
+const wqReproductionQ13 = findElementByName(
+  wqSurveyJson,
+  "wq_02_reproduction_check_12",
+);
+const wqPregnancyHistory = findElementByName(wqSurveyJson, "wq_pregnancy_history");
+const wqReproductionQ23 = findElementByName(
+  wqSurveyJson,
+  "pregnancy_02_reproduction_check_16_17_and_21_if_16_i_1_or_17_i_1_the",
 );
 const singleMobile = findElementByName(surveyJson, "hhq_contact_mobile");
 const memberMaritalStatus = findElementByName(surveyJson, "member_marital_status");
@@ -100,6 +143,9 @@ const languageQuestion = findElementByName(surveyJson, "hhq_language_questionnai
 assert.equal(languageQuestion.renderAs, "background");
 assert.equal(findElementByName(wqSurveyJson, "wq_language_questionnaire").renderAs, "background");
 assert.equal(wqProgressiveDob.renderAs, "wq_progressive_dob");
+assert.equal(wqResidenceYears.type, "text");
+assert.equal(wqResidenceYears.renderAs, "years_with_special_codes");
+assert.equal(wqResidenceYears.allowYearsOverrideSpecialCodes, true);
 assert.equal(wqGeneralHealth.description, undefined);
 assert.equal(wqGeneralHealth.choices[0].text.default || wqGeneralHealth.choices[0].text, "Very Good");
 assert.equal(wqHighestGrade.type, "text");
@@ -107,6 +153,58 @@ assert.equal(wqHighestGrade.renderAs, "years_with_special_codes");
 assert.equal(wqHighestGrade.allowYearsOverrideSpecialCodes, true);
 assert.equal(wqHighestGrade.description, "Training - refer to NFHS-6 Manual");
 assert.deepEqual(wqHighestGrade.choices.map((choice) => choice.value), [0, 98]);
+assert.equal(
+  getQuestionnairePageIntro(wq, "page_02_reproduction"),
+  "Now I would like to ask about all the births you have had during your life.",
+);
+assert.equal(getQuestionnairePageIntro(wq, "page_01_respondent_background"), "");
+assert.equal(
+  wqReproductionQ1.title.default || wqReproductionQ1.title,
+  "1. Have you ever given birth?",
+);
+assert.equal(
+  wqReproductionQ13.title.default || wqReproductionQ13.title,
+  "13. Now i would like to confirm if you had (Read these options to Respondent)",
+);
+assert.equal(
+  wqPregnancyHistory.title.default || wqPregnancyHistory.title,
+  "14. Now I would like to record all your pregnancies including live births, stillbirths, miscarriages, and abortions, starting with your first pregnancy",
+);
+assert.doesNotMatch(
+  wqPregnancyHistory.title.default || wqPregnancyHistory.title,
+  /Answer questions 15 to 21/,
+);
+assert.equal(
+  wqReproductionQ23.title.default || wqReproductionQ23.title,
+  "23_i. CHECK 16, 17, and 21:",
+);
+assert.doesNotMatch(
+  wqReproductionQ23.title.default || wqReproductionQ23.title,
+  /PREGNANCY OUTCOME =/,
+);
+const staleQ1 = findElementByName(
+  staleSyncedWqSurveyJson,
+  "wq_02_reproduction_now_i_would_like_to_ask_about_all_the_birt",
+);
+const staleQ13 = findElementByName(
+  staleSyncedWqSurveyJson,
+  "wq_02_reproduction_check_12",
+);
+const staleQ23 = findElementByName(
+  staleSyncedWqSurveyJson,
+  "pregnancy_02_reproduction_check_16_17_and_21_if_16_i_1_or_17_i_1_the",
+);
+assert.equal(staleQ1.title.default || staleQ1.title, "1. Have you ever given birth?");
+assert.equal(
+  staleQ13.title.default || staleQ13.title,
+  "13. Now i would like to confirm if you had (Read these options to Respondent)",
+  "synced WQ definitions must receive the updated Q13 display text",
+);
+assert.equal(
+  staleQ23.title.default || staleQ23.title,
+  "23_i. CHECK 16, 17, and 21:",
+  "synced WQ definitions must hide the Q23_i calculation instructions",
+);
 assert.equal(findTopLevelElementByName(wqSurveyJson, "wq_woman_mobile"), null);
 assert.equal(findTopLevelElementByName(wqSurveyJson, "wq_woman_mobile_holder_name"), null);
 assert.equal(wqMobilePanel.type, "paneldynamic");

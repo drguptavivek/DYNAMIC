@@ -56,8 +56,15 @@ const {
 const {
   activateWqProgressiveDobMode,
   normalizeWqProgressiveDob,
+  sanitizeWqProgressiveDobPart,
   validateWqProgressiveDob,
 } = await import("../lib/wqProgressiveDob.js");
+
+assert.equal(sanitizeWqProgressiveDobPart("month", "12", 2), "12");
+assert.equal(sanitizeWqProgressiveDobPart("month", "13", 2), "12");
+assert.equal(sanitizeWqProgressiveDobPart("month", "99", 2), "12");
+assert.equal(sanitizeWqProgressiveDobPart("month", "2", 2), "2");
+assert.equal(sanitizeWqProgressiveDobPart("day", "31", 2), "31");
 
 assert.deepEqual(normalizeWqProgressiveDob({ month: "02", year: "1996" }), {
   mode: "month_year",
@@ -84,6 +91,7 @@ const {
   getWqPregnancyChildSummary,
   getWqPregnancyGapPrompt,
   getWqPregnancyReviewLabel,
+  getVisiblePageQuestions,
   groupWqPregnancyHistoryPanels,
   insertLatestWqPregnancyGroupAt,
   isNativeInternalPanelField,
@@ -265,6 +273,11 @@ assert.match(
   /setValue\?\.\(question\.name, undefined\)/,
   "Q22b No must clear the transient disagreement so the revised list is re-confirmed"
 );
+assert.match(
+  historyConfirmationRendererSource,
+  /Year of Outcome/,
+  "Q22b must show the Q20_i outcome year for every pregnancy child row"
+);
 
 function createWqModel() {
   return createSurveyModel(prepareQuestionnaireSurveyJson(wq));
@@ -316,15 +329,26 @@ const residenceDurationQuestion = question(
   model,
   "wq_01_respondent_s_backgr_how_long_have_you_been_living_continuously"
 );
-assert.equal(residenceDurationQuestion.getType(), "radiogroup");
+assert.equal(residenceDurationQuestion.getType(), "text");
 assert.equal(residenceDurationQuestion.renderAs, "years_with_special_codes");
+assert.equal(residenceDurationQuestion.jsonObj?.allowYearsOverrideSpecialCodes, true);
 assert.equal(residenceDurationQuestion.jsonObj?.inputType, "number");
 assert.equal(residenceDurationQuestion.jsonObj?.maxLength, 2);
 assert.equal(residenceDurationQuestion.jsonObj?.preserveString, true);
 assert.deepEqual(
-  residenceDurationQuestion.choices.map((choice) => choice.value),
+  residenceDurationQuestion.jsonObj.choices.map((choice) => choice.value),
   [95, 96]
 );
+for (const specialCode of [95, 96]) {
+  model.setValue(residenceDurationQuestion.name, specialCode);
+  assert.equal(model.getValue(residenceDurationQuestion.name), specialCode);
+  model.setValue(residenceDurationQuestion.name, "12");
+  assert.equal(
+    model.getValue(residenceDurationQuestion.name),
+    "12",
+    `Q9 must allow a typed year to replace special code ${specialCode}`,
+  );
+}
 
 const birthMonthYearQuestion = question(
   model,
@@ -963,6 +987,16 @@ assert.deepEqual(
   ],
   "The comparison table and calculated Q29 must occupy their own page"
 );
+const comparisonVisibilityModel = createWqModel();
+comparisonVisibilityModel.setValue("wq_02_reproduction_check_12", 1);
+const comparisonVisibilityPage = comparisonVisibilityModel.pages.find(
+  (page) => page.name === "page_02d_reproduction_comparison"
+);
+assert.deepEqual(
+  getVisiblePageQuestions(comparisonVisibilityPage).map((question) => question.name),
+  ["wq_reproduction_comparison_table"],
+  "The comparison page must display its table instead of opening as a blank page"
+);
 const postComparisonPageJson = preparedWq.pages.find(
   (page) => page.name === "page_02e_reproduction_after_comparison"
 );
@@ -1313,6 +1347,9 @@ assert.deepEqual(
       if (name === WQ_PREGNANCY_DURATION_FIELD) {
         return { value: { weeks: "08", months: "02" } };
       }
+      if (name === "pregnancy_02_reproduction_check_16_and_17_type_of_pregnancy_outcome") {
+        return { value: { day: "17", month: "06", year: "2021" } };
+      }
       return null;
     },
   }),
@@ -1320,6 +1357,7 @@ assert.deepEqual(
     bornStatus: "Born Dead",
     name: "Asha",
     outcome: "Miscarriage",
+    outcomeYear: "2021",
     pregnancyLasts: "08 weeks",
     sex: "Girl",
   },

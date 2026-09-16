@@ -6,8 +6,8 @@ import { getNativeQuestionValue, setNativeQuestionValue } from "../nativeSurveyM
 import { QuestionFrame, controlStyles } from "./QuestionFrame.js";
 import {
   activateWqProgressiveDobMode,
-  digitsOnly,
   normalizeWqProgressiveDob,
+  sanitizeWqProgressiveDobPart,
 } from "../../../lib/wqProgressiveDob.js";
 
 function ModeRadio({ disabled, label, onPress, selected }) {
@@ -42,7 +42,7 @@ export function WqProgressiveDobRenderer({ answerData, locale, onChange, questio
 
   function update(mode, field, text, maxLength) {
     const active = value.mode === mode ? value : activateWqProgressiveDobMode(value, mode);
-    commit({ ...active, mode, [field]: digitsOnly(text, maxLength) });
+    commit({ ...active, mode, [field]: sanitizeWqProgressiveDobPart(field, text, maxLength) });
   }
 
   function dateInputs(mode, fields) {

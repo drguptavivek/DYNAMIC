@@ -37,6 +37,7 @@ import {
 } from "../../lib/householdRoundsSurveyBehaviors.js";
 import { buildHouseholdMemberSummaryRows } from "./householdMemberSummary";
 import {
+  getQuestionnairePageIntro,
   getPreparedSurveyJson,
   normalizeQuestionnaireSurveyData,
 } from "./questionnaireSurveyJsonTransforms";
@@ -1238,6 +1239,7 @@ export function QuestionnaireDashboard({
                     locale={activeLocale}
                     model={survey}
                     notice={saveMessage}
+                    pageIntro={(currentPage) => getQuestionnairePageIntro(form, currentPage?.name)}
                     onCompleteRequested={(activeModel) => activeModel?.doComplete?.()}
                     onNextRequested={(activeModel, currentPage) => {
                       if (

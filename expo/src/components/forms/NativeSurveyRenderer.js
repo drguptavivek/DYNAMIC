@@ -87,6 +87,7 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
   }
 
   const page = model.currentPage || model.firstVisiblePage;
+  const resolvedPageIntro = typeof pageIntro === "function" ? pageIntro(page) : pageIntro;
   const logicalSectionPosition = getLogicalSurveySectionPosition(model, page);
   const visibleQuestions = useMemo(() => getVisiblePageQuestions(page), [page, revision]);
   const useCompactPager = compact && compactPager && visibleQuestions.length > 1;
@@ -361,7 +362,7 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
       ) : null}
       {notice ? <Text style={styles.notice}>{notice}</Text> : null}
       {pageHeader}
-      {pageIntro ? <Text style={styles.pageIntro}>{pageIntro}</Text> : null}
+      {resolvedPageIntro ? <Text style={styles.pageIntro}>{resolvedPageIntro}</Text> : null}
       {useCompactPager ? (
         <Text style={styles.questionCounter}>
           {`Question ${activeQuestionIndex + 1} of ${visibleQuestions.length}`}
@@ -386,7 +387,7 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
           {sections.length ? <SectionNavigator sections={sections} onSelect={onSectionSelect} /> : null}
           {notice ? <Text style={styles.notice}>{notice}</Text> : null}
           {pageHeader}
-          {pageIntro ? <Text style={styles.pageIntro}>{pageIntro}</Text> : null}
+          {resolvedPageIntro ? <Text style={styles.pageIntro}>{resolvedPageIntro}</Text> : null}
           <ScrollView
             ref={desktopScrollRef}
             keyboardShouldPersistTaps="always"

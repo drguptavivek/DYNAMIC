@@ -1892,7 +1892,7 @@
           "type": "radiogroup",
           "name": "wq_02_reproduction_now_i_would_like_to_ask_about_all_the_birt",
           "title": {
-            "default": "Now I would like to ask about all the births you have had during your life. Have you ever given birth?",
+            "default": "Have you ever given birth?",
             "hi": "",
             "kn": "",
             "mr": "",
@@ -2611,7 +2611,7 @@
           "type": "radiogroup",
           "name": "wq_02_reproduction_check_12",
           "title": {
-            "default": "CHECK 12",
+            "default": "Now i would like to confirm if you had (Read these options to Respondent)",
             "hi": "",
             "kn": "",
             "mr": "",
@@ -2677,7 +2677,7 @@
           "type": "paneldynamic",
           "name": "wq_pregnancy_history",
           "title": {
-            "default": "Now I would like to record all your pregnancies including live births, stillbirths, miscarriages, and abortions, starting with your first pregnancy\nAnswer questions 15 to 21 for each pregnancy. Record twins and triplets as separate children under the same pregnancy.",
+            "default": "Now I would like to record all your pregnancies including live births, stillbirths, miscarriages, and abortions, starting with your first pregnancy",
             "hi": "",
             "kn": "",
             "mr": "",
@@ -3340,7 +3340,7 @@
           "type": "radiogroup",
           "name": "pregnancy_02_reproduction_check_16_17_and_21_if_16_i_1_or_17_i_1_the",
           "title": {
-            "default": "CHECK 16, 17, and 21:\n\nIF 16_i = 1 OR 17_i = 1, THEN PREGNANCY OUTCOME = BORN ALIVE\n\nIF 16_i = 2 OR 3, THEN CHECK 21_i\n   IF 21_i  >= 7 MONTHS OR 28 WEEKS, THEN PREGNANCY OUTCOME = BORN DEAD\n   IF 21_i < 7 MONTHS OR 28 WEEKS, THEN PREGNANCY OUTCOME = MISCARRIAGE\n\nIF 16_i = 4, THEN PREGNANCY OUTCOME = ABORTION",
+            "default": "CHECK 16, 17, and 21:",
             "hi": "",
             "kn": "",
             "mr": "",

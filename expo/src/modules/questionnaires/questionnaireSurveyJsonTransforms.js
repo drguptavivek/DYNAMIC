@@ -52,6 +52,22 @@ const WQ_Q30_NAME = "wq_02_reproduction_did_you_ever_experience_a_delivery_by_ca
 const WQ_Q33A_NAME = "wq_02_reproduction_when_did_your_last_menstrual_period_start";
 const WQ_Q10_DOB_NAME =
   "wq_01_respondent_s_backgr_in_what_month_and_year_were_you_born";
+const WQ_REPRODUCTION_PAGE_NAME = "page_02_reproduction";
+const WQ_REPRODUCTION_Q1_NAME =
+  "wq_02_reproduction_now_i_would_like_to_ask_about_all_the_birt";
+const WQ_REPRODUCTION_Q13_NAME = "wq_02_reproduction_check_12";
+const WQ_REPRODUCTION_INTRO_TEXT =
+  "Now I would like to ask about all the births you have had during your life.";
+const WQ_REPRODUCTION_Q1_TITLE = "1. Have you ever given birth?";
+const WQ_REPRODUCTION_Q13_TITLE =
+  "13. Now i would like to confirm if you had (Read these options to Respondent)";
+const WQ_PREGNANCY_HISTORY_TITLE =
+  "14. Now I would like to record all your pregnancies including live births, stillbirths, miscarriages, and abortions, starting with your first pregnancy";
+const WQ_REPRODUCTION_Q23_NAME =
+  "pregnancy_02_reproduction_check_16_17_and_21_if_16_i_1_or_17_i_1_the";
+const WQ_REPRODUCTION_Q23_TITLE = "CHECK 16, 17, and 21:";
+const WQ_Q9_RESIDENCE_YEARS_NAME =
+  "wq_01_respondent_s_backgr_how_long_have_you_been_living_continuously";
 const WQ_Q12_GENERAL_HEALTH_NAME =
   "wq_01_respondent_s_backgr_in_general_would_you_say_your_health_is_ve";
 const WQ_Q14_HIGHEST_GRADE_NAME =
@@ -400,6 +416,12 @@ function isWqForm(form) {
   return form?.form_code === WQ_FORM_CODE;
 }
 
+export function getQuestionnairePageIntro(form, pageName) {
+  return isWqForm(form) && pageName === WQ_REPRODUCTION_PAGE_NAME
+    ? WQ_REPRODUCTION_INTRO_TEXT
+    : "";
+}
+
 function applyWqOutcomeChoiceVisibility(surveyJson) {
   return {
     ...surveyJson,
@@ -535,6 +557,75 @@ function markWqProgressiveDobControl(surveyJson) {
       elements: page.elements.map((element) =>
         element.name === WQ_Q10_DOB_NAME
           ? { ...element, renderAs: "wq_progressive_dob" }
+          : element
+      ),
+    })),
+  };
+}
+
+function replaceDefaultLocalizedText(value, text) {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return { ...value, default: text };
+  }
+  return text;
+}
+
+// Synced protocol forms are authoritative at runtime and can be older than
+// the bundled display copy. Apply these interviewer-facing labels after the
+// runtime form is selected so synced forms and existing drafts receive the
+// same wording without changing field names, choices, values, or skip logic.
+function applyWqReproductionQuestionText(surveyJson) {
+  return {
+    ...surveyJson,
+    pages: surveyJson.pages.map((page) => {
+      if (page.name !== WQ_REPRODUCTION_PAGE_NAME) return page;
+
+      const elements = page.elements.map((element) => {
+        if (element.name === WQ_REPRODUCTION_Q1_NAME) {
+          return {
+            ...element,
+            title: replaceDefaultLocalizedText(element.title, WQ_REPRODUCTION_Q1_TITLE),
+          };
+        }
+        if (element.name === WQ_REPRODUCTION_Q13_NAME) {
+          return {
+            ...element,
+            title: replaceDefaultLocalizedText(element.title, WQ_REPRODUCTION_Q13_TITLE),
+          };
+        }
+        if (element.name === WQ_PREGNANCY_HISTORY_NAME) {
+          return {
+            ...element,
+            title: replaceDefaultLocalizedText(element.title, WQ_PREGNANCY_HISTORY_TITLE),
+          };
+        }
+        if (element.name === WQ_REPRODUCTION_Q23_NAME) {
+          return {
+            ...element,
+            title: replaceDefaultLocalizedText(element.title, WQ_REPRODUCTION_Q23_TITLE),
+          };
+        }
+        return element;
+      });
+
+      return { ...page, elements };
+    }),
+  };
+}
+
+function applyWqResidenceYearsInput(surveyJson) {
+  return {
+    ...surveyJson,
+    pages: surveyJson.pages.map((page) => ({
+      ...page,
+      elements: page.elements.map((element) =>
+        element.name === WQ_Q9_RESIDENCE_YEARS_NAME
+          ? {
+              ...element,
+              type: "text",
+              renderAs: "years_with_special_codes",
+              allowYearsOverrideSpecialCodes: true,
+            }
           : element
       ),
     })),
@@ -685,6 +776,8 @@ export function prepareQuestionnaireSurveyJson(form) {
   }
   if (isWqForm(form)) {
     surveyJson = allowMultipleWqMobileNumbers(surveyJson);
+    surveyJson = applyWqReproductionQuestionText(surveyJson);
+    surveyJson = applyWqResidenceYearsInput(surveyJson);
     surveyJson = markWqProgressiveDobControl(surveyJson);
     surveyJson = removeWqQ12TrainingDescription(surveyJson);
     surveyJson = applyWqHighestGradeInput(surveyJson);

@@ -414,6 +414,7 @@ export function getWqPregnancyChildSummary(panel) {
   const birthResultQuestion = panel?.getQuestionByName?.(WQ_PREGNANCY_OUTCOME_FIELD);
   const signOfLifeQuestion = panel?.getQuestionByName?.(WQ_PREGNANCY_SIGN_OF_LIFE_FIELD);
   const durationQuestion = panel?.getQuestionByName?.(WQ_PREGNANCY_DURATION_FIELD);
+  const outcomeDateQuestion = panel?.getQuestionByName?.(WQ_PREGNANCY_OUTCOME_DATE_FIELD);
   const name = String(nameQuestion?.value ?? "").trim();
   const sex = String(displayValue(sexQuestion) ?? "").trim();
   const birthResult = Number(birthResultQuestion?.value);
@@ -435,6 +436,7 @@ export function getWqPregnancyChildSummary(panel) {
   };
   const durationWeeks = numericDuration(duration?.weeks);
   const durationMonths = numericDuration(duration?.months);
+  const outcomeYear = String(outcomeDateQuestion?.value?.year ?? "").trim();
   const hasDuration = durationWeeks !== null || durationMonths !== null;
   const calculatedOutcomeCode = birthResult === 1 || signOfLife === 1
     ? 1
@@ -453,6 +455,7 @@ export function getWqPregnancyChildSummary(panel) {
       3: "Miscarriage",
       4: "Abortion",
     }[calculatedOutcomeCode] || "-",
+    outcomeYear: outcomeYear || "-",
     pregnancyLasts: getWqPregnancyDurationSummary(duration),
     sex: sex || "-",
   };
@@ -594,9 +597,17 @@ export function getNativeQuestionValue(question, answerData) {
 }
 
 export function getVisiblePageQuestions(page) {
-  return (page?.questions || page?.elements || []).filter(
-    shouldValidateNativeQuestion
-  );
+  return (page?.questions || page?.elements || []).filter((question) => {
+    const type = question?.getType?.() || question?.type;
+    const isRenderedHtmlCapability =
+      type === "html" && question?.renderAs === "wq_reproduction_comparison";
+    return Boolean(
+      question &&
+      (type !== "html" || isRenderedHtmlCapability) &&
+      question.isVisible !== false &&
+      question.renderAs !== "background"
+    );
+  });
 }
 
 export function shouldValidateNativeQuestion(question) {
