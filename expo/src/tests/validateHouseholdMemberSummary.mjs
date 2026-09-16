@@ -4,6 +4,28 @@ import assert from "node:assert/strict";
 const { buildHouseholdMemberSummaryRows } = await import(
   "../modules/questionnaires/householdMemberSummary.js"
 );
+const {
+  formatHouseholdMemberStatus,
+  formatHouseholdRelationship,
+} = await import("../modules/households/householdMemberLabels.js");
+
+assert.equal(formatHouseholdRelationship(3, "Child", "Head"), "Son/daughter");
+assert.equal(formatHouseholdRelationship(6, "Head's parent", "Head"), "Parent");
+assert.equal(formatHouseholdRelationship(1, "Jeetu", "Deepak"), "Head selection mismatch");
+assert.equal(
+  formatHouseholdMemberStatus(
+    { member_name: "Jeetu", relationship_to_head: 1, woman_questionnaire_eligible: 1 },
+    "Deepak"
+  ),
+  "Relationship needs review · WQ eligible"
+);
+assert.equal(
+  formatHouseholdMemberStatus(
+    { member_name: "Deepak", relationship_to_head: 1, woman_questionnaire_eligible: 1 },
+    "DEEPAK"
+  ),
+  "Household head · WQ eligible"
+);
 
 const form = {
   pages: [

@@ -49,8 +49,12 @@ const MEMBER_RELATIONSHIP_FIELD = "member_relationship_to_head";
 const MEMBER_RESIDENCE_DURATION_FIELD = "member_residence_duration";
 const MEMBER_LIVING_SINCE_BIRTH_FIELD = "member_living_since_birth";
 const MEMBER_AGE_YEARS_FIELD = "member_age_years";
+const HOUSEHOLD_HEAD_NAME_FIELD = "hhq_household_head_name";
 const HEAD_RELATIONSHIP_VALUE = 1;
 const DUPLICATE_HEAD_MESSAGE = "Only one household member can be marked as Head.";
+const MISSING_HEAD_MESSAGE = "Mark exactly one listed household member as Head.";
+const HEAD_NAME_MISMATCH_MESSAGE =
+  "The member marked as Head must match the household head name entered in Section 1.";
 const AGE_LESS_THAN_RESIDENCE_MESSAGE =
   "Age in completed years cannot be less than years continuously living here.";
 const AGE_RESIDENCE_ERROR_ATTR = "data-dynamic-age-residence-error";
@@ -386,6 +390,16 @@ function getHeadMemberIndexes(members) {
     .filter((index) => index >= 0);
 }
 
+function normalizePersonName(value) {
+  return String(value || "").trim().replace(/\s+/g, " ").toLocaleLowerCase();
+}
+
+function memberMatchesHouseholdHead(member, householdHeadName) {
+  const memberName = normalizePersonName(member?.member_name);
+  const headName = normalizePersonName(householdHeadName);
+  return Boolean(memberName && headName && memberName === headName);
+}
+
 function getRelationshipQuestionIndex(question, members, fallbackIndex) {
   const panelData = getPanelData(question);
   const objectIndex = members.indexOf(panelData);
@@ -422,6 +436,36 @@ function validateSingleHouseholdHead(model) {
     });
 
   return hasDuplicateHead;
+}
+
+function validateHouseholdHeadIdentity(model, requireHead = false) {
+  const members = Array.isArray(model.getValue(HH_MEMBER_PANEL))
+    ? model.getValue(HH_MEMBER_PANEL).filter(hasEnteredHouseholdMemberValue)
+    : [];
+  const headIndexes = getHeadMemberIndexes(members);
+  const householdHeadName = model.getValue(HOUSEHOLD_HEAD_NAME_FIELD);
+  const mismatchIndex = headIndexes.length === 1 && householdHeadName &&
+    !memberMatchesHouseholdHead(members[headIndexes[0]], householdHeadName)
+      ? headIndexes[0]
+      : -1;
+  const missingHead = requireHead && members.length > 0 && headIndexes.length === 0;
+
+  model
+    .getAllQuestions()
+    .filter((question) => question.name === MEMBER_RELATIONSHIP_FIELD)
+    .forEach((question, questionIndex) => {
+      clearQuestionMessage(question, HEAD_NAME_MISMATCH_MESSAGE);
+      clearQuestionMessage(question, MISSING_HEAD_MESSAGE);
+      const memberIndex = getRelationshipQuestionIndex(question, members, questionIndex);
+      if (memberIndex === mismatchIndex) addQuestionMessage(question, HEAD_NAME_MISMATCH_MESSAGE);
+      if (missingHead) addQuestionMessage(question, MISSING_HEAD_MESSAGE);
+    });
+
+  if (mismatchIndex >= 0) {
+    return { valid: false, message: HEAD_NAME_MISMATCH_MESSAGE };
+  }
+  if (missingHead) return { valid: false, message: MISSING_HEAD_MESSAGE };
+  return { valid: true, message: "" };
 }
 
 function parseFiniteNumber(value) {
@@ -482,6 +526,11 @@ function validateHeadQuestion(sender, options) {
     : [];
   if (getHeadMemberIndexes(members).length > 1) {
     options.error = DUPLICATE_HEAD_MESSAGE;
+    return;
+  }
+  const householdHeadName = sender.getValue(HOUSEHOLD_HEAD_NAME_FIELD);
+  if (householdHeadName && !memberMatchesHouseholdHead(getPanelData(options.question), householdHeadName)) {
+    options.error = HEAD_NAME_MISMATCH_MESSAGE;
   }
 }
 
@@ -584,6 +633,7 @@ export function refreshHouseholdSurveyBehaviors(model, selectedForm) {
   updateHouseholdIdCalculation(model);
   updateHouseholdListingCalculations(model);
   validateSingleHouseholdHead(model);
+  validateHouseholdHeadIdentity(model);
   validateAgeAgainstResidenceDuration(model);
   setTimeout(refreshVisibleAgeResidenceErrors, 0);
 }
@@ -618,6 +668,8 @@ export async function validateHouseholdSurveyForFinalization(model, options = {}
   if (validateSingleHouseholdHead(model)) {
     return { valid: false, message: DUPLICATE_HEAD_MESSAGE };
   }
+  const headIdentity = validateHouseholdHeadIdentity(model, true);
+  if (!headIdentity.valid) return headIdentity;
   if (validateAgeAgainstResidenceDuration(model)) {
     return { valid: false, message: AGE_LESS_THAN_RESIDENCE_MESSAGE };
   }
@@ -677,6 +729,13 @@ export function attachHouseholdSurveyBehaviors(
       options.allow = false;
       options.allowComplete = false;
       options.message = DUPLICATE_HEAD_MESSAGE;
+      return;
+    }
+    const headIdentity = validateHouseholdHeadIdentity(sender, true);
+    if (!headIdentity.valid) {
+      options.allow = false;
+      options.allowComplete = false;
+      options.message = headIdentity.message;
       return;
     }
     if (validateAgeAgainstResidenceDuration(sender)) {

@@ -2,7 +2,7 @@
 import React from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 
-import { getNativeQuestionValue } from "../nativeSurveyModel.js";
+import { getNativeQuestionDisplayValue } from "../nativeSurveyModel.js";
 import { QuestionFrame } from "./QuestionFrame.js";
 
 export function DisplayRenderer({ answerData, locale, question, title, subtitle, columns = [], rows = [] }) {
@@ -26,7 +26,7 @@ export function DisplayRenderer({ answerData, locale, question, title, subtitle,
       </View>
     );
   }
-  const rawValue = getNativeQuestionValue(question, answerData);
+  const rawValue = getNativeQuestionDisplayValue(question, answerData);
   const value = rawValue === undefined || rawValue === null || rawValue === ""
     ? "-"
     : String(rawValue);

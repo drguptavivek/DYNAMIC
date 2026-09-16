@@ -8,6 +8,10 @@ import {
 } from "./householdRepository.js";
 import { ROUTES, navigateTo } from "../../navigation/routes.js";
 import { createDirectPefTask, getDirectPefEligibility } from "../pregnancy/directPef.js";
+import {
+  formatHouseholdMemberStatus,
+  formatHouseholdRelationship,
+} from "./householdMemberLabels.js";
 
 const PAGE_SIZE = 50;
 const FREE_TEXT_SEARCH_MIN_LENGTH = 3;
@@ -180,12 +184,12 @@ export function HouseholdMembersModule({ householdId = "", selectedLocalityCode,
                       {member.member_name || member.individual_id}
                     </Text>
                     <Text style={styles.memberDetailMeta} numberOfLines={1}>
-                      {`${member.age_years ?? "-"} years · ${formatSex(member.sex)} · ${formatRelationship(member.relationship_to_head)}`}
+                      {`${member.age_years ?? "-"} years · ${formatSex(member.sex)} · ${formatHouseholdRelationship(member.relationship_to_head, member.member_name, group.household_head_name)}`}
                     </Text>
                   </View>
                   <View style={styles.memberDetailActions}>
                     <Text style={styles.memberDetailStatus} numberOfLines={2}>
-                      {formatMemberStatus(member)}
+                      {formatHouseholdMemberStatus(member, group.household_head_name)}
                     </Text>
                     {Number(member.woman_questionnaire_eligible) === 1 ? (
                       <DirectPefButton
@@ -242,21 +246,6 @@ function formatSex(sex) {
   return "Other";
 }
 
-function formatRelationship(value) {
-  if (Number(value) === 1) return "Self / HOH";
-  if (Number(value) === 2) return "Spouse";
-  if (Number(value) === 3) return "Parent";
-  if (Number(value) === 4) return "Child";
-  if (Number(value) === 5) return "Sibling";
-  return "Other";
-}
-
-function formatMemberStatus(member) {
-  if (Number(member.relationship_to_head) === 1) return "Household head";
-  if (Number(member.woman_questionnaire_eligible) === 1) return "BWQ eligible";
-  return "Active member";
-}
-
 function groupMembersByHousehold(rows, householdContext = null) {
   const groups = new Map();
   for (const member of rows) {
@@ -275,6 +264,8 @@ function groupMembersByHousehold(rows, householdContext = null) {
           householdContext?.locality_code || member.locality_code,
         ].filter(Boolean).join(" · "),
         address: householdContext?.address || member.address || "",
+        household_head_name:
+          householdContext?.household_head_name || member.household_head_name || "",
         members: [],
       };
       groups.set(householdId, group);

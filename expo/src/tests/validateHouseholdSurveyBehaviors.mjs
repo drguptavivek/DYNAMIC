@@ -257,6 +257,66 @@ duplicateHeadModel.onValueChanged.handlers[0](duplicateHeadModel, {
 assert.deepEqual(firstRelationshipQuestion.errors, []);
 assert.deepEqual(secondRelationshipQuestion.errors, []);
 
+const mismatchedHeadMember = { member_name: "Jeetu", member_relationship_to_head: 1 };
+const mismatchedHeadQuestion = createQuestion("member_relationship_to_head", mismatchedHeadMember);
+const mismatchedHeadModel = createModel(
+  {
+    hhq_household_head_name: "Deepak",
+    hhq_household_members: [mismatchedHeadMember]
+  },
+  [mismatchedHeadQuestion]
+);
+attachHouseholdSurveyBehaviors(
+  mismatchedHeadModel,
+  { form_code: "HHQ" },
+  () => {},
+  { findExistingHousehold: async () => null }
+);
+const mismatchedHeadValidateOptions = {
+  name: "member_relationship_to_head",
+  question: mismatchedHeadQuestion,
+  value: 1,
+  error: ""
+};
+mismatchedHeadModel.onValidateQuestion.handlers[0](
+  mismatchedHeadModel,
+  mismatchedHeadValidateOptions
+);
+assert.equal(
+  mismatchedHeadValidateOptions.error,
+  "The member marked as Head must match the household head name entered in Section 1."
+);
+const mismatchedHeadCompletingOptions = { allow: true, allowComplete: true };
+await mismatchedHeadModel.onCompleting.handlers[0](
+  mismatchedHeadModel,
+  mismatchedHeadCompletingOptions
+);
+assert.equal(mismatchedHeadCompletingOptions.allow, false);
+assert.equal(
+  mismatchedHeadCompletingOptions.message,
+  "The member marked as Head must match the household head name entered in Section 1."
+);
+
+const missingHeadMember = { member_name: "Jeetu", member_relationship_to_head: 2 };
+const missingHeadQuestion = createQuestion("member_relationship_to_head", missingHeadMember);
+const missingHeadModel = createModel(
+  {
+    hhq_household_head_name: "Deepak",
+    hhq_household_members: [missingHeadMember]
+  },
+  [missingHeadQuestion]
+);
+attachHouseholdSurveyBehaviors(
+  missingHeadModel,
+  { form_code: "HHQ" },
+  () => {},
+  { findExistingHousehold: async () => null }
+);
+const missingHeadCompletingOptions = { allow: true, allowComplete: true };
+await missingHeadModel.onCompleting.handlers[0](missingHeadModel, missingHeadCompletingOptions);
+assert.equal(missingHeadCompletingOptions.allow, false);
+assert.equal(missingHeadCompletingOptions.message, "Mark exactly one listed household member as Head.");
+
 const enforceSingleHeadMembers = [
   { member_name: "Asha", member_relationship_to_head: 1 },
   { member_name: "Dcss", member_relationship_to_head: 1 }
@@ -292,13 +352,14 @@ assert.deepEqual(
 
 const ageDurationMember = {
   member_name: "Sita",
+  member_relationship_to_head: 1,
   member_residence_duration: { months: 1, years: 12 },
   member_age_years: 11
 };
 const ageQuestion = createQuestion("member_age_years", ageDurationMember);
 const residenceDurationQuestion = createQuestion("member_residence_duration", ageDurationMember);
 const ageDurationModel = createModel(
-  { hhq_household_members: [ageDurationMember] },
+  { hhq_household_head_name: "Sita", hhq_household_members: [ageDurationMember] },
   [residenceDurationQuestion, ageQuestion]
 );
 

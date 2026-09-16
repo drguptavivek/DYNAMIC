@@ -9,6 +9,7 @@ const {
   assertNativeSurveySupport,
   buildNativeSurveyPreview,
   getNativeQuestionChoices,
+  getNativeQuestionDisplayValue,
   getNativeQuestionErrors,
   getNativeQuestionTitle,
   getNativeQuestionValue,
@@ -76,6 +77,30 @@ assert.equal(structure.value, "0042");
 assert.equal(model.data.hhq_structure_map_id, "0042");
 model.setValue("hhq_household_head_name", "Restored Draft Head");
 assert.equal(getNativeQuestionValue(model.getQuestionByName("hhq_household_head_name")), "Restored Draft Head");
+
+const staleFirstMemberLine = {
+  name: "member_line_number",
+  value: "02",
+  __nativePanelRowNumber: 1,
+  survey: model,
+};
+const staleFirstMemberId = {
+  name: "member_individual_id",
+  value: "1-02-0042-03-02",
+  __nativePanelRowNumber: 1,
+  survey: {
+    getValue(name) {
+      return {
+        hhq_site_id: 1,
+        hhq_locality_code: "02",
+        hhq_structure_map_id: "0042",
+        hhq_household_number: "03",
+      }[name];
+    },
+  },
+};
+assert.equal(getNativeQuestionDisplayValue(staleFirstMemberLine), "01");
+assert.equal(getNativeQuestionDisplayValue(staleFirstMemberId), "1-02-0042-03-01");
 
 assert.equal(formatSurveyDateDisplay("2026-07-28"), "28-Jul-2026");
 assert.equal(formatSurveyDate(parseSurveyDate("2026-07-28")), "2026-07-28");

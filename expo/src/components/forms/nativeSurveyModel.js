@@ -168,7 +168,7 @@ function defaultChoiceText(choice) {
   return "";
 }
 
-function getNativePanelRowNumber(question) {
+export function getNativePanelRowNumber(question) {
   const explicitRow = Number(question?.__nativePanelRowNumber);
   if (Number.isFinite(explicitRow) && explicitRow > 0) return explicitRow;
 
@@ -186,6 +186,37 @@ function getNativePanelRowNumber(question) {
     if (index >= 0) return index + 1;
   }
   return null;
+}
+
+function normalizeHhqIdPart(value, width = 0) {
+  const text = String(value ?? "").trim();
+  return width ? text.padStart(width, "0") : text;
+}
+
+function getHhqHouseholdId(question) {
+  const survey = question?.survey;
+  const calculatedId = String(survey?.getValue?.("hhq_household_id") ?? "").trim();
+  if (calculatedId) return calculatedId;
+
+  const siteId = normalizeHhqIdPart(survey?.getValue?.("hhq_site_id"));
+  const localityCode = normalizeHhqIdPart(survey?.getValue?.("hhq_locality_code"), 2);
+  const structureMapId = normalizeHhqIdPart(survey?.getValue?.("hhq_structure_map_id")).toUpperCase();
+  const householdNumber = normalizeHhqIdPart(survey?.getValue?.("hhq_household_number"), 2);
+  if (!siteId || !localityCode || !structureMapId || !householdNumber) return "";
+  return [siteId, localityCode, structureMapId, householdNumber].join("-");
+}
+
+/** Always derives HHQ member identity displays from the current panel row. */
+export function getNativeQuestionDisplayValue(question, answerData) {
+  const rowNumber = getNativePanelRowNumber(question);
+  if (rowNumber && question?.name === "member_line_number") {
+    return normalizeHhqIdPart(rowNumber, 2);
+  }
+  if (rowNumber && question?.name === "member_individual_id") {
+    const householdId = getHhqHouseholdId(question);
+    return householdId ? `${householdId}-${normalizeHhqIdPart(rowNumber, 2)}` : "";
+  }
+  return getNativeQuestionValue(question, answerData);
 }
 
 function sourcePrefixFromTitle(title) {

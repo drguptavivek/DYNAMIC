@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { api } from "../lib/api";
+import {
+  formatHouseholdMemberStatus,
+  formatHouseholdRelationship,
+} from "../lib/householdMemberLabels";
 import styles from "./HouseholdsPage.module.css";
 
 interface HouseholdMemberRow {
@@ -144,9 +148,9 @@ export default function HouseholdMembersPage() {
                     <td>
                       {`${member.reported_age_years || "—"} years · ${formatSex(member.sex)} · ${formatMaritalStatus(member.marital_status)}`}
                     </td>
-                    <td>{formatRelationship(member.relationship_to_head)}</td>
+                    <td>{formatHouseholdRelationship(member.relationship_to_head, member.name, member.household?.household_head_name)}</td>
                     <td>{member.household?.address || "—"}</td>
-                    <td>{formatMemberStatus(member)}</td>
+                    <td>{formatHouseholdMemberStatus(member, member.household?.household_head_name)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -168,19 +172,4 @@ function formatMaritalStatus(status?: number) {
   if (Number(status) === 1) return "Married";
   if (Number(status) === 2) return "Unmarried";
   return "Marital status unknown";
-}
-
-function formatRelationship(value?: number) {
-  if (Number(value) === 1) return "Self / HOH";
-  if (Number(value) === 2) return "Spouse";
-  if (Number(value) === 3) return "Parent";
-  if (Number(value) === 4) return "Child";
-  if (Number(value) === 5) return "Sibling";
-  return "Other";
-}
-
-function formatMemberStatus(member: HouseholdMemberRow) {
-  if (Number(member.relationship_to_head) === 1) return "Household head";
-  if (member.woman_questionnaire_eligible) return "WQ eligible";
-  return "Active member";
 }

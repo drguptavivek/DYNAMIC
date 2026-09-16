@@ -492,3 +492,12 @@ Decisions:
 Goal: Make PSF Q13 display the same LMP input options as WQ Q33a.
 Decisions:
 - Q13 uses the shared LMP timing renderer (Date, Relative time with Days/Weeks/Months/Years Ago, and special codes 993-996). Its labels/instructions now match Q33a; 993 and 994 remain the only LMP special codes that stop PSF tracking.
+
+## 2026-09-16 (HHQ member identity and relationship consistency) [working]
+Goal: Keep BHQ/HHQ member IDs, household-head identity, relationship labels, and WQ status consistent across the field app and admin.
+Decisions:
+- Native member line/individual ID displays derive from the current roster row, preventing stale duplicate suffixes.
+- The field app blocks a roster Head whose name differs from the Section 1 household-head name and requires exactly one Head before finalization.
+- App/admin relationship displays use all protocol codes; historical mismatched Head rows are flagged instead of shown as the household head, while WQ eligibility remains visible.
+Open:
+- Existing submitted head/relation mismatches still require an authorized data correction because the correct non-head relationship cannot be inferred.
