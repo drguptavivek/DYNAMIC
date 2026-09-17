@@ -59,6 +59,7 @@ const staleBiomarkersPage = staleSyncedWq.pages.find(
 for (const [fieldName, maxLength, regex] of [
   ["wq_height_measured_site_cm", 3, "^\\d{3}$"],
   ["wq_weight_measured_site_kg", 6, "^\\d{3}\\.\\d{2}$"],
+  ["wq_hemoglobin_measured_site", 2, "^\\d{2}$"],
 ]) {
   const field = staleBiomarkersPage?.elements?.find((element) => element.name === fieldName);
   if (field) {
@@ -68,6 +69,15 @@ for (const [fieldName, maxLength, regex] of [
       validator.type === "regex" ? { ...validator, regex } : validator
     );
   }
+}
+const staleBloodPressure = staleBiomarkersPage?.elements?.find(
+  (element) => element.name === "wq_blood_pressure_measured_site",
+);
+const staleDiastolic = staleBloodPressure?.items?.find((item) => item.name === "diastolic");
+if (staleDiastolic) {
+  staleDiastolic.validators = staleDiastolic.validators.map((validator) =>
+    validator.type === "regex" ? { ...validator, regex: "^\\d{3}$" } : validator
+  );
 }
 const staleHusbandBackgroundPage = staleSyncedWq.pages.find(
   (page) => page.name === "page_04_husband_background_woman_work",
@@ -190,6 +200,7 @@ for (const preparedWq of [wqSurveyJson, staleSyncedWqSurveyJson]) {
   for (const [fieldName, maxLength, regex] of [
     ["wq_height_measured_site_cm", 5, "^\\d{3}(?:\\.\\d)?$"],
     ["wq_weight_measured_site_kg", 5, "^\\d{2,3}\\.\\d$"],
+    ["wq_hemoglobin_measured_site", 4, "^\\d{1,2}(?:\\.\\d)?$"],
   ]) {
     const field = findElementByName(preparedWq, fieldName);
     const regexValidator = field?.validators?.find((validator) => validator.type === "regex");
@@ -197,6 +208,15 @@ for (const preparedWq of [wqSurveyJson, staleSyncedWqSurveyJson]) {
     assert.equal(field?.maxLength, maxLength, `${fieldName} must enforce its corrected input length`);
     assert.equal(regexValidator?.regex, regex, `${fieldName} must enforce its corrected decimal format`);
   }
+  const bloodPressure = findElementByName(preparedWq, "wq_blood_pressure_measured_site");
+  const diastolic = bloodPressure?.items?.find((item) => item.name === "diastolic");
+  const diastolicRegex = diastolic?.validators?.find((validator) => validator.type === "regex");
+  assert.equal(diastolic?.maxLength, 3, "BWQ Biomarker Diastolic must allow up to 3 digits");
+  assert.equal(
+    diastolicRegex?.regex,
+    "^\\d{2,3}$",
+    "BWQ Biomarker Diastolic must require 2 to 3 digits",
+  );
 }
 assert.equal(
   wqHealthPage?.elements?.[0]?.type,

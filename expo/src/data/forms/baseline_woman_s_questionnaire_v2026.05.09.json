@@ -10434,9 +10434,9 @@
               "validators": [
                 {
                   "type": "regex",
-                  "regex": "^\\d{3}$",
+                  "regex": "^\\d{2,3}$",
                   "text": {
-                    "default": "Enter diastolic as exactly 3 digits (for example 123).",
+                    "default": "Enter diastolic as 2 to 3 digits (for example 85 or 123).",
                     "hi": "",
                     "kn": "",
                     "mr": "",
@@ -10468,8 +10468,8 @@
           "order": 166,
           "section_order": 6,
           "sourceCode": "4",
-          "sourceType": "integer",
-          "rawText": "Hemoglobin - measured on site |_|_| grams per deciliter [Bareilly and Belagavi only]",
+          "sourceType": "decimal",
+          "rawText": "Hemoglobin - measured on site |_|_|.|_| grams per deciliter [Bareilly and Belagavi only]",
           "description": {
             "default": "grams per deciliter [Bareilly and Belagavi only]",
             "hi": "",
@@ -10482,16 +10482,16 @@
           "renderingHint": {
             "render_as": "numeric_textbox"
           },
-          "maxLength": 2,
+          "maxLength": 4,
           "validators": [
             {
               "type": "numeric"
             },
             {
               "type": "regex",
-              "regex": "^\\d{2}$",
+              "regex": "^\\d{1,2}(?:\\.\\d)?$",
               "text": {
-                "default": "Enter hemoglobin as exactly 2 digits (for example 01 or 25).",
+                "default": "Enter hemoglobin as 1 to 2 digits with up to 1 decimal place (for example 9, 12, or 12.5).",
                 "hi": "",
                 "kn": "",
                 "mr": "",

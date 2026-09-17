@@ -82,6 +82,8 @@ const WQ_DOMESTIC_VIOLENCE_PAGE_NAME = "page_05_domestic_violence";
 const WQ_BIOMARKERS_PAGE_NAME = "page_06_biomarkers";
 const WQ_BIOMARKER_HEIGHT_NAME = "wq_height_measured_site_cm";
 const WQ_BIOMARKER_WEIGHT_NAME = "wq_weight_measured_site_kg";
+const WQ_BIOMARKER_BLOOD_PRESSURE_NAME = "wq_blood_pressure_measured_site";
+const WQ_BIOMARKER_HEMOGLOBIN_NAME = "wq_hemoglobin_measured_site";
 const WQ_HEALTH_INTRO_NAME =
   "wq_03_other_health_issues_i_would_like_to_ask_some_questions_about_y";
 const WQ_Q10_SMOKING_NAME =
@@ -654,6 +656,12 @@ function applyWqBiomarkerEntryFormats(surveyJson) {
       validationText:
         "Enter weight as 2 to 3 digits with 1 decimal place in kg (for example 45.6 or 121.4).",
     },
+    [WQ_BIOMARKER_HEMOGLOBIN_NAME]: {
+      maxLength: 4,
+      regex: "^\\d{1,2}(?:\\.\\d)?$",
+      validationText:
+        "Enter hemoglobin as 1 to 2 digits with up to 1 decimal place (for example 9, 12, or 12.5).",
+    },
   };
 
   return {
@@ -661,6 +669,31 @@ function applyWqBiomarkerEntryFormats(surveyJson) {
     pages: surveyJson.pages.map((page) => ({
       ...page,
       elements: page.elements.map((element) => {
+        if (element.name === WQ_BIOMARKER_BLOOD_PRESSURE_NAME) {
+          return {
+            ...element,
+            items: (element.items || []).map((item) =>
+              item.name === "diastolic"
+                ? {
+                    ...item,
+                    maxLength: 3,
+                    validators: (item.validators || []).map((validator) =>
+                      validator.type === "regex"
+                        ? {
+                            ...validator,
+                            regex: "^\\d{2,3}$",
+                            text: replaceDefaultLocalizedText(
+                              validator.text,
+                              "Enter diastolic as 2 to 3 digits (for example 85 or 123)."
+                            ),
+                          }
+                        : validator
+                    ),
+                  }
+                : item
+            ),
+          };
+        }
         const format = formats[element.name];
         if (!format) return element;
         return {

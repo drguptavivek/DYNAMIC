@@ -2464,12 +2464,13 @@ assert.equal(progressiveDobQuestion.validate(), true);
 // Biomarker entry formats (user spec):
 // Q1 height 3 digits with an optional single decimal, Q2 weight 2-3 digits
 // with exactly 1 decimal,
-// Q3 blood pressure 3/3 digits, Q4 hemoglobin 2 digits.
+// Q3 systolic 3 digits and diastolic 2-3 digits; Q4 hemoglobin 1-2 digits
+// with an optional single decimal.
 const biomarkerModel = createWqModel();
 const biomarkerFormat = [
   ["wq_height_measured_site_cm", ["165", "165.5"], ["16.5", "165.55"]],
   ["wq_weight_measured_site_kg", ["45.6", "121.4"], ["9.5", "121.45", "1234.5"]],
-  ["wq_hemoglobin_measured_site", ["01"], ["1"]],
+  ["wq_hemoglobin_measured_site", ["9", "12", "9.5", "12.5"], ["123", "9.55", "123.4"]],
 ];
 for (const [fieldName, validValues, invalidValues] of biomarkerFormat) {
   const item = question(biomarkerModel, fieldName);
@@ -2493,6 +2494,11 @@ assert.equal(
   getNativeKeyboardType(question(biomarkerModel, "wq_weight_measured_site_kg")),
   "decimal-pad",
   "WQ Biomarker Weight must open the decimal keyboard",
+);
+assert.equal(
+  getNativeKeyboardType(question(biomarkerModel, "wq_hemoglobin_measured_site")),
+  "decimal-pad",
+  "WQ Biomarker Hemoglobin must open the decimal keyboard",
 );
 assert.equal(
   deriveWqBiomarkerSiteId({ household_id: "3-01-0001-01" }),
@@ -2532,10 +2538,14 @@ assert.deepEqual(
   bloodPressure.items.map((item) => item.name),
   ["systolic", "diastolic"]
 );
+bloodPressure.value = { systolic: "095", diastolic: "85" };
+assert.equal(bloodPressure.validate() !== false && !bloodPressure.errors.length, true, "WQ Biomarker Q3 must accept a 2-digit diastolic value");
 bloodPressure.value = { systolic: "095", diastolic: "085" };
-assert.equal(bloodPressure.validate() !== false && !bloodPressure.errors.length, true, "WQ Section 6 Q3 must accept 3/3 digits");
+assert.equal(bloodPressure.validate() !== false && !bloodPressure.errors.length, true, "WQ Biomarker Q3 must accept a 3-digit diastolic value");
 bloodPressure.value = { systolic: "95", diastolic: "085" };
-assert.equal(bloodPressure.validate() !== false && !bloodPressure.errors.length, false, "WQ Section 6 Q3 must reject short entries");
+assert.equal(bloodPressure.validate() !== false && !bloodPressure.errors.length, false, "WQ Biomarker Q3 must still reject a short systolic value");
+bloodPressure.value = { systolic: "095", diastolic: "8" };
+assert.equal(bloodPressure.validate() !== false && !bloodPressure.errors.length, false, "WQ Biomarker Q3 must reject a 1-digit diastolic value");
 bloodPressure.value = undefined;
 
 console.log("Validated WQ Excel-derived skip logic.");
