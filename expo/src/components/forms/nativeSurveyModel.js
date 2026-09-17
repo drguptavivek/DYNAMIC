@@ -267,7 +267,7 @@ export function getNativeQuestionTitle(question, locale = "default") {
   }
   if (question?.name === WQ_PREGNANCY_OUTCOME_REVIEW_FIELD) {
     const originalTitle = localizedText(question?.locTitle, question?.title || "", locale);
-    return `${sourcePrefixFromTitle(originalTitle) || "23_i. "}CHECK 16, 17, and 21:`;
+    return `${sourcePrefixFromTitle(originalTitle) || "23_i. "}PREGNANCY OUTCOME`;
   }
   if (question?.name === WQ_PREGNANCY_OUTCOME_DATE_FIELD) {
     const originalTitle = interpolateSurveyValues(

@@ -44,6 +44,21 @@ function findTopLevelElementByName(surveyJson, name) {
 const surveyJson = prepareQuestionnaireSurveyJson(hhq);
 const wqSurveyJson = prepareQuestionnaireSurveyJson(wq);
 const staleSyncedWq = structuredClone(wq);
+const staleHusbandBackgroundPage = staleSyncedWq.pages.find(
+  (page) => page.name === "page_04_husband_background_woman_work",
+);
+const staleQ20Payment = staleHusbandBackgroundPage?.elements?.find(
+  (element) =>
+    element.name ===
+    "wq_04_husband_s_backgroun_are_you_paid_in_cash_or_kind_for_this_work",
+);
+if (staleQ20Payment) {
+  staleQ20Payment.choices = staleQ20Payment.choices.map((choice) =>
+    Number(choice.value) === 1
+      ? { ...choice, text: { ...choice.text, default: "Cash only" } }
+      : choice
+  );
+}
 const staleReproductionPage = staleSyncedWq.pages.find(
   (page) => page.name === "page_02_reproduction",
 );
@@ -83,6 +98,10 @@ const wqHighestGrade = findElementByName(
   wqSurveyJson,
   "wq_01_respondent_s_backgr_what_is_the_highest_grade_you_completed",
 );
+const wqHusbandHighestGrade = findElementByName(
+  wqSurveyJson,
+  "wq_04_husband_s_backgroun_what_was_the_highest_grade_he_completed",
+);
 const wqReproductionQ1 = findElementByName(
   wqSurveyJson,
   "wq_02_reproduction_now_i_would_like_to_ask_about_all_the_birt",
@@ -106,6 +125,12 @@ const wqHealthPage = wqSurveyJson.pages.find(
 );
 const staleSyncedWqHealthPage = staleSyncedWqSurveyJson.pages.find(
   (page) => page.name === "page_03_other_health_issues",
+);
+const wqHusbandBackgroundPage = wqSurveyJson.pages.find(
+  (page) => page.name === "page_04_husband_background_woman_work",
+);
+const staleSyncedWqHusbandBackgroundPage = staleSyncedWqSurveyJson.pages.find(
+  (page) => page.name === "page_04_husband_background_woman_work",
 );
 assert.equal(
   wqHealthPage?.elements?.[0]?.type,
@@ -181,6 +206,74 @@ for (const healthPage of [wqHealthPage, staleSyncedWqHealthPage]) {
     "BWQ Q16 title must contain only the answerable question",
   );
 }
+for (const husbandPage of [wqHusbandBackgroundPage, staleSyncedWqHusbandBackgroundPage]) {
+  const smokingQuestionIndex = husbandPage?.elements?.findIndex(
+    (element) =>
+      element.name ===
+      "wq_04_husband_s_backgroun_now_i_would_like_to_ask_you_some_questions",
+  );
+  assert.ok(smokingQuestionIndex > 0, "BWQ Section 4 Q6 must remain in Section 4");
+  assert.equal(
+    husbandPage.elements[smokingQuestionIndex - 1]?.name,
+    "wq_04_husband_smoking_tobacco_intro",
+    "BWQ Section 4 Q6 must have its read-only introduction immediately above it",
+  );
+  assert.equal(
+    husbandPage.elements[smokingQuestionIndex - 1]?.html,
+    "Now I would like to ask you some questions on smoking and tobacco use of your husband/partner.",
+    "BWQ Section 4 Q6 must show the requested reading text",
+  );
+  assert.equal(
+    husbandPage.elements[smokingQuestionIndex - 1]?.renderAs,
+    "instruction",
+    "BWQ Section 4 Q6 introduction must use the yellow instruction renderer",
+  );
+  assert.equal(
+    husbandPage.elements[smokingQuestionIndex]?.title?.default,
+    "6. Does your husband/partner currently smoke cigarettes every day, some days, or not at all?",
+    "BWQ Section 4 Q6 title must contain only the answerable question",
+  );
+  const alcoholDaysQuestion = husbandPage.elements.find(
+    (element) =>
+      element.name ===
+      "wq_04_husband_s_backgroun_during_the_last_one_month_on_how_many_days",
+  );
+  assert.equal(
+    alcoholDaysQuestion?.title?.default,
+    "13. During the last one month, on how many days did your husband/partner have at least one drink of alcohol?\nIf non-numeric answer, probe to get an estimate. If respondent answers 'every day' or 'almost every day'",
+    "BWQ Section 4 Q13 title must omit the code 95 wording",
+  );
+  assert.equal(
+    alcoholDaysQuestion?.description?.default,
+    "Enter number of days as exactly 2 digits.",
+    "BWQ Section 4 Q13 must omit the Use 00 through Q15 hint text",
+  );
+  assert.equal(
+    alcoholDaysQuestion?.allowYearsOverrideSpecialCodes,
+    true,
+    "BWQ Section 4 Q13 Days entry must remain editable after a special-code choice",
+  );
+  const alcoholDrinksQuestion = husbandPage.elements.find(
+    (element) =>
+      element.name ===
+      "wq_04_husband_s_backgroun_we_count_one_drink_of_alcohol_as_one_can_o",
+  );
+  assert.equal(
+    alcoholDrinksQuestion?.entryUnitLabel,
+    "Drinks",
+    "BWQ Section 4 Q14 numeric entry must use the Drinks unit label",
+  );
+  const paymentQuestion = husbandPage.elements.find(
+    (element) =>
+      element.name ===
+      "wq_04_husband_s_backgroun_are_you_paid_in_cash_or_kind_for_this_work",
+  );
+  assert.equal(
+    paymentQuestion?.choices?.find((choice) => Number(choice.value) === 1)?.text?.default,
+    "Cash /Online/UPI",
+    "BWQ Section 4 Q20 option 1 must use the requested payment label",
+  );
+}
 const singleMobile = findElementByName(surveyJson, "hhq_contact_mobile");
 const memberMaritalStatus = findElementByName(surveyJson, "member_marital_status");
 const memberEligibility = findElementByName(surveyJson, "member_woman_questionnaire_eligible");
@@ -238,6 +331,11 @@ assert.equal(wqHighestGrade.renderAs, "years_with_special_codes");
 assert.equal(wqHighestGrade.allowYearsOverrideSpecialCodes, true);
 assert.equal(wqHighestGrade.description, "Training - refer to NFHS-6 Manual");
 assert.deepEqual(wqHighestGrade.choices.map((choice) => choice.value), [0, 98]);
+assert.equal(wqHusbandHighestGrade.type, "text");
+assert.equal(wqHusbandHighestGrade.renderAs, "years_with_special_codes");
+assert.equal(wqHusbandHighestGrade.allowYearsOverrideSpecialCodes, true);
+assert.equal(wqHusbandHighestGrade.description, "Training - refer to NFHS-6 Manual");
+assert.deepEqual(wqHusbandHighestGrade.choices.map((choice) => choice.value), [0, 98]);
 assert.equal(
   getQuestionnairePageIntro(wq, "page_02_reproduction"),
   "Now I would like to ask about all the births you have had during your life.",
@@ -261,7 +359,7 @@ assert.doesNotMatch(
 );
 assert.equal(
   wqReproductionQ23.title.default || wqReproductionQ23.title,
-  "23_i. CHECK 16, 17, and 21:",
+  "23_i. PREGNANCY OUTCOME",
 );
 assert.doesNotMatch(
   wqReproductionQ23.title.default || wqReproductionQ23.title,
@@ -294,7 +392,7 @@ assert.equal(
 );
 assert.equal(
   staleQ23.title.default || staleQ23.title,
-  "23_i. CHECK 16, 17, and 21:",
+  "23_i. PREGNANCY OUTCOME",
   "synced WQ definitions must hide the Q23_i calculation instructions",
 );
 assert.equal(staleQ32.description, undefined, "synced WQ definitions must hide the Q32 description");

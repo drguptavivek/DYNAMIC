@@ -2078,6 +2078,12 @@ const womanPaidKind = "wq_04_husband_s_backgroun_are_you_paid_in_cash_or_kind_fo
 const womanEarningsDecision =
   "wq_04_husband_s_backgroun_who_decides_how_the_money_you_earn_will_be";
 
+assert.equal(
+  question(workHusbandModel, womanPaidKind).choices.find((choice) => Number(choice.value) === 1)?.text,
+  "Cash /Online/UPI",
+  "WQ Section 4 Q20 option 1 must display Cash /Online/UPI",
+);
+
 workHusbandModel.setValue(husbandMaritalCheck, 2);
 assert.equal(isVisible(workHusbandModel, husbandAge), false);
 assert.equal(isVisible(workHusbandModel, husbandSchool), false);
@@ -2139,6 +2145,22 @@ assert.equal(
   question(workHusbandModel, husbandAlcoholDays).renderAs,
   "days_with_special_codes",
   "WQ Section 4 Q13 alcohol-days entry must show the Days unit"
+);
+assert.equal(
+  question(workHusbandModel, husbandAlcoholDays).jsonObj?.allowYearsOverrideSpecialCodes,
+  true,
+  "WQ Section 4 Q13 Days entry must allow typed digits to replace a selected special code",
+);
+workHusbandModel.setValue(husbandAlcoholDays, "12");
+assert.equal(
+  String(workHusbandModel.getValue(husbandAlcoholDays)),
+  "12",
+  "WQ Section 4 Q13 must accept a numeric correction after selecting a coded option",
+);
+assert.equal(
+  question(workHusbandModel, husbandAlcoholDrinks).jsonObj?.entryUnitLabel,
+  "Drinks",
+  "WQ Section 4 Q14 numeric entry must display Drinks instead of Years",
 );
 
 const husbandHealthDecision = "wq_04_husband_s_backgroun_who_usually_makes_decisions_about_health_c";

@@ -65,13 +65,15 @@ const WQ_PREGNANCY_HISTORY_TITLE =
   "14. Now I would like to record all your pregnancies including live births, stillbirths, miscarriages, and abortions, starting with your first pregnancy";
 const WQ_REPRODUCTION_Q23_NAME =
   "pregnancy_02_reproduction_check_16_17_and_21_if_16_i_1_or_17_i_1_the";
-const WQ_REPRODUCTION_Q23_TITLE = "CHECK 16, 17, and 21:";
+const WQ_REPRODUCTION_Q23_TITLE = "23_i. PREGNANCY OUTCOME";
 const WQ_Q9_RESIDENCE_YEARS_NAME =
   "wq_01_respondent_s_backgr_how_long_have_you_been_living_continuously";
 const WQ_Q12_GENERAL_HEALTH_NAME =
   "wq_01_respondent_s_backgr_in_general_would_you_say_your_health_is_ve";
 const WQ_Q14_HIGHEST_GRADE_NAME =
   "wq_01_respondent_s_backgr_what_is_the_highest_grade_you_completed";
+const WQ_HUSBAND_HIGHEST_GRADE_NAME =
+  "wq_04_husband_s_backgroun_what_was_the_highest_grade_he_completed";
 const WQ_Q32_PREGNANT_NAME = "wq_pregnant";
 const WQ_Q35_FIRST_PERIOD_AGE_NAME =
   "wq_02_reproduction_how_old_were_you_when_you_had_your_first_m";
@@ -92,6 +94,24 @@ const WQ_Q16_ALCOHOL_INTRO_TEXT =
   "Now I would like to ask you some questions about drinking alcohol.";
 const WQ_Q16_ALCOHOL_TITLE =
   "16. Have you ever consumed any alcohol, such as beer, wine, spirits, or [ADD OTHER LOCAL EXAMPLES]?";
+const WQ_HUSBAND_BACKGROUND_PAGE_NAME = "page_04_husband_background_woman_work";
+const WQ_HUSBAND_Q6_SMOKING_NAME =
+  "wq_04_husband_s_backgroun_now_i_would_like_to_ask_you_some_questions";
+const WQ_HUSBAND_Q6_SMOKING_INTRO_NAME = "wq_04_husband_smoking_tobacco_intro";
+const WQ_HUSBAND_Q6_SMOKING_INTRO_TEXT =
+  "Now I would like to ask you some questions on smoking and tobacco use of your husband/partner.";
+const WQ_HUSBAND_Q6_SMOKING_TITLE =
+  "6. Does your husband/partner currently smoke cigarettes every day, some days, or not at all?";
+const WQ_HUSBAND_Q13_ALCOHOL_DAYS_NAME =
+  "wq_04_husband_s_backgroun_during_the_last_one_month_on_how_many_days";
+const WQ_HUSBAND_Q13_ALCOHOL_DAYS_TITLE =
+  "13. During the last one month, on how many days did your husband/partner have at least one drink of alcohol?\nIf non-numeric answer, probe to get an estimate. If respondent answers 'every day' or 'almost every day'";
+const WQ_HUSBAND_Q13_ALCOHOL_DAYS_DESCRIPTION =
+  "Enter number of days as exactly 2 digits.";
+const WQ_HUSBAND_Q14_ALCOHOL_DRINKS_NAME =
+  "wq_04_husband_s_backgroun_we_count_one_drink_of_alcohol_as_one_can_o";
+const WQ_Q20_PAYMENT_KIND_NAME =
+  "wq_04_husband_s_backgroun_are_you_paid_in_cash_or_kind_for_this_work";
 const WQ_Q22B_NAME = "wq_02_reproduction_read_the_list_of_pregnancy_outcomes_in_ord";
 const WQ_Q22B_PAGE_NAME = "page_02c_reproduction_confirmation";
 const WQ_COMPARISON_PAGE_NAME = "page_02d_reproduction_comparison";
@@ -606,8 +626,6 @@ function applyWqReproductionQuestionText(surveyJson) {
   return {
     ...surveyJson,
     pages: surveyJson.pages.map((page) => {
-      if (page.name !== WQ_REPRODUCTION_PAGE_NAME) return page;
-
       const elements = page.elements.map((element) => {
         if (element.name === WQ_REPRODUCTION_Q1_NAME) {
           return {
@@ -711,6 +729,101 @@ function applyWqAlcoholQuestionText(surveyJson) {
   };
 }
 
+function applyWqHusbandSmokingQuestionText(surveyJson) {
+  return {
+    ...surveyJson,
+    pages: surveyJson.pages.map((page) => {
+      if (page.name !== WQ_HUSBAND_BACKGROUND_PAGE_NAME) return page;
+
+      const elementsWithoutIntro = page.elements.filter(
+        (element) => element.name !== WQ_HUSBAND_Q6_SMOKING_INTRO_NAME,
+      );
+      const smokingQuestionIndex = elementsWithoutIntro.findIndex(
+        (element) => element.name === WQ_HUSBAND_Q6_SMOKING_NAME,
+      );
+      if (smokingQuestionIndex < 0) return page;
+
+      const smokingQuestion = elementsWithoutIntro[smokingQuestionIndex];
+      const instruction = {
+        type: "html",
+        name: WQ_HUSBAND_Q6_SMOKING_INTRO_NAME,
+        html: WQ_HUSBAND_Q6_SMOKING_INTRO_TEXT,
+        renderAs: "instruction",
+        order: smokingQuestion.order,
+        section_order: smokingQuestion.section_order,
+        sourceType: "section_note",
+      };
+      const updatedQuestion = {
+        ...smokingQuestion,
+        title: replaceDefaultLocalizedText(smokingQuestion.title, WQ_HUSBAND_Q6_SMOKING_TITLE),
+      };
+      const elements = [...elementsWithoutIntro];
+      elements.splice(smokingQuestionIndex, 1, instruction, updatedQuestion);
+      return { ...page, elements };
+    }),
+  };
+}
+
+function applyWqHusbandAlcoholDaysInput(surveyJson) {
+  return {
+    ...surveyJson,
+    pages: surveyJson.pages.map((page) => ({
+      ...page,
+      elements: page.elements.map((element) =>
+        element.name === WQ_HUSBAND_Q13_ALCOHOL_DAYS_NAME
+          ? {
+              ...element,
+              title: replaceDefaultLocalizedText(
+                element.title,
+                WQ_HUSBAND_Q13_ALCOHOL_DAYS_TITLE,
+              ),
+              description: replaceDefaultLocalizedText(
+                element.description,
+                WQ_HUSBAND_Q13_ALCOHOL_DAYS_DESCRIPTION,
+              ),
+              allowYearsOverrideSpecialCodes: true,
+            }
+          : element
+      ),
+    })),
+  };
+}
+
+function applyWqHusbandAlcoholDrinksInput(surveyJson) {
+  return {
+    ...surveyJson,
+    pages: surveyJson.pages.map((page) => ({
+      ...page,
+      elements: page.elements.map((element) =>
+        element.name === WQ_HUSBAND_Q14_ALCOHOL_DRINKS_NAME
+          ? { ...element, entryUnitLabel: "Drinks" }
+          : element
+      ),
+    })),
+  };
+}
+
+function applyWqQ20PaymentChoiceText(surveyJson) {
+  return {
+    ...surveyJson,
+    pages: surveyJson.pages.map((page) => ({
+      ...page,
+      elements: page.elements.map((element) =>
+        element.name === WQ_Q20_PAYMENT_KIND_NAME
+          ? {
+              ...element,
+              choices: (element.choices || []).map((choice) =>
+                Number(choice.value) === 1
+                  ? { ...choice, text: replaceDefaultLocalizedText(choice.text, "Cash /Online/UPI") }
+                  : choice
+              ),
+            }
+          : element
+      ),
+    })),
+  };
+}
+
 function applyWqHealthSectionIntro(surveyJson) {
   return {
     ...surveyJson,
@@ -776,12 +889,16 @@ function removeWqQ32AndQ35Descriptions(surveyJson) {
 }
 
 function applyWqHighestGradeInput(surveyJson) {
+  const highestGradeNames = new Set([
+    WQ_Q14_HIGHEST_GRADE_NAME,
+    WQ_HUSBAND_HIGHEST_GRADE_NAME,
+  ]);
   return {
     ...surveyJson,
     pages: surveyJson.pages.map((page) => ({
       ...page,
       elements: page.elements.map((element) => {
-        if (element.name !== WQ_Q14_HIGHEST_GRADE_NAME) return element;
+        if (!highestGradeNames.has(element.name)) return element;
         return {
           ...element,
           type: "text",
@@ -909,6 +1026,10 @@ export function prepareQuestionnaireSurveyJson(form) {
     surveyJson = applyWqHealthSectionIntro(surveyJson);
     surveyJson = applyWqSmokingQuestionText(surveyJson);
     surveyJson = applyWqAlcoholQuestionText(surveyJson);
+    surveyJson = applyWqHusbandSmokingQuestionText(surveyJson);
+    surveyJson = applyWqHusbandAlcoholDaysInput(surveyJson);
+    surveyJson = applyWqHusbandAlcoholDrinksInput(surveyJson);
+    surveyJson = applyWqQ20PaymentChoiceText(surveyJson);
     surveyJson = applyWqResidenceYearsInput(surveyJson);
     surveyJson = markWqProgressiveDobControl(surveyJson);
     surveyJson = removeWqQ12TrainingDescription(surveyJson);

@@ -104,7 +104,9 @@ export function SelectOneRenderer({ answerData, locale, question, onChange }) {
             value={yearsValue}
           />
           <Text style={styles.yearsLabel}>
-            {question?.renderAs === "days_with_special_codes" ? "Days" : "Years"}
+            {question?.entryUnitLabel ||
+              question?.jsonObj?.entryUnitLabel ||
+              (question?.renderAs === "days_with_special_codes" ? "Days" : "Years")}
           </Text>
         </View>
       ) : null}

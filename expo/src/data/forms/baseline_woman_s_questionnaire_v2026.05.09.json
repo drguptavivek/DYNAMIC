@@ -7199,12 +7199,12 @@
           "section_order": 4,
           "sourceCode": "20",
           "sourceType": "select_one",
-          "rawText": "Are you paid in cash or kind for this work, or are you not paid at all? 1 Cash only",
+          "rawText": "Are you paid in cash or kind for this work, or are you not paid at all? 1 Cash /Online/UPI",
           "choices": [
             {
               "value": 1,
               "text": {
-                "default": "Cash only",
+                "default": "Cash /Online/UPI",
                 "hi": "",
                 "kn": "",
                 "mr": "",

@@ -133,7 +133,7 @@ const staleQ23Title = getNativeQuestionTitle(
   ),
   "en",
 );
-assert.equal(staleQ23Title, "23_i. CHECK 16, 17, and 21:");
+assert.equal(staleQ23Title, "23_i. PREGNANCY OUTCOME");
 assert.doesNotMatch(staleQ23Title, /PREGNANCY OUTCOME =/);
 
 setNativeQuestionValue(site, 1);
@@ -401,6 +401,17 @@ assert.equal(wqHighestGrade.getType(), "text");
 assert.deepEqual(getNativeQuestionChoices(wqHighestGrade).map((choice) => choice.value), [0, 98]);
 assert.equal(setNativeQuestionValue(wqHighestGrade, "12"), true);
 assert.equal(wqHighestGrade.value, "12");
+const wqHusbandHighestGrade = wqModel.getQuestionByName(
+  "wq_04_husband_s_backgroun_what_was_the_highest_grade_he_completed"
+);
+assert.equal(getNativeRendererKind(wqHusbandHighestGrade), "select-one");
+assert.equal(wqHusbandHighestGrade.getType(), "text");
+assert.deepEqual(
+  getNativeQuestionChoices(wqHusbandHighestGrade).map((choice) => choice.value),
+  [0, 98],
+);
+assert.equal(setNativeQuestionValue(wqHusbandHighestGrade, "12"), true);
+assert.equal(wqHusbandHighestGrade.value, "12");
 const currentLocalityDuration = wqModel.getQuestionByName(
   "wq_01_respondent_s_backgr_how_long_have_you_been_living_continuously"
 );
