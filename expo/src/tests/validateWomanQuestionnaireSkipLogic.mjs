@@ -37,7 +37,8 @@ const {
   applyWqSectionTwoCompletion,
    applyWqPregnancyHistoryCalculations,
    applyWqReproductionComparisonResult,
-   calculateWqReproductionComparison,
+  calculateWqReproductionComparison,
+  hasWqReproductionComparisonDeficit,
   hasIncompleteWqBornAliveChildFollowups,
   applyWqReproductionSummary,
   buildWqHusbandPartnerChoices,
@@ -1691,6 +1692,11 @@ assert.deepEqual(calculateWqReproductionComparison(childLoopModel), {
   summary: { living: 1, elsewhere: 0, died: 1, losses: 1 },
   detailed: { living: 1, elsewhere: 0, died: 1, losses: 1 },
 });
+assert.equal(
+  hasWqReproductionComparisonDeficit(childLoopModel),
+  false,
+  "Equal detailed and earlier-summary totals must allow forward navigation"
+);
 applyWqReproductionComparisonResult(childLoopModel);
 assert.equal(
   childLoopModel.getValue(WQ_REPRODUCTION_COMPARISON_RESULT_FIELD),
@@ -1698,11 +1704,22 @@ assert.equal(
   "Q29 must store 1 when the detailed total equals the earlier-summary total"
 );
 childLoopModel.setValue("wq_02_reproduction_how_many_sons_live_with_you", "02");
+assert.equal(
+  hasWqReproductionComparisonDeficit(childLoopModel),
+  true,
+  "A lower detailed-history total must block forward navigation"
+);
 applyWqReproductionComparisonResult(childLoopModel);
 assert.equal(
   childLoopModel.getValue(WQ_REPRODUCTION_COMPARISON_RESULT_FIELD),
   2,
   "Q29 must store 2 when the detailed total is less than the earlier-summary total"
+);
+childLoopModel.setValue("wq_02_reproduction_how_many_sons_live_with_you", "00");
+assert.equal(
+  hasWqReproductionComparisonDeficit(childLoopModel),
+  false,
+  "A greater detailed-history total must allow forward navigation"
 );
 
 model.setValue("wq_pregnant", 2);

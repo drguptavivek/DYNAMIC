@@ -1387,6 +1387,12 @@ export function calculateWqReproductionComparison(model) {
   return { detailed, summary };
 }
 
+export function hasWqReproductionComparisonDeficit(model) {
+  const comparison = calculateWqReproductionComparison(model);
+  const total = (values) => Object.values(values).reduce((sum, value) => sum + toCount(value), 0);
+  return total(comparison.detailed) < total(comparison.summary);
+}
+
 export function applyWqReproductionComparisonResult(model) {
   const question = model?.getQuestionByName?.(WQ_REPRODUCTION_COMPARISON_RESULT_FIELD);
   if (!question) return;
@@ -1395,12 +1401,10 @@ export function applyWqReproductionComparisonResult(model) {
     setModelValueIfChanged(model, WQ_REPRODUCTION_COMPARISON_RESULT_FIELD, undefined);
     return;
   }
-  const comparison = calculateWqReproductionComparison(model);
-  const total = (values) => Object.values(values).reduce((sum, value) => sum + toCount(value), 0);
   setModelValueIfChanged(
     model,
     WQ_REPRODUCTION_COMPARISON_RESULT_FIELD,
-    total(comparison.detailed) >= total(comparison.summary) ? 1 : 2
+    hasWqReproductionComparisonDeficit(model) ? 2 : 1
   );
 }
 

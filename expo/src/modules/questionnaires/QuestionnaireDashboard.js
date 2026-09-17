@@ -70,6 +70,7 @@ import {
   attachWqValidation,
   buildWqHusbandPartnerChoices,
   hasIncompleteWqBornAliveChildFollowups,
+  hasWqReproductionComparisonDeficit,
   requestNextWqPregnancy,
   shouldCompleteWqAfterReproduction,
    shouldRecalculateWqAgeConsistency,
@@ -91,6 +92,8 @@ const WQ_RESULT_INTERVIEW_FIELD = "wq_result_interview";
 const WQ_OUTCOME_PAGE_NAME = "page_outcome";
 const WQ_FINAL_INTERVIEW_PAGE_NAME = "page_05_domestic_violence";
 const WQ_SECTION_TWO_FINAL_PAGE_NAME = "page_02e_reproduction_after_comparison";
+const WQ_REPRODUCTION_COMPARISON_PAGE_NAME = "page_02d_reproduction_comparison";
+const WQ_REPRODUCTION_COMPARISON_FIELD = "wq_reproduction_comparison_table";
 const WQ_FULL_INTERVIEW_COMPLETED_FIELD = "wq_full_interview_completed";
 const WQ_HUSBAND_PARTNER_NAME_FIELD = "wq_husband_partner_name";
 const WQ_HUSBAND_PARTNER_LINE_NUMBER_FIELD = "wq_husband_partner_line_number";
@@ -697,6 +700,25 @@ export function QuestionnaireDashboard({
     model.onCurrentPageChanging.add((sender, options) => {
       const oldPageIndex = sender.pages.indexOf(options.oldCurrentPage);
       const newPageIndex = sender.pages.indexOf(options.newCurrentPage);
+      const reproductionComparisonPageIndex = sender.pages.findIndex(
+        (page) => page.name === WQ_REPRODUCTION_COMPARISON_PAGE_NAME
+      );
+      if (
+        isWomanQuestionnaire(form) &&
+        reproductionComparisonPageIndex >= 0 &&
+        newPageIndex > reproductionComparisonPageIndex &&
+        hasWqReproductionComparisonDeficit(sender)
+      ) {
+        options.allow = false;
+        const message =
+          "The detailed-history total is lower than the earlier-summary total. Reverify Q3 or Q14 before continuing.";
+        setSaveMessage(message);
+        Alert.alert("Reproductive history totals do not match", message);
+        requestAnimationFrame(() => {
+          rendererRef.current?.focusQuestion(WQ_REPRODUCTION_COMPARISON_FIELD);
+        });
+        return;
+      }
       if (
         isWomanQuestionnaire(form) &&
         options.oldCurrentPage?.name === WQ_SECTION_TWO_FINAL_PAGE_NAME &&

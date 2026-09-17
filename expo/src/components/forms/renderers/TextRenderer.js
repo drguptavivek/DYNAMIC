@@ -36,6 +36,7 @@ export function TextRenderer({ answerData, locale, question, onChange }) {
         value={value === undefined || value === null ? "" : String(value)}
         editable={!question.isReadOnly}
         keyboardType={keyboardType}
+        maxLength={question.maxLength > 0 ? question.maxLength : question.jsonObj?.maxLength}
         autoCapitalize="sentences"
         onChangeText={(value) => {
           latestValueRef.current = value;

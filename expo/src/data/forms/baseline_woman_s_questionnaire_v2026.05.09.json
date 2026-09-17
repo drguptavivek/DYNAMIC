@@ -472,7 +472,23 @@
           "sourceCode": "7",
           "sourceType": "text",
           "rawText": "Mobile phone of woman",
-          "inputType": "text",
+          "inputType": "tel",
+          "maxLength": 10,
+          "validators": [
+            {
+              "type": "regex",
+              "regex": "^[0-9]{10}$",
+              "text": {
+                "default": "Enter exactly 10 digits.",
+                "hi": "",
+                "kn": "",
+                "mr": "",
+                "ta": "",
+                "te": "",
+                "ur": ""
+              }
+            }
+          ],
           "visibleIf": "{wq_woman_available} = 1 and {wq_consent_study} = 1",
           "visibleIfSourceResolved": "Excel 01: respondent background continues only after woman available and study consent yes."
         },
@@ -1850,7 +1866,23 @@
           "sourceCode": "20",
           "sourceType": "text",
           "rawText": "Mobile phone of husband or partner",
-          "inputType": "text",
+          "inputType": "tel",
+          "maxLength": 10,
+          "validators": [
+            {
+              "type": "regex",
+              "regex": "^[0-9]{10}$",
+              "text": {
+                "default": "Enter exactly 10 digits.",
+                "hi": "",
+                "kn": "",
+                "mr": "",
+                "ta": "",
+                "te": "",
+                "ur": ""
+              }
+            }
+          ],
           "visibleIf": "(({wq_current_marital_status} = 1 or {wq_current_marital_status} = 8)) and ({wq_woman_available} = 1 and {wq_consent_study} = 1)",
           "visibleIfSourceResolved": "Excel 01 row 103: never married stops questionnaire; husband/partner details only for current partner.; Excel 01: respondent background continues only after woman available and study consent yes."
         },

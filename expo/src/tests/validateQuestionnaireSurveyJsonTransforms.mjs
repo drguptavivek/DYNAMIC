@@ -140,6 +140,10 @@ for (const [label, preparedWq] of [
 }
 const mobilePanel = findElementByName(surveyJson, "hhq_contact_mobile_numbers");
 const wqMobilePanel = findElementByName(wqSurveyJson, "wq_woman_mobile_numbers");
+const wqHusbandPartnerMobile = findElementByName(
+  wqSurveyJson,
+  "wq_husband_partner_mobile",
+);
 const wqProgressiveDob = findElementByName(
   wqSurveyJson,
   "wq_01_respondent_s_backgr_in_what_month_and_year_were_you_born",
@@ -523,6 +527,43 @@ assert.deepEqual(
     { name: "wq_woman_mobile", isRequired: true },
   ],
 );
+const wqMobileField = wqMobilePanel.templateElements.find(
+  (element) => element.name === "wq_woman_mobile",
+);
+assert.equal(wqMobileField.inputType, "tel");
+assert.equal(wqMobileField.maxLength, 10);
+assert.deepEqual(wqMobileField.validators, [
+  {
+    type: "regex",
+    regex: "^[0-9]{10}$",
+    text: {
+      default: "Enter exactly 10 digits.",
+      hi: "",
+      kn: "",
+      mr: "",
+      ta: "",
+      te: "",
+      ur: "",
+    },
+  },
+]);
+assert.equal(wqHusbandPartnerMobile.inputType, "tel");
+assert.equal(wqHusbandPartnerMobile.maxLength, 10);
+assert.deepEqual(wqHusbandPartnerMobile.validators, [
+  {
+    type: "regex",
+    regex: "^[0-9]{10}$",
+    text: {
+      default: "Enter exactly 10 digits.",
+      hi: "",
+      kn: "",
+      mr: "",
+      ta: "",
+      te: "",
+      ur: "",
+    },
+  },
+]);
 assert.deepEqual(
   normalizeQuestionnaireSurveyData(wq, {
     wq_woman_mobile: "9999999999",

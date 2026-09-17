@@ -31,6 +31,7 @@ const WQ_SINGLE_MOBILE_HOLDER_NAME = "wq_woman_mobile_holder_name";
 const WQ_MOBILE_LIST_NAME = "wq_woman_mobile_numbers";
 const WQ_MOBILE_ROW_NAME = "wq_woman_mobile";
 const WQ_MOBILE_HOLDER_ROW_NAME = "wq_woman_mobile_holder_name";
+const WQ_HUSBAND_PARTNER_MOBILE_NAME = "wq_husband_partner_mobile";
 const WQ_WOMAN_AVAILABLE_NAME = "wq_woman_available";
 const WQ_CONSENT_NAME = "wq_consent_study";
 const WQ_MARITAL_NAME = "wq_current_marital_status";
@@ -351,6 +352,7 @@ function allowMultipleWqMobileNumbers(surveyJson) {
               title: "Please enter the mobile number",
               inputType: "tel",
               isRequired: true,
+              maxLength: element.maxLength,
               validators: element.validators || [],
             },
           ],
@@ -360,6 +362,50 @@ function allowMultipleWqMobileNumbers(surveyJson) {
       if (Array.isArray(next.elements)) next.elements = visit(next.elements);
       if (Array.isArray(next.templateElements)) next.templateElements = visit(next.templateElements);
       return [next];
+    });
+  }
+
+  return {
+    ...surveyJson,
+    pages: surveyJson.pages.map((page) => ({ ...page, elements: visit(page.elements) })),
+  };
+}
+
+function applyWqMobileNumberConstraints(surveyJson) {
+  const mobileNames = new Set([WQ_SINGLE_MOBILE_NAME, WQ_HUSBAND_PARTNER_MOBILE_NAME]);
+  const exactTenDigitValidator = {
+    type: "regex",
+    regex: "^[0-9]{10}$",
+    text: {
+      default: "Enter exactly 10 digits.",
+      hi: "",
+      kn: "",
+      mr: "",
+      ta: "",
+      te: "",
+      ur: "",
+    },
+  };
+
+  function visit(elements = []) {
+    return elements.map((element) => {
+      let next = { ...element };
+      if (mobileNames.has(element.name)) {
+        next = {
+          ...next,
+          inputType: "tel",
+          maxLength: 10,
+          validators: [
+            ...(Array.isArray(element.validators)
+              ? element.validators.filter((validator) => validator.type !== "regex")
+              : []),
+            exactTenDigitValidator,
+          ],
+        };
+      }
+      if (Array.isArray(next.elements)) next.elements = visit(next.elements);
+      if (Array.isArray(next.templateElements)) next.templateElements = visit(next.templateElements);
+      return next;
     });
   }
 
@@ -1149,6 +1195,7 @@ export function prepareQuestionnaireSurveyJson(form) {
   if (isWqForm(form)) {
     surveyJson = applyWqFinalSectionOrder(surveyJson);
     surveyJson = applyWqBiomarkerEntryFormats(surveyJson);
+    surveyJson = applyWqMobileNumberConstraints(surveyJson);
     surveyJson = allowMultipleWqMobileNumbers(surveyJson);
     surveyJson = applyWqReproductionQuestionText(surveyJson);
     surveyJson = applyWqHealthSectionIntro(surveyJson);
