@@ -265,6 +265,10 @@ export function getNativeQuestionTitle(question, locale = "default") {
     const originalTitle = localizedText(question?.locTitle, question?.title || "", locale);
     return `${sourcePrefixFromTitle(originalTitle)}What is your date of birth?`;
   }
+  if (question?.name === WQ_PREGNANCY_OUTCOME_REVIEW_FIELD) {
+    const originalTitle = localizedText(question?.locTitle, question?.title || "", locale);
+    return `${sourcePrefixFromTitle(originalTitle) || "23_i. "}CHECK 16, 17, and 21:`;
+  }
   if (question?.name === WQ_PREGNANCY_OUTCOME_DATE_FIELD) {
     const originalTitle = interpolateSurveyValues(
       localizedText(question?.locTitle, question?.title || "", locale),

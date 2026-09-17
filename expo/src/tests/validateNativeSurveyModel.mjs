@@ -115,6 +115,27 @@ const defaultLocalizedTitle = getNativeQuestionTitle(localizedQuestion);
 model.locale = "hi";
 assert.notEqual(getNativeQuestionTitle(localizedQuestion), defaultLocalizedTitle);
 model.locale = "default";
+
+const staleQ23TitleModel = new Model({
+  elements: [{
+    type: "radiogroup",
+    name: "pregnancy_02_reproduction_check_16_17_and_21_if_16_i_1_or_17_i_1_the",
+    title: {
+      default: "23_i. CHECK 16, 17, and 21:",
+      en: "23_i. CHECK 16, 17, and 21:\nIF 16_i = 1, PREGNANCY OUTCOME = BORN ALIVE\nIF 16_i = 4, PREGNANCY OUTCOME = ABORTION",
+    },
+    choices: [1, 2, 3, 4],
+  }],
+});
+const staleQ23Title = getNativeQuestionTitle(
+  staleQ23TitleModel.getQuestionByName(
+    "pregnancy_02_reproduction_check_16_17_and_21_if_16_i_1_or_17_i_1_the",
+  ),
+  "en",
+);
+assert.equal(staleQ23Title, "23_i. CHECK 16, 17, and 21:");
+assert.doesNotMatch(staleQ23Title, /PREGNANCY OUTCOME =/);
+
 setNativeQuestionValue(site, 1);
 assert.equal(site.value, 1);
 assert.equal(model.data.hhq_site_id, 1);
