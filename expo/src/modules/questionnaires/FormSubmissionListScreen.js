@@ -24,6 +24,11 @@ import {
 } from "./formSubmissionHistory.js";
 import { useListPaging } from "../../lib/useListPaging.js";
 import { useCommittedSearch } from "../../lib/useCommittedSearch.js";
+import { ROUTES, navigateTo } from "../../navigation/routes.js";
+import {
+  canCorrectExcludedWqResponse,
+  formatWqVisitorCorrectionRemaining,
+} from "./wqVisitorExclusion.js";
 
 function formatDateTime(value) {
   if (!value) return "-";
@@ -70,8 +75,9 @@ function InlineFilter({ label, value, options, onChange, compact, formatOption =
   );
 }
 
-function FormCard({ response }) {
+function FormCard({ response, nowMs, onEditExcludedWq }) {
   const hasUploadError = response.sync_status === "upload_error" || Boolean(response.sync_error);
+  const canEditExcludedWq = canCorrectExcludedWqResponse(response, nowMs);
   return (
     <View style={[styles.card, hasUploadError && styles.errorCard]}>
       <View style={styles.cardHeader}>
@@ -112,6 +118,13 @@ function FormCard({ response }) {
           <Text style={styles.detailValue}>{response.locality_code || "-"}</Text>
         </View>
       </View>
+      {canEditExcludedWq ? (
+        <Pressable onPress={() => onEditExcludedWq?.(response)} style={styles.editButton}>
+          <Text style={styles.editButtonText}>
+            {`Edit (${formatWqVisitorCorrectionRemaining(response, nowMs)})`}
+          </Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -159,6 +172,7 @@ export function FormSubmissionListScreen({ mode }) {
   const [responses, setResponses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [nowMs, setNowMs] = useState(Date.now());
   const loadRequestRef = useRef(0);
   const {
     input: search,
@@ -170,6 +184,13 @@ export function FormSubmissionListScreen({ mode }) {
   const [formId, setFormId] = useState("");
   const [localityCode, setLocalityCode] = useState("");
   const syncStatus = uploadErrors ? "upload_error" : uploaded ? "synced" : "pending";
+
+  useEffect(() => {
+    if (uploaded || uploadErrors) return undefined;
+    const interval = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, [uploaded, uploadErrors]);
+
   const { siteOptions, formOptions, localityOptions } = useMemo(
     () => ({
       siteOptions: uniqueOptions(responses, "site_id"),
@@ -218,6 +239,19 @@ export function FormSubmissionListScreen({ mode }) {
     if (requestId === loadRequestRef.current) setResponses(rows);
   }, [syncStatus]);
 
+  const editExcludedWq = useCallback((response) => {
+    if (!canCorrectExcludedWqResponse(response, Date.now())) {
+      loadResponses().catch((error) => console.error("Error refreshing expired correction:", error));
+      return;
+    }
+    const params = [
+      `taskId=${encodeURIComponent(response.task_id || "")}`,
+      `correctionResponseId=${encodeURIComponent(response.id)}`,
+      `openKey=${Date.now()}`,
+    ];
+    navigateTo(`${ROUTES.questionnaireNew("WQ")}?${params.join("&")}`);
+  }, [loadResponses]);
+
   useEffect(() => {
     let active = true;
     setLoading(true);
@@ -257,9 +291,9 @@ export function FormSubmissionListScreen({ mode }) {
       item.type === "hhq-history" ? (
         <HhqHistoryCard group={item} />
       ) : (
-        <FormCard response={item.response} />
+        <FormCard nowMs={nowMs} onEditExcludedWq={editExcludedWq} response={item.response} />
       ),
-    [],
+    [editExcludedWq, nowMs],
   );
 
   const keyExtractor = useCallback((item) => item.key || item.response?.id, []);
@@ -651,6 +685,18 @@ const styles = StyleSheet.create({
   },
   errorText: {
     color: "#b42318",
+  },
+  editButton: {
+    minHeight: 42,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 8,
+    backgroundColor: "#1f6feb",
+  },
+  editButtonText: {
+    color: "#ffffff",
+    fontSize: 14,
+    fontWeight: "900",
   },
   visitHistory: {
     borderTopWidth: 1,

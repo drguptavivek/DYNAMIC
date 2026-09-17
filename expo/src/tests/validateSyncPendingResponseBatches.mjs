@@ -97,7 +97,9 @@ assert.deepEqual(batchCall.params, [100]);
 const summaries = await listFormResponseSummaries({ sync_status: "synced" });
 assert.equal(summaries.length, 1);
 assert.equal(Object.hasOwn(summaries[0], "answers_json"), false);
-const summaryCall = calls.find((call) => call.method === "getAllAsync" && /SELECT id, form_code/i.test(call.sql));
+const summaryCall = calls.find(
+  (call) => call.method === "getAllAsync" && /SELECT id, task_id, form_code/i.test(call.sql),
+);
 assert.ok(summaryCall, "history should use the metadata-only projection");
 assert.doesNotMatch(summaryCall.sql, /answers_json/);
 

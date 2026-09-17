@@ -8,7 +8,8 @@ import { getRuntimeFormByCode } from "../data/runtimeFormCatalog.js";
 import { getFormDisplayCode } from "../lib/formDisplayCodes.js";
 import { QuestionnaireDashboard } from "../modules/questionnaires/QuestionnaireDashboard.js";
 import { HouseholdModule } from "../modules/households/HouseholdModule.js";
-import { getTask } from "../modules/tasks/taskRepository.js";
+import { getFormResponseById, getTask } from "../modules/tasks/taskRepository.js";
+import { canCorrectExcludedWqResponse } from "../modules/questionnaires/wqVisitorExclusion.js";
 import { useFieldApp } from "./FieldAppProvider.js";
 import { FieldAppShell } from "./FieldAppShell.js";
 
@@ -22,7 +23,7 @@ function resolveRouteTask(taskId) {
   return getTask(normalizedTaskId);
 }
 
-export function QuestionnaireRouteScreen({ draftId, formCode, mode, openKey, taskId }) {
+export function QuestionnaireRouteScreen({ correctionResponseId, draftId, formCode, mode, openKey, taskId }) {
   const app = useFieldApp();
   const normalizedFormCode = String(formCode || "").toUpperCase();
   const form = useMemo(() => getRuntimeFormByCode(normalizedFormCode), [normalizedFormCode]);
@@ -30,13 +31,36 @@ export function QuestionnaireRouteScreen({ draftId, formCode, mode, openKey, tas
   const title = getFormDisplayCode(normalizedFormCode) || "Questionnaire";
   const isEntryRoute = mode === "new";
   const normalizedTaskId = normalizeSearchParam(taskId);
+  const normalizedCorrectionResponseId = normalizeSearchParam(correctionResponseId);
   const routeTaskContext = useMemo(() => resolveRouteTask(normalizedTaskId), [normalizedTaskId]);
+  const correctionResponse = useMemo(
+    () => (normalizedCorrectionResponseId ? getFormResponseById(normalizedCorrectionResponseId) : null),
+    [normalizedCorrectionResponseId],
+  );
+  const correctionContext = canCorrectExcludedWqResponse(correctionResponse)
+    ? {
+        responseId: correctionResponse.id,
+        answers: correctionResponse.answers_json || {},
+        submittedAt: correctionResponse.submitted_at,
+      }
+    : null;
   const taskContext =
     normalizedTaskId && app.currentTaskContext?.id !== normalizedTaskId
       ? routeTaskContext || app.currentTaskContext
       : app.currentTaskContext || routeTaskContext;
   const hasValidTaskContext = Boolean(taskContext?.id);
   const isHhqHouseholdEntry = normalizedFormCode === "HHQ";
+
+  if (normalizedCorrectionResponseId && !correctionContext) {
+    return (
+      <FieldAppShell route={route} title={title}>
+        <BlockedPanel
+          title="Correction period ended"
+          message="This excluded form is synced or its 10-minute mobile correction period has expired."
+        />
+      </FieldAppShell>
+    );
+  }
 
   if (!form) {
     return (
@@ -98,6 +122,7 @@ export function QuestionnaireRouteScreen({ draftId, formCode, mode, openKey, tas
         readOnlyFields={app.readOnlyFields}
         user={app.user}
         allowNewResponse={false}
+        correctionContext={correctionContext}
         onDraftSaved={app.notifyTaskWorklistChanged}
       />
     </FieldAppShell>

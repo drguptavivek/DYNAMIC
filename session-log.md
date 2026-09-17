@@ -501,3 +501,11 @@ Decisions:
 - App/admin relationship displays use all protocol codes; historical mismatched Head rows are flagged instead of shown as the household head, while WQ eligibility remains visible.
 Open:
 - Existing submitted head/relation mismatches still require an authorized data correction because the correct non-head relationship cannot be inferred.
+## 2026-09-17 (WQ Q9 visitor exclusion and correction) [working]
+Goal: Exclude a woman who confirms Visitor at WQ Q9, while allowing a short offline correction before sync.
+Decisions:
+- Q9 Visitor requires a non-cancelable Yes/No confirmation. No clears Q9 and returns focus; Yes routes directly to Outcome as Completed and displays the exclusion notice.
+- Visitor finalization excludes only that woman and cancels her open future workflow tasks; other household members are unchanged.
+- An unsynced excluded WQ has a 10-minute correction action in Completed. Correction starts from the saved answers with Q9 cleared; its replacement supersedes the original local response so only the corrected evidence uploads.
+Open:
+- Physical-device UI verification awaits an explicitly requested APK build/install.

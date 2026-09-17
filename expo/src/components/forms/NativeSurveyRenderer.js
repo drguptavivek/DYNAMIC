@@ -23,6 +23,7 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
   locale,
   notice,
   pageIntro,
+  pageFooter,
   onCompleteRequested,
   onNextRequested,
   onPreviewRequested,
@@ -88,6 +89,7 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
 
   const page = model.currentPage || model.firstVisiblePage;
   const resolvedPageIntro = typeof pageIntro === "function" ? pageIntro(page) : pageIntro;
+  const resolvedPageFooter = typeof pageFooter === "function" ? pageFooter(page) : pageFooter;
   const logicalSectionPosition = getLogicalSurveySectionPosition(model, page);
   const visibleQuestions = useMemo(() => getVisiblePageQuestions(page), [page, revision]);
   const useCompactPager = compact && compactPager && visibleQuestions.length > 1;
@@ -346,6 +348,7 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
       style={styles.questions}
     >
         {visibleQuestionWindow.map((question) => renderTopLevelQuestion(question))}
+        {resolvedPageFooter ? <Text style={styles.pageFooter}>{resolvedPageFooter}</Text> : null}
     </View>
   );
   const compactListHeader = (
@@ -394,6 +397,7 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
             contentContainerStyle={[styles.questions, keyboardInset > 0 && { paddingBottom: keyboardInset + 24 }]}
           >
             {visibleQuestions.map((question) => renderTopLevelQuestion(question))}
+            {resolvedPageFooter ? <Text style={styles.pageFooter}>{resolvedPageFooter}</Text> : null}
           </ScrollView>
         </>
       )}
@@ -467,6 +471,20 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     fontWeight: "700",
+  },
+  pageFooter: {
+    marginHorizontal: 8,
+    marginTop: 4,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: "#f0b4ae",
+    borderRadius: 8,
+    color: "#b42318",
+    backgroundColor: "#fff1f0",
+    fontSize: 15,
+    lineHeight: 21,
+    fontWeight: "800",
   },
   navigation: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingTop: 8, borderTopWidth: 1, borderTopColor: "#e4e7ec" },
   middleActions: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10 },

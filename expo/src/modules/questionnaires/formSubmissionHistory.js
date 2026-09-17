@@ -1,6 +1,7 @@
 export function normalizeFormResponse(row) {
   const normalized = {
     id: row.id || row.submission_id,
+    task_id: row.task_id || "",
     form_code: row.form_code || "-",
     form_version: row.form_version || "",
     household_id: row.household_id || "",

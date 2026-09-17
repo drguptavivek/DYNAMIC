@@ -52,6 +52,13 @@ import { getDraftSavedMessage } from "./draftSaveMessages.js";
 import { applyQuestionnaireLanguageFromLocale } from "../../lib/questionnaireLanguageField.js";
 import { createSurveyModel } from "../../polyfills/surveyCoreNative.js";
 import {
+  WQ_RESIDENCE_DURATION_FIELD,
+  WQ_VISITOR_EXCLUDED_FIELD,
+  WQ_VISITOR_VALUE,
+  applyWqVisitorSurveyRouting,
+  isWqVisitorAnswers,
+} from "./wqVisitorExclusion.js";
+import {
   WQ_CURRENT_MARITAL_STATUS_FIELD,
   WQ_OTHER_PREGNANCIES_FIELD,
   WQ_BORN_ALIVE_PROBE_FIELD,
@@ -215,6 +222,27 @@ function routeWqStopToOutcome(model, { navigate = true } = {}) {
   }
 }
 
+function routeWqVisitorToOutcome(model) {
+  if (!model) return;
+  model.setValue(WQ_VISITOR_EXCLUDED_FIELD, 1);
+  model.setValue(WQ_RESULT_INTERVIEW_FIELD, WQ_OUTCOME_COMPLETED_VALUE);
+  const resultQuestion = model.getQuestionByName?.(WQ_RESULT_INTERVIEW_FIELD);
+  if (resultQuestion) resultQuestion.readOnly = true;
+  const outcomePage = model.getPageByName?.(WQ_OUTCOME_PAGE_NAME);
+  if (outcomePage?.isVisible) goToSurveySection(model, WQ_OUTCOME_PAGE_NAME);
+}
+
+function clearWqVisitorOutcome(model) {
+  if (!model) return;
+  const wasVisitorExcluded = Number(model.getValue(WQ_VISITOR_EXCLUDED_FIELD)) === 1;
+  model.setValue(WQ_VISITOR_EXCLUDED_FIELD, undefined);
+  const resultQuestion = model.getQuestionByName?.(WQ_RESULT_INTERVIEW_FIELD);
+  if (resultQuestion) resultQuestion.readOnly = false;
+  if (wasVisitorExcluded && Number(model.getValue(WQ_RESULT_INTERVIEW_FIELD)) === WQ_OUTCOME_COMPLETED_VALUE) {
+    model.setValue(WQ_RESULT_INTERVIEW_FIELD, undefined);
+  }
+}
+
 // When a stop answer (availability stop, consent refusal, or never married)
 // changes back to a continue answer, the outcome it forced must not linger as
 // a stale pre-selection on the outcome page.
@@ -290,6 +318,7 @@ export function QuestionnaireDashboard({
   readOnlyFields,
   user,
   allowNewResponse = false,
+  correctionContext,
   onDraftSaved,
 }) {
   const [submissions, setSubmissions] = useState([]);
@@ -320,6 +349,7 @@ export function QuestionnaireDashboard({
   const previewSignatureRef = useRef("");
   const memberSummaryConfirmedRef = useRef(false);
   const pefSearchPromptedRef = useRef(false);
+  const wqVisitorPromptOpenRef = useRef(false);
   const surveyRef = useRef(null);
   const answerSnapshotRef = useRef({});
   const rendererRef = useRef(null);
@@ -497,6 +527,7 @@ export function QuestionnaireDashboard({
     if (!showForm || !form) return null;
     const endOpen = startTiming("form.open", { form: form.form_code });
     const surveyJson = getPreparedSurveyJson(form);
+    if (isWomanQuestionnaire(form)) applyWqVisitorSurveyRouting(surveyJson);
     const model = createSurveyModel(surveyJson);
     model.showCompletedPage = false;
     model.showPreviewBeforeComplete = "noPreview";
@@ -514,6 +545,15 @@ export function QuestionnaireDashboard({
     // Apply read-only constraints if provided
     if (readOnlyFields && Array.isArray(readOnlyFields)) {
       applyReadOnlyFields(model, readOnlyFields);
+    }
+    if (isWomanQuestionnaire(form) && correctionContext?.answers) {
+      model.data = normalizeQuestionnaireSurveyData(form, {
+        ...(model.data || {}),
+        ...(correctionContext.answers || {}),
+        [WQ_RESIDENCE_DURATION_FIELD]: undefined,
+        [WQ_VISITOR_EXCLUDED_FIELD]: undefined,
+        [WQ_RESULT_INTERVIEW_FIELD]: undefined,
+      });
     }
 
     if (isPregnancyEnrollmentForm(form)) {
@@ -573,6 +613,41 @@ export function QuestionnaireDashboard({
       if (isWomanQuestionnaire(form)) {
         if (options.name === WQ_INTERVIEW_DATE_FIELD) {
           applyWqVisitNo(sender, taskContext);
+        }
+        if (options.name === WQ_RESIDENCE_DURATION_FIELD) {
+          if (Number(options.value) === WQ_VISITOR_VALUE && !wqVisitorPromptOpenRef.current) {
+            wqVisitorPromptOpenRef.current = true;
+            Alert.alert(
+              "Are you Really a Visitor ?",
+              "If yes you will be excluded from this study.",
+              [
+                {
+                  text: "No",
+                  onPress: () => {
+                    wqVisitorPromptOpenRef.current = false;
+                    clearWqVisitorOutcome(sender);
+                    sender.setValue(WQ_RESIDENCE_DURATION_FIELD, undefined);
+                    updateSurveyStatus(sender);
+                    requestAnimationFrame(() => {
+                      rendererRef.current?.focusQuestion(WQ_RESIDENCE_DURATION_FIELD);
+                    });
+                  },
+                },
+                {
+                  text: "Yes",
+                  onPress: () => {
+                    wqVisitorPromptOpenRef.current = false;
+                    routeWqVisitorToOutcome(sender);
+                    setSaveMessage("This women is Excluded From study");
+                    updateSurveyStatus(sender);
+                  },
+                },
+              ],
+              { cancelable: false },
+            );
+          } else if (Number(options.value) !== WQ_VISITOR_VALUE) {
+            clearWqVisitorOutcome(sender);
+          }
         }
         const isWqOutcomeDriver =
           options.name === WQ_WOMAN_AVAILABLE_FIELD ||
@@ -798,14 +873,24 @@ export function QuestionnaireDashboard({
 
     model.onComplete.add(async (sender) => {
       const endSubmit = startTiming("submission.save", { form: form.form_code });
-      const submission = await saveQuestionnaireSubmission({
-        formCode: form.form_code,
-        formVersion: form.version,
-        payload: sender.data,
-        taskId: taskContext?.id,
-        taskContext,
-        deviceId: user?.device_id || "dev-device",
-      });
+      let submission;
+      try {
+        submission = await saveQuestionnaireSubmission({
+          formCode: form.form_code,
+          formVersion: form.version,
+          payload: sender.data,
+          taskId: taskContext?.id,
+          taskContext,
+          deviceId: user?.device_id || "dev-device",
+          correctionResponseId: correctionContext?.responseId,
+        });
+      } catch (error) {
+        const message = error?.message || "The form could not be finalized.";
+        endSubmit({ error: message });
+        setSaveMessage(message);
+        Alert.alert("Unable to save form", message);
+        return;
+      }
       endSubmit();
       if (draftIdRef.current) {
         await markQuestionnaireDraftSubmitted({
@@ -845,7 +930,7 @@ export function QuestionnaireDashboard({
     });
     endOpen({ questions: model.getAllQuestions().length });
     return model;
-  }, [showForm, form, formCode, prefillData, readOnlyFields, taskContext, draftContext]);
+  }, [showForm, form, formCode, prefillData, readOnlyFields, taskContext, draftContext, correctionContext]);
 
   useEffect(() => {
     surveyRef.current = survey;
@@ -860,6 +945,15 @@ export function QuestionnaireDashboard({
     if (!showForm || !survey) return;
     updateSurveyStatus(survey);
   }, [showForm, survey]);
+
+  useEffect(() => {
+    if (!showForm || !survey || !correctionContext || !isWomanQuestionnaire(form)) return;
+    const residenceQuestion = survey.getQuestionByName?.(WQ_RESIDENCE_DURATION_FIELD);
+    if (residenceQuestion?.page?.name) goToSurveySection(survey, residenceQuestion.page.name);
+    updateSurveyStatus(survey);
+    const timer = setTimeout(() => rendererRef.current?.focusQuestion(WQ_RESIDENCE_DURATION_FIELD), 150);
+    return () => clearTimeout(timer);
+  }, [showForm, survey, form, correctionContext]);
 
   useEffect(() => {
     if (!showForm || !survey || !isWomanQuestionnaire(form)) return undefined;
@@ -917,7 +1011,7 @@ export function QuestionnaireDashboard({
 
     async function restoreDraft() {
       const endRestore = startTiming("draft.restore", { form: form?.form_code });
-      const draft = await getActiveQuestionnaireDraft(draftContext);
+      const draft = correctionContext ? null : await getActiveQuestionnaireDraft(draftContext);
       if (cancelled) return;
 
       if (draft) {
@@ -980,7 +1074,7 @@ export function QuestionnaireDashboard({
     return () => {
       cancelled = true;
     };
-  }, [showForm, survey, draftContext]);
+  }, [showForm, survey, draftContext, correctionContext]);
 
   // "Language of questionnaire" (where a form has it) is recorded from the
   // language switcher rather than asked; keep it in step with the selection.
@@ -1264,6 +1358,11 @@ export function QuestionnaireDashboard({
                     model={survey}
                     notice={saveMessage}
                     pageIntro={(currentPage) => getQuestionnairePageIntro(form, currentPage?.name)}
+                    pageFooter={(currentPage) =>
+                      currentPage?.name === WQ_OUTCOME_PAGE_NAME && isWqVisitorAnswers(survey.data)
+                        ? "This women is Excluded From study"
+                        : ""
+                    }
                     onCompleteRequested={(activeModel) => activeModel?.doComplete?.()}
                     onNextRequested={(activeModel, currentPage) => {
                       if (

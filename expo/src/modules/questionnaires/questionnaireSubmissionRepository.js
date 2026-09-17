@@ -5,6 +5,11 @@ import {
   normalizeIdPart,
 } from "../households/householdIds.js";
 import { normalizeTaskAttemptLimits } from "../worklist/taskWorklist.js";
+import {
+  WQ_VISITOR_EXCLUDED_STATUS,
+  canCorrectExcludedWqResponse,
+  isWqVisitorAnswers,
+} from "./wqVisitorExclusion.js";
 
 const STORAGE_KEY = "dynamic_questionnaire_submissions_v1";
 const WEB_SQLITE_STORAGE_KEY = "dynamic_web_sqlite_v2";
@@ -120,6 +125,10 @@ function buildQuestionnaireResponse({
     json_payload: payload || {},
     submitted_at: submittedAt,
     sync_status: "pending",
+    server_response_status:
+      formCode === "WQ" && isWqVisitorAnswers(payload)
+        ? WQ_VISITOR_EXCLUDED_STATUS
+        : null,
     device_id: deviceId || "unknown",
     created_at: submittedAt,
     updated_at: submittedAt,
@@ -145,6 +154,7 @@ function saveWebFormResponse(response) {
     sync_status: response.sync_status,
     sync_error: response.sync_error || null,
     sync_error_at: response.sync_error_at || null,
+    server_response_status: response.server_response_status || null,
     device_id: response.device_id,
     created_at: response.created_at,
   };
@@ -604,9 +614,22 @@ export async function saveQuestionnaireSubmission({
   taskId,
   taskContext,
   deviceId,
+  correctionResponseId,
 }) {
   const storage = getStorage();
   const now = new Date().toISOString();
+  let taskRepository = null;
+  try {
+    taskRepository = await import("../tasks/taskRepository.js");
+  } catch {
+    // Node-only repository tests may not load the Metro SQLite binding.
+  }
+  const correctionSource = correctionResponseId
+    ? taskRepository?.getFormResponseById?.(correctionResponseId)
+    : null;
+  if (correctionResponseId && !canCorrectExcludedWqResponse(correctionSource, Date.now())) {
+    throw new Error("This excluded form is no longer within the 10-minute correction period.");
+  }
   const response = buildQuestionnaireResponse({
     formCode,
     formVersion,
@@ -619,6 +642,20 @@ export async function saveQuestionnaireSubmission({
   const submission = { ...response };
 
   await saveCanonicalFormResponse(response);
+  if (correctionResponseId) {
+    taskRepository?.supersedePendingWqVisitorResponse?.(correctionResponseId, response.id);
+  }
+  if (response.form_code === "WQ" && isWqVisitorAnswers(payload)) {
+    taskRepository?.applyLocalWqVisitorExclusion?.({
+      taskId: response.task_id,
+      subjectId: response.subject_id,
+    });
+  } else if (response.form_code === "WQ" && correctionResponseId) {
+    taskRepository?.restoreLocalWqVisitorEligibility?.({
+      subjectId: response.subject_id,
+      pregnantNow: Number(payload?.wq_pregnant) === 1,
+    });
+  }
   await promoteHhqLocally(response);
   await promotePefLocally(response, taskContext);
   if (response.form_code === "PEF" && response.household_id && response.subject_id) {
@@ -638,7 +675,19 @@ export async function saveQuestionnaireSubmission({
   }
 
   const rows = JSON.parse(storage.getItem(STORAGE_KEY) || "[]");
-  storage.setItem(STORAGE_KEY, JSON.stringify([submission, ...rows]));
+  const updatedRows = correctionResponseId
+    ? rows.map((row) =>
+        row.submission_id === correctionResponseId || row.id === correctionResponseId
+          ? {
+              ...row,
+              sync_status: "superseded",
+              server_response_status: `superseded_by:${response.id}`,
+              updated_at: now,
+            }
+          : row,
+      )
+    : rows;
+  storage.setItem(STORAGE_KEY, JSON.stringify([submission, ...updatedRows]));
 
   return submission;
 }

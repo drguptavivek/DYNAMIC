@@ -1,6 +1,6 @@
 import { schema } from "../db";
 import { getDb } from "../lib/dbContext";
-import { eq, and, inArray, ne } from "drizzle-orm";
+import { eq, and, inArray, ne, or } from "drizzle-orm";
 import {
   childDeathRecorded,
   promoteFormSubmission,
@@ -29,6 +29,9 @@ type PromotionHandler = (response: FormResponseRow, answers: FormAnswers) => Pro
 const WQ_WOMAN_AVAILABLE_FIELD = "wq_woman_available";
 const WQ_CURRENT_MARITAL_STATUS_FIELD = "wq_current_marital_status";
 const WQ_PREGNANT_FIELD = "wq_pregnant";
+const WQ_RESIDENCE_DURATION_FIELD =
+  "wq_01_respondent_s_backgr_how_long_have_you_been_living_continuously";
+const WQ_VISITOR_VALUE = 96;
 const WQ_MAX_VISITS = 3;
 const WQ_REVISIT_DELAY_DAYS = 1;
 
@@ -168,6 +171,83 @@ async function promoteWq(
       typeof answers.wq_interview_date === "string" && answers.wq_interview_date
         ? answers.wq_interview_date
         : toIsoDate(response.created_offline_at ?? now);
+
+    if (Number(answers[WQ_RESIDENCE_DURATION_FIELD]) === WQ_VISITOR_VALUE) {
+      await getDb()
+        .update(schema.formResponses)
+        .set({ response_status: "visitor_excluded" })
+        .where(eq(schema.formResponses.form_response_id, response.form_response_id));
+
+      await getDb()
+        .insert(schema.eligibleWomen)
+        .values({
+          woman_id: womanId,
+          household_member_id: subjectId,
+          household_id: householdId,
+          site_id: hh.site_id,
+          locality_code: hh.locality_code,
+          eligibility_start_date: existingWoman[0]?.eligibility_start_date ?? completedDate,
+          wq_status: "excluded",
+          tracking_status: "not_tracked",
+          current_eligibility_status: "excluded",
+          eligibility_basis: existingWoman[0]?.eligibility_basis ?? "baseline_hhq",
+          sync_status: "synced",
+          created_at: existingWoman[0]?.created_at ?? now,
+          updated_at: now,
+        })
+        .onConflictDoUpdate({
+          target: [schema.eligibleWomen.woman_id],
+          set: {
+            wq_status: "excluded",
+            tracking_status: "not_tracked",
+            current_eligibility_status: "excluded",
+            sync_status: "synced",
+            updated_at: now,
+          },
+        });
+
+      const taskScope = or(
+        eq(schema.followUpTasks.woman_id, womanId),
+        eq(schema.followUpTasks.subject_id, womanId),
+        subjectId && subjectId !== womanId
+          ? eq(schema.followUpTasks.subject_id, subjectId)
+          : undefined,
+      );
+      await getDb()
+        .update(schema.followUpTasks)
+        .set({
+          status: "cancelled",
+          closed_at: now,
+          closed_reason: "wq_visitor_excluded",
+          updated_at: now,
+        })
+        .where(
+          and(
+            taskScope,
+            response.task_id ? ne(schema.followUpTasks.task_id, response.task_id) : undefined,
+            inArray(schema.followUpTasks.status, ["open", "planned", "pending", "due", "overdue"]),
+          ),
+        );
+
+      await getDb().insert(schema.domainEvents).values({
+        event_id: randomUUID(),
+        event_type: "wq_visitor_excluded",
+        site_id: hh.site_id,
+        locality_code: hh.locality_code,
+        household_id: householdId,
+        subject_type: "woman",
+        subject_id: womanId,
+        task_id: response.task_id,
+        form_response_id: response.form_response_id,
+        event_datetime: response.created_offline_at ?? now,
+        created_offline_at: response.created_offline_at,
+        device_id: response.device_id,
+        sync_status: "synced",
+        apply_status: "applied",
+        created_at: now,
+      });
+      return;
+    }
 
     if (isWqIncapacitatedResponse(answers)) {
       await getDb()

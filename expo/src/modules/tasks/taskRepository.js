@@ -845,6 +845,109 @@ export function saveFormResponse(response) {
   }
 }
 
+export function getFormResponseById(id) {
+  if (!id) return null;
+  const db = getDb();
+  try {
+    const row = db.getFirstSync("SELECT * FROM form_responses WHERE id = ?", [id]);
+    if (!row) return null;
+    let answers = {};
+    try {
+      answers = typeof row.answers_json === "string" ? JSON.parse(row.answers_json) : row.answers_json || {};
+    } catch {
+      answers = {};
+    }
+    return { ...row, answers_json: answers };
+  } catch (error) {
+    console.error("Error loading form response:", error);
+    return null;
+  }
+}
+
+export function supersedePendingWqVisitorResponse(responseId, replacementId) {
+  const db = getDb();
+  const now = new Date().toISOString();
+  const row = getFormResponseById(responseId);
+  if (
+    !row ||
+    String(row.form_code || "").toUpperCase() !== "WQ" ||
+    row.sync_status !== "pending" ||
+    row.server_response_status !== "wq_visitor_excluded"
+  ) {
+    throw new Error("This excluded form is no longer available for mobile correction.");
+  }
+  const submittedAt = new Date(row.submitted_at || "").getTime();
+  if (!Number.isFinite(submittedAt) || Date.now() - submittedAt >= 10 * 60 * 1000) {
+    throw new Error("The 10-minute correction period has expired.");
+  }
+  db.runSync(
+    `UPDATE form_responses
+       SET sync_status = 'superseded', server_response_status = ?, updated_at = ?
+     WHERE id = ? AND sync_status = 'pending'`,
+    [`superseded_by:${replacementId}`, now, responseId],
+  );
+  return row;
+}
+
+export function applyLocalWqVisitorExclusion({ taskId, subjectId } = {}) {
+  if (!subjectId) return;
+  const db = getDb();
+  const now = new Date().toISOString();
+  try {
+    db.runSync("BEGIN TRANSACTION");
+    db.runSync(
+      `UPDATE eligible_women
+          SET wq_status = 'excluded', tracking_status = 'not_tracked',
+              current_eligibility_status = 'excluded', sync_status = 'local', updated_at = ?
+        WHERE woman_id = ? OR household_member_id = ?`,
+      [now, subjectId, subjectId],
+    );
+    db.runSync(
+      `UPDATE follow_up_tasks
+          SET status = 'superseded', lifecycle_status = 'superseded',
+              closed_reason = 'wq_visitor_excluded', closed_at = ?, updated_at = ?
+        WHERE subject_id = ?
+          AND task_type IN ('WQ', 'PSF', 'PEF')
+          AND (? IS NULL OR id <> ?)
+          AND status NOT IN ('completed', 'missed', 'cancelled', 'superseded', 'closed', 'closed_final_reason')`,
+      [now, now, subjectId, taskId || null, taskId || null],
+    );
+    db.runSync("COMMIT");
+  } catch (error) {
+    db.runSync("ROLLBACK");
+    console.error("Error applying local WQ visitor exclusion:", error);
+    throw error;
+  }
+}
+
+export function restoreLocalWqVisitorEligibility({ subjectId, pregnantNow = false } = {}) {
+  if (!subjectId) return;
+  const db = getDb();
+  const now = new Date().toISOString();
+  try {
+    db.runSync("BEGIN TRANSACTION");
+    db.runSync(
+      `UPDATE eligible_women
+          SET wq_status = 'completed', tracking_status = ?,
+              current_eligibility_status = 'eligible', sync_status = 'local', updated_at = ?
+        WHERE woman_id = ? OR household_member_id = ?`,
+      [pregnantNow ? "enrolled" : "not_pregnant", now, subjectId, subjectId],
+    );
+    db.runSync(
+      `UPDATE follow_up_tasks
+          SET status = 'planned', lifecycle_status = 'planned',
+              closed_reason = NULL, closed_at = NULL, updated_at = ?
+        WHERE subject_id = ? AND closed_reason = 'wq_visitor_excluded'`,
+      [now, subjectId],
+    );
+    db.runSync("COMMIT");
+  } catch (error) {
+    db.runSync("ROLLBACK");
+    console.error("Error restoring local WQ visitor eligibility:", error);
+    throw error;
+  }
+}
+
 function normalizePulledFormResponse(response) {
   const now = new Date().toISOString();
   const responseId = response.id || response.response_id || response.form_response_id || response.submission_id;
@@ -1059,6 +1162,7 @@ export function saveTaskClosure(taskId, taskState) {
 
 const FORM_RESPONSE_DISPLAY_COLUMNS = [
   "id",
+  "task_id",
   "form_code",
   "form_version",
   "household_id",
