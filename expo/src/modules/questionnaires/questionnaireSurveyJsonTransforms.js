@@ -78,6 +78,10 @@ const WQ_Q32_PREGNANT_NAME = "wq_pregnant";
 const WQ_Q35_FIRST_PERIOD_AGE_NAME =
   "wq_02_reproduction_how_old_were_you_when_you_had_your_first_m";
 const WQ_HEALTH_PAGE_NAME = "page_03_other_health_issues";
+const WQ_DOMESTIC_VIOLENCE_PAGE_NAME = "page_05_domestic_violence";
+const WQ_BIOMARKERS_PAGE_NAME = "page_06_biomarkers";
+const WQ_BIOMARKER_HEIGHT_NAME = "wq_height_measured_site_cm";
+const WQ_BIOMARKER_WEIGHT_NAME = "wq_weight_measured_site_kg";
 const WQ_HEALTH_INTRO_NAME =
   "wq_03_other_health_issues_i_would_like_to_ask_some_questions_about_y";
 const WQ_Q10_SMOKING_NAME =
@@ -112,6 +116,10 @@ const WQ_HUSBAND_Q14_ALCOHOL_DRINKS_NAME =
   "wq_04_husband_s_backgroun_we_count_one_drink_of_alcohol_as_one_can_o";
 const WQ_Q20_PAYMENT_KIND_NAME =
   "wq_04_husband_s_backgroun_are_you_paid_in_cash_or_kind_for_this_work";
+const WQ_DOMESTIC_VIOLENCE_BACKGROUND_FIELDS = new Set([
+  "wq_05_domestic_violence_check_answer_to_marital_status_on_01_respo",
+  "wq_05_domestic_violence_check_12a_13a_14a_15a_16a_17a_18a_19a_20a",
+]);
 const WQ_Q22B_NAME = "wq_02_reproduction_read_the_list_of_pregnancy_outcomes_in_ord";
 const WQ_Q22B_PAGE_NAME = "page_02c_reproduction_confirmation";
 const WQ_COMPARISON_PAGE_NAME = "page_02d_reproduction_comparison";
@@ -476,7 +484,7 @@ function applyWqOutcomeChoiceVisibility(surveyJson) {
           choices: element.choices.map((choice) => {
             const stopVisibleIf = WQ_STOP_OUTCOME_VISIBLE_IF[choice.value];
             if (choice.value === WQ_OUTCOME_COMPLETED_VALUE) {
-              // After the full interview (biomarkers section completed) the
+              // After the full interview (the final displayed section completed) the
               // outcome locks to Completed; hard stops still hide it because
               // they force their own outcome.
               return {
@@ -607,6 +615,69 @@ function markWqProgressiveDobControl(surveyJson) {
           ? { ...element, renderAs: "wq_progressive_dob" }
           : element
       ),
+    })),
+  };
+}
+
+function applyWqFinalSectionOrder(surveyJson) {
+  const domesticViolenceIndex = surveyJson.pages.findIndex(
+    (page) => page.name === WQ_DOMESTIC_VIOLENCE_PAGE_NAME
+  );
+  const biomarkersIndex = surveyJson.pages.findIndex(
+    (page) => page.name === WQ_BIOMARKERS_PAGE_NAME
+  );
+  if (
+    domesticViolenceIndex < 0 ||
+    biomarkersIndex < 0 ||
+    biomarkersIndex < domesticViolenceIndex
+  ) {
+    return surveyJson;
+  }
+
+  const pages = [...surveyJson.pages];
+  const [biomarkersPage] = pages.splice(biomarkersIndex, 1);
+  pages.splice(domesticViolenceIndex, 0, biomarkersPage);
+  return { ...surveyJson, pages };
+}
+
+function applyWqBiomarkerEntryFormats(surveyJson) {
+  const formats = {
+    [WQ_BIOMARKER_HEIGHT_NAME]: {
+      maxLength: 5,
+      regex: "^\\d{3}(?:\\.\\d)?$",
+      validationText:
+        "Enter height as 3 digits with up to 1 decimal place in cm (for example 165 or 165.5).",
+    },
+    [WQ_BIOMARKER_WEIGHT_NAME]: {
+      maxLength: 5,
+      regex: "^\\d{2,3}\\.\\d$",
+      validationText:
+        "Enter weight as 2 to 3 digits with 1 decimal place in kg (for example 45.6 or 121.4).",
+    },
+  };
+
+  return {
+    ...surveyJson,
+    pages: surveyJson.pages.map((page) => ({
+      ...page,
+      elements: page.elements.map((element) => {
+        const format = formats[element.name];
+        if (!format) return element;
+        return {
+          ...element,
+          sourceType: "decimal",
+          maxLength: format.maxLength,
+          validators: (element.validators || []).map((validator) =>
+            validator.type === "regex"
+              ? {
+                  ...validator,
+                  regex: format.regex,
+                  text: replaceDefaultLocalizedText(validator.text, format.validationText),
+                }
+              : validator
+          ),
+        };
+      }),
     })),
   };
 }
@@ -796,7 +867,11 @@ function applyWqHusbandAlcoholDrinksInput(surveyJson) {
       ...page,
       elements: page.elements.map((element) =>
         element.name === WQ_HUSBAND_Q14_ALCOHOL_DRINKS_NAME
-          ? { ...element, entryUnitLabel: "Drinks" }
+          ? {
+              ...element,
+              entryUnitLabel: "Drinks",
+              allowYearsOverrideSpecialCodes: true,
+            }
           : element
       ),
     })),
@@ -817,6 +892,24 @@ function applyWqQ20PaymentChoiceText(surveyJson) {
                   ? { ...choice, text: replaceDefaultLocalizedText(choice.text, "Cash /Online/UPI") }
                   : choice
               ),
+            }
+          : element
+      ),
+    })),
+  };
+}
+
+function hideWqDomesticViolenceCalculatedQuestions(surveyJson) {
+  return {
+    ...surveyJson,
+    pages: surveyJson.pages.map((page) => ({
+      ...page,
+      elements: page.elements.map((element) =>
+        WQ_DOMESTIC_VIOLENCE_BACKGROUND_FIELDS.has(element.name)
+          ? {
+              ...element,
+              renderAs: "background",
+              renderingHint: { ...(element.renderingHint || {}), render_as: "background" },
             }
           : element
       ),
@@ -1021,6 +1114,8 @@ export function prepareQuestionnaireSurveyJson(form) {
     surveyJson = applyMandatoryHhqSurveyJson(surveyJson);
   }
   if (isWqForm(form)) {
+    surveyJson = applyWqFinalSectionOrder(surveyJson);
+    surveyJson = applyWqBiomarkerEntryFormats(surveyJson);
     surveyJson = allowMultipleWqMobileNumbers(surveyJson);
     surveyJson = applyWqReproductionQuestionText(surveyJson);
     surveyJson = applyWqHealthSectionIntro(surveyJson);
@@ -1030,6 +1125,7 @@ export function prepareQuestionnaireSurveyJson(form) {
     surveyJson = applyWqHusbandAlcoholDaysInput(surveyJson);
     surveyJson = applyWqHusbandAlcoholDrinksInput(surveyJson);
     surveyJson = applyWqQ20PaymentChoiceText(surveyJson);
+    surveyJson = hideWqDomesticViolenceCalculatedQuestions(surveyJson);
     surveyJson = applyWqResidenceYearsInput(surveyJson);
     surveyJson = markWqProgressiveDobControl(surveyJson);
     surveyJson = removeWqQ12TrainingDescription(surveyJson);

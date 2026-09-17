@@ -99,7 +99,6 @@ export function SelectOneRenderer({ answerData, locale, question, onChange }) {
             onEndEditing={() => {
               if (yearsValue.length === 1) commitYears(yearsValue.padStart(2, "0"));
             }}
-            placeholder="00"
             style={[controlStyles.input, styles.yearsInput, yearInputDisabled && controlStyles.readOnly]}
             value={yearsValue}
           />

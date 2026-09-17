@@ -119,7 +119,6 @@ export function WqLmpTimingRenderer({ answerData, locale, onChange, question }) 
               keyboardType="number-pad"
               maxLength={2}
               onChangeText={(text) => commit({ ...objectValue, mode: "relative", value: digits(text, 2) })}
-              placeholder="00"
               style={[controlStyles.input, styles.numberInput]}
               value={String(objectValue.value || "")}
             />

@@ -7930,7 +7930,7 @@
             }
           ],
           "renderingHint": {
-            "render_as": "radio"
+            "render_as": "background"
           },
           "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1",
           "visibleIfSourceResolved": "Excel 05-DomesticViolence Q2: check Section 01 marital status; non-current/live-in stops interview.",
@@ -9697,7 +9697,7 @@
             }
           ],
           "renderingHint": {
-            "render_as": "radio"
+            "render_as": "background"
           },
           "visibleIf": "{wq_05_domestic_violence_check_for_presence_of_others_do_not_contin} = 1 and {wq_05_domestic_violence_check_answer_to_marital_status_on_01_respo} = 1",
           "visibleIfSourceResolved": "Excel 05-DomesticViolence Q21: check Q12a-Q20a; if no physical violence skip to Q27.",
@@ -10277,8 +10277,8 @@
           "order": 163,
           "section_order": 6,
           "sourceCode": "1",
-          "sourceType": "integer",
-          "rawText": "Height - measured on site |_|_|_| cm",
+          "sourceType": "decimal",
+          "rawText": "Height - measured on site |_|_|_|.|_| cm",
           "description": {
             "default": "cm",
             "hi": "",
@@ -10291,16 +10291,16 @@
           "renderingHint": {
             "render_as": "numeric_textbox"
           },
-          "maxLength": 3,
+          "maxLength": 5,
           "validators": [
             {
               "type": "numeric"
             },
             {
               "type": "regex",
-              "regex": "^\\d{3}$",
+              "regex": "^\\d{3}(?:\\.\\d)?$",
               "text": {
-                "default": "Enter height as exactly 3 digits in cm (for example 165).",
+                "default": "Enter height as 3 digits with up to 1 decimal place in cm (for example 165 or 165.5).",
                 "hi": "",
                 "kn": "",
                 "mr": "",
@@ -10326,8 +10326,8 @@
           "order": 164,
           "section_order": 6,
           "sourceCode": "2",
-          "sourceType": "integer",
-          "rawText": "Weight - measured on site |_|_|_|.|_|_| kg",
+          "sourceType": "decimal",
+          "rawText": "Weight - measured on site |_|_|_|.|_| kg",
           "description": {
             "default": "kg",
             "hi": "",
@@ -10340,16 +10340,16 @@
           "renderingHint": {
             "render_as": "numeric_textbox"
           },
-          "maxLength": 6,
+          "maxLength": 5,
           "validators": [
             {
               "type": "numeric"
             },
             {
               "type": "regex",
-              "regex": "^\\d{3}\\.\\d{2}$",
+              "regex": "^\\d{2,3}\\.\\d$",
               "text": {
-                "default": "Enter weight as 3 digits, a decimal point, then 2 digits in kg (for example 121.45).",
+                "default": "Enter weight as 2 to 3 digits with 1 decimal place in kg (for example 45.6 or 121.4).",
                 "hi": "",
                 "kn": "",
                 "mr": "",

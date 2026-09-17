@@ -88,7 +88,7 @@ const WQ_INTERVIEW_DATE_FIELD = "wq_interview_date";
 const WQ_WOMAN_AVAILABLE_FIELD = "wq_woman_available";
 const WQ_RESULT_INTERVIEW_FIELD = "wq_result_interview";
 const WQ_OUTCOME_PAGE_NAME = "page_outcome";
-const WQ_BIOMARKERS_PAGE_NAME = "page_06_biomarkers";
+const WQ_FINAL_INTERVIEW_PAGE_NAME = "page_05_domestic_violence";
 const WQ_SECTION_TWO_FINAL_PAGE_NAME = "page_02e_reproduction_after_comparison";
 const WQ_FULL_INTERVIEW_COMPLETED_FIELD = "wq_full_interview_completed";
 const WQ_HUSBAND_PARTNER_NAME_FIELD = "wq_husband_partner_name";
@@ -738,12 +738,12 @@ export function QuestionnaireDashboard({
       setDirty(true);
       setPreviewOpen(false);
       setMemberSummaryOpen(false);
-      // Completing the biomarkers section means the whole interview ran:
+      // Completing the final Domestic Violence section means the whole interview ran:
       // lock the outcome to Completed with only that option visible.
       if (
         isWomanQuestionnaire(form) &&
         sender.currentPage?.name === WQ_OUTCOME_PAGE_NAME &&
-        options?.oldCurrentPage?.name === WQ_BIOMARKERS_PAGE_NAME
+        options?.oldCurrentPage?.name === WQ_FINAL_INTERVIEW_PAGE_NAME
       ) {
         sender.setValue(WQ_FULL_INTERVIEW_COMPLETED_FIELD, 1);
         if (

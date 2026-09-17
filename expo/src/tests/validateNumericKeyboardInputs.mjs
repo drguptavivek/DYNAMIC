@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
 import {
   getNativeKeyboardType,
@@ -77,5 +78,28 @@ assert.equal(numericText.value, "007");
 const ordinaryText = normalizeMultipleTextInputValue({ inputType: "text" }, "A-1");
 assert.equal(ordinaryText.keyboardType, "default");
 assert.equal(ordinaryText.value, "A-1");
+
+for (const rendererPath of [
+  new URL("../components/forms/renderers/SelectOneRenderer.js", import.meta.url),
+  new URL("../components/forms/renderers/MultipleTextRenderer.js", import.meta.url),
+  new URL("../components/forms/renderers/WqLmpTimingRenderer.js", import.meta.url),
+]) {
+  const rendererSource = readFileSync(rendererPath, "utf8");
+  assert.doesNotMatch(
+    rendererSource,
+    /placeholder\s*=\s*["']00["']/,
+    `${rendererPath.pathname} must not display 00 as a numeric input placeholder`
+  );
+}
+
+const multipleTextRendererSource = readFileSync(
+  new URL("../components/forms/renderers/MultipleTextRenderer.js", import.meta.url),
+  "utf8"
+);
+assert.match(
+  multipleTextRendererSource,
+  /String\(item\.placeholder \|\| ""\)\.trim\(\) === "00"/,
+  "Multiple-text numeric fields must suppress metadata-provided 00 placeholders"
+);
 
 console.log("Validated native numeric, decimal, phone, and text keyboard selection.");

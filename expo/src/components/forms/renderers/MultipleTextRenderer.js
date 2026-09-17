@@ -225,7 +225,6 @@ function PregnancyDurationInput({ answerData, locale, onChange, question }) {
                 setTextValue(normalized.sanitized);
                 commitDuration(selectedUnit, normalized.value);
               }}
-              placeholder="00"
               style={[controlStyles.input, question.isReadOnly && controlStyles.readOnly]}
               value={textValue}
             />
@@ -281,7 +280,7 @@ function MultipleTextItemInput({ item, itemValue, question, unknownSelected, spe
                 editable={!question.isReadOnly && !unknownSelected && !specialSelected}
       keyboardType={keyboardType}
       maxLength={item.maxLength > 0 ? item.maxLength : item.jsonObj?.maxLength}
-      placeholder={unknownSelected ? "" : item.placeholder}
+      placeholder={unknownSelected || String(item.placeholder || "").trim() === "00" ? "" : item.placeholder}
       onChangeText={(value) => {
         const normalized = normalizeMultipleTextInputValue(item, value);
         const { sanitized } = normalized;

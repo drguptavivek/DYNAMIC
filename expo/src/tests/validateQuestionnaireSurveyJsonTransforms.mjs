@@ -44,6 +44,31 @@ function findTopLevelElementByName(surveyJson, name) {
 const surveyJson = prepareQuestionnaireSurveyJson(hhq);
 const wqSurveyJson = prepareQuestionnaireSurveyJson(wq);
 const staleSyncedWq = structuredClone(wq);
+const staleDomesticViolencePage = staleSyncedWq.pages.find(
+  (page) => page.name === "page_05_domestic_violence",
+);
+for (const element of staleDomesticViolencePage?.elements || []) {
+  if (["2", "21"].includes(String(element.sourceCode))) {
+    element.renderAs = undefined;
+    element.renderingHint = { ...(element.renderingHint || {}), render_as: "radio" };
+  }
+}
+const staleBiomarkersPage = staleSyncedWq.pages.find(
+  (page) => page.name === "page_06_biomarkers",
+);
+for (const [fieldName, maxLength, regex] of [
+  ["wq_height_measured_site_cm", 3, "^\\d{3}$"],
+  ["wq_weight_measured_site_kg", 6, "^\\d{3}\\.\\d{2}$"],
+]) {
+  const field = staleBiomarkersPage?.elements?.find((element) => element.name === fieldName);
+  if (field) {
+    field.sourceType = "integer";
+    field.maxLength = maxLength;
+    field.validators = field.validators.map((validator) =>
+      validator.type === "regex" ? { ...validator, regex } : validator
+    );
+  }
+}
 const staleHusbandBackgroundPage = staleSyncedWq.pages.find(
   (page) => page.name === "page_04_husband_background_woman_work",
 );
@@ -80,6 +105,29 @@ staleReproductionPage.elements = staleReproductionPage.elements
     return element;
   });
 const staleSyncedWqSurveyJson = prepareQuestionnaireSurveyJson(staleSyncedWq);
+for (const [label, preparedWq] of [
+  ["bundled BWQ", wqSurveyJson],
+  ["synced BWQ", staleSyncedWqSurveyJson],
+]) {
+  const biomarkersIndex = preparedWq.pages.findIndex(
+    (page) => page.name === "page_06_biomarkers",
+  );
+  const domesticViolenceIndex = preparedWq.pages.findIndex(
+    (page) => page.name === "page_05_domestic_violence",
+  );
+  const outcomeIndex = preparedWq.pages.findIndex((page) => page.name === "page_outcome");
+  assert.ok(biomarkersIndex >= 0, `${label} must retain its Biomarker section`);
+  assert.equal(
+    domesticViolenceIndex,
+    biomarkersIndex + 1,
+    `${label} must display Domestic Violence immediately after Biomarkers`,
+  );
+  assert.equal(
+    outcomeIndex,
+    domesticViolenceIndex + 1,
+    `${label} must keep Outcome immediately after Domestic Violence`,
+  );
+}
 const mobilePanel = findElementByName(surveyJson, "hhq_contact_mobile_numbers");
 const wqMobilePanel = findElementByName(wqSurveyJson, "wq_woman_mobile_numbers");
 const wqProgressiveDob = findElementByName(
@@ -132,6 +180,24 @@ const wqHusbandBackgroundPage = wqSurveyJson.pages.find(
 const staleSyncedWqHusbandBackgroundPage = staleSyncedWqSurveyJson.pages.find(
   (page) => page.name === "page_04_husband_background_woman_work",
 );
+const wqDomesticViolencePage = wqSurveyJson.pages.find(
+  (page) => page.name === "page_05_domestic_violence",
+);
+const staleSyncedWqDomesticViolencePage = staleSyncedWqSurveyJson.pages.find(
+  (page) => page.name === "page_05_domestic_violence",
+);
+for (const preparedWq of [wqSurveyJson, staleSyncedWqSurveyJson]) {
+  for (const [fieldName, maxLength, regex] of [
+    ["wq_height_measured_site_cm", 5, "^\\d{3}(?:\\.\\d)?$"],
+    ["wq_weight_measured_site_kg", 5, "^\\d{2,3}\\.\\d$"],
+  ]) {
+    const field = findElementByName(preparedWq, fieldName);
+    const regexValidator = field?.validators?.find((validator) => validator.type === "regex");
+    assert.equal(field?.sourceType, "decimal", `${fieldName} must use decimal input`);
+    assert.equal(field?.maxLength, maxLength, `${fieldName} must enforce its corrected input length`);
+    assert.equal(regexValidator?.regex, regex, `${fieldName} must enforce its corrected decimal format`);
+  }
+}
 assert.equal(
   wqHealthPage?.elements?.[0]?.type,
   "html",
@@ -263,6 +329,11 @@ for (const husbandPage of [wqHusbandBackgroundPage, staleSyncedWqHusbandBackgrou
     "Drinks",
     "BWQ Section 4 Q14 numeric entry must use the Drinks unit label",
   );
+  assert.equal(
+    alcoholDrinksQuestion?.allowYearsOverrideSpecialCodes,
+    true,
+    "BWQ Section 4 Q14 Drinks entry must remain editable after a special-code choice",
+  );
   const paymentQuestion = husbandPage.elements.find(
     (element) =>
       element.name ===
@@ -273,6 +344,27 @@ for (const husbandPage of [wqHusbandBackgroundPage, staleSyncedWqHusbandBackgrou
     "Cash /Online/UPI",
     "BWQ Section 4 Q20 option 1 must use the requested payment label",
   );
+}
+for (const domesticPage of [wqDomesticViolencePage, staleSyncedWqDomesticViolencePage]) {
+  for (const [sourceCode, fieldName] of [
+    ["2", "wq_05_domestic_violence_check_answer_to_marital_status_on_01_respo"],
+    ["21", "wq_05_domestic_violence_check_12a_13a_14a_15a_16a_17a_18a_19a_20a"],
+  ]) {
+    const calculatedQuestion = domesticPage?.elements?.find(
+      (element) => element.name === fieldName,
+    );
+    assert.ok(calculatedQuestion, `BWQ Domestic Violence Q${sourceCode} must remain defined`);
+    assert.equal(
+      calculatedQuestion.renderAs,
+      "background",
+      `BWQ Domestic Violence Q${sourceCode} must be hidden from the interviewer UI`,
+    );
+    assert.equal(
+      calculatedQuestion.readOnly,
+      true,
+      `BWQ Domestic Violence Q${sourceCode} must remain a read-only calculated field`,
+    );
+  }
 }
 const singleMobile = findElementByName(surveyJson, "hhq_contact_mobile");
 const memberMaritalStatus = findElementByName(surveyJson, "member_marital_status");

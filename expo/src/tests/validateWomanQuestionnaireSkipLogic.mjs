@@ -185,7 +185,7 @@ const appendedQuestion = {
 const appended = appendDynamicPanel(appendedQuestion);
 assert.equal(appended.panel, appendedPanels[0]);
 assert.equal(appended.index, 0);
-const { normalizeMultipleTextInputValue } = await import(
+const { getNativeKeyboardType, normalizeMultipleTextInputValue } = await import(
   "../components/forms/renderers/multipleTextValue.js"
 );
 
@@ -244,6 +244,21 @@ for (const relativePath of [
     );
   }
 }
+
+const questionnaireDashboardSource = fs.readFileSync(
+  path.resolve(root, "../modules/questionnaires/QuestionnaireDashboard.js"),
+  "utf8",
+);
+assert.match(
+  questionnaireDashboardSource,
+  /const WQ_FINAL_INTERVIEW_PAGE_NAME = "page_05_domestic_violence";/,
+  "BWQ completion must be triggered only after leaving the final Domestic Violence section",
+);
+assert.match(
+  questionnaireDashboardSource,
+  /options\?\.oldCurrentPage\?\.name === WQ_FINAL_INTERVIEW_PAGE_NAME/,
+  "BWQ final-section completion must use the configured final page",
+);
 
 const dynamicPanelRendererSource = fs.readFileSync(
   path.resolve(root, "../components/forms/renderers/DynamicPanelRenderer.js"),
@@ -2162,6 +2177,18 @@ assert.equal(
   "Drinks",
   "WQ Section 4 Q14 numeric entry must display Drinks instead of Years",
 );
+assert.equal(
+  question(workHusbandModel, husbandAlcoholDrinks).jsonObj?.allowYearsOverrideSpecialCodes,
+  true,
+  "WQ Section 4 Q14 Drinks entry must allow typed digits to replace a selected special code",
+);
+workHusbandModel.setValue(husbandAlcoholDrinks, "00");
+workHusbandModel.setValue(husbandAlcoholDrinks, "04");
+assert.equal(
+  String(workHusbandModel.getValue(husbandAlcoholDrinks)),
+  "04",
+  "WQ Section 4 Q14 must accept a numeric correction after selecting 00",
+);
 
 const husbandHealthDecision = "wq_04_husband_s_backgroun_who_usually_makes_decisions_about_health_c";
 assert.equal(
@@ -2258,6 +2285,7 @@ applyWqDomesticViolenceCalculations(domesticModel);
 assert.equal(domesticModel.getValue(domesticMaritalCheck), 1);
 assert.equal(isVisible(domesticModel, domesticJealous), true);
 assert.equal(question(domesticModel, domesticMaritalCheck).readOnly, true);
+assert.equal(question(domesticModel, domesticMaritalCheck).renderAs, "background");
 
 for (const fieldName of [
   domesticPhysicalPush,
@@ -2275,6 +2303,7 @@ for (const fieldName of [
 applyWqDomesticViolenceCalculations(domesticModel);
 assert.equal(domesticModel.getValue(domesticPhysicalCheck), 2);
 assert.equal(question(domesticModel, domesticPhysicalCheck).readOnly, true);
+assert.equal(question(domesticModel, domesticPhysicalCheck).renderAs, "background");
 assert.equal(isVisible(domesticModel, domesticViolenceYears), false);
 assert.equal(isVisible(domesticModel, domesticRespondentViolence), true);
 
@@ -2430,24 +2459,39 @@ progressiveDobValidationModel.setValue(progressiveDobQuestion.name, {
 });
 assert.equal(progressiveDobQuestion.validate(), true);
 
-// Section 6 biomarker entry formats (user spec):
-// Q1 height 3 digits cm, Q2 weight 3 digits + . + 2 digits kg,
+// Biomarker entry formats (user spec):
+// Q1 height 3 digits with an optional single decimal, Q2 weight 2-3 digits
+// with exactly 1 decimal,
 // Q3 blood pressure 3/3 digits, Q4 hemoglobin 2 digits.
 const biomarkerModel = createWqModel();
 const biomarkerFormat = [
-  ["wq_height_measured_site_cm", "165", "16"],
-  ["wq_weight_measured_site_kg", "121.45", "121.4"],
-  ["wq_hemoglobin_measured_site", "01", "1"],
+  ["wq_height_measured_site_cm", ["165", "165.5"], ["16.5", "165.55"]],
+  ["wq_weight_measured_site_kg", ["45.6", "121.4"], ["9.5", "121.45", "1234.5"]],
+  ["wq_hemoglobin_measured_site", ["01"], ["1"]],
 ];
-for (const [fieldName, validValue, invalidValue] of biomarkerFormat) {
+for (const [fieldName, validValues, invalidValues] of biomarkerFormat) {
   const item = question(biomarkerModel, fieldName);
   assert.equal(item.renderAs, "numeric_textbox", `WQ Section 6 ${fieldName} must use the string-preserving numeric entry`);
-  item.value = validValue;
-  assert.equal(item.validate() !== false && !item.errors.length, true, `WQ Section 6 ${fieldName} must accept ${validValue}`);
-  item.value = invalidValue;
-  assert.equal(item.validate() !== false && !item.errors.length, false, `WQ Section 6 ${fieldName} must reject ${invalidValue}`);
+  for (const validValue of validValues) {
+    item.value = validValue;
+    assert.equal(item.validate() !== false && !item.errors.length, true, `WQ Biomarkers ${fieldName} must accept ${validValue}`);
+  }
+  for (const invalidValue of invalidValues) {
+    item.value = invalidValue;
+    assert.equal(item.validate() !== false && !item.errors.length, false, `WQ Biomarkers ${fieldName} must reject ${invalidValue}`);
+  }
   item.value = undefined;
 }
+assert.equal(
+  getNativeKeyboardType(question(biomarkerModel, "wq_height_measured_site_cm")),
+  "decimal-pad",
+  "WQ Biomarker Height must open the decimal keyboard",
+);
+assert.equal(
+  getNativeKeyboardType(question(biomarkerModel, "wq_weight_measured_site_kg")),
+  "decimal-pad",
+  "WQ Biomarker Weight must open the decimal keyboard",
+);
 const bloodPressure = question(biomarkerModel, "wq_blood_pressure_measured_site");
 assert.equal(bloodPressure.getType(), "multipletext", "WQ Section 6 Q3 must be a systolic/diastolic compound entry");
 assert.deepEqual(
