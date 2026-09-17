@@ -83,6 +83,9 @@ export const WQ_DV_FORCE_SEX_ACT_FIELD =
   "wq_05_domestic_violence_physically_force_you_to_perform_any_other";
 export const WQ_DV_FORCE_SEX_THREATS_FIELD =
   "wq_05_domestic_violence_force_you_with_threats_or_in_any_other_way";
+export const WQ_BIOMARKER_BLOOD_PRESSURE_FIELD = "wq_blood_pressure_measured_site";
+export const WQ_BIOMARKER_HEMOGLOBIN_FIELD = "wq_hemoglobin_measured_site";
+export const WQ_BIOMARKER_ENTRY_SITE_IDS = [1, 3];
 
 const WQ_REPRODUCTION_SUMMARY_SOURCE_FIELDS = [
   WQ_EVER_GIVEN_BIRTH_FIELD,
@@ -126,6 +129,44 @@ const WQ_DV_PHYSICAL_VIOLENCE_SOURCE_FIELDS = [
   WQ_DV_FORCE_SEX_ACT_FIELD,
   WQ_DV_FORCE_SEX_THREATS_FIELD,
 ];
+
+function parseSiteId(value) {
+  if (value === undefined || value === null || value === "") return null;
+  const numericValue = Number(String(value).split("-")[0]);
+  return Number.isFinite(numericValue) ? numericValue : null;
+}
+
+export function deriveWqBiomarkerSiteId(taskContext, prefillData, user) {
+  for (const value of [
+    taskContext?.site_id,
+    taskContext?.payload?.site_id,
+    prefillData?.site_id,
+    prefillData?.hhq_site_id,
+    prefillData?.wq_site_id,
+    taskContext?.household_id,
+    taskContext?.payload?.household_id,
+    prefillData?.household_id,
+    prefillData?.hhq_household_id,
+    taskContext?.subject_id,
+    taskContext?.woman_id,
+    prefillData?.wq_enter_structure_id_woman,
+    user?.site_id,
+  ]) {
+    const siteId = parseSiteId(value);
+    if (siteId !== null) return siteId;
+  }
+  return null;
+}
+
+export function applyWqBiomarkerSiteAccess(model, { taskContext, prefillData, user } = {}) {
+  const siteId = deriveWqBiomarkerSiteId(taskContext, prefillData, user);
+  const entryEnabled = WQ_BIOMARKER_ENTRY_SITE_IDS.includes(siteId);
+  for (const fieldName of [WQ_BIOMARKER_BLOOD_PRESSURE_FIELD, WQ_BIOMARKER_HEMOGLOBIN_FIELD]) {
+    const question = model?.getQuestionByName?.(fieldName);
+    if (question) question.readOnly = !entryEnabled;
+  }
+  return entryEnabled;
+}
 
 export function shouldPromptWqChildBirthday(deathAge) {
   return Boolean(getWqChildBirthdayPrompt(deathAge));

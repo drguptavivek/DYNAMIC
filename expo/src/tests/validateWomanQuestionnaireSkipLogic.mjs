@@ -31,6 +31,7 @@ const {
   WQ_REPRODUCTION_COMPARISON_RESULT_FIELD,
   WQ_STERILIZATION_FIELD,
   attachWqValidation,
+  applyWqBiomarkerSiteAccess,
    applyWqDomesticViolenceCalculations,
   applyWqLmpTimingChecks,
   applyWqSectionTwoCompletion,
@@ -45,6 +46,7 @@ const {
    calculateWqPregnancyTrackingEligibilityValue,
   calculateWqLmpMoreThanSixMonthsValue,
   calculateWqNotPregnantOrUnsureValue,
+  deriveWqBiomarkerSiteId,
   getWqChildBirthdayPrompt,
   getWqOutsideHouseholdHusbandLineNumber,
   resolveWqHusbandPartnerSelection,
@@ -2492,6 +2494,38 @@ assert.equal(
   "decimal-pad",
   "WQ Biomarker Weight must open the decimal keyboard",
 );
+assert.equal(
+  deriveWqBiomarkerSiteId({ household_id: "3-01-0001-01" }),
+  3,
+  "WQ Biomarker access must derive Belagavi from the household identity",
+);
+for (const [siteId, entryEnabled] of [[1, true], [3, true], [2, false], [4, false]]) {
+  const siteModel = createWqModel();
+  assert.equal(
+    applyWqBiomarkerSiteAccess(siteModel, {
+      taskContext: { household_id: `${siteId}-01-0001-01` },
+    }),
+    entryEnabled,
+    `WQ Biomarker Q3/Q4 access must match site ${siteId}`,
+  );
+  for (const fieldName of ["wq_blood_pressure_measured_site", "wq_hemoglobin_measured_site"]) {
+    const biomarkerQuestion = question(siteModel, fieldName);
+    assert.equal(
+      biomarkerQuestion.readOnly,
+      !entryEnabled,
+      `${fieldName} must ${entryEnabled ? "allow" : "block"} entry at site ${siteId}`,
+    );
+    assert.notEqual(
+      biomarkerQuestion.visible,
+      false,
+      `${fieldName} must remain displayed at site ${siteId}`,
+    );
+  }
+}
+const unknownSiteModel = createWqModel();
+assert.equal(applyWqBiomarkerSiteAccess(unknownSiteModel), false);
+assert.equal(question(unknownSiteModel, "wq_blood_pressure_measured_site").readOnly, true);
+assert.equal(question(unknownSiteModel, "wq_hemoglobin_measured_site").readOnly, true);
 const bloodPressure = question(biomarkerModel, "wq_blood_pressure_measured_site");
 assert.equal(bloodPressure.getType(), "multipletext", "WQ Section 6 Q3 must be a systolic/diastolic compound entry");
 assert.deepEqual(

@@ -57,6 +57,7 @@ import {
   WQ_BORN_ALIVE_PROBE_FIELD,
   WQ_CHECK8_CONFIRMATION_FIELD,
   WQ_CHECK8_CONFIRMATION_MESSAGE,
+  applyWqBiomarkerSiteAccess,
   applyWqSectionTwoCompletion,
   applyWqAgeConsistencyCheck,
   applyWqBornAliveProbe,
@@ -519,6 +520,7 @@ export function QuestionnaireDashboard({
 
     if (isWomanQuestionnaire(form)) {
       attachWqValidation(model);
+      applyWqBiomarkerSiteAccess(model, { taskContext, prefillData, user });
       applyWqVisitNo(model, taskContext);
       applyWqReproductionSummary(model);
        applyWqPregnancyHistoryCalculations(model);

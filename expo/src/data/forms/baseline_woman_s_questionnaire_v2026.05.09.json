@@ -10451,7 +10451,7 @@
           "validationRulesSource": [
             "[Bareilly and Belagavi only]"
           ],
-          "skipLogicSource": "Excel 06: blood pressure is Bareilly and Belagavi only; current WQ JSON lacks a clean site-id question for safe JSON gating."
+          "skipLogicSource": "App rule: blood pressure entry is enabled for Bareilly and Belagavi only; it remains visible but read-only at other sites."
         },
         {
           "type": "text",
@@ -10469,9 +10469,9 @@
           "section_order": 6,
           "sourceCode": "4",
           "sourceType": "integer",
-          "rawText": "Hemoglobin - measured on site |_|_| grams per deciliter [Bareilly only]",
+          "rawText": "Hemoglobin - measured on site |_|_| grams per deciliter [Bareilly and Belagavi only]",
           "description": {
-            "default": "grams per deciliter [Bareilly only]",
+            "default": "grams per deciliter [Bareilly and Belagavi only]",
             "hi": "",
             "kn": "",
             "mr": "",
@@ -10502,9 +10502,9 @@
             }
           ],
           "validationRulesSource": [
-            "[Bareilly only]"
+            "[Bareilly and Belagavi only]"
           ],
-          "skipLogicSource": "Excel 06: hemoglobin is Bareilly only; current WQ JSON lacks a clean site-id question for safe JSON gating."
+          "skipLogicSource": "App rule: hemoglobin entry is enabled for Bareilly and Belagavi only; it remains visible but read-only at other sites."
         }
       ],
       "visibleIf": "({wq_pregnancy_tracking_eligible} = 1) and (({wq_woman_available} empty or {wq_woman_available} = 1) and ({wq_consent_study} empty or {wq_consent_study} = 1) and ({wq_current_marital_status} empty or {wq_current_marital_status} != 7))",
