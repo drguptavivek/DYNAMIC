@@ -15,8 +15,10 @@ import {
 import {
   getActiveQuestionnaireDraft,
   markQuestionnaireDraftSubmitted,
+  removeQuestionnaireDraft,
   saveQuestionnaireDraft,
 } from "./questionnaireDraftRepository";
+import { linkWqVisitorCorrectionDraft } from "../tasks/taskRepository.js";
 import {
   COMPACT_PREVIEW_SECTION_NAME,
   HOUSEHOLD_MEMBER_SUMMARY_SECTION_NAME,
@@ -388,10 +390,13 @@ export function QuestionnaireDashboard({
       subjectType: taskContext?.subject_type,
       subjectId: taskContext?.subject_id,
       householdId: taskContext?.household_id,
+      keyTaskId: correctionContext ? `wq-correction:${correctionContext.responseId}` : undefined,
+      preferredDraftId: correctionContext?.draftId,
+      strictDraftKey: Boolean(correctionContext),
       deviceId: user?.device_id || "dev-device",
       userId: user?.user_id || user?.id || user?.username || "dev-user",
     };
-  }, [form, taskContext, user]);
+  }, [form, taskContext, user, correctionContext]);
 
   function updateSurveyStatus(model) {
     const nextData = { ...(model?.data || {}) };
@@ -421,12 +426,26 @@ export function QuestionnaireDashboard({
     const endSave = startTiming("draft.save", { form: form?.form_code, manual });
     const draft = await saveQuestionnaireDraft({
       ...draftContext,
-      draftId: draftIdRef.current,
+      draftId: draftIdRef.current || correctionContext?.draftId,
       payload,
       completionState: {
         currentPageName: model.currentPage?.name || null,
+        correctionResponseId: correctionContext?.responseId || null,
       },
     });
+    if (correctionContext) {
+      try {
+        linkWqVisitorCorrectionDraft(correctionContext.responseId, draft.draft_id);
+      } catch (error) {
+        await removeQuestionnaireDraft(draft.draft_id);
+        draftIdRef.current = null;
+        setDraftId(null);
+        const message = error?.message || "The correction draft could not be saved.";
+        setSaveMessage(message);
+        Alert.alert("Correction period ended", message);
+        return null;
+      }
+    }
     endSave({ answers: Object.keys(payload).length });
     draftIdRef.current = draft.draft_id;
     setDraftId(draft.draft_id);
@@ -441,7 +460,11 @@ export function QuestionnaireDashboard({
         Alert.alert(savedMessage, "", [
           {
             text: "OK",
-            onPress: () => navigateTo(ROUTES.worklist, { replace: true }),
+            onPress: () =>
+              navigateTo(
+                correctionContext ? ROUTES.completedForms : ROUTES.worklist,
+                { replace: true },
+              ),
           },
         ]);
       }
@@ -1000,6 +1023,7 @@ export function QuestionnaireDashboard({
       draftContext.subjectId,
       draftContext.deviceId,
       draftContext.userId,
+      correctionContext?.responseId,
     ].join("|");
 
     if (restoredDraftKeyRef.current === restoreKey) {
@@ -1011,7 +1035,7 @@ export function QuestionnaireDashboard({
 
     async function restoreDraft() {
       const endRestore = startTiming("draft.restore", { form: form?.form_code });
-      const draft = correctionContext ? null : await getActiveQuestionnaireDraft(draftContext);
+      const draft = await getActiveQuestionnaireDraft(draftContext);
       if (cancelled) return;
 
       if (draft) {
@@ -1058,7 +1082,9 @@ export function QuestionnaireDashboard({
         dirtyRef.current = false;
         setDirty(false);
       } else {
-        await saveDraftFromModel(survey, { silent: true });
+        if (!correctionContext) {
+          await saveDraftFromModel(survey, { silent: true });
+        }
         answerSnapshotRef.current = { ...(survey.data || {}) };
         setRendererAnswerData(answerSnapshotRef.current);
       }
@@ -1120,7 +1146,7 @@ export function QuestionnaireDashboard({
         document.removeEventListener("visibilitychange", saveBeforeLeave);
       }
     };
-  }, [showForm, survey, draftContext]);
+  }, [showForm, survey, draftContext, correctionContext]);
 
   const displayedSections = useMemo(
     () =>

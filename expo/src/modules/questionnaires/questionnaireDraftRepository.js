@@ -361,11 +361,20 @@ function sortNewestFirst(rows) {
   return [...rows].sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)));
 }
 
+function isWqVisitorCorrectionDraft(draft) {
+  return (
+    String(draft?.form_code || "").toUpperCase() === "WQ" &&
+    (String(draft?.draft_key || "").includes("|wq-correction:") ||
+      Boolean(draft?.completion_state?.correctionResponseId))
+  );
+}
+
 function dedupeActiveDrafts(rows) {
   const seen = new Set();
   const drafts = [];
   for (const row of sortNewestFirst(rows)) {
     if (row.draft_status !== "active") continue;
+    if (isWqVisitorCorrectionDraft(row)) continue;
     const identityKey = getDraftHouseholdUserKey(row);
     if (seen.has(identityKey)) continue;
     seen.add(identityKey);
@@ -462,6 +471,11 @@ export async function getActiveQuestionnaireDraft(context) {
     const draftKey = buildDraftKey(context);
     let matches = rows.filter((row) => row.draft_key === draftKey && row.draft_status === "active");
 
+    if (context?.strictDraftKey) {
+      const strictMatches = matches.length ? matches : preferredDraft ? [preferredDraft] : [];
+      return sortNewestFirst(strictMatches)[0] || null;
+    }
+
     if (matches.length === 0 && context?.keyTaskId !== undefined) {
       const legacyTaskDraftKey = buildDraftKey({
         ...context,
@@ -496,6 +510,14 @@ export async function getActiveQuestionnaireDraft(context) {
     [draftKey],
     "updated_at DESC",
   );
+
+  if (context?.strictDraftKey) {
+    const preferredDraft =
+      matches.length === 0 && preferredDraftId
+        ? await queryFirstRow("draft_id = ? AND draft_status = 'active'", [preferredDraftId])
+        : null;
+    return sortNewestFirst(matches.length ? matches : preferredDraft ? [preferredDraft] : [])[0] || null;
+  }
 
   if (matches.length === 0 && context?.keyTaskId !== undefined) {
     const legacyTaskDraftKey = buildDraftKey({
@@ -664,11 +686,15 @@ export async function listQuestionnaireDraftsForSync(userId) {
   const storage = getWebStorage();
   if (storage) {
     const rows = await readRows();
-    return rows.filter((row) => !userId || row.user_id === userId);
+    return rows.filter(
+      (row) => (!userId || row.user_id === userId) && !isWqVisitorCorrectionDraft(row),
+    );
   }
 
-  if (!userId) return queryRows("1=1", []);
-  return queryRows("user_id = ?", [userId]);
+  const rows = !userId
+    ? await queryRows("1=1", [])
+    : await queryRows("user_id = ?", [userId]);
+  return rows.filter((row) => !isWqVisitorCorrectionDraft(row));
 }
 
 export function toDraftSyncRecord(draft) {
@@ -774,6 +800,7 @@ export async function saveQuestionnaireDraft({
   subjectType,
   subjectId,
   householdId,
+  strictDraftKey = false,
   deviceId = "unknown",
   userId = "unknown",
 }) {
@@ -817,8 +844,8 @@ export async function saveQuestionnaireDraft({
     existing =
       newestRows.find((row) => row.draft_id === draftId) ||
       activeRows.find((row) => row.draft_key === draftKey) ||
-      activeRows.find((row) => getDraftIdentityKey(row) === draftIdentityKey) ||
-      activeRows.find((row) => getDraftHouseholdUserKey(row) === draftHouseholdUserKey) ||
+      (!strictDraftKey && activeRows.find((row) => getDraftIdentityKey(row) === draftIdentityKey)) ||
+      (!strictDraftKey && activeRows.find((row) => getDraftHouseholdUserKey(row) === draftHouseholdUserKey)) ||
       null;
   } else {
     // At most two SELECTs total: an optional direct draft_id lookup, plus one
@@ -834,8 +861,8 @@ export async function saveQuestionnaireDraft({
     existing =
       byId ||
       candidateRows.find((row) => row.draft_key === draftKey) ||
-      candidateRows.find((row) => getDraftIdentityKey(row) === draftIdentityKey) ||
-      candidateRows.find((row) => getDraftHouseholdUserKey(row) === draftHouseholdUserKey) ||
+      (!strictDraftKey && candidateRows.find((row) => getDraftIdentityKey(row) === draftIdentityKey)) ||
+      (!strictDraftKey && candidateRows.find((row) => getDraftHouseholdUserKey(row) === draftHouseholdUserKey)) ||
       null;
   }
 
@@ -858,7 +885,9 @@ export async function saveQuestionnaireDraft({
   };
 
   await persistDraft(draft);
-  await supersedeDuplicateActiveDrafts(draft, candidateRows);
+  if (!strictDraftKey) {
+    await supersedeDuplicateActiveDrafts(draft, candidateRows);
+  }
   return draft;
 }
 

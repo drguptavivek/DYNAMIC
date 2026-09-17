@@ -14,7 +14,10 @@ import {
   View,
 } from "react-native";
 
-import { listFormResponseSummaries } from "../tasks/taskRepository.js";
+import {
+  discardExpiredWqVisitorCorrectionDrafts,
+  listFormResponseSummaries,
+} from "../tasks/taskRepository.js";
 import {
   buildSubmissionDisplayItems,
   filterResponses,
@@ -28,6 +31,7 @@ import { ROUTES, navigateTo } from "../../navigation/routes.js";
 import {
   canCorrectExcludedWqResponse,
   formatWqVisitorCorrectionRemaining,
+  getWqVisitorCorrectionDraftId,
 } from "./wqVisitorExclusion.js";
 
 function formatDateTime(value) {
@@ -78,6 +82,7 @@ function InlineFilter({ label, value, options, onChange, compact, formatOption =
 function FormCard({ response, nowMs, onEditExcludedWq }) {
   const hasUploadError = response.sync_status === "upload_error" || Boolean(response.sync_error);
   const canEditExcludedWq = canCorrectExcludedWqResponse(response, nowMs);
+  const hasCorrectionDraft = Boolean(getWqVisitorCorrectionDraftId(response));
   return (
     <View style={[styles.card, hasUploadError && styles.errorCard]}>
       <View style={styles.cardHeader}>
@@ -121,7 +126,7 @@ function FormCard({ response, nowMs, onEditExcludedWq }) {
       {canEditExcludedWq ? (
         <Pressable onPress={() => onEditExcludedWq?.(response)} style={styles.editButton}>
           <Text style={styles.editButtonText}>
-            {`Edit (${formatWqVisitorCorrectionRemaining(response, nowMs)})`}
+            {`${hasCorrectionDraft ? "Resume correction" : "Edit"} (${formatWqVisitorCorrectionRemaining(response, nowMs)})`}
           </Text>
         </Pressable>
       ) : null}
@@ -238,6 +243,33 @@ export function FormSubmissionListScreen({ mode }) {
     const rows = (await listFormResponseSummaries({ sync_status: syncStatus })).map(normalizeFormResponse);
     if (requestId === loadRequestRef.current) setResponses(rows);
   }, [syncStatus]);
+
+  const expiredCorrectionKey = useMemo(
+    () =>
+      responses
+        .filter(
+          (response) =>
+            getWqVisitorCorrectionDraftId(response) &&
+            !canCorrectExcludedWqResponse(response, nowMs),
+        )
+        .map((response) => response.id)
+        .sort()
+        .join("|"),
+    [responses, nowMs],
+  );
+
+  useEffect(() => {
+    if (!expiredCorrectionKey || uploaded || uploadErrors) return;
+    try {
+      if (discardExpiredWqVisitorCorrectionDrafts(nowMs) > 0) {
+        loadResponses().catch((error) =>
+          console.error("Error refreshing expired WQ correction drafts:", error),
+        );
+      }
+    } catch (error) {
+      console.error("Error discarding expired WQ correction drafts:", error);
+    }
+  }, [expiredCorrectionKey, loadResponses, nowMs, uploaded, uploadErrors]);
 
   const editExcludedWq = useCallback((response) => {
     if (!canCorrectExcludedWqResponse(response, Date.now())) {

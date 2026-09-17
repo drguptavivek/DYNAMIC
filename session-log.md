@@ -507,5 +507,6 @@ Decisions:
 - Q9 Visitor requires a non-cancelable Yes/No confirmation. No clears Q9 and returns focus; Yes routes directly to Outcome as Completed and displays the exclusion notice.
 - Visitor finalization excludes only that woman and cancels her open future workflow tasks; other household members are unchanged.
 - An unsynced excluded WQ has a 10-minute correction action in Completed. Correction starts from the saved answers with Q9 cleared; its replacement supersedes the original local response so only the corrected evidence uploads.
+- A saved visitor correction remains separate from every ordinary draft, changes the Completed action to Resume correction, restores its saved page/answers, and keeps the original exclusion deadline. Expiry or source-response sync discards only that correction draft; final corrected submission supersedes the excluded response.
 Open:
 - Physical-device UI verification awaits an explicitly requested APK build/install.

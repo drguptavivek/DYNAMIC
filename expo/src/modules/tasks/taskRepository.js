@@ -864,6 +864,95 @@ export function getFormResponseById(id) {
   }
 }
 
+const WQ_VISITOR_EXCLUDED_LOCAL_STATUS = "wq_visitor_excluded";
+const WQ_VISITOR_CORRECTION_DRAFT_PREFIX = `${WQ_VISITOR_EXCLUDED_LOCAL_STATUS}:draft:`;
+const WQ_VISITOR_CORRECTION_WINDOW_MS = 10 * 60 * 1000;
+
+function isWqVisitorCorrectionSource(row) {
+  const status = String(row?.server_response_status || "");
+  return (
+    String(row?.form_code || "").toUpperCase() === "WQ" &&
+    row?.sync_status === "pending" &&
+    (status === WQ_VISITOR_EXCLUDED_LOCAL_STATUS ||
+      status.startsWith(WQ_VISITOR_CORRECTION_DRAFT_PREFIX))
+  );
+}
+
+function isWqVisitorCorrectionWindowOpen(row, nowMs = Date.now()) {
+  const submittedAt = new Date(row?.submitted_at || "").getTime();
+  return (
+    isWqVisitorCorrectionSource(row) &&
+    Number.isFinite(submittedAt) &&
+    Number(nowMs) - submittedAt < WQ_VISITOR_CORRECTION_WINDOW_MS
+  );
+}
+
+export function linkWqVisitorCorrectionDraft(responseId, draftId) {
+  if (!responseId || !draftId) {
+    throw new Error("The excluded response and correction draft are required.");
+  }
+  const db = getDb();
+  const row = getFormResponseById(responseId);
+  if (!isWqVisitorCorrectionWindowOpen(row)) {
+    throw new Error("The 10-minute correction period has expired.");
+  }
+  db.runSync(
+    `UPDATE form_responses
+       SET server_response_status = ?, updated_at = ?
+     WHERE id = ? AND sync_status = 'pending'`,
+    [`${WQ_VISITOR_CORRECTION_DRAFT_PREFIX}${draftId}`, new Date().toISOString(), responseId],
+  );
+}
+
+export function discardExpiredWqVisitorCorrectionDrafts(nowMs = Date.now()) {
+  const db = getDb();
+  const rows = db.getAllSync(
+    `SELECT id, submitted_at, server_response_status
+       FROM form_responses
+      WHERE form_code = 'WQ'
+        AND sync_status = 'pending'
+        AND server_response_status LIKE ?`,
+    [`${WQ_VISITOR_CORRECTION_DRAFT_PREFIX}%`],
+  );
+  const expired = (rows || []).filter((row) => {
+    const submittedAt = new Date(row?.submitted_at || "").getTime();
+    return !Number.isFinite(submittedAt) || Number(nowMs) - submittedAt >= WQ_VISITOR_CORRECTION_WINDOW_MS;
+  });
+  if (expired.length === 0) return 0;
+
+  let transactionStarted = false;
+  try {
+    db.runSync("BEGIN TRANSACTION");
+    transactionStarted = true;
+    const updatedAt = new Date(Number(nowMs)).toISOString();
+    for (const row of expired) {
+      const draftId = String(row.server_response_status).slice(
+        WQ_VISITOR_CORRECTION_DRAFT_PREFIX.length,
+      );
+      if (draftId) {
+        db.runSync(
+          `UPDATE questionnaire_drafts
+              SET draft_status = 'discarded', updated_at = ?
+            WHERE draft_id = ? AND draft_status = 'active'`,
+          [updatedAt, draftId],
+        );
+      }
+      db.runSync(
+        `UPDATE form_responses
+            SET server_response_status = ?, updated_at = ?
+          WHERE id = ? AND sync_status = 'pending'`,
+        [WQ_VISITOR_EXCLUDED_LOCAL_STATUS, updatedAt, row.id],
+      );
+    }
+    db.runSync("COMMIT");
+    return expired.length;
+  } catch (error) {
+    if (transactionStarted) db.runSync("ROLLBACK");
+    console.error("Error discarding expired WQ visitor correction drafts:", error);
+    throw error;
+  }
+}
+
 export function supersedePendingWqVisitorResponse(responseId, replacementId) {
   const db = getDb();
   const now = new Date().toISOString();
@@ -872,12 +961,12 @@ export function supersedePendingWqVisitorResponse(responseId, replacementId) {
     !row ||
     String(row.form_code || "").toUpperCase() !== "WQ" ||
     row.sync_status !== "pending" ||
-    row.server_response_status !== "wq_visitor_excluded"
+    !isWqVisitorCorrectionSource(row)
   ) {
     throw new Error("This excluded form is no longer available for mobile correction.");
   }
   const submittedAt = new Date(row.submitted_at || "").getTime();
-  if (!Number.isFinite(submittedAt) || Date.now() - submittedAt >= 10 * 60 * 1000) {
+  if (!Number.isFinite(submittedAt) || Date.now() - submittedAt >= WQ_VISITOR_CORRECTION_WINDOW_MS) {
     throw new Error("The 10-minute correction period has expired.");
   }
   db.runSync(
@@ -1303,14 +1392,38 @@ export function listFormResponses(filters = {}) {
   }
 }
 
+function discardLinkedWqVisitorCorrectionDraft(db, responseId, updatedAt) {
+  const row = db.getFirstSync(
+    "SELECT server_response_status FROM form_responses WHERE id = ?",
+    [responseId],
+  );
+  const status = String(row?.server_response_status || "");
+  if (!status.startsWith(WQ_VISITOR_CORRECTION_DRAFT_PREFIX)) return;
+  const draftId = status.slice(WQ_VISITOR_CORRECTION_DRAFT_PREFIX.length);
+  if (!draftId) return;
+  db.runSync(
+    `UPDATE questionnaire_drafts
+        SET draft_status = 'discarded', updated_at = ?
+      WHERE draft_id = ? AND draft_status = 'active'`,
+    [updatedAt, draftId],
+  );
+}
+
 export function markResponseSynced(id) {
   const db = getDb();
+  const now = new Date().toISOString();
+  let transactionStarted = false;
   try {
+    db.runSync("BEGIN TRANSACTION");
+    transactionStarted = true;
+    discardLinkedWqVisitorCorrectionDraft(db, id, now);
     db.runSync(
       "UPDATE form_responses SET sync_status = 'synced', sync_error = NULL, sync_error_at = NULL WHERE id = ?",
       [id],
     );
+    db.runSync("COMMIT");
   } catch (error) {
+    if (transactionStarted) db.runSync("ROLLBACK");
     console.error("Error marking response synced:", error);
     throw error;
   }
@@ -1336,7 +1449,9 @@ export function markResponsesSyncedBatch(ids = []) {
 
   try {
     db.runSync("BEGIN TRANSACTION");
+    const now = new Date().toISOString();
     for (const id of ids) {
+      discardLinkedWqVisitorCorrectionDraft(db, id, now);
       db.runSync(
         "UPDATE form_responses SET sync_status = 'synced', sync_error = NULL, sync_error_at = NULL WHERE id = ?",
         [id],

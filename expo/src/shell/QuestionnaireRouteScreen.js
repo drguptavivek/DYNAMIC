@@ -9,7 +9,11 @@ import { getFormDisplayCode } from "../lib/formDisplayCodes.js";
 import { QuestionnaireDashboard } from "../modules/questionnaires/QuestionnaireDashboard.js";
 import { HouseholdModule } from "../modules/households/HouseholdModule.js";
 import { getFormResponseById, getTask } from "../modules/tasks/taskRepository.js";
-import { canCorrectExcludedWqResponse } from "../modules/questionnaires/wqVisitorExclusion.js";
+import {
+  buildWqVisitorCorrectionDraftId,
+  canCorrectExcludedWqResponse,
+  getWqVisitorCorrectionDraftId,
+} from "../modules/questionnaires/wqVisitorExclusion.js";
 import { useFieldApp } from "./FieldAppProvider.js";
 import { FieldAppShell } from "./FieldAppShell.js";
 
@@ -40,6 +44,9 @@ export function QuestionnaireRouteScreen({ correctionResponseId, draftId, formCo
   const correctionContext = canCorrectExcludedWqResponse(correctionResponse)
     ? {
         responseId: correctionResponse.id,
+        draftId:
+          getWqVisitorCorrectionDraftId(correctionResponse) ||
+          buildWqVisitorCorrectionDraftId(correctionResponse.id),
         answers: correctionResponse.answers_json || {},
         submittedAt: correctionResponse.submitted_at,
       }

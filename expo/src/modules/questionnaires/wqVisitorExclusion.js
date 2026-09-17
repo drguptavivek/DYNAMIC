@@ -3,6 +3,8 @@ export const WQ_RESIDENCE_DURATION_FIELD =
 export const WQ_VISITOR_VALUE = 96;
 export const WQ_VISITOR_EXCLUDED_FIELD = "wq_visitor_excluded";
 export const WQ_VISITOR_EXCLUDED_STATUS = "wq_visitor_excluded";
+export const WQ_VISITOR_CORRECTION_DRAFT_STATUS_PREFIX =
+  `${WQ_VISITOR_EXCLUDED_STATUS}:draft:`;
 export const WQ_VISITOR_CORRECTION_WINDOW_MS = 10 * 60 * 1000;
 
 export function isWqVisitorAnswers(answers = {}) {
@@ -12,8 +14,22 @@ export function isWqVisitorAnswers(answers = {}) {
 export function isLocallyExcludedWqResponse(response) {
   return (
     String(response?.form_code || "").toUpperCase() === "WQ" &&
-    String(response?.server_response_status || "") === WQ_VISITOR_EXCLUDED_STATUS
+    (String(response?.server_response_status || "") === WQ_VISITOR_EXCLUDED_STATUS ||
+      String(response?.server_response_status || "").startsWith(
+        WQ_VISITOR_CORRECTION_DRAFT_STATUS_PREFIX,
+      ))
   );
+}
+
+export function getWqVisitorCorrectionDraftId(response) {
+  const status = String(response?.server_response_status || "");
+  return status.startsWith(WQ_VISITOR_CORRECTION_DRAFT_STATUS_PREFIX)
+    ? status.slice(WQ_VISITOR_CORRECTION_DRAFT_STATUS_PREFIX.length) || null
+    : null;
+}
+
+export function buildWqVisitorCorrectionDraftId(responseId) {
+  return responseId ? `WQ-correction-${responseId}` : null;
 }
 
 export function getWqVisitorCorrectionRemainingMs(response, nowMs = Date.now()) {

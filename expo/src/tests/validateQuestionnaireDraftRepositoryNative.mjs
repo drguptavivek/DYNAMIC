@@ -520,6 +520,62 @@ const specificTaskDraft = await saveQuestionnaireDraft({
 assert.equal(specificTaskDraft.draft_id, "specific-task-a");
 assert.equal(await getQuestionnaireDraftById("specific-task-b"), null);
 
+// A visitor-correction draft uses an exact, private key and must neither
+// reuse nor supersede the woman's ordinary WQ draft.
+const correctionDraftContext = {
+  formCode: "WQ",
+  formVersion: "v1",
+  taskId: "task-wq-index",
+  keyTaskId: "wq-correction:excluded-response-1",
+  strictDraftKey: true,
+  preferredDraftId: "WQ-correction-excluded-response-1",
+  subjectType: "individual",
+  subjectId: "5-05-0005-01-01",
+  deviceId: "device-wq",
+  userId: "user-wq",
+};
+const correctionDraft = await saveQuestionnaireDraft({
+  ...correctionDraftContext,
+  draftId: correctionDraftContext.preferredDraftId,
+  payload: {
+    wq_enter_structure_id_woman: "5-05-0005-01-01",
+    wq_01_respondent_s_backgr_how_long_have_you_been_living_continuously: "04",
+  },
+  completionState: {
+    currentPageName: "page_01_respondent_background",
+    correctionResponseId: "excluded-response-1",
+  },
+});
+assert.equal(correctionDraft.draft_id, "WQ-correction-excluded-response-1");
+assert.equal(
+  (await getActiveQuestionnaireDraft(correctionDraftContext)).draft_id,
+  correctionDraft.draft_id,
+);
+assert.equal(
+  (await listActiveQuestionnaireDrafts()).some(
+    (draft) => draft.draft_id === correctionDraft.draft_id,
+  ),
+  false,
+);
+assert.equal(
+  (await listQuestionnaireDraftsForSync("user-wq")).some(
+    (draft) => draft.draft_id === correctionDraft.draft_id,
+  ),
+  false,
+);
+assert.equal(
+  (await getActiveQuestionnaireDraft({
+    formCode: "WQ",
+    formVersion: "v1",
+    taskId: "task-wq-index",
+    subjectType: "individual",
+    subjectId: "5-05-0005-01-01",
+    deviceId: "device-wq",
+    userId: "user-wq",
+  })).draft_id,
+  wqDraft.draft_id,
+);
+
 // --- (f) every SELECT ever issued against questionnaire_drafts carries a ---
 // WHERE clause (parseSelect() above already throws otherwise, but assert
 // explicitly against the full log too).

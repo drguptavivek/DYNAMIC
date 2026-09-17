@@ -7,7 +7,9 @@ import { Model } from "survey-core";
 import {
   WQ_RESIDENCE_DURATION_FIELD,
   applyWqVisitorSurveyRouting,
+  buildWqVisitorCorrectionDraftId,
   canCorrectExcludedWqResponse,
+  getWqVisitorCorrectionDraftId,
   isWqVisitorAnswers,
 } from "../modules/questionnaires/wqVisitorExclusion.js";
 
@@ -27,6 +29,14 @@ const excludedResponse = {
 assert.equal(canCorrectExcludedWqResponse(excludedResponse, Date.parse("2026-09-17T10:09:59.000Z")), true);
 assert.equal(canCorrectExcludedWqResponse(excludedResponse, Date.parse("2026-09-17T10:10:00.000Z")), false);
 assert.equal(canCorrectExcludedWqResponse({ ...excludedResponse, sync_status: "synced" }, Date.parse("2026-09-17T10:01:00.000Z")), false);
+const correctionDraftId = buildWqVisitorCorrectionDraftId("response-1");
+assert.equal(correctionDraftId, "WQ-correction-response-1");
+const responseWithDraft = {
+  ...excludedResponse,
+  server_response_status: `wq_visitor_excluded:draft:${correctionDraftId}`,
+};
+assert.equal(getWqVisitorCorrectionDraftId(responseWithDraft), correctionDraftId);
+assert.equal(canCorrectExcludedWqResponse(responseWithDraft, Date.parse("2026-09-17T10:09:59.000Z")), true);
 
 const surveyJson = {
   pages: [
@@ -59,6 +69,7 @@ assert.match(dashboard, /correctionResponseId: correctionContext\?\.responseId/)
 const historyScreen = read("expo/src/modules/questionnaires/FormSubmissionListScreen.js");
 assert.match(historyScreen, /formatWqVisitorCorrectionRemaining/);
 assert.match(historyScreen, /correctionResponseId=/);
+assert.match(historyScreen, /Resume correction/);
 
 const eventProcessor = read("apps/api/src/services/eventProcessor.ts");
 assert.match(eventProcessor, /event_type: "wq_visitor_excluded"/);
