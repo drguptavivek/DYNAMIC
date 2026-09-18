@@ -111,7 +111,7 @@
             "single coded option"
           ],
           "description": {
-            "default": "Options 1 and 2 are auto-filled from the corresponding source. Options 3 and 4 require a database search.",
+            "default": "Select the source of pregnancy information. Options 3 and 4 require a database search.",
             "hi": "",
             "kn": "",
             "mr": "",

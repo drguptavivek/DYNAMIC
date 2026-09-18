@@ -259,6 +259,29 @@ const syncRecord = toDraftSyncRecord(crossDeviceDraft);
 assert.equal(syncRecord.household_id, "2-02-0009-01");
 assert.equal(syncRecord.site_id, 2);
 assert.equal(syncRecord.locality_code, "02");
+const attachmentDraftSyncRecord = toDraftSyncRecord({
+  ...crossDeviceDraft,
+  form_code: "PEF",
+  json_payload: {
+    household_id: "2-02-0009-01",
+    pef_ultrasound_reports: {
+      report_count: 1,
+      reports: [{
+        attachment_id: "attachment-1",
+        report_name: "First report",
+        local_uri: "file:///private/device-only.jpg",
+        original_name: "camera.jpg",
+        mime_type: "image/jpeg",
+        file_size: 100,
+      }],
+    },
+  },
+});
+assert.equal(
+  attachmentDraftSyncRecord.json_payload.pef_ultrasound_reports.reports[0].local_uri,
+  undefined,
+  "device-local attachment paths must not be copied into server draft backups",
+);
 assert.equal((await listQuestionnaireDraftsForSync("fdc-1")).some(
   (draft) => draft.draft_id === crossDeviceDraft.draft_id,
 ), true);

@@ -11,6 +11,7 @@ const WEB_STORAGE_KEYS = [
   "dynamic_household_members_v4",
   "dynamic_questionnaire_drafts_v1",
   "dynamic_questionnaire_submissions_v1",
+  "dynamic_form_attachments_v1",
 ];
 
 const NATIVE_TABLES_TO_CLEAR = [
@@ -18,6 +19,7 @@ const NATIVE_TABLES_TO_CLEAR = [
   "task_attempts",
   "follow_up_tasks",
   "form_responses",
+  "form_attachments",
   "questionnaire_drafts",
   "eligible_women",
   "pregnancies",
@@ -74,6 +76,20 @@ async function clearProtocolFormMemoryCaches() {
   }
 }
 
+async function clearPersistedFormAttachments() {
+  try {
+    const FileSystem = await import("expo-file-system/legacy");
+    if (FileSystem.documentDirectory) {
+      await FileSystem.deleteAsync(
+        `${FileSystem.documentDirectory}pef-ultrasound-reports/`,
+        { idempotent: true },
+      );
+    }
+  } catch (error) {
+    console.warn("Could not clear persisted form attachments:", error);
+  }
+}
+
 export async function clearLocalDeviceData() {
   await clearProtocolFormMemoryCaches();
 
@@ -83,6 +99,7 @@ export async function clearLocalDeviceData() {
   }
 
   await clearNativeSqlite();
+  await clearPersistedFormAttachments();
 }
 
 export function getLocalDeviceDataResetKeysForTests() {

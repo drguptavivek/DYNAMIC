@@ -235,6 +235,18 @@ const pefPayload = {
   household_id: "1-02-0042-03",
   pef_enrollment_date: "2026-09-15",
   pef_any_time_during_pregnancy_ultrasound: 1,
+  pef_first_ultrasound_report: 1,
+  pef_ultrasound_reports: {
+    report_count: 1,
+    reports: [{
+      attachment_id: "pef-usg-test-1",
+      report_name: "First ultrasound report",
+      local_uri: "file:///device/pef-usg-test-1.jpg",
+      original_name: "camera.jpg",
+      mime_type: "image/jpeg",
+      file_size: 2048,
+    }],
+  },
 };
 const pefSubmission = await saveQuestionnaireSubmission({
   formCode: "PEF",
@@ -251,6 +263,18 @@ assert.equal(pefSubmission.form_code, "PEF");
 assert.equal(pefSubmission.household_id, "1-02-0042-03");
 assert.equal(pefSubmission.subject_type, "woman");
 assert.equal(pefSubmission.subject_id, "1-02-0042-03-02");
+assert.equal(
+  pefSubmission.answers_json.pef_ultrasound_reports.reports[0].local_uri,
+  undefined,
+  "finalized CRF JSON must not retain a device-local file path",
+);
+const finalizedAttachments = JSON.parse(
+  window.localStorage.getItem("dynamic_form_attachments_v1") || "[]",
+);
+assert.equal(finalizedAttachments.length, 1);
+assert.equal(finalizedAttachments[0].form_response_id, pefSubmission.submission_id);
+assert.equal(finalizedAttachments[0].local_uri, "file:///device/pef-usg-test-1.jpg");
+assert.equal(finalizedAttachments[0].sync_status, "pending");
 
 const webSqliteAfterPef = JSON.parse(window.localStorage.getItem("dynamic_web_sqlite_v2") || "{}");
 assert.equal(webSqliteAfterPef.form_responses.length, 3);
@@ -322,5 +346,89 @@ const normalizedHhqEvent = syncRecords.find(
 assert.ok(normalizedHhqEvent);
 assert.equal(normalizedHhqEvent.data.locality_code, "02");
 assert.equal(syncRecords.filter((record) => record.type === "domain_event").length, 2);
+
+const negativePefTaskContext = {
+  ...pefTaskContext,
+  id: "local-task-pef-negative-1",
+  task_key: "1-02-0042-03|woman|1-02-0042-03-03|PEF|PEF-pregnancy-detected|2026-09-16|v1",
+  subject_id: "1-02-0042-03-03",
+  woman_id: "1-02-0042-03-03",
+  pregnancy_id: "local-pregnancy:1-02-0042-03-03:1",
+  eligibility_start_date: "2026-09-02",
+};
+const stateBeforeNegativePef = JSON.parse(
+  window.localStorage.getItem("dynamic_web_sqlite_v2") || "{}",
+);
+stateBeforeNegativePef.pregnancies.push({
+  pregnancy_id: negativePefTaskContext.pregnancy_id,
+  woman_id: negativePefTaskContext.woman_id,
+  household_member_id: negativePefTaskContext.woman_id,
+  household_id: negativePefTaskContext.household_id,
+  pregnancy_status: "active",
+});
+stateBeforeNegativePef.eligible_women.push({
+  woman_id: negativePefTaskContext.woman_id,
+  household_member_id: negativePefTaskContext.woman_id,
+  household_id: negativePefTaskContext.household_id,
+  eligibility_start_date: negativePefTaskContext.eligibility_start_date,
+  tracking_status: "enrolled",
+});
+window.localStorage.setItem("dynamic_web_sqlite_v2", JSON.stringify(stateBeforeNegativePef));
+const negativePefSubmission = await saveQuestionnaireSubmission({
+  formCode: "PEF",
+  formVersion: "25 AUGUST 2026",
+  payload: {
+    household_id: "1-02-0042-03",
+    pef_enrollment_date: "2026-09-16",
+    pef_on_spot_upt_result: 2,
+  },
+  taskId: negativePefTaskContext.id,
+  taskContext: negativePefTaskContext,
+  deviceId: "device-1",
+});
+const stateAfterNegativePef = JSON.parse(
+  window.localStorage.getItem("dynamic_web_sqlite_v2") || "{}",
+);
+assert.equal(
+  stateAfterNegativePef.domain_events_outbox.some(
+    (event) =>
+      event.event_type === "pregnancy_enrolled" &&
+      String(event.payload || "").includes(negativePefSubmission.submission_id),
+  ),
+  false,
+  "Negative PEF must not create pregnancy_enrolled evidence",
+);
+assert.equal(
+  stateAfterNegativePef.pregnancies.find(
+    (pregnancy) => pregnancy.woman_id === negativePefTaskContext.woman_id,
+  )?.pregnancy_status,
+  "closed",
+  "Negative PEF must close the provisional active pregnancy",
+);
+assert.equal(
+  stateAfterNegativePef.eligible_women.find(
+    (woman) => woman.woman_id === negativePefTaskContext.woman_id,
+  )?.tracking_status,
+  "not_pregnant",
+  "Negative PEF must return the woman to pregnancy surveillance",
+);
+assert.ok(
+  stateAfterNegativePef.follow_up_tasks.some(
+    (task) =>
+      task.task_type === "PSF" &&
+      task.subject_id === negativePefTaskContext.woman_id &&
+      task.source_form_response_id === negativePefSubmission.submission_id,
+  ),
+  "Negative PEF must restore the woman's PSF schedule",
+);
+assert.equal(
+  stateAfterNegativePef.follow_up_tasks.some(
+    (task) =>
+      ["PFF", "UF"].includes(task.task_type) &&
+      task.source_form_response_id === negativePefSubmission.submission_id,
+  ),
+  false,
+  "Negative PEF must not create pregnancy follow-up tasks",
+);
 
 console.log("Validated questionnaire final submission workflow.");

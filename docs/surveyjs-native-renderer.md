@@ -173,10 +173,10 @@ Device access is isolated in the relevant standalone renderer.
 | Capability | Expo module | Stored answer boundary |
 | --- | --- | --- |
 | GPS | `expo-location` | latitude, longitude, altitude values in form state |
-| Camera | `expo-image-picker` | local asset metadata/URI pending attachment persistence and sync |
+| Camera | `expo-image-picker` | generic camera fields retain local metadata; PEF Q11 uses its dedicated durable attachment outbox |
 | File picker | `expo-document-picker` | local asset metadata/URI pending attachment persistence and sync |
 
-Permission denial is a visible control status, not a renderer fallback. Attachment persistence and sync policy must be completed before camera/file fields are enabled in production forms.
+Permission denial is a visible control status, not a renderer fallback. A production attachment question must provide durable app-owned storage, validation, an attachment outbox, authenticated server acceptance, and retry semantics; PEF Q11 implements that dedicated path.
 
 ## Native Runtime Compatibility
 
@@ -231,6 +231,6 @@ When adding a capability or moving another form to native rendering:
 ## Current Limits
 
 - All bundled questionnaire definitions pass the native capability registry, but non-HHQ forms still need broader real-device QA and any form-specific workflow behavior such as derived IDs, promotion rules, task creation, or attachment persistence.
-- Camera/file selection modules exist, but durable attachment persistence, encryption, sync, retry, and server acceptance remain separate work.
+- Generic camera/file selection remains metadata-only. PEF Q11 is the first dedicated durable image workflow; broader reusable attachment support and at-rest application-layer encryption remain separate work.
 - Date uses platform calendar widgets and displays `DD-MMM-YYYY` while preserving the ISO `YYYY-MM-DD` stored-value contract.
 - Draft/autosave policy remains authoritative and must be applied when the native renderer is integrated into the generic questionnaire lifecycle.

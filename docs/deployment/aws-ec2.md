@@ -11,7 +11,8 @@ Before cloning, verify the EBS mount and configure Docker (an OS-level file) so 
 ```bash
 findmnt /data
 lsblk -o NAME,SIZE,FSTYPE,MOUNTPOINTS
-sudo install -d -m 0750 /data/docker_volumes /data/dynamic/releases
+sudo install -d -m 0750 /data/docker_volumes /data/dynamic/releases /data/dynamic/imageuploads
+sudo chown dynamic-api:dynamic-api /data/dynamic/imageuploads
 sudo install -d -m 0755 /etc/docker
 printf '{"data-root":"/data/docker_volumes"}\n' | sudo tee /etc/docker/daemon.json
 sudo systemctl restart docker   # interrupts Docker services; maintenance window
@@ -47,6 +48,14 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now dynamic-docker dynamic-api dynamic-web
 ```
 
+For the PEF Q11 image release, take a verified database backup, then apply the reviewed idempotent schema file before restarting the API:
+
+```bash
+sudo docker compose -f /data/dynamic/current/deploy/docker-compose.production.yml --env-file /etc/dynamic/production.env exec -T postgres \
+  psql -U dynamic_app -d dynamic -v ON_ERROR_STOP=1 \
+  < /data/dynamic/current/deploy/sql/2026-09-18-form-attachments.sql
+```
+
 `dynamic-docker` starts the production Compose file, named volumes, and Nginx. `dynamic-web` runs the built admin bundle through Vite's production preview server, not the development HMR server. It does not run schema pushes or development seeds. Apply reviewed versioned migrations separately after a verified backup; never use `make db-reset-full` or `make db-push` in production.
 
 ## Operations, backup, and rollback
@@ -59,7 +68,7 @@ sudo docker compose -f /data/dynamic/current/deploy/docker-compose.production.ym
 curl --fail --silent https://your-real-hostname.example/health
 ```
 
-Back up PostgreSQL with the organization's encrypted backup procedure and verify a restore periodically. Keep the previous release under `/data/dynamic/releases/`. A rollback can interrupt service:
+Back up PostgreSQL and `/data/dynamic/imageuploads` together with the organization's encrypted backup procedure and verify a restore periodically. Attachment database rows store paths relative to this persistent directory, which must not be placed inside an individual release. Keep the previous release under `/data/dynamic/releases/`. A rollback can interrupt service:
 
 ```bash
 sudo bash /data/dynamic/current/deploy/scripts/rollback-release.sh /data/dynamic/releases/<previous-release-id>

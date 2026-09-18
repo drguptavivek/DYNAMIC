@@ -1,4 +1,8 @@
-import { eligibleWomanIdentified, promoteFormSubmission } from "@dynamic/event-core";
+import {
+  eligibleWomanIdentified,
+  generatePregnancySurveillanceTaskDescriptors,
+  promoteFormSubmission,
+} from "@dynamic/event-core";
 import {
   buildHouseholdIdFromHhqData,
   extractHouseholdRegistryFields,
@@ -10,6 +14,13 @@ import {
   canCorrectExcludedWqResponse,
   isWqVisitorAnswers,
 } from "./wqVisitorExclusion.js";
+import { isPefNegativeUptAnswers } from "../../lib/pefPrefillHelpers.js";
+import {
+  PEF_ULTRASOUND_AVAILABLE_FIELD,
+  PEF_ULTRASOUND_REPORTS_FIELD,
+  sanitizePefUltrasoundReports,
+  validatePefUltrasoundReports,
+} from "../attachments/pefUltrasoundReports.js";
 
 const STORAGE_KEY = "dynamic_questionnaire_submissions_v1";
 const WEB_SQLITE_STORAGE_KEY = "dynamic_web_sqlite_v2";
@@ -446,6 +457,74 @@ async function savePefDerivedWorkflow(pregnancy, tasks) {
   saveWebPefDerivedWorkflow(pregnancy, tasks);
 }
 
+function resolvePsfScheduleAnchor(response, taskContext, detectedDate) {
+  return (
+    detectedDate ||
+    taskContext?.anchor_date ||
+    response.answers_json?.pef_enrollment_date ||
+    response.submitted_at.split("T")[0]
+  );
+}
+
+async function applyLocalNegativePefState(response, taskContext) {
+  const womanId = taskContext?.woman_id || response.subject_id;
+  try {
+    const taskRepository = await import("../tasks/taskRepository.js");
+    if (typeof taskRepository.applyLocalNegativePefOutcome === "function") {
+      return taskRepository.applyLocalNegativePefOutcome({ womanId });
+    }
+  } catch {
+    // Node tests and web fallback do not load the native SQLite adapter.
+  }
+
+  const storage = getStorage();
+  if (!storage) return { restoredPsfTasks: 0, hasPsfTasks: false, detectedDate: null };
+  const state = readWebSqliteState(storage);
+  const now = response.submitted_at;
+  const activePregnancy = (state.pregnancies || []).find(
+    (pregnancy) => pregnancy.woman_id === womanId && pregnancy.pregnancy_status === "active",
+  );
+  let restoredPsfTasks = 0;
+  const hasPsfTasks = (state.follow_up_tasks || []).some(
+    (task) => task.subject_id === womanId && String(task.task_type || "").toUpperCase() === "PSF",
+  );
+  state.follow_up_tasks = (state.follow_up_tasks || []).map((task) => {
+    if (
+      task.subject_id === womanId &&
+      String(task.task_type || "").toUpperCase() === "PSF" &&
+      task.status === "cancelled" &&
+      task.closed_reason === "pregnancy_detected"
+    ) {
+      restoredPsfTasks += 1;
+      return {
+        ...task,
+        status: "planned",
+        lifecycle_status: "planned",
+        closed_reason: null,
+        closed_at: null,
+        updated_at: now,
+      };
+    }
+    return task;
+  });
+  state.pregnancies = (state.pregnancies || []).map((pregnancy) =>
+    pregnancy.woman_id === womanId && pregnancy.pregnancy_status === "active"
+      ? { ...pregnancy, pregnancy_status: "closed", updated_at: now }
+      : pregnancy,
+  );
+  state.eligible_women = (state.eligible_women || []).map((woman) =>
+    woman.woman_id === womanId || woman.household_member_id === womanId
+      ? { ...woman, tracking_status: "not_pregnant", sync_status: "pending", updated_at: now }
+      : woman,
+  );
+  storage.setItem(WEB_SQLITE_STORAGE_KEY, JSON.stringify(state));
+  return {
+    restoredPsfTasks,
+    hasPsfTasks,
+    detectedDate: activePregnancy?.detected_date || null,
+  };
+}
+
 async function promoteHhqLocally(response) {
   if (response.form_code !== "HHQ" || !response.household_id) return;
   if (isHhqEarlyStopResponse(response)) return;
@@ -512,6 +591,30 @@ async function promoteHhqLocally(response) {
 
 async function promotePefLocally(response, taskContext) {
   if (response.form_code !== "PEF" || !response.household_id || !response.subject_id) return;
+  if (isPefNegativeUptAnswers(response.answers_json)) {
+    const localState = await applyLocalNegativePefState(response, taskContext);
+    if (!localState?.hasPsfTasks) {
+      const anchorDate = resolvePsfScheduleAnchor(
+        response,
+        taskContext,
+        localState?.detectedDate,
+      );
+      const tasks = generatePregnancySurveillanceTaskDescriptors({
+        household_id: response.household_id,
+        woman_id: taskContext?.woman_id || response.subject_id,
+        eligibility_date: anchorDate,
+        source_event_id: response.id,
+      }).map((descriptor) =>
+        toLocalTask(descriptor, {
+          submittedAt: response.submitted_at,
+          localityCode: response.locality_code,
+          sourceFormResponseId: response.id,
+        }),
+      );
+      await saveTasks(tasks);
+    }
+    return;
+  }
   const pregnancyId = buildPregnancyId(response, taskContext);
   const promotion = promoteFormSubmission({
     form_code: response.form_code,
@@ -630,16 +733,43 @@ export async function saveQuestionnaireSubmission({
   if (correctionResponseId && !canCorrectExcludedWqResponse(correctionSource, Date.now())) {
     throw new Error("This excluded form is no longer within the 10-minute correction period.");
   }
+  let finalPayload = payload || {};
+  let finalizedUltrasoundReports = null;
+  if (
+    String(formCode || "").toUpperCase() === "PEF" &&
+    Number(finalPayload[PEF_ULTRASOUND_AVAILABLE_FIELD]) === 1
+  ) {
+    finalizedUltrasoundReports = finalPayload[PEF_ULTRASOUND_REPORTS_FIELD];
+    const attachmentError = validatePefUltrasoundReports(finalizedUltrasoundReports);
+    if (attachmentError) throw new Error(attachmentError);
+    finalPayload = {
+      ...finalPayload,
+      [PEF_ULTRASOUND_REPORTS_FIELD]: sanitizePefUltrasoundReports(finalizedUltrasoundReports),
+    };
+  } else if (Object.prototype.hasOwnProperty.call(finalPayload, PEF_ULTRASOUND_REPORTS_FIELD)) {
+    finalPayload = { ...finalPayload };
+    delete finalPayload[PEF_ULTRASOUND_REPORTS_FIELD];
+  }
+
   const response = buildQuestionnaireResponse({
     formCode,
     formVersion,
-    payload,
+    payload: finalPayload,
     taskId,
     taskContext,
     deviceId,
     submittedAt: now,
   });
   const submission = { ...response };
+
+  if (finalizedUltrasoundReports) {
+    const { saveFinalizedAttachments } = await import("../attachments/attachmentRepository.js");
+    await saveFinalizedAttachments({
+      response,
+      questionName: PEF_ULTRASOUND_REPORTS_FIELD,
+      value: finalizedUltrasoundReports,
+    });
+  }
 
   await saveCanonicalFormResponse(response);
   if (correctionResponseId) {
@@ -658,7 +788,12 @@ export async function saveQuestionnaireSubmission({
   }
   await promoteHhqLocally(response);
   await promotePefLocally(response, taskContext);
-  if (response.form_code === "PEF" && response.household_id && response.subject_id) {
+  if (
+    response.form_code === "PEF" &&
+    response.household_id &&
+    response.subject_id &&
+    !isPefNegativeUptAnswers(response.answers_json)
+  ) {
     try {
       const taskRepository = await import("../tasks/taskRepository.js");
       taskRepository.supersedeLocalPsfTasksForWoman?.({

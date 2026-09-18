@@ -727,6 +727,7 @@ export function getNativeRendererKind(question) {
   if (renderAs === "note") return "note";
   if (renderAs === "camera") return "camera";
   if (renderAs === "file_picker") return "file-picker";
+  if (renderAs === "pef_ultrasound_reports") return "pef-ultrasound-reports";
   if (renderAs === "gps_decimal" || renderAs === "gps_altitude") return "gps";
   if (renderAs.startsWith("grouped_")) return "grouped-coded-single-select";
   if (renderAs === "household_member_dropdown") return "household-member-dropdown";
@@ -807,6 +808,12 @@ function isEmptyValue(value) {
 
 function displayValue(question) {
   if (isEmptyValue(question?.value)) return "-";
+  if (question?.renderAs === "pef_ultrasound_reports") {
+    const reports = Array.isArray(question.value?.reports) ? question.value.reports : [];
+    return reports.length > 0
+      ? reports.map((report, index) => `${index + 1}. ${report.report_name || "Unnamed report"}`).join("; ")
+      : "-";
+  }
   if (typeof question?.getDisplayValue === "function") {
     const value = question.getDisplayValue(true, question.value);
     if (Array.isArray(value)) return value.join(", ");

@@ -21,6 +21,11 @@ import {
   selectNextPullCursor,
   summarizeClockStatus,
 } from "./syncWorkflow.js";
+import {
+  listPendingAttachmentsForResponses,
+  markAttachmentSynced,
+  markAttachmentUploadError,
+} from "../attachments/attachmentRepository.js";
 
 function unwrapApiData(payload) {
   return payload && Object.prototype.hasOwnProperty.call(payload, "data") ? payload.data : payload;
@@ -598,10 +603,52 @@ async function pullMembersForHouseholds(token, householdIds) {
 
 const PUSH_FORM_RESPONSE_BATCH_SIZE = 100;
 
+async function pushAttachmentsForResponses({ token, deviceId, formResponses }) {
+  const attachments = await listPendingAttachmentsForResponses(formResponses.map((response) => response.id));
+  for (const attachment of attachments) {
+    const body = new FormData();
+    body.append("attachment_id", attachment.attachment_id);
+    body.append("form_response_id", attachment.form_response_id);
+    body.append("form_code", attachment.form_code);
+    body.append("question_name", attachment.question_name);
+    body.append("household_id", attachment.household_id);
+    body.append("woman_id", attachment.woman_id);
+    body.append("report_sequence", String(attachment.report_sequence));
+    body.append("display_name", attachment.display_name);
+    body.append("device_id", deviceId);
+    body.append("file", {
+      uri: attachment.local_uri,
+      name: attachment.original_file_name || `${attachment.attachment_id}.jpg`,
+      type: attachment.mime_type || "image/jpeg",
+    });
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/sync/attachments`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body,
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        const message = payload?.error?.message || `Attachment upload failed (${response.status})`;
+        throw new Error(message);
+      }
+      const data = unwrapApiData(payload);
+      await markAttachmentSynced(attachment.attachment_id, data.relative_path);
+    } catch (error) {
+      const message = error?.message || "Attachment upload failed";
+      await markAttachmentUploadError(attachment.attachment_id, message);
+      throw new Error(`Could not upload ${attachment.display_name}: ${message}`);
+    }
+  }
+  return attachments.length;
+}
+
 async function pushRecordBatch({ token, deviceId, formResponses = [], domainEvents = [] }) {
+  const attachments = await pushAttachmentsForResponses({ token, deviceId, formResponses });
   const records = buildPushRecords({ formResponses, domainEvents });
   if (records.length === 0) {
-    return { pushed: 0, events: 0, uploadErrors: 0 };
+    return { pushed: 0, events: 0, uploadErrors: 0, attachments };
   }
 
   const response = await fetch(`${API_BASE_URL}/sync/push`, {
@@ -731,6 +778,7 @@ async function pushRecordBatch({ token, deviceId, formResponses = [], domainEven
     events: processedEventIds.size,
     uploadErrors: uploadErrorItems.length,
     duplicateErrors: uploadErrorItems.filter((item) => duplicateIds.has(item.id)).length,
+    attachments,
   };
 }
 
@@ -797,6 +845,7 @@ export async function pushSync() {
     let events = 0;
     let uploadErrors = 0;
     let duplicateErrors = 0;
+    let attachments = 0;
     let eventsSent = false;
     while (true) {
       const pendingBatch = await taskRepository.getPendingResponseBatch(PUSH_FORM_RESPONSE_BATCH_SIZE);
@@ -812,6 +861,7 @@ export async function pushSync() {
           events += eventResult.events;
           uploadErrors += eventResult.uploadErrors;
           duplicateErrors += eventResult.duplicateErrors || 0;
+          attachments += eventResult.attachments || 0;
           eventsSent = true;
         }
         break;
@@ -827,6 +877,7 @@ export async function pushSync() {
       events += batchResult.events;
       uploadErrors += batchResult.uploadErrors;
       duplicateErrors += batchResult.duplicateErrors || 0;
+      attachments += batchResult.attachments || 0;
       eventsSent = true;
     }
 
@@ -835,6 +886,7 @@ export async function pushSync() {
       events,
       uploadErrors,
       duplicateErrors,
+      attachments,
       drafts: syncedDrafts,
       staleDraftsRemoved,
       draftSyncErrors,

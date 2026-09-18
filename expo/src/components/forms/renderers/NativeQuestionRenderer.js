@@ -19,6 +19,7 @@ import { InstructionRenderer } from "./InstructionRenderer.js";
 import { MultipleTextRenderer } from "./MultipleTextRenderer.js";
 import { NoteRenderer } from "./NoteRenderer.js";
 import { NumberRenderer } from "./NumberRenderer.js";
+import { PefUltrasoundReportsRenderer } from "./PefUltrasoundReportsRenderer.js";
 import { SelectManyRenderer } from "./SelectManyRenderer.js";
 import { SelectOneRenderer } from "./SelectOneRenderer.js";
 import { TextRenderer } from "./TextRenderer.js";
@@ -63,6 +64,7 @@ function NativeQuestionRendererBase({
     case "multiple-text": rendered = <MultipleTextRenderer {...props} />; break;
     case "note": rendered = <NoteRenderer {...props} />; break;
     case "number": rendered = <NumberRenderer {...props} />; break;
+    case "pef-ultrasound-reports": rendered = <PefUltrasoundReportsRenderer {...props} />; break;
     case "select-many": rendered = <SelectManyRenderer {...props} />; break;
     case "select-one": rendered = <SelectOneRenderer {...props} />; break;
     case "text": rendered = <TextRenderer {...props} />; break;

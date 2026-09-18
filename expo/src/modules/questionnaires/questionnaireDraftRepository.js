@@ -700,6 +700,21 @@ export async function listQuestionnaireDraftsForSync(userId) {
 export function toDraftSyncRecord(draft) {
   const householdId = getHouseholdIdFromDraft(draft);
   const [siteId, localityCode] = String(householdId || "").split("-");
+  const jsonPayload = { ...(draft.json_payload || {}) };
+  const reports = jsonPayload.pef_ultrasound_reports;
+  if (reports?.reports) {
+    jsonPayload.pef_ultrasound_reports = {
+      report_count: Number(reports.report_count) || 0,
+      reports: reports.reports.map((report, index) => ({
+        attachment_id: report.attachment_id,
+        report_sequence: index + 1,
+        report_name: report.report_name || "",
+        original_name: report.original_name || null,
+        mime_type: report.mime_type || null,
+        file_size: Number.isFinite(Number(report.file_size)) ? Number(report.file_size) : null,
+      })),
+    };
+  }
   return {
     draft_id: draft.draft_id,
     form_code: draft.form_code,
@@ -712,7 +727,7 @@ export function toDraftSyncRecord(draft) {
     locality_code: localityCode,
     user_id: draft.user_id,
     device_id: draft.device_id,
-    json_payload: draft.json_payload || {},
+    json_payload: jsonPayload,
     completion_state: draft.completion_state || {},
     draft_status: draft.draft_status,
     submitted_form_response_id: draft.submitted_form_response_id || null,

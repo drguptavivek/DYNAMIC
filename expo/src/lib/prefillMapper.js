@@ -4,6 +4,7 @@
  */
 
 import { listFormResponses } from "../modules/tasks/taskRepository.js";
+import { findPefSourceResponse, resolvePefHusbandName } from "./pefPrefillHelpers.js";
 
 function formatLocalIsoDate(date = new Date()) {
   const year = date.getFullYear();
@@ -126,24 +127,13 @@ export function buildPefPrefill(member, household, task = null) {
 
   const direct = String(task?.generation_source || "").toLowerCase() === "contextual_action";
   let source = direct ? "direct" : null;
-  if (!source && task?.source_event_id) {
-    const sourceResponse = listFormResponses({ subject_id: member.individual_id }).find(
-      (response) => [response?.id, response?.form_response_id].some(
-        (value) => String(value || "") === String(task.source_event_id),
-      ),
-    );
-    const sourceCode = String(sourceResponse?.form_code || "").toUpperCase();
-    if (sourceCode === "WQ" || sourceCode === "BWQ") source = "wq";
-    if (sourceCode === "PSF") source = "psf";
-  }
-
-  const sourceResponse = source && source !== "direct" && task?.source_event_id
-    ? listFormResponses({ subject_id: member.individual_id }).find(
-        (response) => [response?.id, response?.form_response_id].some(
-          (value) => String(value || "") === String(task.source_event_id),
-        ),
-      )
-    : null;
+  const sourceResponses = direct
+    ? []
+    : listFormResponses({ subject_id: member.individual_id });
+  const sourceResponse = direct ? null : findPefSourceResponse(sourceResponses, task);
+  const sourceCode = String(sourceResponse?.form_code || "").toUpperCase();
+  if (sourceCode === "WQ" || sourceCode === "BWQ") source = "wq";
+  if (sourceCode === "PSF") source = "psf";
   let sourceAnswers = {};
   try {
     sourceAnswers = typeof sourceResponse?.answers_json === "object"
@@ -161,7 +151,6 @@ export function buildPefPrefill(member, household, task = null) {
       prefill: {},
       readOnlyFields: [],
       pefSource: "direct",
-      pefSourceSelectableValues: [3, 4],
     };
   }
 
@@ -169,13 +158,13 @@ export function buildPefPrefill(member, household, task = null) {
     pef_pregnancy_information_source: source === "psf" ? 2 : 1,
     pef_woman_hh_member_id: member.individual_id,
     pef_woman_name: member.member_name,
-    pef_husband_name: member.husband_name || sourceAnswers.wq_husband_partner_name || sourceAnswers.psf_husband_name || "",
+    pef_husband_name: resolvePefHusbandName(member, sourceAnswers),
     pef_household_head_name: household.household_head_name || household.head_name || "",
     pef_current_address: household.address || sourceAnswers.psf_current_address || "",
   };
 
   const readOnlyFields = [
-    "pef_pregnancy_information_source", "pef_woman_hh_member_id", "pef_woman_name",
+    "pef_woman_hh_member_id", "pef_woman_name",
     "pef_husband_name", "pef_household_head_name", "pef_current_address",
   ];
 

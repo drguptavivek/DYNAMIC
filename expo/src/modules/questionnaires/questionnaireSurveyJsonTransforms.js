@@ -2,8 +2,16 @@
  * Applies form-specific compatibility transforms before a definition enters Survey Core.
  */
 import { prepareSurveyJson } from "../../lib/prepareSurveyJson.js";
+import {
+  PEF_NEGATIVE_UPT_VALUE,
+  PEF_ON_SPOT_UPT_RESULT_FIELD,
+  PEF_OUTCOME_PAGE_NAME,
+} from "../../lib/pefPrefillHelpers.js";
 
 const HHQ_FORM_CODE = "HHQ";
+const PEF_FORM_CODE = "PEF";
+const PEF_ULTRASOUND_AVAILABLE_FIELD = "pef_first_ultrasound_report";
+const PEF_ULTRASOUND_REPORTS_FIELD = "pef_ultrasound_reports";
 const HHQ_SINGLE_MOBILE_NAME = "hhq_contact_mobile";
 const HHQ_MOBILE_LIST_NAME = "hhq_contact_mobile_numbers";
 const HHQ_MOBILE_ROW_NAME = "mobile_number";
@@ -165,6 +173,79 @@ const WQ_STOP_OUTCOME_VISIBLE_IF = {
 
 function isHhqForm(form) {
   return form?.form_code === HHQ_FORM_CODE;
+}
+
+function isPefForm(form) {
+  return String(form?.form_code || "").toUpperCase() === PEF_FORM_CODE;
+}
+
+function addPefUltrasoundReports(surveyJson) {
+  return {
+    ...surveyJson,
+    pages: (surveyJson.pages || []).map((page) => ({
+      ...page,
+      elements: (page.elements || []).flatMap((element) => {
+        if (element.name !== PEF_ULTRASOUND_AVAILABLE_FIELD) return [element];
+        return [
+          element,
+          {
+            type: "text",
+            name: PEF_ULTRASOUND_REPORTS_FIELD,
+            title: "Ultrasound reports",
+            renderAs: "pef_ultrasound_reports",
+            isRequired: true,
+            visibleIf: `{${PEF_ULTRASOUND_AVAILABLE_FIELD}} = 1`,
+          },
+        ];
+      }),
+    })),
+  };
+}
+
+function applyPefNegativeUptOutcome(surveyJson) {
+  const negativeGuard = `{${PEF_ON_SPOT_UPT_RESULT_FIELD}} != ${PEF_NEGATIVE_UPT_VALUE}`;
+  let foundUptQuestion = false;
+
+  const pages = (surveyJson.pages || []).map((page) => ({
+    ...page,
+    elements: (page.elements || []).map((element) => {
+      if (element.name === PEF_ON_SPOT_UPT_RESULT_FIELD) {
+        foundUptQuestion = true;
+        return element;
+      }
+      if (!foundUptQuestion) return element;
+      return {
+        ...element,
+        visibleIf: element.visibleIf
+          ? `(${element.visibleIf}) and (${negativeGuard})`
+          : negativeGuard,
+      };
+    }),
+  }));
+
+  if (!foundUptQuestion || pages.some((page) => page.name === PEF_OUTCOME_PAGE_NAME)) {
+    return { ...surveyJson, pages };
+  }
+
+  return {
+    ...surveyJson,
+    pages: [
+      ...pages,
+      {
+        name: PEF_OUTCOME_PAGE_NAME,
+        title: { default: "Outcome", hi: "", kn: "", mr: "", ta: "", te: "", ur: "" },
+        visibleIf: `{${PEF_ON_SPOT_UPT_RESULT_FIELD}} = ${PEF_NEGATIVE_UPT_VALUE}`,
+        elements: [
+          {
+            type: "html",
+            name: "pef_negative_upt_outcome_message",
+            html:
+              "UPT result is Negative. Stop filling the Pregnancy Enrollment Form for this woman. After final submission, her Pregnancy Surveillance Form task will continue as per the task flow.",
+          },
+        ],
+      },
+    ],
+  };
 }
 
 function applyMandatoryHhqSurveyJson(surveyJson) {
@@ -1185,6 +1266,10 @@ export function prepareQuestionnaireSurveyJson(form) {
   let surveyJson = prepareSurveyJson(form);
   surveyJson = scopeDynamicPanelExpressions(surveyJson);
   surveyJson = hideQuestionnaireLanguageFields(surveyJson);
+  if (isPefForm(form)) {
+    surveyJson = addPefUltrasoundReports(surveyJson);
+    surveyJson = applyPefNegativeUptOutcome(surveyJson);
+  }
   if (isHhqForm(form)) {
     surveyJson = allowMultipleHhqMobileNumbers(surveyJson);
     surveyJson = applyHhqHighestGradeInput(surveyJson);

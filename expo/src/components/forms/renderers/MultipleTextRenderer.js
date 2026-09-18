@@ -10,6 +10,7 @@ import {
   WQ_PREGNANCY_DURATION_FIELD,
 } from "../nativeSurveyModel.js";
 import { normalizeMultipleTextInputValue } from "./multipleTextValue.js";
+import { shouldPromptBhqVisitorConfirmation } from "./bhqVisitorConfirmation.js";
 
 function localizedItemText(text, locale = "default") {
   if (typeof text === "string") return text;
@@ -286,6 +287,9 @@ function MultipleTextItemInput({ item, itemValue, question, unknownSelected, spe
         const { sanitized } = normalized;
         setTextValue(sanitized);
         onCommit(normalized.value);
+        if (shouldPromptBhqVisitorConfirmation(question, item, sanitized)) {
+          question.__requestBhqVisitorConfirmation?.(question);
+        }
       }}
       onBlur={() => {
         question.validate?.();

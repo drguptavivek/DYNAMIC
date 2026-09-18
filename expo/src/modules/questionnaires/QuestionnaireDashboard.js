@@ -46,6 +46,12 @@ import {
 import { applyReadOnlyFields } from "./questionnaireReadOnlyFields.js";
 import { mergePrefillIntoBlankValues } from "../../lib/prefillMapper.js";
 import {
+  PEF_NEGATIVE_UPT_VALUE,
+  PEF_ON_SPOT_UPT_RESULT_FIELD,
+  PEF_OUTCOME_PAGE_NAME,
+  applyPefOnSpotUptSiteVisibility,
+} from "../../lib/pefPrefillHelpers.js";
+import {
   applyPregnancySurveillanceCalculations,
   shouldRecalculatePregnancySurveillance,
 } from "../../lib/pregnancySurveillanceBehaviors.js";
@@ -53,6 +59,12 @@ import { listHouseholdMembers } from "../households/householdRepository.js";
 import { getDraftSavedMessage } from "./draftSaveMessages.js";
 import { applyQuestionnaireLanguageFromLocale } from "../../lib/questionnaireLanguageField.js";
 import { createSurveyModel } from "../../polyfills/surveyCoreNative.js";
+import {
+  PEF_ULTRASOUND_AVAILABLE_FIELD,
+  PEF_ULTRASOUND_REPORTS_FIELD,
+  validatePefUltrasoundReports,
+} from "../attachments/pefUltrasoundReports.js";
+import { removePersistedPefUltrasoundImage } from "../attachments/pefUltrasoundAttachmentStorage.js";
 import {
   WQ_RESIDENCE_DURATION_FIELD,
   WQ_VISITOR_EXCLUDED_FIELD,
@@ -108,6 +120,11 @@ const WQ_HUSBAND_PARTNER_NAME_FIELD = "wq_husband_partner_name";
 const WQ_HUSBAND_PARTNER_LINE_NUMBER_FIELD = "wq_husband_partner_line_number";
 const WQ_EXCLUDED_MESSAGE = "This women is excluded from the study";
 const WQ_RESCHEDULE_MESSAGE = "Reschedule has been setup";
+const PEF_ULTRASOUND_FIELD = "pef_any_time_during_pregnancy_ultrasound";
+const PEF_ULTRASOUND_NO_VALUE = 2;
+const PEF_ULTRASOUND_FOLLOW_UP_TITLE = "Need to follow-up";
+const PEF_ULTRASOUND_FOLLOW_UP_MESSAGE =
+  "When you will fill PFF for this women ensure upload of ultrasound report.";
 
 function isHouseholdQuestionnaire(form) {
   return String(form?.form_code || "").toUpperCase() === "HHQ";
@@ -127,24 +144,6 @@ function isPregnancySurveillanceForm(form) {
 
 function isPregnancyEnrollmentForm(form) {
   return String(form?.form_code || "").toUpperCase() === "PEF";
-}
-
-function applyPefSourceBehavior(model, taskContext, prefillData) {
-  if (!model || !isPregnancyEnrollmentForm({ form_code: "PEF" })) return;
-  const sourceQuestion = model.getQuestionByName?.("pef_pregnancy_information_source");
-  const direct = String(taskContext?.generation_source || "").toLowerCase() === "contextual_action";
-  if (!sourceQuestion || !direct) return;
-
-  // Keep all workbook choices visible for direct entry. Options 1 and 2 are
-  // explicitly No in this context and cannot be selected; options 3 and 4
-  // remain available after the database search.
-  sourceQuestion.choices = (sourceQuestion.choices || []).map((item) => ({
-    ...item,
-    ...(Number(item.value) <= 2 ? { directAnswer: "No", disabled: true } : {}),
-  }));
-  sourceQuestion.description = {
-    default: "Direct household entry: options 1 and 2 are No. Select option 3 or 4 after conducting the database search.",
-  };
 }
 
 function clampWqVisitNo(value) {
@@ -351,6 +350,7 @@ export function QuestionnaireDashboard({
   const previewSignatureRef = useRef("");
   const memberSummaryConfirmedRef = useRef(false);
   const pefSearchPromptedRef = useRef(false);
+  const draftRestoreInProgressRef = useRef(false);
   const wqVisitorPromptOpenRef = useRef(false);
   const surveyRef = useRef(null);
   const answerSnapshotRef = useRef({});
@@ -581,7 +581,16 @@ export function QuestionnaireDashboard({
 
     if (isPregnancyEnrollmentForm(form)) {
       pefSearchPromptedRef.current = false;
-      applyPefSourceBehavior(model, taskContext, prefillData);
+      applyPefOnSpotUptSiteVisibility(model, { taskContext, prefillData, user });
+      model.onValidateQuestion.add((sender, options) => {
+        if (
+          options.name === PEF_ULTRASOUND_REPORTS_FIELD &&
+          Number(sender.getValue(PEF_ULTRASOUND_AVAILABLE_FIELD)) === 1
+        ) {
+          const message = validatePefUltrasoundReports(options.value);
+          if (message) options.error = message;
+        }
+      });
     }
 
     if (isWomanQuestionnaire(form)) {
@@ -632,6 +641,38 @@ export function QuestionnaireDashboard({
           "Conduct search procedure in the database to locate women in the database.",
           [{ text: "OK" }],
         );
+      }
+      if (
+        isPregnancyEnrollmentForm(form) &&
+        options.name === PEF_ULTRASOUND_AVAILABLE_FIELD &&
+        Number(options.value) !== 1
+      ) {
+        const previous = sender.getValue(PEF_ULTRASOUND_REPORTS_FIELD);
+        for (const report of previous?.reports || []) {
+          removePersistedPefUltrasoundImage(report?.local_uri).catch(() => {});
+        }
+        sender.clearValue(PEF_ULTRASOUND_REPORTS_FIELD);
+      }
+      if (
+        isPregnancyEnrollmentForm(form) &&
+        options.name === PEF_ON_SPOT_UPT_RESULT_FIELD &&
+        Number(options.value) === PEF_NEGATIVE_UPT_VALUE
+      ) {
+        setSaveMessage("UPT result is Negative. Complete the outcome and final-submit this form.");
+        requestAnimationFrame(() => {
+          goToSurveySection(sender, PEF_OUTCOME_PAGE_NAME);
+          updateSurveyStatus(sender);
+        });
+      }
+      if (
+        isPregnancyEnrollmentForm(form) &&
+        !draftRestoreInProgressRef.current &&
+        options.name === PEF_ULTRASOUND_FIELD &&
+        Number(options.value) === PEF_ULTRASOUND_NO_VALUE
+      ) {
+        Alert.alert(PEF_ULTRASOUND_FOLLOW_UP_TITLE, PEF_ULTRASOUND_FOLLOW_UP_MESSAGE, [
+          { text: "OK" },
+        ]);
       }
       if (isWomanQuestionnaire(form)) {
         if (options.name === WQ_INTERVIEW_DATE_FIELD) {
@@ -1045,10 +1086,15 @@ export function QuestionnaireDashboard({
           ...(survey.data || {}),
           ...(draft.json_payload || {}),
         };
-        survey.data = normalizeQuestionnaireSurveyData(
-          form,
-          mergePrefillIntoBlankValues(restoredData, survey.data || {}),
-        );
+        draftRestoreInProgressRef.current = true;
+        try {
+          survey.data = normalizeQuestionnaireSurveyData(
+            form,
+            mergePrefillIntoBlankValues(restoredData, survey.data || {}),
+          );
+        } finally {
+          draftRestoreInProgressRef.current = false;
+        }
         answerSnapshotRef.current = { ...(survey.data || {}) };
         setRendererAnswerData(answerSnapshotRef.current);
         if (isHouseholdQuestionnaire(form)) {

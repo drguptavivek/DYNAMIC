@@ -1,5 +1,8 @@
 import { Router, Request, Response } from "express";
 import { eq, and, gt, inArray, count, lte, or } from "drizzle-orm";
+import { createHash, randomUUID } from "node:crypto";
+import { mkdir, rename, rm, writeFile } from "node:fs/promises";
+import multer from "multer";
 import { db, schema } from "../db";
 import { JwtPayload, optionalAuth, requireAuth } from "../middleware/auth";
 import { sendError, sendSuccess } from "../lib/errors";
@@ -9,8 +12,16 @@ import { buildSyncClockMetadata } from "../lib/syncClock";
 import { appendAreaScopeCondition, canAccessLocation } from "../lib/areaScope";
 import { runWithDb } from "../lib/dbContext";
 import { getDataAccessProfile, requireDataAccess } from "../lib/dataAccess";
+import { buildFormAttachmentLocation, isSupportedImageBuffer } from "../lib/formAttachmentStorage";
 
 const router = Router();
+const attachmentUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 12 * 1024 * 1024, files: 1 },
+  fileFilter: (_req, file, callback) => {
+    callback(null, file.mimetype.startsWith("image/"));
+  },
+});
 
 interface PageToken {
   since: string;
@@ -830,6 +841,132 @@ router.post(
     console.error("Sync pull members error:", error);
     sendError(res, 500, "SYNC_PULL_MEMBERS_ERROR", "Error pulling household members");
   }
+  },
+);
+
+/**
+ * POST /api/v1/sync/attachments
+ * Persist one offline form image before its owning response is pushed.
+ */
+router.post(
+  "/attachments",
+  requireAuth,
+  requireDataAccess("can_access_raw_crfs"),
+  attachmentUpload.single("file"),
+  async (req: Request, res: Response) => {
+    let writtenPath: string | null = null;
+    try {
+      const attachmentId = String(req.body?.attachment_id || "");
+      const responseId = String(req.body?.form_response_id || "");
+      const formCode = String(req.body?.form_code || "").toUpperCase();
+      const questionName = String(req.body?.question_name || "");
+      const householdId = String(req.body?.household_id || "");
+      const womanId = String(req.body?.woman_id || "");
+      const deviceId = String(req.body?.device_id || "");
+      const displayName = String(req.body?.display_name || "").trim();
+      const sequence = Number.parseInt(String(req.body?.report_sequence || ""), 10);
+
+      if (
+        !attachmentId || !responseId || formCode !== "PEF" ||
+        questionName !== "pef_ultrasound_reports" || !householdId || !womanId ||
+        !deviceId || !displayName || !Number.isInteger(sequence) || sequence < 1 || sequence > 5
+      ) {
+        return sendError(res, 400, "INVALID_ATTACHMENT_METADATA", "Invalid PEF attachment metadata");
+      }
+      if (!req.file || !req.file.mimetype.startsWith("image/")) {
+        return sendError(res, 400, "IMAGE_REQUIRED", "A camera or gallery image is required");
+      }
+      if (!isSupportedImageBuffer(req.file.buffer, req.file.mimetype)) {
+        return sendError(res, 400, "INVALID_IMAGE", "The uploaded file is not a supported image");
+      }
+
+      const [device] = await db.select().from(schema.devices)
+        .where(eq(schema.devices.device_id, deviceId)).limit(1);
+      if (rejectUnauthorizedDevice(res, device)) return;
+      if (device.user_id !== req.user!.sub) {
+        return sendError(res, 403, "DEVICE_USER_MISMATCH", "Device is not registered to this user");
+      }
+
+      const scope = parseHouseholdScope(householdId);
+      if (
+        scope.site_id === undefined || !scope.locality_code ||
+        !(await canAccessLocation(req.user!, scope.site_id, scope.locality_code, householdId))
+      ) {
+        return sendError(res, 403, "ATTACHMENT_OUT_OF_SCOPE", "Attachment is outside the user's assigned area scope");
+      }
+
+      const [woman] = await db.select({ woman_id: schema.eligibleWomen.woman_id })
+        .from(schema.eligibleWomen)
+        .where(and(
+          eq(schema.eligibleWomen.woman_id, womanId),
+          eq(schema.eligibleWomen.household_id, householdId),
+        )).limit(1);
+      if (!woman) {
+        return sendError(res, 400, "INVALID_ATTACHMENT_SUBJECT", "Woman does not belong to this household");
+      }
+
+      const sha256 = createHash("sha256").update(req.file.buffer).digest("hex");
+      const [existingById] = await db.select().from(schema.formAttachments)
+        .where(eq(schema.formAttachments.attachment_id, attachmentId)).limit(1);
+      if (existingById) {
+        if (
+          existingById.sha256 !== sha256 || existingById.form_response_id !== responseId ||
+          existingById.household_id !== householdId || existingById.woman_id !== womanId
+        ) {
+          return sendError(res, 409, "ATTACHMENT_ID_CONFLICT", "Attachment ID already contains different data");
+        }
+        return sendSuccess(res, { attachment_id: attachmentId, relative_path: existingById.relative_path });
+      }
+
+      const [existingSequence] = await db.select().from(schema.formAttachments)
+        .where(and(
+          eq(schema.formAttachments.form_response_id, responseId),
+          eq(schema.formAttachments.question_name, questionName),
+          eq(schema.formAttachments.report_sequence, sequence),
+        )).limit(1);
+      if (existingSequence) {
+        return sendError(res, 409, "ATTACHMENT_SEQUENCE_CONFLICT", "This report sequence is already uploaded");
+      }
+
+      const location = buildFormAttachmentLocation({
+        householdId,
+        womanId,
+        responseId,
+        sequence,
+        attachmentId,
+        mimeType: req.file.mimetype,
+      });
+      await mkdir(location.directory, { recursive: true });
+      const temporaryPath = `${location.absolutePath}.${randomUUID()}.tmp`;
+      await writeFile(temporaryPath, req.file.buffer, { flag: "wx" });
+      await rename(temporaryPath, location.absolutePath);
+      writtenPath = location.absolutePath;
+
+      await db.insert(schema.formAttachments).values({
+        attachment_id: attachmentId,
+        form_response_id: responseId,
+        form_code: formCode,
+        question_name: questionName,
+        household_id: householdId,
+        woman_id: womanId,
+        report_sequence: sequence,
+        display_name: displayName,
+        original_file_name: req.file.originalname || null,
+        stored_file_name: location.storedFileName,
+        relative_path: location.relativePath,
+        mime_type: req.file.mimetype,
+        file_size: req.file.size,
+        sha256,
+        uploaded_by_user_id: req.user!.sub,
+        device_id: deviceId,
+        created_at: new Date(),
+      });
+      sendSuccess(res, { attachment_id: attachmentId, relative_path: location.relativePath }, 201);
+    } catch (error) {
+      if (writtenPath) await rm(writtenPath, { force: true }).catch(() => {});
+      console.error("Attachment upload error:", error);
+      sendError(res, 500, "ATTACHMENT_UPLOAD_ERROR", "Could not store form attachment");
+    }
   },
 );
 

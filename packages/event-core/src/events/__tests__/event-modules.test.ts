@@ -107,6 +107,30 @@ describe("field event modules", () => {
     expect(promotion?.task_descriptors.some((task) => task.task_type === "UF")).toBe(true);
   });
 
+  it("does not promote a negative PEF on-spot UPT as pregnancy enrollment", () => {
+    const promotion = promoteFormSubmission({
+      form_code: "PEF",
+      event_id: "evt-pef-negative-1",
+      site_id: 1,
+      locality_code: "02",
+      household_id: "1-02-0042-03",
+      subject_id: "1-02-0042-03-02",
+      form_response_id: "resp-pef-negative-1",
+      recorded_at: "2026-09-15T10:00:00.000Z",
+      answers_json: {
+        pef_enrollment_date: "2026-09-15",
+        pef_on_spot_upt_result: 2,
+      },
+      context: {
+        pregnancy_id: "preg-negative-1",
+        woman_id: "1-02-0042-03-02",
+        household_member_id: "1-02-0042-03-02",
+      },
+    });
+
+    expect(promotion).toBeNull();
+  });
+
   it("plans PEF follow-up workflow from pregnancy_enrolled", () => {
     const event = pregnancyEnrolled.buildEvent({
       event_id: "evt-pef-1",

@@ -29,6 +29,11 @@ import {
   confirmCommittedHhqMobileNumber,
   markHhqMobilePanelChildren,
 } from "./mobileNumberConfirmation.js";
+import {
+  BHQ_RESIDENCE_DURATION_FIELD,
+  BHQ_VISITOR_CONFIRMATION_MESSAGE,
+  clearBhqResidenceMonths,
+} from "./bhqVisitorConfirmation.js";
 
 const MOBILE_CONFIRMATION_MESSAGE =
   "Read this mobile number to the Respondent and confirm whether the number is correct or not.";
@@ -73,6 +78,7 @@ export function DynamicPanelRenderer({
   const [editingIndex, setEditingIndex] = useState(null);
   const [editorMode, setEditorMode] = useState(null);
   const [initialAddOpened, setInitialAddOpened] = useState(false);
+  const visitorPromptOpenRef = useRef(false);
   const topLevelFocusRef = useRef(onRequestTopLevelFocus);
   topLevelFocusRef.current = onRequestTopLevelFocus;
   const errors = getNativeQuestionErrors(question);
@@ -159,6 +165,50 @@ export function DynamicPanelRenderer({
     }
     setEditorMode("add");
     onChange?.();
+  }
+
+  function requestBhqVisitorConfirmation(residenceQuestion) {
+    if (
+      question.name !== "hhq_household_members" ||
+      residenceQuestion?.name !== BHQ_RESIDENCE_DURATION_FIELD ||
+      editingIndex === null ||
+      visitorPromptOpenRef.current
+    ) return;
+    visitorPromptOpenRef.current = true;
+    Alert.alert(
+      "Confirm household membership",
+      BHQ_VISITOR_CONFIRMATION_MESSAGE,
+      [
+        {
+          text: "VISITOR",
+          onPress: () => {
+            visitorPromptOpenRef.current = false;
+            removeEntry(editingIndex);
+          },
+        },
+        {
+          text: "MEMBER",
+          onPress: () => {
+            visitorPromptOpenRef.current = false;
+            clearBhqResidenceMonths(residenceQuestion);
+            onChange?.();
+            requestAnimationFrame(() => {
+              onRequestTopLevelFocus?.(BHQ_RESIDENCE_DURATION_FIELD);
+            });
+          },
+        },
+      ],
+      { cancelable: false },
+    );
+  }
+
+  function configurePanelQuestion(child) {
+    if (
+      question.name === "hhq_household_members" &&
+      child?.name === BHQ_RESIDENCE_DURATION_FIELD
+    ) {
+      child.__requestBhqVisitorConfirmation = requestBhqVisitorConfirmation;
+    }
   }
 
   function movePregnancy(fromPosition, toPosition) {
@@ -303,6 +353,7 @@ export function DynamicPanelRenderer({
             .filter((child) => isRenderablePanelQuestion(child, multipleBirth))
             .map((child) => {
               child.__nativePanelRowNumber = editingIndex + 1;
+              configurePanelQuestion(child);
               markHhqMobilePanelChildren(question, activePanel);
               return renderQuestion(child, `${question.name}-${editingIndex}-${child.name}`);
             })}
@@ -442,6 +493,7 @@ export function DynamicPanelRenderer({
             ))
             .map((child) => {
               child.__nativePanelRowNumber = editingIndex + 1;
+              configurePanelQuestion(child);
               markHhqMobilePanelChildren(question, panels[editingIndex]);
               return renderQuestion(child, `${question.name}-${editingIndex}-${child.name}`);
             })}

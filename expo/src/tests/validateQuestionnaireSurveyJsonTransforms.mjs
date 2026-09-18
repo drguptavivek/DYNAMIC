@@ -23,6 +23,10 @@ const wq = JSON.parse(fs.readFileSync(path.resolve(
   root,
   "../data/forms/baseline_woman_s_questionnaire_v2026.05.09.json"
 ), "utf8"));
+const pef = JSON.parse(fs.readFileSync(path.resolve(
+  root,
+  "../data/forms/pregnancy_enrollment_form_v2026.08.25.json"
+), "utf8"));
 
 function findElementByName(surveyJson, name) {
   const queue = surveyJson.pages.flatMap((page) => page.elements || []);
@@ -43,6 +47,18 @@ function findTopLevelElementByName(surveyJson, name) {
 
 const surveyJson = prepareQuestionnaireSurveyJson(hhq);
 const wqSurveyJson = prepareQuestionnaireSurveyJson(wq);
+const pefSurveyJson = prepareQuestionnaireSurveyJson(pef);
+const pefOutcomePage = pefSurveyJson.pages.find((page) => page.name === "page_pef_outcome");
+assert.ok(pefOutcomePage, "PEF must include a Negative UPT outcome page");
+const pefModel = new Model(pefSurveyJson);
+pefModel.setValue("pef_pregnancy_information_source", 1);
+pefModel.setValue("pef_pregnancy_confirmed_upt", 2);
+pefModel.setValue("pef_on_spot_upt_result", 2);
+assert.equal(pefModel.getPageByName("page_pef_outcome").isVisible, true);
+assert.equal(pefModel.getQuestionByName("pef_pregnancy_rank_since_baseline").isVisible, false);
+pefModel.setValue("pef_on_spot_upt_result", 1);
+assert.equal(pefModel.getPageByName("page_pef_outcome").isVisible, false);
+assert.equal(pefModel.getQuestionByName("pef_pregnancy_rank_since_baseline").isVisible, true);
 const staleSyncedWq = structuredClone(wq);
 const staleDomesticViolencePage = staleSyncedWq.pages.find(
   (page) => page.name === "page_05_domestic_violence",

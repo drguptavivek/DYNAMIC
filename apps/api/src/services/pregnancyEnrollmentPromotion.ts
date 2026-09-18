@@ -1,4 +1,8 @@
-import { promoteFormSubmission, type PregnancyProjection } from "@dynamic/event-core";
+import {
+  generatePregnancySurveillanceTaskDescriptors,
+  promoteFormSubmission,
+  type PregnancyProjection,
+} from "@dynamic/event-core";
 import { and, eq, inArray } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { schema } from "../db";
@@ -7,6 +11,89 @@ import { writeTasksFromDescriptors } from "./taskWriter";
 import { FormAnswers } from "./promotionEventBridge";
 
 type FormResponseRow = typeof schema.formResponses.$inferSelect;
+const PEF_NEGATIVE_UPT_VALUE = 2;
+
+function isNegativeUpt(answers: FormAnswers): boolean {
+  return Number(answers.pef_on_spot_upt_result) === PEF_NEGATIVE_UPT_VALUE;
+}
+
+async function restorePregnancySurveillanceAfterNegativeUpt(
+  response: FormResponseRow,
+  householdId: string,
+  subjectId: string,
+  answers: FormAnswers,
+): Promise<void> {
+  const now = new Date();
+  const [activePregnancy] = await getDb()
+    .select()
+    .from(schema.pregnancies)
+    .where(
+      and(
+        eq(schema.pregnancies.woman_id, subjectId),
+        eq(schema.pregnancies.pregnancy_status, "active"),
+      ),
+    )
+    .limit(1);
+  const anchorDate =
+    activePregnancy?.detected_date ||
+    (typeof answers.pef_enrollment_date === "string" && answers.pef_enrollment_date
+      ? answers.pef_enrollment_date
+      : (response.created_offline_at ?? now).toISOString().slice(0, 10));
+
+  // A positive PSF report closes its remaining PSF series while PEF is
+  // pending. A negative confirmatory UPT must reopen only those provisional
+  // closures; completed or independently closed PSF history stays untouched.
+  const restoredPsfTasks = await getDb()
+    .update(schema.followUpTasks)
+    .set({ status: "planned", closed_at: null, closed_reason: null, updated_at: now })
+    .where(
+      and(
+        eq(schema.followUpTasks.woman_id, subjectId),
+        eq(schema.followUpTasks.task_type, "PSF"),
+        eq(schema.followUpTasks.status, "cancelled"),
+        eq(schema.followUpTasks.closed_reason, "pregnancy_detected"),
+      ),
+    )
+    .returning({ task_id: schema.followUpTasks.task_id });
+
+  if (restoredPsfTasks.length === 0) {
+    const existingPsfTasks = await getDb()
+      .select({ task_id: schema.followUpTasks.task_id })
+      .from(schema.followUpTasks)
+      .where(
+        and(
+          eq(schema.followUpTasks.woman_id, subjectId),
+          eq(schema.followUpTasks.task_type, "PSF"),
+        ),
+      )
+      .limit(1);
+    if (existingPsfTasks.length === 0) {
+      await writeTasksFromDescriptors(
+        generatePregnancySurveillanceTaskDescriptors({
+          household_id: householdId,
+          woman_id: subjectId,
+          eligibility_date: anchorDate,
+          source_event_id: response.form_response_id,
+        }),
+      );
+    }
+  }
+
+  await getDb()
+    .update(schema.pregnancies)
+    .set({ pregnancy_status: "closed", updated_at: now })
+    .where(
+      and(
+        eq(schema.pregnancies.woman_id, subjectId),
+        eq(schema.pregnancies.pregnancy_status, "active"),
+      ),
+    );
+
+  await getDb()
+    .update(schema.eligibleWomen)
+    .set({ tracking_status: "not_pregnant", updated_at: now })
+    .where(eq(schema.eligibleWomen.woman_id, subjectId));
+}
 
 function buildPefPromotion(params: {
   event_id: string;
@@ -48,6 +135,16 @@ export async function promotePef(
   answers: FormAnswers,
 ): Promise<void> {
   try {
+    if (isNegativeUpt(answers)) {
+      await restorePregnancySurveillanceAfterNegativeUpt(
+        response,
+        householdId,
+        subjectId,
+        answers,
+      );
+      return;
+    }
+
     const pregnancies = await getDb()
       .select()
       .from(schema.pregnancies)

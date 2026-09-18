@@ -683,6 +683,59 @@ export function saveEligibleWoman(woman) {
   }
 }
 
+export function applyLocalNegativePefOutcome({ womanId } = {}) {
+  if (!womanId) return { restoredPsfTasks: 0, hasPsfTasks: false, detectedDate: null };
+  const db = getDb();
+  const now = new Date().toISOString();
+  try {
+    const pregnancy = db.getFirstSync(
+      `SELECT detected_date
+         FROM pregnancies
+        WHERE woman_id = ? AND pregnancy_status = 'active'
+        LIMIT 1`,
+      [womanId],
+    );
+    const existingPsf = db.getFirstSync(
+      `SELECT id
+         FROM follow_up_tasks
+        WHERE subject_id = ? AND UPPER(task_type) = 'PSF'
+        LIMIT 1`,
+      [womanId],
+    );
+    db.runSync("BEGIN TRANSACTION");
+    const restored = db.runSync(
+      `UPDATE follow_up_tasks
+          SET status = 'planned', lifecycle_status = 'planned',
+              closed_reason = NULL, closed_at = NULL, updated_at = ?
+        WHERE subject_id = ? AND UPPER(task_type) = 'PSF'
+          AND status = 'cancelled' AND closed_reason = 'pregnancy_detected'`,
+      [now, womanId],
+    );
+    db.runSync(
+      `UPDATE pregnancies
+          SET pregnancy_status = 'closed', updated_at = ?
+        WHERE woman_id = ? AND pregnancy_status = 'active'`,
+      [now, womanId],
+    );
+    db.runSync(
+      `UPDATE eligible_women
+          SET tracking_status = 'not_pregnant', sync_status = 'local', updated_at = ?
+        WHERE woman_id = ? OR household_member_id = ?`,
+      [now, womanId, womanId],
+    );
+    db.runSync("COMMIT");
+    return {
+      restoredPsfTasks: Number(restored?.changes || 0),
+      hasPsfTasks: Boolean(existingPsf),
+      detectedDate: pregnancy?.detected_date || null,
+    };
+  } catch (error) {
+    db.runSync("ROLLBACK");
+    console.error("Error applying local Negative PEF outcome:", error);
+    throw error;
+  }
+}
+
 export function saveEligibleWomenBatch(women = []) {
   if (!Array.isArray(women) || women.length === 0) return;
   const db = getDb();

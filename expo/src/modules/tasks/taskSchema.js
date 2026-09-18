@@ -79,6 +79,28 @@ export function initTaskDb() {
   `);
 
   db.runSync(`
+    CREATE TABLE IF NOT EXISTS form_attachments (
+      attachment_id TEXT PRIMARY KEY,
+      form_response_id TEXT NOT NULL,
+      form_code TEXT NOT NULL,
+      question_name TEXT NOT NULL,
+      household_id TEXT NOT NULL,
+      woman_id TEXT NOT NULL,
+      report_sequence INTEGER NOT NULL,
+      display_name TEXT NOT NULL,
+      original_file_name TEXT,
+      local_uri TEXT NOT NULL,
+      mime_type TEXT NOT NULL,
+      file_size INTEGER,
+      sync_status TEXT DEFAULT 'pending',
+      sync_error TEXT,
+      server_path TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )
+  `);
+
+  db.runSync(`
     CREATE TABLE IF NOT EXISTS questionnaire_drafts (
       draft_id TEXT PRIMARY KEY,
       draft_key TEXT NOT NULL,
@@ -240,6 +262,8 @@ export function initTaskDb() {
     "CREATE INDEX IF NOT EXISTS follow_up_tasks_locality_nocase_idx ON follow_up_tasks (assigned_locality_code COLLATE NOCASE)",
     "CREATE INDEX IF NOT EXISTS form_responses_sync_status_submitted_at_idx ON form_responses (sync_status, submitted_at)",
     "CREATE INDEX IF NOT EXISTS form_responses_household_id_idx ON form_responses (household_id)",
+    "CREATE INDEX IF NOT EXISTS form_attachments_response_idx ON form_attachments (form_response_id, report_sequence)",
+    "CREATE INDEX IF NOT EXISTS form_attachments_sync_status_idx ON form_attachments (sync_status, updated_at)",
     "CREATE INDEX IF NOT EXISTS task_attempts_task_id_idx ON task_attempts (task_id)",
     "CREATE INDEX IF NOT EXISTS app_timings_name_at_idx ON app_timings (name, at)",
     "CREATE INDEX IF NOT EXISTS questionnaire_drafts_status_household_idx ON questionnaire_drafts (draft_status, household_id)",

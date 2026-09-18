@@ -48,6 +48,10 @@ Rules:
 - Form-specific field extraction for event payloads belongs in the shared form-submission trigger layer.
 - Backend and Expo callers adapt storage only: response rows, event outbox/domain-event tables, projection tables, task tables, and sync status.
 - Drafts never trigger events.
+- A finalized PEF with Q7 on-spot UPT result `Negative` is an early-stop outcome:
+  it does not emit `pregnancy_enrolled`, closes any provisional active pregnancy,
+  and restores the woman's previously suspended PSF tasks. If no PSF series
+  exists, it starts one from the pregnancy-detection date.
 - Held or duplicate submissions may produce held events for evidence and data-quality review, but must not generate workflow tasks.
 - Offline Expo promotion is provisional but must use the same shared trigger outputs as backend promotion.
 
@@ -71,6 +75,7 @@ Rules:
 | --- | --- |
 | HRF | HHQ baseline completion date |
 | WQ | HHQ roster eligibility event |
+| PSF | WQ completion / woman's pregnancy-surveillance eligibility start date |
 | PEF | WQ/HRF pregnancy detection event |
 | PFF | PEF completion or accepted pregnancy enrollment date |
 | UF | ultrasound availability event |

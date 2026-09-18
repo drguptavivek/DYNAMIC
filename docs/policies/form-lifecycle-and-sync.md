@@ -49,6 +49,17 @@ Rules:
 - Local promotion records provenance back to the response.
 - The generic form route and task-opened route for a form must use the same finalization path.
 
+### Finalized attachments
+
+- A form attachment has its own stable attachment ID and sync state, linked to the finalized response ID.
+- Picker cache URIs are never final storage. The field app copies a selected image into app-owned document storage before accepting it as a completed answer.
+- Finalized `answers_json` stores attachment metadata only; device-local file paths stay in the local attachment outbox.
+- Required attachment sets must be complete before final confirmation.
+- Attachment upload is authenticated, device-bound, area-scoped, image-only, size-limited, and idempotent.
+- Attachments required by a response upload before that response can be marked synced. A failed upload retains local data for retry.
+- Server file names are system-generated. Interviewer-entered report names are metadata and never become filesystem paths.
+- Server attachment paths are persisted in typed database rows and point into durable storage outside release directories.
+
 ## Local Expo Promotion
 
 Expo may derive provisional local state from finalized evidence:
@@ -72,6 +83,7 @@ Push sends evidence and event records:
 - Provisional Study Events
 - provisional Task Lifecycle Events
 - contextual opportunity events when present
+- finalized form attachments referenced by those CRFs
 
 Mutable drafts use a separate draft-sync endpoint. Receiving a draft must never invoke finalized-response ingest, event processing, task completion, or projection updates.
 

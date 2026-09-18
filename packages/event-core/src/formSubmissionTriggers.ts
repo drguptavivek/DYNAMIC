@@ -109,8 +109,11 @@ function triggerWq(input: FormSubmissionTriggerInput): EventPromotionResult<unkn
   });
 }
 
-function triggerPef(input: FormSubmissionTriggerInput): EventPromotionResult<unknown> {
+function triggerPef(input: FormSubmissionTriggerInput): EventPromotionResult<unknown> | null {
   const answers = input.answers_json ?? {};
+  // A negative on-spot UPT is a completed PEF early outcome, not pregnancy
+  // enrollment evidence. The caller restores the woman's PSF schedule.
+  if (Number(answers.pef_on_spot_upt_result) === 2) return null;
   const womanId = requireValue(input.context?.woman_id ?? input.subject_id, "woman_id");
   return fieldEventRegistry.PEF.promoteEvidence({
     ...input,

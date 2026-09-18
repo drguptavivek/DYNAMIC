@@ -1,3 +1,15 @@
+## 2026-09-18 (PEF Q1/Q3/Q7 behavior) [working]
+Goal: Correct PEF source/husband fields and implement site-specific Q7 behavior, including the Negative UPT early outcome.
+Decisions:
+- Q1 keeps its WQ/PSF default but is editable in every PEF entry path; all four source options remain selectable.
+- Q3 prefers an explicitly linked WQ/PSF response and falls back to the newest WQ/BWQ/PSF response for the same woman when the task stores only an event id.
+- PEF Q7 retains its Q6 = No condition but is site-enabled only for Bareilly (site 1); other sites hide it and clear any stale Q7 answer.
+- Selecting Q7 Negative immediately hides later PEF questions and routes to a dedicated Outcome page. Final submission remains PEF evidence but does not emit `pregnancy_enrolled` or create PFF/UF tasks.
+- Negative Q7 closes a provisional active pregnancy and reopens PSF tasks suspended by pregnancy detection; if no prior PSF series exists, it starts one from the detection date. Positive/Refusal keep the existing PEF workflow.
+- PEF Q10 `No` shows an ultrasound follow-up reminder for the later PFF; draft restoration does not display the reminder without a new user selection.
+Open:
+- Commit, production build, and device installation require explicit user request.
+
 ## 2026-09-04 (Expo startup and offline DB performance) [ready]
 Goal: Implement performance round 3, verify it, and publish the next Android prerelease.
 Decisions:
@@ -510,3 +522,14 @@ Decisions:
 - A saved visitor correction remains separate from every ordinary draft, changes the Completed action to Resume correction, restores its saved page/answers, and keeps the original exclusion deadline. Expiry or source-response sync discards only that correction draft; final corrected submission supersedes the excluded response.
 Open:
 - Physical-device UI verification awaits an explicitly requested APK build/install.
+
+## 2026-09-18 (PEF Q11 offline ultrasound report images) [working]
+Goal: Collect up to five named ultrasound-report images offline and sync them into durable woman-scoped server storage.
+Decisions:
+- Q11 Yes requires a count from 1-5 and exactly that many named camera/gallery images before final submit.
+- Images are copied from picker cache into app-owned document storage; finalized CRF JSON contains metadata only and a separate local attachment outbox retains device paths.
+- Sync uploads attachments idempotently before the owning response, with authenticated device/area/subject checks and image signature validation.
+- Server paths are `imageuploads/{household_id}/{woman_id}/{system-generated-file}`; interviewer filenames remain database metadata.
+Open:
+- Production release must create `/data/dynamic/imageuploads`, apply `deploy/sql/2026-09-18-form-attachments.sql`, and reinstall the updated API systemd unit before restart.
+- Physical-device camera/gallery and offline-to-online sync verification awaits an explicitly requested production APK build/install and server release.
