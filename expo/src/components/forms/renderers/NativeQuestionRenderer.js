@@ -64,7 +64,12 @@ function NativeQuestionRendererBase({
     case "multiple-text": rendered = <MultipleTextRenderer {...props} />; break;
     case "note": rendered = <NoteRenderer {...props} />; break;
     case "number": rendered = <NumberRenderer {...props} />; break;
-    case "pef-ultrasound-reports": rendered = <PefUltrasoundReportsRenderer {...props} />; break;
+    case "pef-ultrasound-reports": rendered = (
+      <PefUltrasoundReportsRenderer
+        {...props}
+        onRequestTopLevelFocus={onRequestTopLevelFocus}
+      />
+    ); break;
     case "select-many": rendered = <SelectManyRenderer {...props} />; break;
     case "select-one": rendered = <SelectOneRenderer {...props} />; break;
     case "text": rendered = <TextRenderer {...props} />; break;

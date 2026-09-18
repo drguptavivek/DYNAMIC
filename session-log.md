@@ -1,3 +1,27 @@
+## 2026-09-18 (Image picker lock grace and PEF upload position) [working]
+Goal: Keep camera/gallery report uploads usable without an immediate app lock or return-to-top jump.
+Decisions:
+- Backgrounding the field app starts a 60-second app-lock grace period; returning while camera/gallery is open cancels the pending lock.
+- After an ultrasound report image is persisted (or fails to persist), the PEF renderer restores focus to the same report-upload question.
+Open:
+- Commit, production build, and device installation require explicit user request.
+
+## 2026-09-18 (PEF Q10 ultrasound branch) [working]
+Goal: Request ultrasound-report details only from the PEF Q10 Yes branch.
+Decisions:
+- Q10 Yes reveals Q11-Q13; Q11 Yes then opens the named image-upload control.
+- Q10 No shows no upload reminder and clears hidden Q11-Q13 answers plus any locally retained report images.
+Open:
+- Commit, build, and device installation require explicit user request.
+
+## 2026-09-18 (PEF Q9 automatic pregnancy ID) [working]
+Goal: Auto-fill PEF Q9 from the woman's ID plus the one-digit pregnancy rank.
+Decisions:
+- Q9 is read-only and stores Q2 Woman ID immediately followed by Q8 rank (for example, `1-01-0006-11-02` + `1` becomes `1-01-0006-11-021`).
+- The value recalculates after Q2/Q8 changes and after draft restoration, preventing stale manually entered pregnancy IDs.
+Open:
+- Commit, build, and device installation require explicit user request.
+
 ## 2026-09-18 (PEF Q1/Q3/Q7 behavior) [working]
 Goal: Correct PEF source/husband fields and implement site-specific Q7 behavior, including the Negative UPT early outcome.
 Decisions:

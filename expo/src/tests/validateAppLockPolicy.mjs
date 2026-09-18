@@ -1,5 +1,6 @@
 /** Verifies app-lock PIN policy, hashing, persistence, and retry behavior. */
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
 import {
   clearLockForTests,
@@ -16,6 +17,26 @@ import {
 
 const user = { user_id: "field-worker-1", username: "field-worker-1" };
 const otherUser = { user_id: "field-worker-2", username: "field-worker-2" };
+
+const fieldAppProviderSource = readFileSync(
+  new URL("../shell/FieldAppProvider.js", import.meta.url),
+  "utf8",
+);
+assert.match(
+  fieldAppProviderSource,
+  /APP_LOCK_BACKGROUND_GRACE_MS = 60 \* 1000/,
+  "background app lock must allow one minute for camera and gallery use",
+);
+assert.match(
+  fieldAppProviderSource,
+  /nextState === "active"[\s\S]*cancelPendingAppLock\(\)/,
+  "returning from camera or gallery must cancel the pending app lock",
+);
+assert.match(
+  fieldAppProviderSource,
+  /setTimeout\([\s\S]*appStateRef\.current !== "active"[\s\S]*setAppLocked\(true\)[\s\S]*APP_LOCK_BACKGROUND_GRACE_MS/,
+  "the app must lock only after the background grace period expires",
+);
 
 await clearLockForTests();
 

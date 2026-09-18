@@ -10,6 +10,7 @@ import {
 
 const HHQ_FORM_CODE = "HHQ";
 const PEF_FORM_CODE = "PEF";
+const PEF_ULTRASOUND_DONE_FIELD = "pef_any_time_during_pregnancy_ultrasound";
 const PEF_ULTRASOUND_AVAILABLE_FIELD = "pef_first_ultrasound_report";
 const PEF_ULTRASOUND_REPORTS_FIELD = "pef_ultrasound_reports";
 const HHQ_SINGLE_MOBILE_NAME = "hhq_contact_mobile";
@@ -194,7 +195,7 @@ function addPefUltrasoundReports(surveyJson) {
             title: "Ultrasound reports",
             renderAs: "pef_ultrasound_reports",
             isRequired: true,
-            visibleIf: `{${PEF_ULTRASOUND_AVAILABLE_FIELD}} = 1`,
+            visibleIf: `{${PEF_ULTRASOUND_DONE_FIELD}} = 1 and {${PEF_ULTRASOUND_AVAILABLE_FIELD}} = 1`,
           },
         ];
       }),

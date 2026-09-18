@@ -25,6 +25,7 @@ import * as Application from "expo-application";
 import { stabilizeClockGuard } from "./fieldAppProviderStability.js";
 
 const FieldAppContext = createContext(null);
+const APP_LOCK_BACKGROUND_GRACE_MS = 60 * 1000;
 
 export function FieldAppProvider({ children }) {
   const router = useRouter();
@@ -69,6 +70,8 @@ export function FieldAppProvider({ children }) {
   const [appLockConfigured, setAppLockConfigured] = useState(false);
   const [appLockBiometricAvailable, setAppLockBiometricAvailable] = useState(false);
   const [appLockBiometricEnabled, setAppLockBiometricEnabled] = useState(false);
+  const appLockTimerRef = useRef(null);
+  const appStateRef = useRef(AppState.currentState);
 
   const initializeAppLock = useCallback(async (nextUser, options = {}) => {
     const configured = await appLockStore.isLockConfiguredForUser(nextUser);
@@ -380,16 +383,35 @@ export function FieldAppProvider({ children }) {
   }, [user?.device_id]);
 
   useEffect(() => {
-    const subscription = AppState.addEventListener("change", (nextState) => {
-      if (nextState !== "active" && user && appLockConfigured) {
-        setAppLocked(true);
+    const cancelPendingAppLock = () => {
+      if (appLockTimerRef.current !== null) {
+        clearTimeout(appLockTimerRef.current);
+        appLockTimerRef.current = null;
       }
+    };
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      appStateRef.current = nextState;
       if (nextState === "active") {
+        cancelPendingAppLock();
         // Coming back from Settings is exactly when the date may have changed.
         refreshClockGuard();
+        return;
+      }
+      if (user && appLockConfigured && appLockTimerRef.current === null) {
+        // Camera and gallery pickers temporarily background the app. Give the
+        // interviewer one minute to return before securing the questionnaire.
+        appLockTimerRef.current = setTimeout(() => {
+          appLockTimerRef.current = null;
+          if (appStateRef.current !== "active") {
+            setAppLocked(true);
+          }
+        }, APP_LOCK_BACKGROUND_GRACE_MS);
       }
     });
-    return () => subscription.remove();
+    return () => {
+      cancelPendingAppLock();
+      subscription.remove();
+    };
   }, [user, appLockConfigured, refreshClockGuard]);
 
   // Re-check periodically while the app is open, and whenever a sync brings

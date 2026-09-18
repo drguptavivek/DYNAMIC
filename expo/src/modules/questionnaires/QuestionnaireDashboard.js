@@ -50,6 +50,8 @@ import {
   PEF_ON_SPOT_UPT_RESULT_FIELD,
   PEF_OUTCOME_PAGE_NAME,
   applyPefOnSpotUptSiteVisibility,
+  applyPefPregnancyId,
+  shouldRecalculatePefPregnancyId,
 } from "../../lib/pefPrefillHelpers.js";
 import {
   applyPregnancySurveillanceCalculations,
@@ -121,10 +123,8 @@ const WQ_HUSBAND_PARTNER_LINE_NUMBER_FIELD = "wq_husband_partner_line_number";
 const WQ_EXCLUDED_MESSAGE = "This women is excluded from the study";
 const WQ_RESCHEDULE_MESSAGE = "Reschedule has been setup";
 const PEF_ULTRASOUND_FIELD = "pef_any_time_during_pregnancy_ultrasound";
-const PEF_ULTRASOUND_NO_VALUE = 2;
-const PEF_ULTRASOUND_FOLLOW_UP_TITLE = "Need to follow-up";
-const PEF_ULTRASOUND_FOLLOW_UP_MESSAGE =
-  "When you will fill PFF for this women ensure upload of ultrasound report.";
+const PEF_FIRST_ULTRASOUND_FACILITY_FIELD = "pef_first_ultrasound_facility";
+const PEF_OTHER_ULTRASOUND_FIELD = "pef_other_ultrasound_since_first";
 
 function isHouseholdQuestionnaire(form) {
   return String(form?.form_code || "").toUpperCase() === "HHQ";
@@ -582,6 +582,7 @@ export function QuestionnaireDashboard({
     if (isPregnancyEnrollmentForm(form)) {
       pefSearchPromptedRef.current = false;
       applyPefOnSpotUptSiteVisibility(model, { taskContext, prefillData, user });
+      applyPefPregnancyId(model);
       model.onValidateQuestion.add((sender, options) => {
         if (
           options.name === PEF_ULTRASOUND_REPORTS_FIELD &&
@@ -631,6 +632,12 @@ export function QuestionnaireDashboard({
       setRendererAnswerData(nextData);
       if (
         isPregnancyEnrollmentForm(form) &&
+        shouldRecalculatePefPregnancyId(options.name)
+      ) {
+        applyPefPregnancyId(sender);
+      }
+      if (
+        isPregnancyEnrollmentForm(form) &&
         options.name === "pef_pregnancy_information_source" &&
         [3, 4].includes(Number(options.value)) &&
         !pefSearchPromptedRef.current
@@ -655,6 +662,20 @@ export function QuestionnaireDashboard({
       }
       if (
         isPregnancyEnrollmentForm(form) &&
+        options.name === PEF_ULTRASOUND_FIELD &&
+        Number(options.value) !== 1
+      ) {
+        const previous = sender.getValue(PEF_ULTRASOUND_REPORTS_FIELD);
+        for (const report of previous?.reports || []) {
+          removePersistedPefUltrasoundImage(report?.local_uri).catch(() => {});
+        }
+        sender.clearValue(PEF_ULTRASOUND_REPORTS_FIELD);
+        sender.clearValue(PEF_ULTRASOUND_AVAILABLE_FIELD);
+        sender.clearValue(PEF_FIRST_ULTRASOUND_FACILITY_FIELD);
+        sender.clearValue(PEF_OTHER_ULTRASOUND_FIELD);
+      }
+      if (
+        isPregnancyEnrollmentForm(form) &&
         options.name === PEF_ON_SPOT_UPT_RESULT_FIELD &&
         Number(options.value) === PEF_NEGATIVE_UPT_VALUE
       ) {
@@ -663,16 +684,6 @@ export function QuestionnaireDashboard({
           goToSurveySection(sender, PEF_OUTCOME_PAGE_NAME);
           updateSurveyStatus(sender);
         });
-      }
-      if (
-        isPregnancyEnrollmentForm(form) &&
-        !draftRestoreInProgressRef.current &&
-        options.name === PEF_ULTRASOUND_FIELD &&
-        Number(options.value) === PEF_ULTRASOUND_NO_VALUE
-      ) {
-        Alert.alert(PEF_ULTRASOUND_FOLLOW_UP_TITLE, PEF_ULTRASOUND_FOLLOW_UP_MESSAGE, [
-          { text: "OK" },
-        ]);
       }
       if (isWomanQuestionnaire(form)) {
         if (options.name === WQ_INTERVIEW_DATE_FIELD) {
@@ -1094,6 +1105,9 @@ export function QuestionnaireDashboard({
           );
         } finally {
           draftRestoreInProgressRef.current = false;
+        }
+        if (isPregnancyEnrollmentForm(form)) {
+          applyPefPregnancyId(survey);
         }
         answerSnapshotRef.current = { ...(survey.data || {}) };
         setRendererAnswerData(answerSnapshotRef.current);

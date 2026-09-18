@@ -515,7 +515,8 @@
           },
           "renderingHint": {
             "render_as": "input"
-          }
+          },
+          "readOnly": true
         },
         {
           "type": "radiogroup",

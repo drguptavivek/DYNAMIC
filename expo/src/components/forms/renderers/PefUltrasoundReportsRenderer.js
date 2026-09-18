@@ -26,7 +26,12 @@ function createAttachmentId() {
   return `pef-usg-${Crypto.randomUUID()}`;
 }
 
-export function PefUltrasoundReportsRenderer({ locale, question, onChange }) {
+export function PefUltrasoundReportsRenderer({
+  locale,
+  question,
+  onChange,
+  onRequestTopLevelFocus,
+}) {
   const value = normalizePefUltrasoundReports(question.value);
   const [error, setError] = useState("");
 
@@ -59,6 +64,14 @@ export function PefUltrasoundReportsRenderer({ locale, question, onChange }) {
     commit({ report_count: value.report_count, reports });
   }
 
+  function restoreUploadFocus() {
+    // Wait for the saved-image preview to render, then return to this upload
+    // control instead of leaving the interviewer at the top of the form.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => onRequestTopLevelFocus?.(question.name));
+    });
+  }
+
   async function chooseImage(index, source) {
     setError("");
     const permission = source === "camera"
@@ -86,8 +99,10 @@ export function PefUltrasoundReportsRenderer({ locale, question, onChange }) {
         await removePersistedPefUltrasoundImage(current.local_uri);
       }
       updateReport(index, stored);
+      restoreUploadFocus();
     } catch (storageError) {
       setError(storageError?.message || "Could not save the image on this device.");
+      restoreUploadFocus();
     }
   }
 

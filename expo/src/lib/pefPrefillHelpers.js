@@ -4,7 +4,42 @@ const PEF_SOURCE_FORM_CODES = new Set(["WQ", "BWQ", "PSF"]);
 export const PEF_ON_SPOT_UPT_RESULT_FIELD = "pef_on_spot_upt_result";
 export const PEF_NEGATIVE_UPT_VALUE = 2;
 export const PEF_OUTCOME_PAGE_NAME = "page_pef_outcome";
+export const PEF_WOMAN_ID_FIELD = "pef_woman_hh_member_id";
+export const PEF_PREGNANCY_RANK_FIELD = "pef_pregnancy_rank_since_baseline";
+export const PEF_PREGNANCY_ID_FIELD = "pef_pregnancy_id";
 const BAREILLY_SITE_ID = 1;
+
+export function buildPefPregnancyId(womanId, pregnancyRank) {
+  const normalizedWomanId = String(womanId || "").trim();
+  const normalizedRank = Number(pregnancyRank);
+  if (
+    !normalizedWomanId ||
+    !Number.isInteger(normalizedRank) ||
+    normalizedRank < 1 ||
+    normalizedRank > 9
+  ) {
+    return "";
+  }
+  return `${normalizedWomanId}${normalizedRank}`;
+}
+
+export function applyPefPregnancyId(model) {
+  const question = model?.getQuestionByName?.(PEF_PREGNANCY_ID_FIELD);
+  if (!question) return "";
+  question.readOnly = true;
+  const pregnancyId = buildPefPregnancyId(
+    model.getValue(PEF_WOMAN_ID_FIELD),
+    model.getValue(PEF_PREGNANCY_RANK_FIELD),
+  );
+  if (model.getValue(PEF_PREGNANCY_ID_FIELD) !== (pregnancyId || undefined)) {
+    model.setValue(PEF_PREGNANCY_ID_FIELD, pregnancyId || undefined);
+  }
+  return pregnancyId;
+}
+
+export function shouldRecalculatePefPregnancyId(fieldName) {
+  return fieldName === PEF_WOMAN_ID_FIELD || fieldName === PEF_PREGNANCY_RANK_FIELD;
+}
 
 export function isPefNegativeUptAnswers(answers = {}) {
   return Number(answers?.[PEF_ON_SPOT_UPT_RESULT_FIELD]) === PEF_NEGATIVE_UPT_VALUE;

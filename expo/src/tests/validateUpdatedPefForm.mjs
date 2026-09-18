@@ -5,7 +5,12 @@ import {
   PEF_NEGATIVE_UPT_VALUE,
   PEF_ON_SPOT_UPT_RESULT_FIELD,
   PEF_OUTCOME_PAGE_NAME,
+  PEF_PREGNANCY_ID_FIELD,
+  PEF_PREGNANCY_RANK_FIELD,
+  PEF_WOMAN_ID_FIELD,
   applyPefOnSpotUptSiteVisibility,
+  applyPefPregnancyId,
+  buildPefPregnancyId,
   derivePefSiteId,
   findPefSourceResponse,
   isPefNegativeUptAnswers,
@@ -28,9 +33,43 @@ const q1 = form.pages[0].elements.find((element) => element.sourceCode === "1");
 assert.deepEqual(q1.choices.map((item) => item.value), [1, 2, 3, 4]);
 assert.equal(q1.readOnly, undefined);
 assert.equal(q1.choices.some((item) => item.disabled), false);
+const q9 = form.pages[0].elements.find((element) => element.sourceCode === "9");
+assert.equal(q9.name, PEF_PREGNANCY_ID_FIELD);
+assert.equal(q9.readOnly, true);
+assert.equal(buildPefPregnancyId("1-01-0006-11-02", 1), "1-01-0006-11-021");
+assert.equal(buildPefPregnancyId("1-01-0006-11-02", 3), "1-01-0006-11-023");
+assert.equal(buildPefPregnancyId("", 1), "");
+assert.equal(buildPefPregnancyId("1-01-0006-11-02", undefined), "");
+const pregnancyIdValues = {
+  [PEF_WOMAN_ID_FIELD]: "1-01-0006-11-02",
+  [PEF_PREGNANCY_RANK_FIELD]: 2,
+};
+const pregnancyIdQuestion = { readOnly: false };
+const pregnancyIdModel = {
+  getQuestionByName(name) {
+    return name === PEF_PREGNANCY_ID_FIELD ? pregnancyIdQuestion : null;
+  },
+  getValue(name) {
+    return pregnancyIdValues[name];
+  },
+  setValue(name, value) {
+    pregnancyIdValues[name] = value;
+  },
+};
+assert.equal(applyPefPregnancyId(pregnancyIdModel), "1-01-0006-11-022");
+assert.equal(pregnancyIdValues[PEF_PREGNANCY_ID_FIELD], "1-01-0006-11-022");
+assert.equal(pregnancyIdQuestion.readOnly, true);
 const prefillMapperSource = readFileSync(new URL("../lib/prefillMapper.js", import.meta.url), "utf8");
 const dashboardSource = readFileSync(
   new URL("../modules/questionnaires/QuestionnaireDashboard.js", import.meta.url),
+  "utf8",
+);
+const pefUltrasoundRendererSource = readFileSync(
+  new URL("../components/forms/renderers/PefUltrasoundReportsRenderer.js", import.meta.url),
+  "utf8",
+);
+const nativeQuestionRendererSource = readFileSync(
+  new URL("../components/forms/renderers/NativeQuestionRenderer.js", import.meta.url),
   "utf8",
 );
 assert.doesNotMatch(
@@ -43,15 +82,30 @@ assert.doesNotMatch(
   /function applyPefSourceBehavior/,
   "PEF direct-entry behavior must not disable Q1 choices",
 );
-assert.match(
+assert.doesNotMatch(
   dashboardSource,
-  /options\.name === PEF_ULTRASOUND_FIELD[\s\S]*Number\(options\.value\) === PEF_ULTRASOUND_NO_VALUE[\s\S]*PEF_ULTRASOUND_FOLLOW_UP_MESSAGE/,
-  "PEF Q10 No must show the ultrasound follow-up prompt",
+  /PEF_ULTRASOUND_FOLLOW_UP_MESSAGE/,
+  "PEF Q10 No must not request an ultrasound report upload",
 );
 assert.match(
   dashboardSource,
-  /!draftRestoreInProgressRef\.current[\s\S]*options\.name === PEF_ULTRASOUND_FIELD/,
-  "PEF Q10 prompt must not appear merely because a No answer was restored from draft",
+  /options\.name === PEF_ULTRASOUND_FIELD[\s\S]*Number\(options\.value\) !== 1[\s\S]*clearValue\(PEF_ULTRASOUND_AVAILABLE_FIELD\)/,
+  "PEF Q10 No must clear hidden report answers and uploads",
+);
+assert.match(
+  nativeQuestionRendererSource,
+  /PefUltrasoundReportsRenderer[\s\S]*onRequestTopLevelFocus=\{onRequestTopLevelFocus\}/,
+  "PEF report uploads must receive the questionnaire focus callback",
+);
+assert.match(
+  pefUltrasoundRendererSource,
+  /updateReport\(index, stored\);[\s\S]*restoreUploadFocus\(\)/,
+  "a completed image upload must restore the ultrasound section position",
+);
+assert.match(
+  pefUltrasoundRendererSource,
+  /onRequestTopLevelFocus\?\.\(question\.name\)/,
+  "the report uploader must focus itself instead of the top of the form",
 );
 const wqResponse = {
   id: "response-wq-1",
@@ -120,7 +174,8 @@ const reportUpload = preparedPef.pages[0].elements[q11Index + 1];
 assert.equal(reportUpload.name, PEF_ULTRASOUND_REPORTS_FIELD);
 assert.equal(reportUpload.renderAs, "pef_ultrasound_reports");
 assert.equal(reportUpload.isRequired, true);
-assert.match(reportUpload.visibleIf, /pef_first_ultrasound_report.*= 1/);
+assert.match(reportUpload.visibleIf, /pef_any_time_during_pregnancy_ultrasound} = 1/);
+assert.match(reportUpload.visibleIf, /pef_first_ultrasound_report} = 1/);
 assert.equal(validatePefUltrasoundReports({ report_count: 2, reports: [] }), "Add all 2 ultrasound report images.");
 const completeReports = {
   report_count: 1,

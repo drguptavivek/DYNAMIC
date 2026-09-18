@@ -30,6 +30,7 @@ Rules:
 - JWT verification must lock the expected algorithm and token type.
 - Login and refresh endpoints need rate limiting before field deployment.
 - The Expo field app must require local app unlock after login using device biometrics when available, with PIN fallback.
+- When the authenticated field app leaves the foreground, app lock starts after a 60-second grace period; returning sooner, including from the system camera or gallery picker, cancels that pending lock.
 - App lock protects local cached PII, drafts, finalized local outbox records, and worklists.
 - App lock must not delete or block sync of already finalized local Form Submissions.
 
