@@ -48,13 +48,15 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now dynamic-docker dynamic-api dynamic-web
 ```
 
-For the PEF Q11 image release, take a verified database backup, then apply the reviewed idempotent schema file before restarting the API:
+For an existing installation of the PEF image release, take a verified database backup, then apply the reviewed idempotent ultrasound-date/multi-image migration before restarting the API. This migration only adds attachment metadata and replaces the per-report uniqueness constraint; it does not reset or reseed data:
 
 ```bash
 sudo docker compose -f /data/dynamic/current/deploy/docker-compose.production.yml --env-file /etc/dynamic/production.env exec -T postgres \
   psql -U dynamic_app -d dynamic -v ON_ERROR_STOP=1 \
-  < /data/dynamic/current/deploy/sql/2026-09-18-form-attachments.sql
+  < /data/dynamic/current/deploy/sql/2026-09-19-form-attachment-ultrasound-date.sql
 ```
+
+The earlier `2026-09-18-form-attachments.sql` remains the base table-creation script for a new installation.
 
 `dynamic-docker` starts the production Compose file, named volumes, and Nginx. `dynamic-web` runs the built admin bundle through Vite's production preview server, not the development HMR server. It does not run schema pushes or development seeds. Apply reviewed versioned migrations separately after a verified backup; never use `make db-reset-full` or `make db-push` in production.
 
