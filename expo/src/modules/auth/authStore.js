@@ -260,6 +260,70 @@ export function getUser() {
   return null;
 }
 
+async function refreshStoredSession() {
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) {
+    return { ok: false, definitive: true };
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+    if (!response.ok) {
+      return {
+        ok: false,
+        definitive: [400, 401, 403].includes(response.status),
+      };
+    }
+
+    const data = unwrapApiData(await response.json());
+    if (!data?.access_token) {
+      return { ok: false, definitive: true };
+    }
+    setMeta("access_token", data.access_token);
+    setMeta("refresh_token", data.refresh_token || refreshToken);
+    return { ok: true, accessToken: data.access_token };
+  } catch (error) {
+    console.error("Session refresh failed:", error);
+    return { ok: false, definitive: false };
+  }
+}
+
+async function checkStoredSession(accessToken) {
+  if (!accessToken) return { status: "rejected" };
+  try {
+    const response = await fetch(`${API_BASE_URL}/users/me`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+    });
+    if (response.status === 401 || response.status === 403) {
+      return { status: "rejected" };
+    }
+    if (response.ok) {
+      return { status: "accepted", user: unwrapApiData(await response.json()) };
+    }
+    return { status: "unavailable" };
+  } catch (error) {
+    console.error("Session restore check failed:", error);
+    return { status: "unavailable" };
+  }
+}
+
+function restoreCachedUser(freshUser, restoredUser) {
+  const restored = {
+    ...(freshUser || restoredUser),
+    device_id: restoredUser?.device_id || getOrCreateDeviceId(),
+  };
+  storeUser(restored);
+  return restored;
+}
+
 export async function restoreSession() {
   let restoredUser = null;
   const userJson = getMeta("auth_user");
@@ -272,46 +336,44 @@ export async function restoreSession() {
     }
   }
 
-  if (!getToken()) {
+  const accessToken = getToken();
+  if (!accessToken && !getRefreshToken()) {
     return null;
   }
 
-  try {
-    const response = await fetch(`${API_BASE_URL}/users/me`, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${getToken()}`,
-        "Content-Type": "application/json",
-      },
-    });
-    if (response.status === 401 || response.status === 403) {
-      // The server definitively rejected the stored session (expired, revoked,
-      // or the server database was reset). Treat it as a forced logout and wipe
-      // all local study data so a later login cannot mix stale rows into the
-      // new user's synced scope.
+  let sessionCheck = await checkStoredSession(accessToken);
+  if (sessionCheck.status === "rejected") {
+    // Access tokens are intentionally short lived. Rotate the stored refresh
+    // token before treating the saved login as invalid.
+    const refreshed = await refreshStoredSession();
+    if (refreshed.ok) {
+      sessionCheck = await checkStoredSession(refreshed.accessToken);
+    } else if (refreshed.definitive) {
       await clearLocalDeviceData();
       currentUser = null;
       return null;
+    } else {
+      sessionCheck = { status: "unavailable" };
     }
-    if (response.ok) {
-      const freshUser = unwrapApiData(await response.json());
-      const restored = {
-        ...freshUser,
-        device_id: restoredUser?.device_id || getOrCreateDeviceId(),
-      };
-      storeUser(restored);
-      return restored;
-    }
-    // Other server statuses (for example 5xx): keep the cached session so the
-    // app remains usable offline.
-  } catch (error) {
-    // Offline: keep the cached session.
-    console.error("Session restore check failed:", error);
   }
+
+  if (sessionCheck.status === "accepted") {
+    return restoreCachedUser(sessionCheck.user, restoredUser);
+  }
+  if (sessionCheck.status === "rejected") {
+    // A newly refreshed token was rejected, so the server has definitively
+    // invalidated this session. Prevent stale rows crossing into a new login.
+    await clearLocalDeviceData();
+    currentUser = null;
+    return null;
+  }
+
+  // Network errors and temporary server failures retain the cached offline
+  // session. Local study data remains protected by the app PIN.
   if (restoredUser) {
-    storeUser(restoredUser);
+    return restoreCachedUser(null, restoredUser);
   }
-  return restoredUser;
+  return null;
 }
 
 export function isAuthenticated() {

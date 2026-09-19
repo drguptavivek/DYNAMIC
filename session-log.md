@@ -1,3 +1,14 @@
+## 2026-09-19 (Scoped media-picker lock grace and session restoration) [verified]
+Goal: Restore normal PIN security while keeping external camera/gallery uploads usable.
+Decisions:
+- Password and QR login always enter PIN creation or PIN/biometric unlock before app data is visible.
+- Ordinary app backgrounding locks immediately; only an active camera, gallery, or file picker gets the one-minute return grace.
+- App restart refreshes an expired access token before discarding the saved PIN-protected session; temporary network/server failures retain offline access.
+Verification:
+- Focused app-lock, QR-login, provider-stability, renderer-import, local-reset, source-syntax, lint, and diff checks passed.
+Open:
+- Physical-device verification and production APK build/install require an explicit request.
+
 ## 2026-09-19 (PEF Q43-Q45 biomarker input validation) [verified]
 Goal: Apply the established BWQ weight, height, and blood-pressure formats to PEF Q43-Q45.
 Decisions:
@@ -15,10 +26,10 @@ Decisions:
 Verification:
 - Focused PEF regression, native model, renderer import, source syntax, targeted ESLint, and diff checks passed.
 
-## 2026-09-18 (Image picker lock grace and PEF upload position) [working]
+## 2026-09-18 (Image picker lock grace and PEF upload position) [superseded]
 Goal: Keep camera/gallery report uploads usable without an immediate app lock or return-to-top jump.
 Decisions:
-- Backgrounding the field app starts a 60-second app-lock grace period; returning while camera/gallery is open cancels the pending lock.
+- The initial global background grace was replaced on 2026-09-19 by an exception scoped only to active external media pickers.
 - After an ultrasound report image is persisted (or fails to persist), the PEF renderer restores focus to the same report-upload question.
 Open:
 - Commit, production build, and device installation require explicit user request.

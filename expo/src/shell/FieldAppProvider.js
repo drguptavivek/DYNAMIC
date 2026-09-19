@@ -5,6 +5,7 @@ import { Alert, AppState } from "react-native";
 import { getHouseholdContextSync } from "../lib/householdSync.js";
 import { buildPrefillForTask } from "../lib/prefillMapper.js";
 import * as appLockStore from "../modules/auth/appLockStore.js";
+import { isAppLockMediaActivityActive } from "../modules/auth/appLockMediaActivity.js";
 import * as authStore from "../modules/auth/authStore.js";
 import { initializeHouseholdRepository, listLocalities } from "../modules/households/householdRepository.js";
 import {
@@ -25,7 +26,7 @@ import * as Application from "expo-application";
 import { stabilizeClockGuard } from "./fieldAppProviderStability.js";
 
 const FieldAppContext = createContext(null);
-const APP_LOCK_BACKGROUND_GRACE_MS = 60 * 1000;
+const APP_LOCK_MEDIA_PICKER_GRACE_MS = 60 * 1000;
 
 export function FieldAppProvider({ children }) {
   const router = useRouter();
@@ -73,7 +74,11 @@ export function FieldAppProvider({ children }) {
   const appLockTimerRef = useRef(null);
   const appStateRef = useRef(AppState.currentState);
 
-  const initializeAppLock = useCallback(async (nextUser, options = {}) => {
+  const initializeAppLock = useCallback(async (nextUser) => {
+    // Close the authenticated surface synchronously before any secure-store or
+    // biometric lookup can yield back to React after login/session restore.
+    setAppLockReady(false);
+    setAppLocked(true);
     const configured = await appLockStore.isLockConfiguredForUser(nextUser);
     const biometricStatus = await appLockStore.getBiometricStatus();
     const biometricEnabled = await appLockStore.isBiometricUnlockEnabledForUser(nextUser);
@@ -81,7 +86,8 @@ export function FieldAppProvider({ children }) {
     setAppLockConfigured(configured);
     setAppLockBiometricAvailable(biometricAvailable);
     setAppLockBiometricEnabled(Boolean(configured && biometricEnabled && biometricAvailable));
-    setAppLocked(configured ? !options.afterLogin : true);
+    // Every authenticated entry point must pass through local PIN setup or
+    // unlock. Login must never make cached study data directly visible.
     setAppLockReady(true);
   }, []);
 
@@ -101,7 +107,7 @@ export function FieldAppProvider({ children }) {
     const result = await authStore.login(username, password);
     if (result.ok) {
       setUser(result.user);
-      await initializeAppLock(result.user, { afterLogin: true });
+      await initializeAppLock(result.user);
     }
     return result;
   }, [initializeAppLock]);
@@ -110,7 +116,7 @@ export function FieldAppProvider({ children }) {
     const result = await authStore.loginWithQrPayload(qrPayload);
     if (result.ok) {
       setUser(result.user);
-      await initializeAppLock(result.user, { afterLogin: true });
+      await initializeAppLock(result.user);
     }
     return result;
   }, [initializeAppLock]);
@@ -361,7 +367,7 @@ export function FieldAppProvider({ children }) {
         const restoreUser = await authStore.restoreSession();
         if (restoreUser) {
           setUser(restoreUser);
-          await initializeAppLock(restoreUser, { afterLogin: false });
+          await initializeAppLock(restoreUser);
         } else {
           setAppLockReady(true);
         }
@@ -397,16 +403,21 @@ export function FieldAppProvider({ children }) {
         refreshClockGuard();
         return;
       }
-      if (user && appLockConfigured && appLockTimerRef.current === null) {
-        // Camera and gallery pickers temporarily background the app. Give the
-        // interviewer one minute to return before securing the questionnaire.
+      if (!user || !appLockConfigured) return;
+
+      cancelPendingAppLock();
+      if (isAppLockMediaActivityActive()) {
+        // Only an explicitly active external camera/gallery/file picker gets
+        // time to return. Ordinary backgrounding locks immediately.
         appLockTimerRef.current = setTimeout(() => {
           appLockTimerRef.current = null;
           if (appStateRef.current !== "active") {
             setAppLocked(true);
           }
-        }, APP_LOCK_BACKGROUND_GRACE_MS);
+        }, APP_LOCK_MEDIA_PICKER_GRACE_MS);
+        return;
       }
+      setAppLocked(true);
     });
     return () => {
       cancelPendingAppLock();

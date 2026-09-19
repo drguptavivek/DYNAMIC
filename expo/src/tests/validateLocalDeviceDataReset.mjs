@@ -58,8 +58,13 @@ assert.ok(
 );
 assert.match(
   authStoreSource,
-  /response\.status === 401 \|\| response\.status === 403/,
-  "restoreSession must treat rejected tokens as a forced logout",
+  /\/auth\/refresh/,
+  "restoreSession must refresh an expired access token before forcing logout",
+);
+assert.match(
+  authStoreSource,
+  /refreshed\.definitive[\s\S]*await clearLocalDeviceData\(\)/,
+  "restoreSession must wipe local data only after definitive refresh rejection",
 );
 
 for (const key of webStorageKeys) {

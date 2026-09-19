@@ -14,6 +14,12 @@ import {
   unlockWithBiometrics,
   verifyPinForUser,
 } from "../modules/auth/appLockStore.js";
+import {
+  beginAppLockMediaActivity,
+  endAppLockMediaActivity,
+  isAppLockMediaActivityActive,
+  resetAppLockMediaActivityForTests,
+} from "../modules/auth/appLockMediaActivity.js";
 
 const user = { user_id: "field-worker-1", username: "field-worker-1" };
 const otherUser = { user_id: "field-worker-2", username: "field-worker-2" };
@@ -22,10 +28,15 @@ const fieldAppProviderSource = readFileSync(
   new URL("../shell/FieldAppProvider.js", import.meta.url),
   "utf8",
 );
+const mediaRendererSources = [
+  "../components/forms/renderers/CameraRenderer.js",
+  "../components/forms/renderers/FilePickerRenderer.js",
+  "../components/forms/renderers/PefUltrasoundReportsRenderer.js",
+].map((path) => readFileSync(new URL(path, import.meta.url), "utf8"));
 assert.match(
   fieldAppProviderSource,
-  /APP_LOCK_BACKGROUND_GRACE_MS = 60 \* 1000/,
-  "background app lock must allow one minute for camera and gallery use",
+  /APP_LOCK_MEDIA_PICKER_GRACE_MS = 60 \* 1000/,
+  "external media picker must allow one minute to return",
 );
 assert.match(
   fieldAppProviderSource,
@@ -34,9 +45,44 @@ assert.match(
 );
 assert.match(
   fieldAppProviderSource,
-  /setTimeout\([\s\S]*appStateRef\.current !== "active"[\s\S]*setAppLocked\(true\)[\s\S]*APP_LOCK_BACKGROUND_GRACE_MS/,
-  "the app must lock only after the background grace period expires",
+  /isAppLockMediaActivityActive\(\)[\s\S]*setTimeout\([\s\S]*APP_LOCK_MEDIA_PICKER_GRACE_MS/,
+  "the grace period must be restricted to an active external media picker",
 );
+assert.match(
+  fieldAppProviderSource,
+  /if \(isAppLockMediaActivityActive\(\)\)[\s\S]*return;[\s\S]*setAppLocked\(true\)/,
+  "ordinary app backgrounding must lock immediately",
+);
+assert.doesNotMatch(
+  fieldAppProviderSource,
+  /initializeAppLock\(result\.user,\s*\{\s*afterLogin:/,
+  "password and QR login must not bypass local PIN setup or unlock",
+);
+assert.match(
+  fieldAppProviderSource,
+  /initializeAppLock = useCallback\(async \(nextUser\) => \{[\s\S]*setAppLockReady\(false\);[\s\S]*setAppLocked\(true\);[\s\S]*await appLockStore\.isLockConfiguredForUser/,
+  "authenticated content must be hidden before asynchronous PIN state lookup",
+);
+for (const source of mediaRendererSources) {
+  assert.match(source, /beginAppLockMediaActivity\(\)/, "media picker must begin its lock exception");
+  assert.match(
+    source,
+    /finally\s*\{[\s\S]*endAppLockMediaActivity\(\)/,
+    "media picker must always end its lock exception",
+  );
+}
+
+resetAppLockMediaActivityForTests();
+assert.equal(isAppLockMediaActivityActive(), false, "media exception starts inactive");
+beginAppLockMediaActivity();
+beginAppLockMediaActivity();
+assert.equal(isAppLockMediaActivityActive(), true, "nested media operations remain active");
+endAppLockMediaActivity();
+assert.equal(isAppLockMediaActivityActive(), true, "one active media operation retains exception");
+endAppLockMediaActivity();
+assert.equal(isAppLockMediaActivityActive(), false, "media exception ends after every operation");
+endAppLockMediaActivity();
+assert.equal(isAppLockMediaActivityActive(), false, "media activity count cannot become negative");
 
 await clearLockForTests();
 

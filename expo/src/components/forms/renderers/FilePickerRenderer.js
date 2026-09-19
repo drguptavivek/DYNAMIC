@@ -3,17 +3,26 @@ import React from "react";
 import { Pressable, Text } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 
+import {
+  beginAppLockMediaActivity,
+  endAppLockMediaActivity,
+} from "../../../modules/auth/appLockMediaActivity.js";
 import { setNativeQuestionValue } from "../nativeSurveyModel.js";
 import { QuestionFrame, controlStyles } from "./QuestionFrame.js";
 
 export function FilePickerRenderer({ locale, question, onChange }) {
   const files = Array.isArray(question.value) ? question.value : [];
   async function pickFile() {
-    const result = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true, multiple: false });
-    if (result.canceled) return;
-    const asset = result.assets[0];
-    setNativeQuestionValue(question, [{ name: asset.name, size: asset.size, type: asset.mimeType, uri: asset.uri }]);
-    onChange?.();
+    beginAppLockMediaActivity();
+    try {
+      const result = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true, multiple: false });
+      if (result.canceled) return;
+      const asset = result.assets[0];
+      setNativeQuestionValue(question, [{ name: asset.name, size: asset.size, type: asset.mimeType, uri: asset.uri }]);
+      onChange?.();
+    } finally {
+      endAppLockMediaActivity();
+    }
   }
   return (
     <QuestionFrame locale={locale} question={question}>

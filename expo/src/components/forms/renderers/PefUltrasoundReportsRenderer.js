@@ -15,6 +15,10 @@ import * as ImagePicker from "expo-image-picker";
 import * as Crypto from "expo-crypto";
 
 import {
+  beginAppLockMediaActivity,
+  endAppLockMediaActivity,
+} from "../../../modules/auth/appLockMediaActivity.js";
+import {
   PEF_ULTRASOUND_IMAGES_PER_REPORT_MAX,
   PEF_ULTRASOUND_REPORTS_MAX,
   normalizePefUltrasoundReports,
@@ -191,32 +195,33 @@ export function PefUltrasoundReportsRenderer({
 
   async function chooseImage(reportIndex, imageIndex, source) {
     setError("");
-    const permission = source === "camera"
-      ? await ImagePicker.requestCameraPermissionsAsync()
-      : await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      setError(`${source === "camera" ? "Camera" : "Gallery"} permission is required.`);
-      return;
-    }
-    const options = {
-      mediaTypes: ["images"],
-      allowsEditing: false,
-      quality: 0.8,
-      exif: false,
-      selectionLimit: 1,
-    };
-    const result = source === "camera"
-      ? await ImagePicker.launchCameraAsync(options)
-      : await ImagePicker.launchImageLibraryAsync(options);
-    if (result.canceled || !result.assets?.[0]) return;
-    const current = normalizePefUltrasoundReports(question.value)
-      .reports[reportIndex]?.images[imageIndex];
-    if (!current) {
-      setError("Select the number of reports before adding an image.");
-      restoreUploadFocus();
-      return;
-    }
+    beginAppLockMediaActivity();
     try {
+      const permission = source === "camera"
+        ? await ImagePicker.requestCameraPermissionsAsync()
+        : await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        setError(`${source === "camera" ? "Camera" : "Gallery"} permission is required.`);
+        return;
+      }
+      const options = {
+        mediaTypes: ["images"],
+        allowsEditing: false,
+        quality: 0.8,
+        exif: false,
+        selectionLimit: 1,
+      };
+      const result = source === "camera"
+        ? await ImagePicker.launchCameraAsync(options)
+        : await ImagePicker.launchImageLibraryAsync(options);
+      if (result.canceled || !result.assets?.[0]) return;
+      const current = normalizePefUltrasoundReports(question.value)
+        .reports[reportIndex]?.images[imageIndex];
+      if (!current) {
+        setError("Select the number of reports before adding an image.");
+        restoreUploadFocus();
+        return;
+      }
       const stored = await persistPefUltrasoundImage(result.assets[0], current.attachment_id);
       if (current.local_uri && current.local_uri !== stored.local_uri) {
         await removePersistedPefUltrasoundImage(current.local_uri);
@@ -226,6 +231,8 @@ export function PefUltrasoundReportsRenderer({
     } catch (storageError) {
       setError(storageError?.message || "Could not save the image on this device.");
       restoreUploadFocus();
+    } finally {
+      endAppLockMediaActivity();
     }
   }
 
