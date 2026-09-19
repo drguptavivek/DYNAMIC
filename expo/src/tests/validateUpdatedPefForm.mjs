@@ -85,6 +85,10 @@ const attachmentSyncSource = readFileSync(
   new URL("../modules/sync/syncService.js", import.meta.url),
   "utf8",
 );
+const attachmentUploadClientSource = readFileSync(
+  new URL("../modules/attachments/attachmentUploadClient.js", import.meta.url),
+  "utf8",
+);
 const attachmentMigrationSource = readFileSync(
   new URL("../../../deploy/sql/2026-09-19-form-attachment-ultrasound-date.sql", import.meta.url),
   "utf8",
@@ -338,9 +342,14 @@ assert.match(
   "each report image must have independent report and image sequences in offline storage",
 );
 assert.match(
-  attachmentSyncSource,
-  /body\.append\("image_sequence", String\(attachment\.image_sequence \|\| 1\)\)/,
+  attachmentUploadClientSource,
+  /image_sequence: String\(attachment\.image_sequence \|\| 1\)/,
   "attachment sync must send the image sequence",
+);
+assert.match(
+  attachmentSyncSource,
+  /uploadAttachment\(\{[\s\S]*attachment/,
+  "response sync must upload pending attachments before posting the response batch",
 );
 assert.match(
   attachmentMigrationSource,

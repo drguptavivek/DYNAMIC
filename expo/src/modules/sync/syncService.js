@@ -26,6 +26,7 @@ import {
   markAttachmentSynced,
   markAttachmentUploadError,
 } from "../attachments/attachmentRepository.js";
+import { uploadAttachment } from "../attachments/attachmentUploadClient.js";
 
 function unwrapApiData(payload) {
   return payload && Object.prototype.hasOwnProperty.call(payload, "data") ? payload.data : payload;
@@ -606,35 +607,13 @@ const PUSH_FORM_RESPONSE_BATCH_SIZE = 100;
 async function pushAttachmentsForResponses({ token, deviceId, formResponses }) {
   const attachments = await listPendingAttachmentsForResponses(formResponses.map((response) => response.id));
   for (const attachment of attachments) {
-    const body = new FormData();
-    body.append("attachment_id", attachment.attachment_id);
-    body.append("form_response_id", attachment.form_response_id);
-    body.append("form_code", attachment.form_code);
-    body.append("question_name", attachment.question_name);
-    body.append("household_id", attachment.household_id);
-    body.append("woman_id", attachment.woman_id);
-    body.append("report_sequence", String(attachment.report_sequence));
-    body.append("image_sequence", String(attachment.image_sequence || 1));
-    if (attachment.ultrasound_date) body.append("ultrasound_date", attachment.ultrasound_date);
-    body.append("display_name", attachment.display_name);
-    body.append("device_id", deviceId);
-    body.append("file", {
-      uri: attachment.local_uri,
-      name: attachment.original_file_name || `${attachment.attachment_id}.jpg`,
-      type: attachment.mime_type || "image/jpeg",
-    });
-
     try {
-      const response = await fetch(`${API_BASE_URL}/sync/attachments`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body,
+      const payload = await uploadAttachment({
+        apiBaseUrl: API_BASE_URL,
+        token,
+        deviceId,
+        attachment,
       });
-      const payload = await response.json().catch(() => null);
-      if (!response.ok) {
-        const message = payload?.error?.message || `Attachment upload failed (${response.status})`;
-        throw new Error(message);
-      }
       const data = unwrapApiData(payload);
       await markAttachmentSynced(attachment.attachment_id, data.relative_path);
     } catch (error) {

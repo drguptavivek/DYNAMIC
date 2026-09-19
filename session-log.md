@@ -1,3 +1,13 @@
+## 2026-09-19 (PEF ultrasound attachment sync transport) [verified]
+Goal: Allow finalized PEF ultrasound images to upload during Sync Now on Expo SDK 57.
+Decisions:
+- Keep attachment-first sync ordering, authentication, metadata, retry state, and API endpoint unchanged.
+- Send the existing React Native `{ uri, name, type }` image part through native XMLHttpRequest multipart transport because Expo SDK 57 fetch rejects that local-file FormData shape with `Unsupported FormDataPart implementation`.
+- Keep image bytes out of JavaScript memory and preserve pending/upload-error rows for retry.
+Verification:
+- Native multipart transport regression, updated PEF regression, sync workflow, pending-response batching, source syntax, targeted ESLint, and diff checks passed.
+- The broader read-only-fields test remains blocked by its existing Node 24 parser failure in `react-native/index.js`, before this attachment path executes.
+
 ## 2026-09-19 (PEF Q43-Q44 decimal entry) [verified]
 Goal: Allow PEF weight and height to accept their required single decimal place on Android.
 Decisions:
