@@ -23,6 +23,7 @@ function localizedItemText(text, locale = "default") {
 export function MultipleTextRenderer({ answerData, locale, question, onChange }) {
   if (
     question.name === WQ_PREGNANCY_DURATION_FIELD ||
+    question.renderAs === "pregnancy-duration" ||
     (question.renderingHint || question.jsonObj?.renderingHint) === "pregnancy-duration"
   ) {
     return (

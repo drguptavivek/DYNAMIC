@@ -632,80 +632,7 @@
           }
         },
         {
-          "type": "text",
-          "name": "pef_first_ultrasound_facility",
-          "title": {
-            "default": "Where was the first ultrasound performed?",
-            "hi": "",
-            "kn": "",
-            "mr": "",
-            "ta": "",
-            "te": "",
-            "ur": ""
-          },
-          "order": 12,
-          "section_order": 1,
-          "sourceCode": "12",
-          "sourceType": "free_text",
-          "rawText": "Where was the first ultrasound performed?",
-          "visibleIf": "{pef_any_time_during_pregnancy_ultrasound} = 1",
-          "renderingHint": {
-            "render_as": "input"
-          }
-        },
-        {
-          "type": "radiogroup",
-          "name": "pef_other_ultrasound_since_first",
-          "title": {
-            "default": "Has the woman had any other ultrasound since the first one?",
-            "hi": "",
-            "kn": "",
-            "mr": "",
-            "ta": "",
-            "te": "",
-            "ur": ""
-          },
-          "order": 13,
-          "section_order": 1,
-          "sourceCode": "13",
-          "sourceType": "select_one",
-          "rawText": "Has the woman had any other ultrasound since the first one?",
-          "renderingHint": {
-            "render_as": "radio"
-          },
-          "choices": [
-            {
-              "value": 1,
-              "text": {
-                "default": "Yes",
-                "hi": "",
-                "kn": "",
-                "mr": "",
-                "ta": "",
-                "te": "",
-                "ur": ""
-              }
-            },
-            {
-              "value": 2,
-              "text": {
-                "default": "No",
-                "hi": "",
-                "kn": "",
-                "mr": "",
-                "ta": "",
-                "te": "",
-                "ur": ""
-              }
-            }
-          ],
-          "validationRulesSource": [
-            "single coded option"
-          ],
-          "visibleIf": "{pef_any_time_during_pregnancy_ultrasound} = 1"
-        },
-        {
-          "type": "radiogroup",
+          "type": "multipletext",
           "name": "pef_gestation_unit",
           "title": {
             "default": "How many weeks/months pregnant is the woman?",
@@ -719,15 +646,14 @@
           "order": 14,
           "section_order": 1,
           "sourceCode": "14",
-          "sourceType": "select_one",
+          "sourceType": "integer_group",
           "rawText": "How many weeks/months pregnant is the woman?",
-          "renderingHint": {
-            "render_as": "radio"
-          },
-          "choices": [
+          "renderAs": "pregnancy-duration",
+          "renderingHint": "pregnancy-duration",
+          "items": [
             {
-              "value": 1,
-              "text": {
+              "name": "weeks",
+              "title": {
                 "default": "Weeks",
                 "hi": "",
                 "kn": "",
@@ -735,11 +661,13 @@
                 "ta": "",
                 "te": "",
                 "ur": ""
-              }
+              },
+              "inputType": "number",
+              "maxLength": 2
             },
             {
-              "value": 2,
-              "text": {
+              "name": "months",
+              "title": {
                 "default": "Months",
                 "hi": "",
                 "kn": "",
@@ -747,15 +675,17 @@
                 "ta": "",
                 "te": "",
                 "ur": ""
-              }
+              },
+              "inputType": "number",
+              "maxLength": 2
             }
           ],
           "validationRulesSource": [
-            "single coded option"
+            "Record either weeks or months."
           ],
-          "visibleIf": "{pef_pregnancy_information_source} anyof [2,3,4]",
+          "visibleIf": "{pef_pregnancy_information_source} anyof [1,2,3,4]",
           "description": {
-            "default": "Answer only if the source is 2, 3, or 4. Auto-filled when pregnancy was detected via WQ.",
+            "default": "Auto-filled from the same woman's BWQ or PSF when that form created this PEF.",
             "hi": "",
             "kn": "",
             "mr": "",
@@ -765,7 +695,7 @@
           }
         },
         {
-          "type": "text",
+          "type": "radiogroup",
           "name": "pef_lmp_start",
           "title": {
             "default": "When did the woman's last menstrual period (LMP) start?",
@@ -779,9 +709,9 @@
           "order": 15,
           "section_order": 1,
           "sourceCode": "15",
-          "sourceType": "free_text",
+          "sourceType": "mixed_date_relative_special",
           "rawText": "When did the woman's last menstrual period (LMP) start?",
-          "visibleIf": "{pef_pregnancy_information_source} anyof [3,4]",
+          "visibleIf": "{pef_pregnancy_information_source} anyof [1,2,3,4]",
           "description": {
             "default": "Record date, or days/weeks/months/years ago. 993 hysterectomy; 994 menopause; 995 before last birth; 996 never menstruated.",
             "hi": "",
@@ -791,8 +721,27 @@
             "te": "",
             "ur": ""
           },
+          "choices": [
+            {
+              "value": 993,
+              "text": { "default": "has had hysterectomy", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" }
+            },
+            {
+              "value": 994,
+              "text": { "default": "in menopause", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" }
+            },
+            {
+              "value": 995,
+              "text": { "default": "before last birth", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" }
+            },
+            {
+              "value": 996,
+              "text": { "default": "never menstruated", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" }
+            }
+          ],
+          "renderAs": "lmp_timing",
           "renderingHint": {
-            "render_as": "input"
+            "render_as": "lmp_timing"
           }
         },
         {
@@ -1078,6 +1027,54 @@
             "record all that apply"
           ],
           "visibleIf": "{pef_past_30_days_pregnancy_consultation} = 1"
+        },
+        {
+          "type": "text",
+          "name": "pef_pregnancy_care_location_other_specify",
+          "title": {
+            "default": "Specify other place of care",
+            "hi": "",
+            "kn": "",
+            "mr": "",
+            "ta": "",
+            "te": "",
+            "ur": ""
+          },
+          "order": 17.1,
+          "section_order": 1,
+          "sourceCode": "17_specifyother",
+          "sourceType": "text_other_specify",
+          "rawText": "Other (specify)",
+          "renderingHint": {
+            "render_as": "input"
+          },
+          "visibleIf": "{pef_past_30_days_pregnancy_consultation} = 1 and {pef_pregnancy_care_location} contains 'X'",
+          "isRequired": true,
+          "validators": [
+            {
+              "type": "text",
+              "minLength": 1,
+              "maxLength": 120,
+              "text": {
+                "default": "Specify the other place of care.",
+                "hi": "",
+                "kn": "",
+                "mr": "",
+                "ta": "",
+                "te": "",
+                "ur": ""
+              }
+            }
+          ],
+          "description": {
+            "default": "Complete only if Other (specify) is selected.",
+            "hi": "",
+            "kn": "",
+            "mr": "",
+            "ta": "",
+            "te": "",
+            "ur": ""
+          }
         },
         {
           "type": "radiogroup",

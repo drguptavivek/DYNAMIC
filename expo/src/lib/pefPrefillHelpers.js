@@ -7,7 +7,79 @@ export const PEF_OUTCOME_PAGE_NAME = "page_pef_outcome";
 export const PEF_WOMAN_ID_FIELD = "pef_woman_hh_member_id";
 export const PEF_PREGNANCY_RANK_FIELD = "pef_pregnancy_rank_since_baseline";
 export const PEF_PREGNANCY_ID_FIELD = "pef_pregnancy_id";
+export const PEF_GESTATION_FIELD = "pef_gestation_unit";
+export const PEF_LMP_FIELD = "pef_lmp_start";
+export const WQ_LMP_FIELD =
+  "wq_02_reproduction_when_did_your_last_menstrual_period_start";
+export const PSF_LMP_FIELD = "psf_last_menstrual_period";
 const BAREILLY_SITE_ID = 1;
+
+function validPositiveNumber(value) {
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) && numericValue >= 0 ? numericValue : null;
+}
+
+/** Returns the originating woman-level LMP answer without sharing object state. */
+export function resolvePefLmp(sourceAnswers = {}) {
+  const value = sourceAnswers?.[WQ_LMP_FIELD] ?? sourceAnswers?.[PSF_LMP_FIELD];
+  if (value === undefined || value === null || value === "") return undefined;
+  return value && typeof value === "object" ? { ...value } : value;
+}
+
+/** Derives PEF Q14 from the exact/relative LMP answer stored by BWQ or PSF. */
+export function derivePefGestationFromLmp(lmp, referenceDate = new Date()) {
+  if (!lmp || typeof lmp !== "object") return undefined;
+
+  if (lmp.mode === "relative") {
+    const amount = validPositiveNumber(lmp.value);
+    if (amount === null) return undefined;
+    if (lmp.unit === "days") return { weeks: String(Math.floor(amount / 7)) };
+    if (lmp.unit === "weeks") return { weeks: String(Math.floor(amount)) };
+    if (lmp.unit === "months") return { months: String(Math.floor(amount)) };
+    if (lmp.unit === "years") return { months: String(Math.floor(amount * 12)) };
+    return undefined;
+  }
+
+  if (lmp.mode !== "date") return undefined;
+  const day = Number(lmp.day);
+  const month = Number(lmp.month);
+  const year = Number(lmp.year);
+  const reference = referenceDate instanceof Date ? referenceDate : new Date(referenceDate);
+  const lmpDate = new Date(Date.UTC(year, month - 1, day));
+  if (
+    !Number.isInteger(day) ||
+    !Number.isInteger(month) ||
+    !Number.isInteger(year) ||
+    lmpDate.getUTCFullYear() !== year ||
+    lmpDate.getUTCMonth() !== month - 1 ||
+    lmpDate.getUTCDate() !== day ||
+    Number.isNaN(reference.getTime())
+  ) {
+    return undefined;
+  }
+  const referenceUtc = Date.UTC(
+    reference.getFullYear(),
+    reference.getMonth(),
+    reference.getDate(),
+  );
+  const elapsedDays = Math.floor((referenceUtc - lmpDate.getTime()) / 86_400_000);
+  return elapsedDays >= 0 ? { weeks: String(Math.floor(elapsedDays / 7)) } : undefined;
+}
+
+export function buildPefClinicalPrefill(sourceAnswers = {}, referenceDate = new Date()) {
+  const lmp = resolvePefLmp(sourceAnswers);
+  const gestation = derivePefGestationFromLmp(lmp, referenceDate);
+  return {
+    prefill: {
+      ...(lmp !== undefined ? { [PEF_LMP_FIELD]: lmp } : {}),
+      ...(gestation !== undefined ? { [PEF_GESTATION_FIELD]: gestation } : {}),
+    },
+    readOnlyFields: [
+      ...(lmp !== undefined ? [PEF_LMP_FIELD] : []),
+      ...(gestation !== undefined ? [PEF_GESTATION_FIELD] : []),
+    ],
+  };
+}
 
 export function buildPefPregnancyId(womanId, pregnancyRank) {
   const normalizedWomanId = String(womanId || "").trim();

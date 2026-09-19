@@ -123,8 +123,6 @@ const WQ_HUSBAND_PARTNER_LINE_NUMBER_FIELD = "wq_husband_partner_line_number";
 const WQ_EXCLUDED_MESSAGE = "This women is excluded from the study";
 const WQ_RESCHEDULE_MESSAGE = "Reschedule has been setup";
 const PEF_ULTRASOUND_FIELD = "pef_any_time_during_pregnancy_ultrasound";
-const PEF_FIRST_ULTRASOUND_FACILITY_FIELD = "pef_first_ultrasound_facility";
-const PEF_OTHER_ULTRASOUND_FIELD = "pef_other_ultrasound_since_first";
 
 function isHouseholdQuestionnaire(form) {
   return String(form?.form_code || "").toUpperCase() === "HHQ";
@@ -672,8 +670,6 @@ export function QuestionnaireDashboard({
         }
         sender.clearValue(PEF_ULTRASOUND_REPORTS_FIELD);
         sender.clearValue(PEF_ULTRASOUND_AVAILABLE_FIELD);
-        sender.clearValue(PEF_FIRST_ULTRASOUND_FACILITY_FIELD);
-        sender.clearValue(PEF_OTHER_ULTRASOUND_FIELD);
       }
       if (
         isPregnancyEnrollmentForm(form) &&

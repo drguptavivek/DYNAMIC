@@ -4,7 +4,11 @@
  */
 
 import { listFormResponses } from "../modules/tasks/taskRepository.js";
-import { findPefSourceResponse, resolvePefHusbandName } from "./pefPrefillHelpers.js";
+import {
+  buildPefClinicalPrefill,
+  findPefSourceResponse,
+  resolvePefHusbandName,
+} from "./pefPrefillHelpers.js";
 
 function formatLocalIsoDate(date = new Date()) {
   const year = date.getFullYear();
@@ -163,10 +167,14 @@ export function buildPefPrefill(member, household, task = null) {
     pef_current_address: household.address || sourceAnswers.psf_current_address || "",
   };
 
+  const clinicalPrefill = buildPefClinicalPrefill(sourceAnswers);
+  Object.assign(prefill, clinicalPrefill.prefill);
+
   const readOnlyFields = [
     "pef_woman_hh_member_id", "pef_woman_name",
     "pef_husband_name", "pef_household_head_name", "pef_current_address",
   ];
+  readOnlyFields.push(...clinicalPrefill.readOnlyFields);
 
   return { prefill, readOnlyFields, pefSource: source || "wq" };
 }

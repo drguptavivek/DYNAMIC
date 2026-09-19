@@ -10,13 +10,19 @@ import {
   PEF_WOMAN_ID_FIELD,
   applyPefOnSpotUptSiteVisibility,
   applyPefPregnancyId,
+  buildPefClinicalPrefill,
   buildPefPregnancyId,
+  derivePefGestationFromLmp,
   derivePefSiteId,
   findPefSourceResponse,
   isPefNegativeUptAnswers,
   resolvePefHusbandName,
+  resolvePefLmp,
 } from "../lib/pefPrefillHelpers.js";
-import { prepareQuestionnaireSurveyJson } from "../modules/questionnaires/questionnaireSurveyJsonTransforms.js";
+import {
+  normalizeQuestionnaireSurveyData,
+  prepareQuestionnaireSurveyJson,
+} from "../modules/questionnaires/questionnaireSurveyJsonTransforms.js";
 import {
   getVisiblePageQuestions,
   hasNativeValidationProblem,
@@ -36,8 +42,20 @@ const coded = form.pages[0].elements.filter((element) => element.sourceCode);
 assert.equal(form.form_code, "PEF");
 assert.equal(form.version, "25 AUGUST 2026");
 assert.deepEqual(coded.map((element) => element.sourceCode), [
-  "1", "2", "2A", "3", "3B", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31", "32", "33", "34", "35", "36", "37", "38", "39", "40", "41", "42", "43", "44", "45", "46", "47",
+  "1", "2", "2A", "3", "3B", "4", "5", "6", "7", "8", "9", "10", "11", "14", "15", "16", "17", "17_specifyother", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31", "32", "33", "34", "35", "36", "37", "38", "39", "40", "41", "42", "43", "44", "45", "46", "47",
 ]);
+assert.equal(coded.length, 48);
+assert.equal(form.pages[0].elements.some((element) => element.sourceCode === "12"), false);
+assert.equal(form.pages[0].elements.some((element) => element.sourceCode === "13"), false);
+assert.deepEqual(
+  normalizeQuestionnaireSurveyData(form, {
+    pef_first_ultrasound_facility: "Legacy facility",
+    pef_other_ultrasound_since_first: 2,
+    pef_past_30_days_pregnancy_consultation: 1,
+  }),
+  { pef_past_30_days_pregnancy_consultation: 1 },
+  "retired Q12/Q13 values must not survive a restored PEF draft or future submission",
+);
 const q1 = form.pages[0].elements.find((element) => element.sourceCode === "1");
 assert.deepEqual(q1.choices.map((item) => item.value), [1, 2, 3, 4]);
 assert.equal(q1.readOnly, undefined);
@@ -135,7 +153,14 @@ assert.match(
 const wqResponse = {
   id: "response-wq-1",
   form_code: "WQ",
-  answers_json: { wq_husband_partner_name: "Ravi Kumar" },
+  answers_json: {
+    wq_husband_partner_name: "Ravi Kumar",
+    wq_02_reproduction_when_did_your_last_menstrual_period_start: {
+      mode: "relative",
+      unit: "weeks",
+      value: "8",
+    },
+  },
 };
 assert.equal(
   findPefSourceResponse([wqResponse], { source_event_id: "event-pregnancy-detected-1" }),
@@ -143,10 +168,29 @@ assert.equal(
   "PEF must fall back to the woman's latest source response when the task stores an event ID",
 );
 assert.equal(resolvePefHusbandName({}, wqResponse.answers_json), "Ravi Kumar");
+assert.deepEqual(resolvePefLmp(wqResponse.answers_json), {
+  mode: "relative",
+  unit: "weeks",
+  value: "8",
+});
+assert.deepEqual(
+  derivePefGestationFromLmp(resolvePefLmp(wqResponse.answers_json)),
+  { weeks: "8" },
+);
+assert.deepEqual(buildPefClinicalPrefill(wqResponse.answers_json), {
+  prefill: {
+    pef_lmp_start: { mode: "relative", unit: "weeks", value: "8" },
+    pef_gestation_unit: { weeks: "8" },
+  },
+  readOnlyFields: ["pef_lmp_start", "pef_gestation_unit"],
+});
 const psfResponse = {
   id: "response-psf-1",
   form_code: "PSF",
-  answers_json: { psf_husband_name: "Mohan Lal" },
+  answers_json: {
+    psf_husband_name: "Mohan Lal",
+    psf_last_menstrual_period: { mode: "relative", unit: "months", value: "3" },
+  },
 };
 assert.equal(
   findPefSourceResponse([wqResponse, psfResponse], { source_form_response_id: "response-psf-1" }),
@@ -154,6 +198,14 @@ assert.equal(
   "PEF must prefer its explicitly linked source response",
 );
 assert.equal(resolvePefHusbandName({}, psfResponse.answers_json), "Mohan Lal");
+assert.deepEqual(derivePefGestationFromLmp(resolvePefLmp(psfResponse.answers_json)), { months: "3" });
+assert.deepEqual(
+  derivePefGestationFromLmp(
+    { mode: "date", day: "1", month: "9", year: "2026" },
+    new Date(2026, 8, 29),
+  ),
+  { weeks: "4" },
+);
 assert.equal(derivePefSiteId({ household_id: "1-01-0001-01" }), 1);
 assert.equal(derivePefSiteId({ household_id: "3-01-0001-01" }), 3);
 function createPefVisibilityModel(initialValue = 1) {
@@ -371,8 +423,6 @@ restoredPefModel.onValidateQuestion.add((sender, options) => {
 restoredPefModel.data = {
   pef_any_time_during_pregnancy_ultrasound: 1,
   pef_first_ultrasound_report: 1,
-  pef_first_ultrasound_facility: "Study hospital",
-  pef_other_ultrasound_since_first: 2,
   [PEF_ULTRASOUND_REPORTS_FIELD]: completeReports,
 };
 const restoredVisibleNames = getVisiblePageQuestions(restoredPefModel.currentPage)
@@ -385,14 +435,25 @@ assert.ok(
   restoredVisibleNames.includes(PEF_ULTRASOUND_REPORTS_FIELD),
   "restored Q10/Q11 Yes must reveal saved report uploads",
 );
-assert.ok(
-  restoredVisibleNames.includes("pef_first_ultrasound_facility"),
-  "restored Q10 Yes must reveal Q12",
+assert.equal(restoredPefModel.getQuestionByName("pef_first_ultrasound_facility"), null);
+assert.equal(restoredPefModel.getQuestionByName("pef_other_ultrasound_since_first"), null);
+const gestationQuestion = restoredPefModel.getQuestionByName("pef_gestation_unit");
+const lmpQuestion = restoredPefModel.getQuestionByName("pef_lmp_start");
+assert.equal(gestationQuestion.getType(), "multipletext");
+assert.equal(gestationQuestion.renderAs, "pregnancy-duration");
+assert.equal(lmpQuestion.renderAs, "lmp_timing");
+restoredPefModel.setValue("pef_pregnancy_information_source", 1);
+assert.equal(gestationQuestion.isVisible, true);
+assert.equal(lmpQuestion.isVisible, true);
+const careOtherQuestion = restoredPefModel.getQuestionByName(
+  "pef_pregnancy_care_location_other_specify",
 );
-assert.ok(
-  restoredVisibleNames.includes("pef_other_ultrasound_since_first"),
-  "restored Q10 Yes must reveal Q13",
-);
+restoredPefModel.setValue("pef_past_30_days_pregnancy_consultation", 1);
+restoredPefModel.setValue("pef_pregnancy_care_location", ["A"]);
+assert.equal(careOtherQuestion.isVisible, false);
+restoredPefModel.setValue("pef_pregnancy_care_location", ["A", "X"]);
+assert.equal(careOtherQuestion.isVisible, true);
+assert.equal(careOtherQuestion.isRequired, true);
 const restoredReportsQuestion = restoredPefModel.getQuestionByName(PEF_ULTRASOUND_REPORTS_FIELD);
 restoredPefModel.setValue(PEF_ULTRASOUND_REPORTS_FIELD, {
   report_count: 1,

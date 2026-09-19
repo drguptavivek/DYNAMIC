@@ -606,3 +606,12 @@ Decisions:
 Open:
 - Existing production installations must apply `deploy/sql/2026-09-19-form-attachment-ultrasound-date.sql` before restarting the updated API.
 - Physical-device camera/gallery and offline-to-online sync verification awaits an explicitly requested production APK build/install and server release.
+
+## 2026-09-19 (PEF Q12-Q17 cleanup and source prefill) [working]
+Goal: Retire PEF Q12/Q13, source Q14/Q15 from the same woman's BWQ/PSF, and collect Q17 Other details.
+Decisions:
+- Q12/Q13 are removed from the active PEF definition; restored drafts drop those retired keys, while finalized historical response evidence is preserved.
+- BWQ/PSF LMP is copied into read-only PEF Q15 and used to derive read-only Q14 gestation; direct/manual PEF entry remains editable.
+- Q17 Other (specify) reveals a required text field. Production SQL removes only obsolete Q12/Q13 translation metadata.
+Open:
+- Apply `deploy/sql/2026-09-19-remove-pef-q12-q13-translations.sql` during the next production release.

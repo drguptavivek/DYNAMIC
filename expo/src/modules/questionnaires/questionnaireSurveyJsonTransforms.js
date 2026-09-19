@@ -13,6 +13,10 @@ const PEF_FORM_CODE = "PEF";
 const PEF_ULTRASOUND_DONE_FIELD = "pef_any_time_during_pregnancy_ultrasound";
 const PEF_ULTRASOUND_AVAILABLE_FIELD = "pef_first_ultrasound_report";
 const PEF_ULTRASOUND_REPORTS_FIELD = "pef_ultrasound_reports";
+const PEF_RETIRED_FIELDS = [
+  "pef_first_ultrasound_facility",
+  "pef_other_ultrasound_since_first",
+];
 const HHQ_SINGLE_MOBILE_NAME = "hhq_contact_mobile";
 const HHQ_MOBILE_LIST_NAME = "hhq_contact_mobile_numbers";
 const HHQ_MOBILE_ROW_NAME = "mobile_number";
@@ -1219,6 +1223,15 @@ function applyWqReproductionComparisonTable(surveyJson) {
 export function normalizeQuestionnaireSurveyData(form, data) {
   if (!data || typeof data !== "object") {
     return data || {};
+  }
+  if (isPefForm(form)) {
+    const hasRetiredAnswer = PEF_RETIRED_FIELDS.some((fieldName) =>
+      Object.prototype.hasOwnProperty.call(data, fieldName)
+    );
+    if (!hasRetiredAnswer) return data;
+    const next = { ...data };
+    for (const fieldName of PEF_RETIRED_FIELDS) delete next[fieldName];
+    return next;
   }
   if (isHhqForm(form)) {
     if (Array.isArray(data[HHQ_MOBILE_LIST_NAME])) return data;
