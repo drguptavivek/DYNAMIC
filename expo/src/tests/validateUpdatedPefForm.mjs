@@ -8,10 +8,14 @@ import {
   PEF_PREGNANCY_ID_FIELD,
   PEF_PREGNANCY_RANK_FIELD,
   PEF_WOMAN_ID_FIELD,
+  applyPefBiomarkerSiteRequirements,
   applyPefOnSpotUptSiteVisibility,
   applyPefPregnancyId,
+  buildPefBwqBiomarkerPrefill,
+  buildPefBwqHealthPrefill,
   buildPefClinicalPrefill,
   buildPefPregnancyId,
+  buildPefSourcePrefill,
   derivePefGestationFromLmp,
   derivePefSiteId,
   findPefSourceResponse,
@@ -31,6 +35,12 @@ import {
 } from "../components/forms/nativeSurveyModel.js";
 import { getNativeKeyboardType } from "../components/forms/renderers/multipleTextValue.js";
 import { createSurveyModel } from "../polyfills/surveyCoreNative.js";
+import {
+  PEF_ANC_CARD_IMAGE_FIELD,
+  PEF_ANC_CARD_VISIBLE_FIELD,
+  sanitizePefAncCardImage,
+  validatePefAncCardImage,
+} from "../modules/attachments/pefAncCardImage.js";
 import {
   PEF_ULTRASOUND_REPORTS_FIELD,
   isValidUltrasoundDate,
@@ -95,6 +105,10 @@ const pefUltrasoundRendererSource = readFileSync(
   new URL("../components/forms/renderers/PefUltrasoundReportsRenderer.js", import.meta.url),
   "utf8",
 );
+const pefAncCardRendererSource = readFileSync(
+  new URL("../components/forms/renderers/PefAncCardImageRenderer.js", import.meta.url),
+  "utf8",
+);
 const attachmentRepositorySource = readFileSync(
   new URL("../modules/attachments/attachmentRepository.js", import.meta.url),
   "utf8",
@@ -146,6 +160,16 @@ assert.match(
   "a completed image upload must restore the ultrasound section position",
 );
 assert.match(
+  pefAncCardRendererSource,
+  /launchCameraAsync[\s\S]*launchImageLibraryAsync/,
+  "PEF Q47 Yes must offer one camera/gallery ANC card image control",
+);
+assert.doesNotMatch(
+  pefAncCardRendererSource,
+  /Add image|report_count/,
+  "PEF Q47 must not offer a second ANC card image",
+);
+assert.match(
   pefUltrasoundRendererSource,
   /onRequestTopLevelFocus\?\.\(question\.name\)/,
   "the report uploader must focus itself instead of the top of the form",
@@ -160,6 +184,15 @@ const wqResponse = {
       unit: "weeks",
       value: "8",
     },
+    wq_03_other_health_issues_do_you_currently_have_chronic_respiratory: 1,
+    wq_03_other_health_issues_do_you_currently_have_goitre_or_any_other: 2,
+    wq_03_other_health_issues_do_you_currently_have_any_heart_disease: 8,
+    wq_03_other_health_issues_do_you_currently_have_cancer: "1",
+    wq_03_other_health_issues_do_you_currently_have_any_chronic_kidney_d: 2,
+    wq_03_other_health_issues_do_you_currently_have_anemia: 8,
+    wq_height_measured_site_cm: "165.5",
+    wq_weight_measured_site_kg: "52.4",
+    wq_blood_pressure_measured_site: { systolic: "120", diastolic: "80" },
   },
 };
 assert.equal(
@@ -184,6 +217,68 @@ assert.deepEqual(buildPefClinicalPrefill(wqResponse.answers_json), {
   },
   readOnlyFields: ["pef_lmp_start", "pef_gestation_unit"],
 });
+const expectedBwqHealthPrefill = {
+  prefill: {
+    pef_current_chronic_respiratory_disease: 1,
+    pef_current_goitre_thyroid_disorder: 2,
+    pef_current_heart_disease: 8,
+    pef_current_cancer: 1,
+    pef_current_chronic_kidney_disorder: 2,
+    pef_current_anemia: 8,
+  },
+  readOnlyFields: [
+    "pef_current_chronic_respiratory_disease",
+    "pef_current_goitre_thyroid_disorder",
+    "pef_current_heart_disease",
+    "pef_current_cancer",
+    "pef_current_chronic_kidney_disorder",
+    "pef_current_anemia",
+  ],
+};
+const expectedBwqBiomarkerPrefill = {
+  prefill: {
+    pef_weight_kg: "52.4",
+    pef_height_cm: "165.5",
+    pef_blood_pressure: { systolic: "120", diastolic: "80" },
+  },
+  readOnlyFields: ["pef_weight_kg", "pef_height_cm", "pef_blood_pressure"],
+};
+assert.deepEqual(buildPefBwqHealthPrefill(wqResponse.answers_json), expectedBwqHealthPrefill);
+assert.deepEqual(
+  buildPefBwqBiomarkerPrefill(wqResponse.answers_json),
+  expectedBwqBiomarkerPrefill,
+);
+assert.deepEqual(buildPefBwqBiomarkerPrefill({
+  wq_weight_measured_site_kg: "49.5",
+  wq_height_measured_site_cm: "",
+  wq_blood_pressure_measured_site: { systolic: "120", diastolic: "" },
+}), {
+  prefill: { pef_weight_kg: "49.5" },
+  readOnlyFields: ["pef_weight_kg"],
+}, "missing or invalid BWQ biomarker values must leave the matching PEF questions manual");
+assert.deepEqual(buildPefBwqHealthPrefill({
+  wq_03_other_health_issues_do_you_currently_have_chronic_respiratory: 1,
+  wq_03_other_health_issues_do_you_currently_have_goitre_or_any_other: "",
+  wq_03_other_health_issues_do_you_currently_have_any_heart_disease: undefined,
+  wq_03_other_health_issues_do_you_currently_have_cancer: 99,
+}), {
+  prefill: { pef_current_chronic_respiratory_disease: 1 },
+  readOnlyFields: ["pef_current_chronic_respiratory_disease"],
+}, "missing or invalid BWQ health answers must leave the matching PEF questions manual");
+assert.deepEqual(buildPefSourcePrefill("wq", wqResponse.answers_json), {
+  prefill: {
+    pef_lmp_start: { mode: "relative", unit: "weeks", value: "8" },
+    pef_gestation_unit: { weeks: "8" },
+    ...expectedBwqHealthPrefill.prefill,
+    ...expectedBwqBiomarkerPrefill.prefill,
+  },
+  readOnlyFields: [
+    "pef_lmp_start",
+    "pef_gestation_unit",
+    ...expectedBwqHealthPrefill.readOnlyFields,
+    ...expectedBwqBiomarkerPrefill.readOnlyFields,
+  ],
+});
 const psfResponse = {
   id: "response-psf-1",
   form_code: "PSF",
@@ -198,6 +293,19 @@ assert.equal(
   "PEF must prefer its explicitly linked source response",
 );
 assert.equal(resolvePefHusbandName({}, psfResponse.answers_json), "Mohan Lal");
+assert.deepEqual(buildPefSourcePrefill("psf", {
+  ...psfResponse.answers_json,
+  wq_03_other_health_issues_do_you_currently_have_chronic_respiratory: 1,
+  wq_weight_measured_site_kg: "52.4",
+  wq_height_measured_site_cm: "165.5",
+  wq_blood_pressure_measured_site: { systolic: "120", diastolic: "80" },
+}), {
+  prefill: {
+    pef_lmp_start: { mode: "relative", unit: "months", value: "3" },
+    pef_gestation_unit: { months: "3" },
+  },
+  readOnlyFields: ["pef_lmp_start", "pef_gestation_unit"],
+});
 assert.deepEqual(derivePefGestationFromLmp(resolvePefLmp(psfResponse.answers_json)), { months: "3" });
 assert.deepEqual(
   derivePefGestationFromLmp(
@@ -239,6 +347,47 @@ assert.equal(
 );
 assert.equal(otherSiteModel.question.visible, false);
 assert.equal(otherSiteModel.values[PEF_ON_SPOT_UPT_RESULT_FIELD], undefined);
+function createPefBiomarkerRequirementModel() {
+  const questions = Object.fromEntries(
+    ["pef_weight_kg", "pef_height_cm", "pef_blood_pressure"]
+      .map((name) => [name, { name, isRequired: false }]),
+  );
+  return {
+    questions,
+    getQuestionByName(name) {
+      return questions[name] || null;
+    },
+  };
+}
+for (const siteId of [3, 4]) {
+  const requiredModel = createPefBiomarkerRequirementModel();
+  assert.equal(
+    applyPefBiomarkerSiteRequirements(requiredModel, {
+      taskContext: { household_id: `${siteId}-01-0001-01` },
+    }),
+    true,
+  );
+  assert.equal(
+    Object.values(requiredModel.questions).every((question) => question.isRequired),
+    true,
+    `PEF Q43-Q45 must be required at site ${siteId}`,
+  );
+}
+for (const siteId of [1, 2]) {
+  const optionalModel = createPefBiomarkerRequirementModel();
+  for (const question of Object.values(optionalModel.questions)) question.isRequired = true;
+  assert.equal(
+    applyPefBiomarkerSiteRequirements(optionalModel, {
+      taskContext: { household_id: `${siteId}-01-0001-01` },
+    }),
+    false,
+  );
+  assert.equal(
+    Object.values(optionalModel.questions).every((question) => !question.isRequired),
+    true,
+    `PEF Q43-Q45 must remain optional at site ${siteId}`,
+  );
+}
 assert.equal(form.pages[0].elements.find((element) => element.sourceCode === "7").visibleIf, "{pef_pregnancy_confirmed_upt} = 2");
 assert.match(form.pages[0].elements.find((element) => element.sourceCode === "41").visibleIf, /pef_additional_symptoms/);
 assert.equal(isPefNegativeUptAnswers({ [PEF_ON_SPOT_UPT_RESULT_FIELD]: "2" }), true);
@@ -320,6 +469,28 @@ assert.equal(
 );
 assert.match(reportUpload.visibleIf, /pef_any_time_during_pregnancy_ultrasound} = 1/);
 assert.match(reportUpload.visibleIf, /pef_first_ultrasound_report} = 1/);
+const q47Index = preparedPef.pages[0].elements.findIndex(
+  (element) => element.name === PEF_ANC_CARD_VISIBLE_FIELD,
+);
+const ancCardUpload = preparedPef.pages[0].elements[q47Index + 1];
+assert.equal(ancCardUpload.name, PEF_ANC_CARD_IMAGE_FIELD);
+assert.equal(ancCardUpload.renderAs, "pef_anc_card_image");
+assert.match(ancCardUpload.visibleIf, new RegExp(`${PEF_ANC_CARD_VISIBLE_FIELD}.*= 1`));
+const completeAncCardImage = {
+  attachment_id: "pef-anc-test-1",
+  local_uri: "file:///private/anc-card.jpg",
+  original_name: "anc-card.jpg",
+  mime_type: "image/jpeg",
+  file_size: 2345,
+};
+assert.equal(validatePefAncCardImage(completeAncCardImage), null);
+assert.match(validatePefAncCardImage(null), /Upload one image/);
+assert.deepEqual(sanitizePefAncCardImage(completeAncCardImage), {
+  attachment_id: "pef-anc-test-1",
+  original_name: "anc-card.jpg",
+  mime_type: "image/jpeg",
+  file_size: 2345,
+});
 assert.equal(validatePefUltrasoundReports({ report_count: 2, reports: [] }), "Add all 2 ultrasound reports.");
 assert.equal(isValidUltrasoundDate("2026-02-28"), true);
 assert.equal(isValidUltrasoundDate("2026-02-30"), false);

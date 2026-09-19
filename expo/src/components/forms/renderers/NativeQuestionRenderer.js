@@ -19,6 +19,7 @@ import { InstructionRenderer } from "./InstructionRenderer.js";
 import { MultipleTextRenderer } from "./MultipleTextRenderer.js";
 import { NoteRenderer } from "./NoteRenderer.js";
 import { NumberRenderer } from "./NumberRenderer.js";
+import { PefAncCardImageRenderer } from "./PefAncCardImageRenderer.js";
 import { PefUltrasoundReportsRenderer } from "./PefUltrasoundReportsRenderer.js";
 import { SelectManyRenderer } from "./SelectManyRenderer.js";
 import { SelectOneRenderer } from "./SelectOneRenderer.js";
@@ -64,6 +65,12 @@ function NativeQuestionRendererBase({
     case "multiple-text": rendered = <MultipleTextRenderer {...props} />; break;
     case "note": rendered = <NoteRenderer {...props} />; break;
     case "number": rendered = <NumberRenderer {...props} />; break;
+    case "pef-anc-card-image": rendered = (
+      <PefAncCardImageRenderer
+        {...props}
+        onRequestTopLevelFocus={onRequestTopLevelFocus}
+      />
+    ); break;
     case "pef-ultrasound-reports": rendered = (
       <PefUltrasoundReportsRenderer
         {...props}

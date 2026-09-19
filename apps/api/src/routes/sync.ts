@@ -22,6 +22,8 @@ const attachmentUpload = multer({
     callback(null, file.mimetype.startsWith("image/"));
   },
 });
+const PEF_ULTRASOUND_REPORTS_FIELD = "pef_ultrasound_reports";
+const PEF_ANC_CARD_IMAGE_FIELD = "pef_anc_card_image";
 
 interface PageToken {
   since: string;
@@ -879,17 +881,24 @@ router.post(
       const ultrasoundDate = String(req.body?.ultrasound_date || "").trim();
       const sequence = Number.parseInt(String(req.body?.report_sequence || ""), 10);
       const imageSequence = Number.parseInt(String(req.body?.image_sequence || "1"), 10);
+      const isUltrasound = questionName === PEF_ULTRASOUND_REPORTS_FIELD;
+      const isAncCard = questionName === PEF_ANC_CARD_IMAGE_FIELD;
 
       if (
         !attachmentId || !responseId || formCode !== "PEF" ||
-        questionName !== "pef_ultrasound_reports" || !householdId || !womanId ||
-        !deviceId || !displayName || !Number.isInteger(sequence) || sequence < 1 || sequence > 5 ||
-        !Number.isInteger(imageSequence) || imageSequence < 1 || imageSequence > 2
+        (!isUltrasound && !isAncCard) || !householdId || !womanId ||
+        !deviceId || !displayName || !Number.isInteger(sequence) ||
+        !Number.isInteger(imageSequence) ||
+        (isUltrasound && (sequence < 1 || sequence > 5 || imageSequence < 1 || imageSequence > 2)) ||
+        (isAncCard && (sequence !== 1 || imageSequence !== 1))
       ) {
         return sendError(res, 400, "INVALID_ATTACHMENT_METADATA", "Invalid PEF attachment metadata");
       }
-      if (ultrasoundDate && !isIsoCalendarDate(ultrasoundDate)) {
+      if (isUltrasound && ultrasoundDate && !isIsoCalendarDate(ultrasoundDate)) {
         return sendError(res, 400, "INVALID_ULTRASOUND_DATE", "Ultrasound date must use YYYY-MM-DD format");
+      }
+      if (isAncCard && ultrasoundDate) {
+        return sendError(res, 400, "INVALID_ATTACHMENT_METADATA", "ANC card images cannot include an ultrasound date");
       }
       if (!req.file || !req.file.mimetype.startsWith("image/")) {
         return sendError(res, 400, "IMAGE_REQUIRED", "A camera or gallery image is required");
@@ -955,6 +964,7 @@ router.post(
         imageSequence,
         attachmentId,
         mimeType: req.file.mimetype,
+        category: isAncCard ? "ANC" : undefined,
       });
       await mkdir(location.directory, { recursive: true });
       const temporaryPath = `${location.absolutePath}.${randomUUID()}.tmp`;

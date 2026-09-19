@@ -49,6 +49,7 @@ import {
   PEF_NEGATIVE_UPT_VALUE,
   PEF_ON_SPOT_UPT_RESULT_FIELD,
   PEF_OUTCOME_PAGE_NAME,
+  applyPefBiomarkerSiteRequirements,
   applyPefOnSpotUptSiteVisibility,
   applyPefPregnancyId,
   shouldRecalculatePefPregnancyId,
@@ -62,11 +63,19 @@ import { getDraftSavedMessage } from "./draftSaveMessages.js";
 import { applyQuestionnaireLanguageFromLocale } from "../../lib/questionnaireLanguageField.js";
 import { createSurveyModel } from "../../polyfills/surveyCoreNative.js";
 import {
+  PEF_ANC_CARD_IMAGE_FIELD,
+  PEF_ANC_CARD_VISIBLE_FIELD,
+  validatePefAncCardImage,
+} from "../attachments/pefAncCardImage.js";
+import {
   PEF_ULTRASOUND_AVAILABLE_FIELD,
   PEF_ULTRASOUND_REPORTS_FIELD,
   validatePefUltrasoundReports,
 } from "../attachments/pefUltrasoundReports.js";
-import { removePersistedPefUltrasoundImage } from "../attachments/pefUltrasoundAttachmentStorage.js";
+import {
+  removePersistedPefAncCardImage,
+  removePersistedPefUltrasoundImage,
+} from "../attachments/pefUltrasoundAttachmentStorage.js";
 import {
   WQ_RESIDENCE_DURATION_FIELD,
   WQ_VISITOR_EXCLUDED_FIELD,
@@ -580,6 +589,7 @@ export function QuestionnaireDashboard({
     if (isPregnancyEnrollmentForm(form)) {
       pefSearchPromptedRef.current = false;
       applyPefOnSpotUptSiteVisibility(model, { taskContext, prefillData, user });
+      applyPefBiomarkerSiteRequirements(model, { taskContext, prefillData, user });
       applyPefPregnancyId(model);
       model.onValidateQuestion.add((sender, options) => {
         if (
@@ -588,6 +598,14 @@ export function QuestionnaireDashboard({
         ) {
           const reportValue = options.value ?? sender.getValue(PEF_ULTRASOUND_REPORTS_FIELD);
           const message = validatePefUltrasoundReports(reportValue);
+          if (message) options.error = message;
+        }
+        if (
+          options.name === PEF_ANC_CARD_IMAGE_FIELD &&
+          Number(sender.getValue(PEF_ANC_CARD_VISIBLE_FIELD)) === 1
+        ) {
+          const imageValue = options.value ?? sender.getValue(PEF_ANC_CARD_IMAGE_FIELD);
+          const message = validatePefAncCardImage(imageValue);
           if (message) options.error = message;
         }
       });
@@ -670,6 +688,25 @@ export function QuestionnaireDashboard({
         }
         sender.clearValue(PEF_ULTRASOUND_REPORTS_FIELD);
         sender.clearValue(PEF_ULTRASOUND_AVAILABLE_FIELD);
+      }
+      if (
+        isPregnancyEnrollmentForm(form) &&
+        options.name === PEF_ANC_CARD_VISIBLE_FIELD &&
+        Number(options.value) !== 1
+      ) {
+        const previous = sender.getValue(PEF_ANC_CARD_IMAGE_FIELD);
+        removePersistedPefAncCardImage(previous?.local_uri).catch(() => {});
+        sender.clearValue(PEF_ANC_CARD_IMAGE_FIELD);
+      }
+      if (
+        isPregnancyEnrollmentForm(form) &&
+        options.name === "pef_anc_card_related_to_pregnancy" &&
+        Number(options.value) !== 1
+      ) {
+        const previous = sender.getValue(PEF_ANC_CARD_IMAGE_FIELD);
+        removePersistedPefAncCardImage(previous?.local_uri).catch(() => {});
+        sender.clearValue(PEF_ANC_CARD_IMAGE_FIELD);
+        sender.clearValue(PEF_ANC_CARD_VISIBLE_FIELD);
       }
       if (
         isPregnancyEnrollmentForm(form) &&

@@ -615,3 +615,19 @@ Decisions:
 - Q17 Other (specify) reveals a required text field. Production SQL removes only obsolete Q12/Q13 translation metadata.
 Open:
 - Apply `deploy/sql/2026-09-19-remove-pef-q12-q13-translations.sql` during the next production release.
+
+## 2026-09-19 (PEF BWQ health prefill) [working]
+Goal: Reuse the same woman's BWQ health answers in PEF Q22-Q27 without changing non-BWQ flows.
+Decisions:
+- BWQ health questions 3a-8a map directly to PEF Q22-Q27 because both use answer codes 1, 2, and 8.
+- Valid linked-BWQ answers are preselected and read-only. PSF-generated, direct, ASHA, and register PEF entry remains manual.
+- PEF Q43 Weight, Q44 Height, and Q45 Blood pressure copy valid values only from the linked BWQ; each missing or invalid value remains manually editable.
+- PEF Q43-Q45 are mandatory only for Belagavi (site 3) and Ayapakkam (site 4), and optional at all other sites.
+
+## 2026-09-19 (PEF Q47 ANC card image) [working]
+Goal: Capture one ANC card image when PEF Q47 is Yes without changing the remaining PEF workflow.
+Decisions:
+- Q47 Yes reveals exactly one camera/gallery image control; there is no count or second-image action, and changing Q47/Q46 away from Yes clears the local ANC image.
+- The selected image is copied to app-owned storage, retained offline through draft/finalization, queued independently, and uploaded before the Finalized CRF during sync.
+- Finalized CRF JSON keeps ANC image metadata but never a device-local URI. PostgreSQL stores the attachment row and relative path; the server file is written under `imageuploads/{household_id}/{woman_id}/ANC/`.
+- The existing `form_attachments` schema supports this attachment type, so no destructive reset, seed, or schema migration is required.

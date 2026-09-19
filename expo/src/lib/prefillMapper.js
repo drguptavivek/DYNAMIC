@@ -5,7 +5,7 @@
 
 import { listFormResponses } from "../modules/tasks/taskRepository.js";
 import {
-  buildPefClinicalPrefill,
+  buildPefSourcePrefill,
   findPefSourceResponse,
   resolvePefHusbandName,
 } from "./pefPrefillHelpers.js";
@@ -167,14 +167,14 @@ export function buildPefPrefill(member, household, task = null) {
     pef_current_address: household.address || sourceAnswers.psf_current_address || "",
   };
 
-  const clinicalPrefill = buildPefClinicalPrefill(sourceAnswers);
-  Object.assign(prefill, clinicalPrefill.prefill);
+  const sourcePrefill = buildPefSourcePrefill(source, sourceAnswers);
+  Object.assign(prefill, sourcePrefill.prefill);
 
   const readOnlyFields = [
     "pef_woman_hh_member_id", "pef_woman_name",
     "pef_husband_name", "pef_household_head_name", "pef_current_address",
   ];
-  readOnlyFields.push(...clinicalPrefill.readOnlyFields);
+  readOnlyFields.push(...sourcePrefill.readOnlyFields);
 
   return { prefill, readOnlyFields, pefSource: source || "wq" };
 }

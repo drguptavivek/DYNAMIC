@@ -719,6 +719,17 @@ export function toDraftSyncRecord(draft) {
       })),
     };
   }
+  const ancCardImage = jsonPayload.pef_anc_card_image;
+  if (ancCardImage && typeof ancCardImage === "object") {
+    jsonPayload.pef_anc_card_image = {
+      attachment_id: ancCardImage.attachment_id || null,
+      original_name: ancCardImage.original_name || null,
+      mime_type: ancCardImage.mime_type || null,
+      file_size: Number.isFinite(Number(ancCardImage.file_size))
+        ? Number(ancCardImage.file_size)
+        : null,
+    };
+  }
   return {
     draft_id: draft.draft_id,
     form_code: draft.form_code,

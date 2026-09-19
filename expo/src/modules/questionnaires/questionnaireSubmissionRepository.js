@@ -16,6 +16,12 @@ import {
 } from "./wqVisitorExclusion.js";
 import { isPefNegativeUptAnswers } from "../../lib/pefPrefillHelpers.js";
 import {
+  PEF_ANC_CARD_IMAGE_FIELD,
+  PEF_ANC_CARD_VISIBLE_FIELD,
+  sanitizePefAncCardImage,
+  validatePefAncCardImage,
+} from "../attachments/pefAncCardImage.js";
+import {
   PEF_ULTRASOUND_AVAILABLE_FIELD,
   PEF_ULTRASOUND_REPORTS_FIELD,
   sanitizePefUltrasoundReports,
@@ -735,6 +741,7 @@ export async function saveQuestionnaireSubmission({
   }
   let finalPayload = payload || {};
   let finalizedUltrasoundReports = null;
+  let finalizedAncCardImage = null;
   if (
     String(formCode || "").toUpperCase() === "PEF" &&
     Number(finalPayload[PEF_ULTRASOUND_AVAILABLE_FIELD]) === 1
@@ -749,6 +756,21 @@ export async function saveQuestionnaireSubmission({
   } else if (Object.prototype.hasOwnProperty.call(finalPayload, PEF_ULTRASOUND_REPORTS_FIELD)) {
     finalPayload = { ...finalPayload };
     delete finalPayload[PEF_ULTRASOUND_REPORTS_FIELD];
+  }
+  if (
+    String(formCode || "").toUpperCase() === "PEF" &&
+    Number(finalPayload[PEF_ANC_CARD_VISIBLE_FIELD]) === 1
+  ) {
+    finalizedAncCardImage = finalPayload[PEF_ANC_CARD_IMAGE_FIELD];
+    const attachmentError = validatePefAncCardImage(finalizedAncCardImage);
+    if (attachmentError) throw new Error(attachmentError);
+    finalPayload = {
+      ...finalPayload,
+      [PEF_ANC_CARD_IMAGE_FIELD]: sanitizePefAncCardImage(finalizedAncCardImage),
+    };
+  } else if (Object.prototype.hasOwnProperty.call(finalPayload, PEF_ANC_CARD_IMAGE_FIELD)) {
+    finalPayload = { ...finalPayload };
+    delete finalPayload[PEF_ANC_CARD_IMAGE_FIELD];
   }
 
   const response = buildQuestionnaireResponse({
@@ -768,6 +790,14 @@ export async function saveQuestionnaireSubmission({
       response,
       questionName: PEF_ULTRASOUND_REPORTS_FIELD,
       value: finalizedUltrasoundReports,
+    });
+  }
+  if (finalizedAncCardImage) {
+    const { saveFinalizedAttachments } = await import("../attachments/attachmentRepository.js");
+    await saveFinalizedAttachments({
+      response,
+      questionName: PEF_ANC_CARD_IMAGE_FIELD,
+      value: { reports: [finalizedAncCardImage] },
     });
   }
 

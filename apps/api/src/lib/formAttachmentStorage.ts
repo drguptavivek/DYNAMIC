@@ -39,6 +39,7 @@ export function buildFormAttachmentLocation(input: {
   imageSequence?: number;
   attachmentId: string;
   mimeType: string;
+  category?: string;
   root?: string;
 }) {
   const household = safeAttachmentPathPart(input.householdId);
@@ -47,11 +48,22 @@ export function buildFormAttachmentLocation(input: {
   const attachment = safeAttachmentPathPart(input.attachmentId);
   const imageSequence = input.imageSequence || 1;
   const storedFileName = `${response}-${input.sequence}-${imageSequence}-${attachment}${imageExtension(input.mimeType)}`;
-  const relativePath = path.posix.join("imageuploads", household, woman, storedFileName);
+  const category = input.category ? safeAttachmentPathPart(input.category) : null;
+  const relativePath = path.posix.join(
+    "imageuploads",
+    household,
+    woman,
+    ...(category ? [category] : []),
+    storedFileName,
+  );
   const root = input.root || process.env.IMAGE_UPLOAD_ROOT || path.resolve(process.cwd(), "imageuploads");
-  const directory = path.resolve(root, household, woman);
+  const womanDirectory = path.resolve(root, household, woman);
+  const directory = category ? path.resolve(womanDirectory, category) : womanDirectory;
   const absolutePath = path.resolve(directory, storedFileName);
-  if (!absolutePath.startsWith(`${directory}${path.sep}`)) {
+  if (
+    !directory.startsWith(womanDirectory) ||
+    !absolutePath.startsWith(`${directory}${path.sep}`)
+  ) {
     throw new Error("Invalid attachment storage path");
   }
   return { absolutePath, directory, relativePath, storedFileName };

@@ -13,6 +13,45 @@ export const WQ_LMP_FIELD =
   "wq_02_reproduction_when_did_your_last_menstrual_period_start";
 export const PSF_LMP_FIELD = "psf_last_menstrual_period";
 const BAREILLY_SITE_ID = 1;
+const PEF_BWQ_HEALTH_FIELD_MAP = [
+  [
+    "pef_current_chronic_respiratory_disease",
+    "wq_03_other_health_issues_do_you_currently_have_chronic_respiratory",
+  ],
+  [
+    "pef_current_goitre_thyroid_disorder",
+    "wq_03_other_health_issues_do_you_currently_have_goitre_or_any_other",
+  ],
+  [
+    "pef_current_heart_disease",
+    "wq_03_other_health_issues_do_you_currently_have_any_heart_disease",
+  ],
+  [
+    "pef_current_cancer",
+    "wq_03_other_health_issues_do_you_currently_have_cancer",
+  ],
+  [
+    "pef_current_chronic_kidney_disorder",
+    "wq_03_other_health_issues_do_you_currently_have_any_chronic_kidney_d",
+  ],
+  [
+    "pef_current_anemia",
+    "wq_03_other_health_issues_do_you_currently_have_anemia",
+  ],
+];
+const PEF_HEALTH_ANSWER_CODES = new Set([1, 2, 8]);
+const PEF_BWQ_BIOMARKER_FIELD_MAP = [
+  ["pef_weight_kg", "wq_weight_measured_site_kg", /^\d{2,3}\.\d$/],
+  ["pef_height_cm", "wq_height_measured_site_cm", /^\d{3}(?:\.\d)?$/],
+];
+const PEF_BLOOD_PRESSURE_FIELD = "pef_blood_pressure";
+const WQ_BLOOD_PRESSURE_FIELD = "wq_blood_pressure_measured_site";
+const PEF_BIOMARKER_FIELDS = [
+  "pef_weight_kg",
+  "pef_height_cm",
+  PEF_BLOOD_PRESSURE_FIELD,
+];
+const PEF_REQUIRED_BIOMARKER_SITE_IDS = new Set([3, 4]);
 
 function validPositiveNumber(value) {
   const numericValue = Number(value);
@@ -77,6 +116,56 @@ export function buildPefClinicalPrefill(sourceAnswers = {}, referenceDate = new 
     readOnlyFields: [
       ...(lmp !== undefined ? [PEF_LMP_FIELD] : []),
       ...(gestation !== undefined ? [PEF_GESTATION_FIELD] : []),
+    ],
+  };
+}
+
+export function buildPefBwqHealthPrefill(sourceAnswers = {}) {
+  const prefill = {};
+  const readOnlyFields = [];
+  for (const [pefField, bwqField] of PEF_BWQ_HEALTH_FIELD_MAP) {
+    const value = Number(sourceAnswers?.[bwqField]);
+    if (!PEF_HEALTH_ANSWER_CODES.has(value)) continue;
+    prefill[pefField] = value;
+    readOnlyFields.push(pefField);
+  }
+  return { prefill, readOnlyFields };
+}
+
+export function buildPefBwqBiomarkerPrefill(sourceAnswers = {}) {
+  const prefill = {};
+  const readOnlyFields = [];
+
+  for (const [pefField, bwqField, pattern] of PEF_BWQ_BIOMARKER_FIELD_MAP) {
+    const value = String(sourceAnswers?.[bwqField] ?? "").trim();
+    if (!pattern.test(value)) continue;
+    prefill[pefField] = value;
+    readOnlyFields.push(pefField);
+  }
+
+  const bloodPressure = sourceAnswers?.[WQ_BLOOD_PRESSURE_FIELD];
+  const systolic = String(bloodPressure?.systolic ?? "").trim();
+  const diastolic = String(bloodPressure?.diastolic ?? "").trim();
+  if (/^\d{3}$/.test(systolic) && /^\d{2,3}$/.test(diastolic)) {
+    prefill[PEF_BLOOD_PRESSURE_FIELD] = { systolic, diastolic };
+    readOnlyFields.push(PEF_BLOOD_PRESSURE_FIELD);
+  }
+
+  return { prefill, readOnlyFields };
+}
+
+/** Adds BWQ-only health and biomarker prefill without leaking it into PSF/direct PEF flows. */
+export function buildPefSourcePrefill(source, sourceAnswers = {}, referenceDate = new Date()) {
+  const clinical = buildPefClinicalPrefill(sourceAnswers, referenceDate);
+  if (source !== "wq") return clinical;
+  const health = buildPefBwqHealthPrefill(sourceAnswers);
+  const biomarkers = buildPefBwqBiomarkerPrefill(sourceAnswers);
+  return {
+    prefill: { ...clinical.prefill, ...health.prefill, ...biomarkers.prefill },
+    readOnlyFields: [
+      ...clinical.readOnlyFields,
+      ...health.readOnlyFields,
+      ...biomarkers.readOnlyFields,
     ],
   };
 }
@@ -156,6 +245,20 @@ export function applyPefOnSpotUptSiteVisibility(
     model?.setValue?.(PEF_ON_SPOT_UPT_RESULT_FIELD, undefined);
   }
   return visibleAtSite;
+}
+
+export function applyPefBiomarkerSiteRequirements(
+  model,
+  { taskContext, prefillData, user } = {},
+) {
+  const required = PEF_REQUIRED_BIOMARKER_SITE_IDS.has(
+    derivePefSiteId(taskContext, prefillData, user),
+  );
+  for (const fieldName of PEF_BIOMARKER_FIELDS) {
+    const question = model?.getQuestionByName?.(fieldName);
+    if (question) question.isRequired = required;
+  }
+  return required;
 }
 
 function responseIds(response) {

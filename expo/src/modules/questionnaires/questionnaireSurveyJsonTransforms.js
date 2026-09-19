@@ -13,6 +13,8 @@ const PEF_FORM_CODE = "PEF";
 const PEF_ULTRASOUND_DONE_FIELD = "pef_any_time_during_pregnancy_ultrasound";
 const PEF_ULTRASOUND_AVAILABLE_FIELD = "pef_first_ultrasound_report";
 const PEF_ULTRASOUND_REPORTS_FIELD = "pef_ultrasound_reports";
+const PEF_ANC_CARD_VISIBLE_FIELD = "pef_may_see_anc_card";
+const PEF_ANC_CARD_IMAGE_FIELD = "pef_anc_card_image";
 const PEF_RETIRED_FIELDS = [
   "pef_first_ultrasound_facility",
   "pef_other_ultrasound_since_first",
@@ -199,6 +201,28 @@ function addPefUltrasoundReports(surveyJson) {
             title: "Ultrasound reports",
             renderAs: "pef_ultrasound_reports",
             visibleIf: `{${PEF_ULTRASOUND_DONE_FIELD}} = 1 and {${PEF_ULTRASOUND_AVAILABLE_FIELD}} = 1`,
+          },
+        ];
+      }),
+    })),
+  };
+}
+
+function addPefAncCardImage(surveyJson) {
+  return {
+    ...surveyJson,
+    pages: (surveyJson.pages || []).map((page) => ({
+      ...page,
+      elements: (page.elements || []).flatMap((element) => {
+        if (element.name !== PEF_ANC_CARD_VISIBLE_FIELD) return [element];
+        return [
+          element,
+          {
+            type: "text",
+            name: PEF_ANC_CARD_IMAGE_FIELD,
+            title: "Upload ANC card image",
+            renderAs: "pef_anc_card_image",
+            visibleIf: `{${PEF_ANC_CARD_VISIBLE_FIELD}} = 1`,
           },
         ];
       }),
@@ -1281,6 +1305,7 @@ export function prepareQuestionnaireSurveyJson(form) {
   surveyJson = hideQuestionnaireLanguageFields(surveyJson);
   if (isPefForm(form)) {
     surveyJson = addPefUltrasoundReports(surveyJson);
+    surveyJson = addPefAncCardImage(surveyJson);
     surveyJson = applyPefNegativeUptOutcome(surveyJson);
   }
   if (isHhqForm(form)) {

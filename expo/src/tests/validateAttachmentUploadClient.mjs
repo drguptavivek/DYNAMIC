@@ -34,6 +34,28 @@ assert.deepEqual(buildAttachmentUploadParameters({ attachment, deviceId: "device
   device_id: "device-1",
   ultrasound_date: "2026-09-18",
 });
+assert.deepEqual(buildAttachmentUploadParameters({
+  attachment: {
+    ...attachment,
+    attachment_id: "anc-attachment-1",
+    question_name: "pef_anc_card_image",
+    report_sequence: 1,
+    ultrasound_date: null,
+    display_name: "anc-card.jpg",
+  },
+  deviceId: "device-1",
+}), {
+  attachment_id: "anc-attachment-1",
+  form_response_id: "response-1",
+  form_code: "PEF",
+  question_name: "pef_anc_card_image",
+  household_id: "1-01-0001-01",
+  woman_id: "1-01-0001-01-02",
+  report_sequence: "1",
+  image_sequence: "1",
+  display_name: "anc-card.jpg",
+  device_id: "device-1",
+});
 
 let received;
 const payload = await uploadAttachment({

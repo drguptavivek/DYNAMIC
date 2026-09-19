@@ -727,6 +727,7 @@ export function getNativeRendererKind(question) {
   if (renderAs === "note") return "note";
   if (renderAs === "camera") return "camera";
   if (renderAs === "file_picker") return "file-picker";
+  if (renderAs === "pef_anc_card_image") return "pef-anc-card-image";
   if (renderAs === "pef_ultrasound_reports") return "pef-ultrasound-reports";
   if (renderAs === "gps_decimal" || renderAs === "gps_altitude") return "gps";
   if (renderAs.startsWith("grouped_")) return "grouped-coded-single-select";
@@ -813,6 +814,9 @@ function displayValue(question) {
     return reports.length > 0
       ? reports.map((report, index) => `${index + 1}. ${report.ultrasound_date || "Date not selected"}`).join("; ")
       : "-";
+  }
+  if (question?.renderAs === "pef_anc_card_image") {
+    return question.value?.attachment_id ? "1 ANC card image" : "-";
   }
   if (typeof question?.getDisplayValue === "function") {
     const value = question.getDisplayValue(true, question.value);

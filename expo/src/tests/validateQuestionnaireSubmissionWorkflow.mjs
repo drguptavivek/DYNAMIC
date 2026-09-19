@@ -256,6 +256,15 @@ const pefPayload = {
       }],
     }],
   },
+  pef_anc_card_related_to_pregnancy: 1,
+  pef_may_see_anc_card: 1,
+  pef_anc_card_image: {
+    attachment_id: "pef-anc-test-1",
+    local_uri: "file:///device/pef-anc-test-1.jpg",
+    original_name: "anc-card.jpg",
+    mime_type: "image/jpeg",
+    file_size: 3072,
+  },
 };
 const pefSubmission = await saveQuestionnaireSubmission({
   formCode: "PEF",
@@ -277,19 +286,36 @@ assert.equal(
   undefined,
   "finalized CRF JSON must not retain a device-local file path",
 );
+assert.equal(
+  pefSubmission.answers_json.pef_anc_card_image.local_uri,
+  undefined,
+  "finalized ANC card metadata must not retain a device-local file path",
+);
 const finalizedAttachments = JSON.parse(
   window.localStorage.getItem("dynamic_form_attachments_v1") || "[]",
 );
-assert.equal(finalizedAttachments.length, 2);
-assert.equal(finalizedAttachments[0].form_response_id, pefSubmission.submission_id);
-assert.equal(finalizedAttachments[0].ultrasound_date, "2026-09-14");
-assert.equal(finalizedAttachments[0].image_sequence, 1);
-assert.equal(finalizedAttachments[0].display_name, "camera-1.jpg");
-assert.equal(finalizedAttachments[0].local_uri, "file:///device/pef-usg-test-1.jpg");
-assert.equal(finalizedAttachments[0].sync_status, "pending");
-assert.equal(finalizedAttachments[1].report_sequence, 1);
-assert.equal(finalizedAttachments[1].image_sequence, 2);
-assert.equal(finalizedAttachments[1].display_name, "camera-2.jpg");
+assert.equal(finalizedAttachments.length, 3);
+const finalizedUltrasoundAttachments = finalizedAttachments.filter(
+  (attachment) => attachment.question_name === "pef_ultrasound_reports",
+);
+const finalizedAncCardAttachment = finalizedAttachments.find(
+  (attachment) => attachment.question_name === "pef_anc_card_image",
+);
+assert.equal(finalizedUltrasoundAttachments[0].form_response_id, pefSubmission.submission_id);
+assert.equal(finalizedUltrasoundAttachments[0].ultrasound_date, "2026-09-14");
+assert.equal(finalizedUltrasoundAttachments[0].image_sequence, 1);
+assert.equal(finalizedUltrasoundAttachments[0].display_name, "camera-1.jpg");
+assert.equal(finalizedUltrasoundAttachments[0].local_uri, "file:///device/pef-usg-test-1.jpg");
+assert.equal(finalizedUltrasoundAttachments[0].sync_status, "pending");
+assert.equal(finalizedUltrasoundAttachments[1].report_sequence, 1);
+assert.equal(finalizedUltrasoundAttachments[1].image_sequence, 2);
+assert.equal(finalizedUltrasoundAttachments[1].display_name, "camera-2.jpg");
+assert.equal(finalizedAncCardAttachment.report_sequence, 1);
+assert.equal(finalizedAncCardAttachment.image_sequence, 1);
+assert.equal(finalizedAncCardAttachment.ultrasound_date, null);
+assert.equal(finalizedAncCardAttachment.display_name, "anc-card.jpg");
+assert.equal(finalizedAncCardAttachment.local_uri, "file:///device/pef-anc-test-1.jpg");
+assert.equal(finalizedAncCardAttachment.sync_status, "pending");
 
 const webSqliteAfterPef = JSON.parse(window.localStorage.getItem("dynamic_web_sqlite_v2") || "{}");
 assert.equal(webSqliteAfterPef.form_responses.length, 3);

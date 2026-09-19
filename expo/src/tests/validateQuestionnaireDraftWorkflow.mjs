@@ -278,6 +278,13 @@ const attachmentDraftSyncRecord = toDraftSyncRecord({
         }],
       }],
     },
+    pef_anc_card_image: {
+      attachment_id: "anc-attachment-1",
+      local_uri: "file:///private/anc-card.jpg",
+      original_name: "anc-card.jpg",
+      mime_type: "image/jpeg",
+      file_size: 200,
+    },
   },
 });
 assert.equal(
@@ -289,6 +296,15 @@ assert.equal(
   attachmentDraftSyncRecord.json_payload.pef_ultrasound_reports.reports[0].ultrasound_date,
   "2026-09-14",
   "ultrasound dates must be included in server draft backups",
+);
+assert.equal(
+  attachmentDraftSyncRecord.json_payload.pef_anc_card_image.local_uri,
+  undefined,
+  "device-local ANC card paths must not be copied into server draft backups",
+);
+assert.equal(
+  attachmentDraftSyncRecord.json_payload.pef_anc_card_image.attachment_id,
+  "anc-attachment-1",
 );
 assert.equal((await listQuestionnaireDraftsForSync("fdc-1")).some(
   (draft) => draft.draft_id === crossDeviceDraft.draft_id,
