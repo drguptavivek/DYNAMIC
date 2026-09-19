@@ -1,3 +1,12 @@
+## 2026-09-19 (PEF Q43-Q44 decimal entry) [verified]
+Goal: Allow PEF weight and height to accept their required single decimal place on Android.
+Decisions:
+- Align Q43/Q44 with the working BWQ measurements: keep them text-backed while using the decimal keyboard, so an intermediate value such as `45.` is not coerced back to `45`.
+- Keep the existing weight/height length and regex validation; blood pressure is unchanged.
+Verification:
+- PEF regression confirms both fields use decimal-pad, retain an intermediate decimal separator, accept valid values, and reject invalid formats.
+- Numeric-keyboard, bundled-form, native-model, source-syntax, and diff checks passed.
+
 ## 2026-09-19 (Scoped media-picker lock grace and session restoration) [verified]
 Goal: Restore normal PIN security while keeping external camera/gallery uploads usable.
 Decisions:

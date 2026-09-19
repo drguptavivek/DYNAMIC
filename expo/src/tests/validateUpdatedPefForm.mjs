@@ -20,8 +20,10 @@ import { prepareQuestionnaireSurveyJson } from "../modules/questionnaires/questi
 import {
   getVisiblePageQuestions,
   hasNativeValidationProblem,
+  setNativeQuestionValue,
   validateNativeQuestionTree,
 } from "../components/forms/nativeSurveyModel.js";
+import { getNativeKeyboardType } from "../components/forms/renderers/multipleTextValue.js";
 import { createSurveyModel } from "../polyfills/surveyCoreNative.js";
 import {
   PEF_ULTRASOUND_REPORTS_FIELD,
@@ -196,6 +198,14 @@ for (const [fieldName, validValues, invalidValues] of [
     measurement.renderAs,
     "numeric_textbox",
     `PEF ${fieldName} must use the BWQ numeric entry format`,
+  );
+  assert.equal(measurement.inputType, "text", `PEF ${fieldName} must remain text-backed while editing`);
+  assert.equal(getNativeKeyboardType(measurement), "decimal-pad", `PEF ${fieldName} must show a decimal keyboard`);
+  setNativeQuestionValue(measurement, validValues[0].split(".")[0] + ".");
+  assert.equal(
+    measurement.value,
+    validValues[0].split(".")[0] + ".",
+    `PEF ${fieldName} must retain an in-progress decimal separator`,
   );
   for (const validValue of validValues) {
     measurement.value = validValue;

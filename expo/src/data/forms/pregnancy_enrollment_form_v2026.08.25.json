@@ -2752,7 +2752,6 @@
           "sourceCode": "43",
           "sourceType": "decimal",
           "rawText": "Weight (kg)",
-          "inputType": "number",
           "renderingHint": {
             "render_as": "numeric_textbox"
           },
@@ -2802,7 +2801,6 @@
           "sourceCode": "44",
           "sourceType": "decimal",
           "rawText": "Height (cm)",
-          "inputType": "number",
           "renderingHint": {
             "render_as": "numeric_textbox"
           },
