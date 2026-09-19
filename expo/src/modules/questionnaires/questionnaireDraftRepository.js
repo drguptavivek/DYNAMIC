@@ -706,12 +706,16 @@ export function toDraftSyncRecord(draft) {
     jsonPayload.pef_ultrasound_reports = {
       report_count: Number(reports.report_count) || 0,
       reports: reports.reports.map((report, index) => ({
-        attachment_id: report.attachment_id,
+        report_id: report.report_id || report.attachment_id || null,
         report_sequence: index + 1,
-        report_name: report.report_name || "",
-        original_name: report.original_name || null,
-        mime_type: report.mime_type || null,
-        file_size: Number.isFinite(Number(report.file_size)) ? Number(report.file_size) : null,
+        ultrasound_date: report.ultrasound_date || null,
+        images: (Array.isArray(report.images) ? report.images : [report]).map((image, imageIndex) => ({
+          attachment_id: image.attachment_id,
+          image_sequence: imageIndex + 1,
+          original_name: image.original_name || null,
+          mime_type: image.mime_type || null,
+          file_size: Number.isFinite(Number(image.file_size)) ? Number(image.file_size) : null,
+        })),
       })),
     };
   }

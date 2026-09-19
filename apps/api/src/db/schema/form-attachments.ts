@@ -1,4 +1,5 @@
-import { integer, pgTable, text, timestamp, unique } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { check, date, integer, pgTable, text, timestamp, unique } from "drizzle-orm/pg-core";
 
 export const formAttachments = pgTable(
   "form_attachments",
@@ -10,6 +11,8 @@ export const formAttachments = pgTable(
     household_id: text("household_id").notNull(),
     woman_id: text("woman_id").notNull(),
     report_sequence: integer("report_sequence").notNull(),
+    image_sequence: integer("image_sequence").notNull().default(1),
+    ultrasound_date: date("ultrasound_date"),
     display_name: text("display_name").notNull(),
     original_file_name: text("original_file_name"),
     stored_file_name: text("stored_file_name").notNull(),
@@ -22,10 +25,15 @@ export const formAttachments = pgTable(
     created_at: timestamp("created_at", { withTimezone: true }).notNull(),
   },
   (table) => ({
+    imageSequenceCheck: check(
+      "form_attachments_image_sequence_check",
+      sql`${table.image_sequence} BETWEEN 1 AND 2`,
+    ),
     responseQuestionSequenceUnique: unique().on(
       table.form_response_id,
       table.question_name,
       table.report_sequence,
+      table.image_sequence,
     ),
   }),
 );

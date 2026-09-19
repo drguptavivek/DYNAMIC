@@ -239,12 +239,21 @@ const pefPayload = {
   pef_ultrasound_reports: {
     report_count: 1,
     reports: [{
-      attachment_id: "pef-usg-test-1",
-      report_name: "First ultrasound report",
-      local_uri: "file:///device/pef-usg-test-1.jpg",
-      original_name: "camera.jpg",
-      mime_type: "image/jpeg",
-      file_size: 2048,
+      report_id: "pef-report-test-1",
+      ultrasound_date: "2026-09-14",
+      images: [{
+        attachment_id: "pef-usg-test-1",
+        local_uri: "file:///device/pef-usg-test-1.jpg",
+        original_name: "camera-1.jpg",
+        mime_type: "image/jpeg",
+        file_size: 2048,
+      }, {
+        attachment_id: "pef-usg-test-2",
+        local_uri: "file:///device/pef-usg-test-2.jpg",
+        original_name: "camera-2.jpg",
+        mime_type: "image/jpeg",
+        file_size: 2049,
+      }],
     }],
   },
 };
@@ -264,17 +273,23 @@ assert.equal(pefSubmission.household_id, "1-02-0042-03");
 assert.equal(pefSubmission.subject_type, "woman");
 assert.equal(pefSubmission.subject_id, "1-02-0042-03-02");
 assert.equal(
-  pefSubmission.answers_json.pef_ultrasound_reports.reports[0].local_uri,
+  pefSubmission.answers_json.pef_ultrasound_reports.reports[0].images[0].local_uri,
   undefined,
   "finalized CRF JSON must not retain a device-local file path",
 );
 const finalizedAttachments = JSON.parse(
   window.localStorage.getItem("dynamic_form_attachments_v1") || "[]",
 );
-assert.equal(finalizedAttachments.length, 1);
+assert.equal(finalizedAttachments.length, 2);
 assert.equal(finalizedAttachments[0].form_response_id, pefSubmission.submission_id);
+assert.equal(finalizedAttachments[0].ultrasound_date, "2026-09-14");
+assert.equal(finalizedAttachments[0].image_sequence, 1);
+assert.equal(finalizedAttachments[0].display_name, "camera-1.jpg");
 assert.equal(finalizedAttachments[0].local_uri, "file:///device/pef-usg-test-1.jpg");
 assert.equal(finalizedAttachments[0].sync_status, "pending");
+assert.equal(finalizedAttachments[1].report_sequence, 1);
+assert.equal(finalizedAttachments[1].image_sequence, 2);
+assert.equal(finalizedAttachments[1].display_name, "camera-2.jpg");
 
 const webSqliteAfterPef = JSON.parse(window.localStorage.getItem("dynamic_web_sqlite_v2") || "{}");
 assert.equal(webSqliteAfterPef.form_responses.length, 3);

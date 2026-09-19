@@ -267,20 +267,28 @@ const attachmentDraftSyncRecord = toDraftSyncRecord({
     pef_ultrasound_reports: {
       report_count: 1,
       reports: [{
-        attachment_id: "attachment-1",
-        report_name: "First report",
-        local_uri: "file:///private/device-only.jpg",
-        original_name: "camera.jpg",
-        mime_type: "image/jpeg",
-        file_size: 100,
+        report_id: "report-1",
+        ultrasound_date: "2026-09-14",
+        images: [{
+          attachment_id: "attachment-1",
+          local_uri: "file:///private/device-only.jpg",
+          original_name: "camera.jpg",
+          mime_type: "image/jpeg",
+          file_size: 100,
+        }],
       }],
     },
   },
 });
 assert.equal(
-  attachmentDraftSyncRecord.json_payload.pef_ultrasound_reports.reports[0].local_uri,
+  attachmentDraftSyncRecord.json_payload.pef_ultrasound_reports.reports[0].images[0].local_uri,
   undefined,
   "device-local attachment paths must not be copied into server draft backups",
+);
+assert.equal(
+  attachmentDraftSyncRecord.json_payload.pef_ultrasound_reports.reports[0].ultrasound_date,
+  "2026-09-14",
+  "ultrasound dates must be included in server draft backups",
 );
 assert.equal((await listQuestionnaireDraftsForSync("fdc-1")).some(
   (draft) => draft.draft_id === crossDeviceDraft.draft_id,

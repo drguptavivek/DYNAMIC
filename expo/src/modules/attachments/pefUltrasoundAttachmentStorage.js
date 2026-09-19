@@ -23,7 +23,7 @@ export async function persistPefUltrasoundImage(asset, attachmentId) {
   const info = await FileSystem.getInfoAsync(destination, { size: true });
   return {
     local_uri: destination,
-    original_name: asset.fileName || `ultrasound-report.${extensionFor(asset)}`,
+    original_name: asset.fileName || `ultrasound-report-${attachmentId}.${extensionFor(asset)}`,
     mime_type: asset.mimeType || "image/jpeg",
     file_size: info.exists && Number.isFinite(info.size) ? info.size : null,
   };

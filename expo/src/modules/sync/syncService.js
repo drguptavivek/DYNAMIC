@@ -614,6 +614,8 @@ async function pushAttachmentsForResponses({ token, deviceId, formResponses }) {
     body.append("household_id", attachment.household_id);
     body.append("woman_id", attachment.woman_id);
     body.append("report_sequence", String(attachment.report_sequence));
+    body.append("image_sequence", String(attachment.image_sequence || 1));
+    if (attachment.ultrasound_date) body.append("ultrasound_date", attachment.ultrasound_date);
     body.append("display_name", attachment.display_name);
     body.append("device_id", deviceId);
     body.append("file", {

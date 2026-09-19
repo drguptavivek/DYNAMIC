@@ -36,6 +36,7 @@ export function buildFormAttachmentLocation(input: {
   womanId: string;
   responseId: string;
   sequence: number;
+  imageSequence?: number;
   attachmentId: string;
   mimeType: string;
   root?: string;
@@ -44,7 +45,8 @@ export function buildFormAttachmentLocation(input: {
   const woman = safeAttachmentPathPart(input.womanId);
   const response = safeAttachmentPathPart(input.responseId);
   const attachment = safeAttachmentPathPart(input.attachmentId);
-  const storedFileName = `${response}-${input.sequence}-${attachment}${imageExtension(input.mimeType)}`;
+  const imageSequence = input.imageSequence || 1;
+  const storedFileName = `${response}-${input.sequence}-${imageSequence}-${attachment}${imageExtension(input.mimeType)}`;
   const relativePath = path.posix.join("imageuploads", household, woman, storedFileName);
   const root = input.root || process.env.IMAGE_UPLOAD_ROOT || path.resolve(process.cwd(), "imageuploads");
   const directory = path.resolve(root, household, woman);

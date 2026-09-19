@@ -2750,12 +2750,31 @@
           "order": 43,
           "section_order": 1,
           "sourceCode": "43",
-          "sourceType": "free_text",
+          "sourceType": "decimal",
           "rawText": "Weight (kg)",
           "inputType": "number",
           "renderingHint": {
             "render_as": "numeric_textbox"
           },
+          "maxLength": 5,
+          "validators": [
+            {
+              "type": "numeric"
+            },
+            {
+              "type": "regex",
+              "regex": "^\\d{2,3}\\.\\d$",
+              "text": {
+                "default": "Enter weight as 2 to 3 digits with 1 decimal place in kg (for example 45.6 or 121.4).",
+                "hi": "",
+                "kn": "",
+                "mr": "",
+                "ta": "",
+                "te": "",
+                "ur": ""
+              }
+            }
+          ],
           "description": {
             "default": "Measure on site where possible.",
             "hi": "",
@@ -2781,12 +2800,31 @@
           "order": 44,
           "section_order": 1,
           "sourceCode": "44",
-          "sourceType": "free_text",
+          "sourceType": "decimal",
           "rawText": "Height (cm)",
           "inputType": "number",
           "renderingHint": {
             "render_as": "numeric_textbox"
           },
+          "maxLength": 5,
+          "validators": [
+            {
+              "type": "numeric"
+            },
+            {
+              "type": "regex",
+              "regex": "^\\d{3}(?:\\.\\d)?$",
+              "text": {
+                "default": "Enter height as 3 digits with up to 1 decimal place in cm (for example 165 or 165.5).",
+                "hi": "",
+                "kn": "",
+                "mr": "",
+                "ta": "",
+                "te": "",
+                "ur": ""
+              }
+            }
+          ],
           "description": {
             "default": "Measure on site.",
             "hi": "",
@@ -2798,7 +2836,7 @@
           }
         },
         {
-          "type": "text",
+          "type": "multipletext",
           "name": "pef_blood_pressure",
           "title": {
             "default": "Blood pressure",
@@ -2812,11 +2850,73 @@
           "order": 45,
           "section_order": 1,
           "sourceCode": "45",
-          "sourceType": "free_text",
+          "sourceType": "multiple_numeric",
           "rawText": "Blood pressure",
           "renderingHint": {
-            "render_as": "input"
+            "render_as": "numeric_textboxes"
           },
+          "items": [
+            {
+              "name": "systolic",
+              "title": {
+                "default": "Systolic",
+                "hi": "",
+                "kn": "",
+                "mr": "",
+                "ta": "",
+                "te": "",
+                "ur": ""
+              },
+              "inputType": "number",
+              "maxLength": 3,
+              "preserveString": true,
+              "validators": [
+                {
+                  "type": "regex",
+                  "regex": "^\\d{3}$",
+                  "text": {
+                    "default": "Enter systolic as exactly 3 digits (for example 123).",
+                    "hi": "",
+                    "kn": "",
+                    "mr": "",
+                    "ta": "",
+                    "te": "",
+                    "ur": ""
+                  }
+                }
+              ]
+            },
+            {
+              "name": "diastolic",
+              "title": {
+                "default": "Diastolic",
+                "hi": "",
+                "kn": "",
+                "mr": "",
+                "ta": "",
+                "te": "",
+                "ur": ""
+              },
+              "inputType": "number",
+              "maxLength": 3,
+              "preserveString": true,
+              "validators": [
+                {
+                  "type": "regex",
+                  "regex": "^\\d{2,3}$",
+                  "text": {
+                    "default": "Enter diastolic as 2 to 3 digits (for example 85 or 123).",
+                    "hi": "",
+                    "kn": "",
+                    "mr": "",
+                    "ta": "",
+                    "te": "",
+                    "ur": ""
+                  }
+                }
+              ]
+            }
+          ],
           "description": {
             "default": "Record as ___/___ and measure on site.",
             "hi": "",

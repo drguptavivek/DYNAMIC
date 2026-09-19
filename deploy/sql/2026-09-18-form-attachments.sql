@@ -8,6 +8,8 @@ CREATE TABLE IF NOT EXISTS form_attachments (
   household_id text NOT NULL,
   woman_id text NOT NULL,
   report_sequence integer NOT NULL CHECK (report_sequence BETWEEN 1 AND 5),
+  image_sequence integer NOT NULL DEFAULT 1 CHECK (image_sequence BETWEEN 1 AND 2),
+  ultrasound_date date,
   display_name text NOT NULL,
   original_file_name text,
   stored_file_name text NOT NULL,
@@ -18,8 +20,8 @@ CREATE TABLE IF NOT EXISTS form_attachments (
   uploaded_by_user_id text NOT NULL,
   device_id text NOT NULL,
   created_at timestamp with time zone NOT NULL,
-  CONSTRAINT form_attachments_response_question_sequence_unique
-    UNIQUE (form_response_id, question_name, report_sequence)
+  CONSTRAINT form_attachments_response_question_report_image_unique
+    UNIQUE (form_response_id, question_name, report_sequence, image_sequence)
 );
 
 CREATE INDEX IF NOT EXISTS form_attachments_household_woman_idx

@@ -26,25 +26,33 @@ async function nativeDb() {
 export async function saveFinalizedAttachments({ response, questionName, value }) {
   const reports = Array.isArray(value?.reports) ? value.reports : [];
   const now = new Date().toISOString();
-  const rows = reports.map((report, index) => ({
-    attachment_id: report.attachment_id,
-    form_response_id: response.id,
-    form_code: response.form_code,
-    question_name: questionName,
-    household_id: response.household_id,
-    woman_id: response.subject_id,
-    report_sequence: index + 1,
-    display_name: String(report.report_name || "").trim(),
-    original_file_name: report.original_name || null,
-    local_uri: report.local_uri,
-    mime_type: report.mime_type || "image/jpeg",
-    file_size: Number.isFinite(Number(report.file_size)) ? Number(report.file_size) : null,
-    sync_status: "pending",
-    sync_error: null,
-    server_path: null,
-    created_at: now,
-    updated_at: now,
-  }));
+  const rows = reports.flatMap((report, reportIndex) => {
+    const images = Array.isArray(report.images) ? report.images : [report];
+    return images.map((image, imageIndex) => {
+      const originalFileName = image.original_name || `${image.attachment_id}.jpg`;
+      return {
+        attachment_id: image.attachment_id,
+        form_response_id: response.id,
+        form_code: response.form_code,
+        question_name: questionName,
+        household_id: response.household_id,
+        woman_id: response.subject_id,
+        report_sequence: reportIndex + 1,
+        image_sequence: imageIndex + 1,
+        ultrasound_date: report.ultrasound_date || null,
+        display_name: originalFileName,
+        original_file_name: originalFileName,
+        local_uri: image.local_uri,
+        mime_type: image.mime_type || "image/jpeg",
+        file_size: Number.isFinite(Number(image.file_size)) ? Number(image.file_size) : null,
+        sync_status: "pending",
+        sync_error: null,
+        server_path: null,
+        created_at: now,
+        updated_at: now,
+      };
+    });
+  });
 
   const storage = webStorage();
   if (storage) {
@@ -60,12 +68,13 @@ export async function saveFinalizedAttachments({ response, questionName, value }
       db.runSync(
         `INSERT OR REPLACE INTO form_attachments (
           attachment_id, form_response_id, form_code, question_name, household_id, woman_id,
-          report_sequence, display_name, original_file_name, local_uri, mime_type, file_size,
+          report_sequence, image_sequence, ultrasound_date, display_name, original_file_name, local_uri, mime_type, file_size,
           sync_status, sync_error, server_path, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           row.attachment_id, row.form_response_id, row.form_code, row.question_name,
-          row.household_id, row.woman_id, row.report_sequence, row.display_name,
+          row.household_id, row.woman_id, row.report_sequence, row.image_sequence,
+          row.ultrasound_date, row.display_name,
           row.original_file_name, row.local_uri, row.mime_type, row.file_size,
           row.sync_status, row.sync_error, row.server_path, row.created_at, row.updated_at,
         ],
@@ -90,7 +99,7 @@ export async function listPendingAttachmentsForResponses(responseIds) {
   return db.getAllSync(
     `SELECT * FROM form_attachments
      WHERE form_response_id IN (${placeholders}) AND sync_status != 'synced'
-     ORDER BY form_response_id, report_sequence`,
+     ORDER BY form_response_id, report_sequence, image_sequence`,
     responseIds,
   );
 }

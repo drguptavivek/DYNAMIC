@@ -811,7 +811,7 @@ function displayValue(question) {
   if (question?.renderAs === "pef_ultrasound_reports") {
     const reports = Array.isArray(question.value?.reports) ? question.value.reports : [];
     return reports.length > 0
-      ? reports.map((report, index) => `${index + 1}. ${report.report_name || "Unnamed report"}`).join("; ")
+      ? reports.map((report, index) => `${index + 1}. ${report.ultrasound_date || "Date not selected"}`).join("; ")
       : "-";
   }
   if (typeof question?.getDisplayValue === "function") {

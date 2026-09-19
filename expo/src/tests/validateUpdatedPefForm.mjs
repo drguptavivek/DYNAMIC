@@ -25,6 +25,7 @@ import {
 import { createSurveyModel } from "../polyfills/surveyCoreNative.js";
 import {
   PEF_ULTRASOUND_REPORTS_FIELD,
+  isValidUltrasoundDate,
   sanitizePefUltrasoundReports,
   validatePefUltrasoundReports,
 } from "../modules/attachments/pefUltrasoundReports.js";
@@ -74,6 +75,18 @@ const pefUltrasoundRendererSource = readFileSync(
   new URL("../components/forms/renderers/PefUltrasoundReportsRenderer.js", import.meta.url),
   "utf8",
 );
+const attachmentRepositorySource = readFileSync(
+  new URL("../modules/attachments/attachmentRepository.js", import.meta.url),
+  "utf8",
+);
+const attachmentSyncSource = readFileSync(
+  new URL("../modules/sync/syncService.js", import.meta.url),
+  "utf8",
+);
+const attachmentMigrationSource = readFileSync(
+  new URL("../../../deploy/sql/2026-09-19-form-attachment-ultrasound-date.sql", import.meta.url),
+  "utf8",
+);
 const nativeQuestionRendererSource = readFileSync(
   new URL("../components/forms/renderers/NativeQuestionRenderer.js", import.meta.url),
   "utf8",
@@ -105,7 +118,7 @@ assert.match(
 );
 assert.match(
   pefUltrasoundRendererSource,
-  /updateReport\(index, stored\);[\s\S]*restoreUploadFocus\(\)/,
+  /updateImage\(reportIndex, imageIndex, stored\);[\s\S]*restoreUploadFocus\(\)/,
   "a completed image upload must restore the ultrasound section position",
 );
 assert.match(
@@ -173,6 +186,61 @@ assert.match(form.pages[0].elements.find((element) => element.sourceCode === "41
 assert.equal(isPefNegativeUptAnswers({ [PEF_ON_SPOT_UPT_RESULT_FIELD]: "2" }), true);
 assert.equal(isPefNegativeUptAnswers({ [PEF_ON_SPOT_UPT_RESULT_FIELD]: 1 }), false);
 const preparedPef = prepareQuestionnaireSurveyJson(form);
+const pefMeasurementsModel = createSurveyModel(preparedPef);
+for (const [fieldName, validValues, invalidValues] of [
+  ["pef_weight_kg", ["45.6", "121.4"], ["9.5", "121.45", "1234.5"]],
+  ["pef_height_cm", ["165", "165.5"], ["16.5", "165.55"]],
+]) {
+  const measurement = pefMeasurementsModel.getQuestionByName(fieldName);
+  assert.equal(
+    measurement.renderAs,
+    "numeric_textbox",
+    `PEF ${fieldName} must use the BWQ numeric entry format`,
+  );
+  for (const validValue of validValues) {
+    measurement.value = validValue;
+    assert.equal(
+      measurement.validate() !== false && !measurement.errors.length,
+      true,
+      `PEF ${fieldName} must accept ${validValue}`,
+    );
+  }
+  for (const invalidValue of invalidValues) {
+    measurement.value = invalidValue;
+    assert.equal(
+      measurement.validate() !== false && !measurement.errors.length,
+      false,
+      `PEF ${fieldName} must reject ${invalidValue}`,
+    );
+  }
+  measurement.value = undefined;
+}
+const pefBloodPressure = pefMeasurementsModel.getQuestionByName("pef_blood_pressure");
+assert.equal(
+  pefBloodPressure.getType(),
+  "multipletext",
+  "PEF Q45 must use separate systolic and diastolic inputs like BWQ",
+);
+assert.deepEqual(
+  pefBloodPressure.items.map((item) => item.name),
+  ["systolic", "diastolic"],
+);
+for (const [value, isValid] of [
+  [{ systolic: "095", diastolic: "85" }, true],
+  [{ systolic: "123", diastolic: "085" }, true],
+  [{ systolic: "95", diastolic: "085" }, false],
+  [{ systolic: "095", diastolic: "8" }, false],
+  [{ systolic: "1234", diastolic: "085" }, false],
+  [{ systolic: "095", diastolic: "1234" }, false],
+]) {
+  pefBloodPressure.value = value;
+  assert.equal(
+    pefBloodPressure.validate() !== false && !pefBloodPressure.errors.length,
+    isValid,
+    `PEF blood pressure validation must ${isValid ? "accept" : "reject"} ${JSON.stringify(value)}`,
+  );
+}
+pefBloodPressure.value = undefined;
 const q11Index = preparedPef.pages[0].elements.findIndex(
   (element) => element.name === "pef_first_ultrasound_report",
 );
@@ -186,20 +254,89 @@ assert.equal(
 );
 assert.match(reportUpload.visibleIf, /pef_any_time_during_pregnancy_ultrasound} = 1/);
 assert.match(reportUpload.visibleIf, /pef_first_ultrasound_report} = 1/);
-assert.equal(validatePefUltrasoundReports({ report_count: 2, reports: [] }), "Add all 2 ultrasound report images.");
+assert.equal(validatePefUltrasoundReports({ report_count: 2, reports: [] }), "Add all 2 ultrasound reports.");
+assert.equal(isValidUltrasoundDate("2026-02-28"), true);
+assert.equal(isValidUltrasoundDate("2026-02-30"), false);
 const completeReports = {
   report_count: 1,
   reports: [{
-    attachment_id: "attachment-1",
-    report_name: "First ultrasound",
-    local_uri: "file:///private/report.jpg",
-    original_name: "camera.jpg",
-    mime_type: "image/jpeg",
-    file_size: 1234,
+    report_id: "report-1",
+    ultrasound_date: "2026-09-18",
+    images: [{
+      attachment_id: "attachment-1",
+      local_uri: "file:///private/report-1.jpg",
+      original_name: "camera-1.jpg",
+      mime_type: "image/jpeg",
+      file_size: 1234,
+    }, {
+      attachment_id: "attachment-2",
+      local_uri: "file:///private/report-2.jpg",
+      original_name: "camera-2.jpg",
+      mime_type: "image/jpeg",
+      file_size: 1235,
+    }],
   }],
 };
 assert.equal(validatePefUltrasoundReports(completeReports), null);
-assert.equal(sanitizePefUltrasoundReports(completeReports).reports[0].local_uri, undefined);
+const sanitizedReports = sanitizePefUltrasoundReports(completeReports);
+assert.equal(sanitizedReports.reports[0].ultrasound_date, "2026-09-18");
+assert.equal(sanitizedReports.reports[0].images.length, 2);
+assert.equal(sanitizedReports.reports[0].images[1].image_sequence, 2);
+assert.equal(sanitizedReports.reports[0].images[1].original_name, "camera-2.jpg");
+assert.equal(sanitizedReports.reports[0].images[0].local_uri, undefined);
+assert.equal(sanitizedReports.reports[0].report_name, undefined);
+assert.equal(
+  validatePefUltrasoundReports({
+    ...completeReports,
+    reports: [{ ...completeReports.reports[0], ultrasound_date: "" }],
+  }),
+  "Select a valid ultrasound date for report 1.",
+);
+assert.equal(
+  validatePefUltrasoundReports({
+    ...completeReports,
+    reports: [{
+      ...completeReports.reports[0],
+      images: [...completeReports.reports[0].images, completeReports.reports[0].images[0]],
+    }],
+  }),
+  "Add one or two images for report 1.",
+);
+assert.doesNotMatch(
+  pefUltrasoundRendererSource,
+  /Enter file name|report_name/,
+  "PEF ultrasound uploads must not request a manual image name",
+);
+assert.match(
+  pefUltrasoundRendererSource,
+  /Date of ultrasound/,
+  "each PEF ultrasound upload must ask for its date",
+);
+assert.match(
+  pefUltrasoundRendererSource,
+  /DateTimePicker[\s\S]*maximumDate=\{today\}/,
+  "each PEF ultrasound date must use a calendar that prevents future dates",
+);
+assert.match(
+  pefUltrasoundRendererSource,
+  /PEF_ULTRASOUND_IMAGES_PER_REPORT_MAX[\s\S]*Add image/,
+  "each report must offer an optional second image while enforcing the two-image limit",
+);
+assert.match(
+  attachmentRepositorySource,
+  /report_sequence: reportIndex \+ 1[\s\S]*image_sequence: imageIndex \+ 1/,
+  "each report image must have independent report and image sequences in offline storage",
+);
+assert.match(
+  attachmentSyncSource,
+  /body\.append\("image_sequence", String\(attachment\.image_sequence \|\| 1\)\)/,
+  "attachment sync must send the image sequence",
+);
+assert.match(
+  attachmentMigrationSource,
+  /CHECK \(image_sequence BETWEEN 1 AND 2\)[\s\S]*UNIQUE \(form_response_id, question_name, report_sequence, image_sequence\)/,
+  "the production migration must enforce two image slots per ultrasound report",
+);
 const restoredPefModel = createSurveyModel(preparedPef);
 restoredPefModel.onValidateQuestion.add((sender, options) => {
   if (
@@ -241,10 +378,13 @@ const restoredReportsQuestion = restoredPefModel.getQuestionByName(PEF_ULTRASOUN
 restoredPefModel.setValue(PEF_ULTRASOUND_REPORTS_FIELD, {
   report_count: 1,
   reports: [{
-    attachment_id: "missing-image",
-    report_name: "First ultrasound",
-    local_uri: "",
-    mime_type: "",
+    report_id: "missing-image-report",
+    ultrasound_date: "2026-09-18",
+    images: [{
+      attachment_id: "missing-image",
+      local_uri: "",
+      mime_type: "",
+    }],
   }],
 });
 validateNativeQuestionTree(restoredReportsQuestion);

@@ -46,6 +46,18 @@ const parseSyncCursorDate = (cursor: string): Date | null => {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
 
+const isIsoCalendarDate = (value: string): boolean => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  return parsed.getUTCFullYear() === year &&
+    parsed.getUTCMonth() === month - 1 &&
+    parsed.getUTCDate() === day;
+};
+
 const parseAnswersJson = (answersJson: unknown): Record<string, unknown> => {
   if (typeof answersJson === "string") {
     return JSON.parse(answersJson);
@@ -864,14 +876,20 @@ router.post(
       const womanId = String(req.body?.woman_id || "");
       const deviceId = String(req.body?.device_id || "");
       const displayName = String(req.body?.display_name || "").trim();
+      const ultrasoundDate = String(req.body?.ultrasound_date || "").trim();
       const sequence = Number.parseInt(String(req.body?.report_sequence || ""), 10);
+      const imageSequence = Number.parseInt(String(req.body?.image_sequence || "1"), 10);
 
       if (
         !attachmentId || !responseId || formCode !== "PEF" ||
         questionName !== "pef_ultrasound_reports" || !householdId || !womanId ||
-        !deviceId || !displayName || !Number.isInteger(sequence) || sequence < 1 || sequence > 5
+        !deviceId || !displayName || !Number.isInteger(sequence) || sequence < 1 || sequence > 5 ||
+        !Number.isInteger(imageSequence) || imageSequence < 1 || imageSequence > 2
       ) {
         return sendError(res, 400, "INVALID_ATTACHMENT_METADATA", "Invalid PEF attachment metadata");
+      }
+      if (ultrasoundDate && !isIsoCalendarDate(ultrasoundDate)) {
+        return sendError(res, 400, "INVALID_ULTRASOUND_DATE", "Ultrasound date must use YYYY-MM-DD format");
       }
       if (!req.file || !req.file.mimetype.startsWith("image/")) {
         return sendError(res, 400, "IMAGE_REQUIRED", "A camera or gallery image is required");
@@ -923,9 +941,10 @@ router.post(
           eq(schema.formAttachments.form_response_id, responseId),
           eq(schema.formAttachments.question_name, questionName),
           eq(schema.formAttachments.report_sequence, sequence),
+          eq(schema.formAttachments.image_sequence, imageSequence),
         )).limit(1);
       if (existingSequence) {
-        return sendError(res, 409, "ATTACHMENT_SEQUENCE_CONFLICT", "This report sequence is already uploaded");
+        return sendError(res, 409, "ATTACHMENT_SEQUENCE_CONFLICT", "This report image is already uploaded");
       }
 
       const location = buildFormAttachmentLocation({
@@ -933,6 +952,7 @@ router.post(
         womanId,
         responseId,
         sequence,
+        imageSequence,
         attachmentId,
         mimeType: req.file.mimetype,
       });
@@ -950,6 +970,8 @@ router.post(
         household_id: householdId,
         woman_id: womanId,
         report_sequence: sequence,
+        image_sequence: imageSequence,
+        ultrasound_date: ultrasoundDate || null,
         display_name: displayName,
         original_file_name: req.file.originalname || null,
         stored_file_name: location.storedFileName,

@@ -1,3 +1,11 @@
+## 2026-09-19 (PEF Q43-Q45 biomarker input validation) [verified]
+Goal: Apply the established BWQ weight, height, and blood-pressure formats to PEF Q43-Q45.
+Decisions:
+- Q43 weight accepts 2-3 digits with exactly one decimal; Q44 height accepts 3 digits with an optional one decimal.
+- Q45 uses separate systolic and diastolic inputs; systolic requires 3 digits and diastolic requires 2-3 digits.
+Verification:
+- PEF model regression, native model, renderer imports, source syntax, targeted lint, and diff checks passed.
+
 ## 2026-09-19 (PEF ultrasound draft visibility and Next validation) [verified]
 Goal: Restore Q10/Q11 ultrasound controls from draft and allow navigation after complete uploads.
 Decisions:
@@ -557,12 +565,14 @@ Open:
 - Physical-device UI verification awaits an explicitly requested APK build/install.
 
 ## 2026-09-18 (PEF Q11 offline ultrasound report images) [working]
-Goal: Collect up to five named ultrasound-report images offline and sync them into durable woman-scoped server storage.
+Goal: Collect up to five dated ultrasound-report images offline and sync them into durable woman-scoped server storage.
 Decisions:
-- Q11 Yes requires a count from 1-5 and exactly that many named camera/gallery images before final submit.
+- Q11 Yes requires a count from 1-5, one ultrasound date per report, and one or two camera/gallery images for each report before final submit.
+- Each report starts with one image slot; after the first image is added, an Add image action exposes one optional second slot. A third image is blocked in the app, validation, API, and database constraint.
+- The app records the picker-provided image filename automatically; interviewers no longer type report names.
 - Images are copied from picker cache into app-owned document storage; finalized CRF JSON contains metadata only and a separate local attachment outbox retains device paths.
-- Sync uploads attachments idempotently before the owning response, with authenticated device/area/subject checks and image signature validation.
-- Server paths are `imageuploads/{household_id}/{woman_id}/{system-generated-file}`; interviewer filenames remain database metadata.
+- Sync uploads attachments idempotently before the owning response, with authenticated device/area/subject checks, calendar-date validation, and image signature validation.
+- The ultrasound date and report/image sequence are stored in both the local attachment outbox and PostgreSQL `form_attachments`; server paths remain `imageuploads/{household_id}/{woman_id}/{system-generated-file}`.
 Open:
-- Production release must create `/data/dynamic/imageuploads`, apply `deploy/sql/2026-09-18-form-attachments.sql`, and reinstall the updated API systemd unit before restart.
+- Existing production installations must apply `deploy/sql/2026-09-19-form-attachment-ultrasound-date.sql` before restarting the updated API.
 - Physical-device camera/gallery and offline-to-online sync verification awaits an explicitly requested production APK build/install and server release.

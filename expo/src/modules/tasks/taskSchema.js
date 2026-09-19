@@ -87,6 +87,8 @@ export function initTaskDb() {
       household_id TEXT NOT NULL,
       woman_id TEXT NOT NULL,
       report_sequence INTEGER NOT NULL,
+      image_sequence INTEGER NOT NULL DEFAULT 1,
+      ultrasound_date TEXT,
       display_name TEXT NOT NULL,
       original_file_name TEXT,
       local_uri TEXT NOT NULL,
@@ -240,6 +242,8 @@ export function initTaskDb() {
     "ALTER TABLE questionnaire_drafts ADD COLUMN household_number TEXT",
     "ALTER TABLE questionnaire_drafts ADD COLUMN answer_count INTEGER",
     "ALTER TABLE questionnaire_drafts ADD COLUMN respondent_label TEXT",
+    "ALTER TABLE form_attachments ADD COLUMN ultrasound_date TEXT",
+    "ALTER TABLE form_attachments ADD COLUMN image_sequence INTEGER NOT NULL DEFAULT 1",
   ]) {
     try {
       db.runSync(statement);

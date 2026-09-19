@@ -15,6 +15,7 @@ test("PEF report images are stored below the household and woman folders", () =>
     womanId: "1-01-0006-11-02",
     responseId: "PEF-response-1",
     sequence: 2,
+    imageSequence: 2,
     attachmentId: "attachment-abc",
     mimeType: "image/png",
     root,
@@ -22,7 +23,7 @@ test("PEF report images are stored below the household and woman folders", () =>
 
   assert.equal(
     result.relativePath,
-    "imageuploads/1-01-0006-11/1-01-0006-11-02/PEF-response-1-2-attachment-abc.png",
+    "imageuploads/1-01-0006-11/1-01-0006-11-02/PEF-response-1-2-2-attachment-abc.png",
   );
   assert.ok(result.absolutePath.startsWith(path.join(root, "1-01-0006-11", "1-01-0006-11-02")));
 });
