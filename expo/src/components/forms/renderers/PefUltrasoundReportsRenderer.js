@@ -14,6 +14,7 @@ import * as Crypto from "expo-crypto";
 import {
   PEF_ULTRASOUND_REPORTS_MAX,
   normalizePefUltrasoundReports,
+  validatePefUltrasoundReports,
 } from "../../../modules/attachments/pefUltrasoundReports.js";
 import {
   persistPefUltrasoundImage,
@@ -36,16 +37,25 @@ export function PefUltrasoundReportsRenderer({
   const [error, setError] = useState("");
 
   function commit(next) {
+    const hadValidationError = Array.isArray(question.errors) && question.errors.length > 0;
     setNativeQuestionValue(question, next);
+    // Clear any earlier attachment error as soon as the corrected object is
+    // complete, rather than making the interviewer press Next a second time.
+    // Do not introduce validation errors while the report is still being entered.
+    if (hadValidationError || validatePefUltrasoundReports(next) === null) {
+      question.validate?.();
+    }
     onChange?.();
   }
 
   async function setReportCount(raw) {
     const digits = String(raw || "").replace(/\D/g, "").slice(0, 1);
     const count = digits ? Math.min(Number(digits), PEF_ULTRASOUND_REPORTS_MAX) : 0;
-    const removed = value.reports.slice(count);
+    const currentValue = normalizePefUltrasoundReports(question.value);
+    const removed = currentValue.reports.slice(count);
     await Promise.all(removed.map((report) => removePersistedPefUltrasoundImage(report.local_uri)));
-    const reports = Array.from({ length: count }, (_, index) => value.reports[index] || {
+    const latestValue = normalizePefUltrasoundReports(question.value);
+    const reports = Array.from({ length: count }, (_, index) => latestValue.reports[index] || {
       attachment_id: createAttachmentId(),
       report_name: "",
       local_uri: "",
@@ -58,10 +68,11 @@ export function PefUltrasoundReportsRenderer({
   }
 
   function updateReport(index, patch) {
-    const reports = value.reports.map((report, reportIndex) =>
+    const currentValue = normalizePefUltrasoundReports(question.value);
+    const reports = currentValue.reports.map((report, reportIndex) =>
       reportIndex === index ? { ...report, ...patch } : report,
     );
-    commit({ report_count: value.report_count, reports });
+    commit({ report_count: currentValue.report_count, reports });
   }
 
   function restoreUploadFocus() {
@@ -92,7 +103,12 @@ export function PefUltrasoundReportsRenderer({
       ? await ImagePicker.launchCameraAsync(options)
       : await ImagePicker.launchImageLibraryAsync(options);
     if (result.canceled || !result.assets?.[0]) return;
-    const current = value.reports[index];
+    const current = normalizePefUltrasoundReports(question.value).reports[index];
+    if (!current) {
+      setError("Select the number of reports before adding an image.");
+      restoreUploadFocus();
+      return;
+    }
     try {
       const stored = await persistPefUltrasoundImage(result.assets[0], current.attachment_id);
       if (current.local_uri && current.local_uri !== stored.local_uri) {

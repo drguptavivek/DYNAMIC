@@ -1,3 +1,12 @@
+## 2026-09-19 (PEF ultrasound draft visibility and Next validation) [verified]
+Goal: Restore Q10/Q11 ultrasound controls from draft and allow navigation after complete uploads.
+Decisions:
+- Saved answer restoration invalidates the native renderer's visible-question cache, so Q10 Yes immediately reveals Q11-Q13 and the upload control without another tap.
+- The report object uses only the attachment-specific validator; generic text-required validation no longer competes with it.
+- Attachment edits read the latest SurveyJS value and revalidate immediately, preventing stale image/name state or stale errors from blocking Next.
+Verification:
+- Focused PEF regression, native model, renderer import, source syntax, targeted ESLint, and diff checks passed.
+
 ## 2026-09-18 (Image picker lock grace and PEF upload position) [working]
 Goal: Keep camera/gallery report uploads usable without an immediate app lock or return-to-top jump.
 Decisions:

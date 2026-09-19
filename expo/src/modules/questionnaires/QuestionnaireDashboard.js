@@ -588,7 +588,8 @@ export function QuestionnaireDashboard({
           options.name === PEF_ULTRASOUND_REPORTS_FIELD &&
           Number(sender.getValue(PEF_ULTRASOUND_AVAILABLE_FIELD)) === 1
         ) {
-          const message = validatePefUltrasoundReports(options.value);
+          const reportValue = options.value ?? sender.getValue(PEF_ULTRASOUND_REPORTS_FIELD);
+          const message = validatePefUltrasoundReports(reportValue);
           if (message) options.error = message;
         }
       });

@@ -194,7 +194,6 @@ function addPefUltrasoundReports(surveyJson) {
             name: PEF_ULTRASOUND_REPORTS_FIELD,
             title: "Ultrasound reports",
             renderAs: "pef_ultrasound_reports",
-            isRequired: true,
             visibleIf: `{${PEF_ULTRASOUND_DONE_FIELD}} = 1 and {${PEF_ULTRASOUND_AVAILABLE_FIELD}} = 1`,
           },
         ];

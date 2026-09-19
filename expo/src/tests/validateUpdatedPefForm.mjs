@@ -18,6 +18,12 @@ import {
 } from "../lib/pefPrefillHelpers.js";
 import { prepareQuestionnaireSurveyJson } from "../modules/questionnaires/questionnaireSurveyJsonTransforms.js";
 import {
+  getVisiblePageQuestions,
+  hasNativeValidationProblem,
+  validateNativeQuestionTree,
+} from "../components/forms/nativeSurveyModel.js";
+import { createSurveyModel } from "../polyfills/surveyCoreNative.js";
+import {
   PEF_ULTRASOUND_REPORTS_FIELD,
   sanitizePefUltrasoundReports,
   validatePefUltrasoundReports,
@@ -173,7 +179,11 @@ const q11Index = preparedPef.pages[0].elements.findIndex(
 const reportUpload = preparedPef.pages[0].elements[q11Index + 1];
 assert.equal(reportUpload.name, PEF_ULTRASOUND_REPORTS_FIELD);
 assert.equal(reportUpload.renderAs, "pef_ultrasound_reports");
-assert.equal(reportUpload.isRequired, true);
+assert.equal(
+  reportUpload.isRequired,
+  undefined,
+  "PEF report objects must use the attachment validator rather than text-required validation",
+);
 assert.match(reportUpload.visibleIf, /pef_any_time_during_pregnancy_ultrasound} = 1/);
 assert.match(reportUpload.visibleIf, /pef_first_ultrasound_report} = 1/);
 assert.equal(validatePefUltrasoundReports({ report_count: 2, reports: [] }), "Add all 2 ultrasound report images.");
@@ -190,6 +200,80 @@ const completeReports = {
 };
 assert.equal(validatePefUltrasoundReports(completeReports), null);
 assert.equal(sanitizePefUltrasoundReports(completeReports).reports[0].local_uri, undefined);
+const restoredPefModel = createSurveyModel(preparedPef);
+restoredPefModel.onValidateQuestion.add((sender, options) => {
+  if (
+    options.name === PEF_ULTRASOUND_REPORTS_FIELD &&
+    Number(sender.getValue("pef_first_ultrasound_report")) === 1
+  ) {
+    const message = validatePefUltrasoundReports(
+      options.value ?? sender.getValue(PEF_ULTRASOUND_REPORTS_FIELD),
+    );
+    if (message) options.error = message;
+  }
+});
+restoredPefModel.data = {
+  pef_any_time_during_pregnancy_ultrasound: 1,
+  pef_first_ultrasound_report: 1,
+  pef_first_ultrasound_facility: "Study hospital",
+  pef_other_ultrasound_since_first: 2,
+  [PEF_ULTRASOUND_REPORTS_FIELD]: completeReports,
+};
+const restoredVisibleNames = getVisiblePageQuestions(restoredPefModel.currentPage)
+  .map((question) => question.name);
+assert.ok(
+  restoredVisibleNames.includes("pef_first_ultrasound_report"),
+  "restored Q10 Yes must reveal Q11",
+);
+assert.ok(
+  restoredVisibleNames.includes(PEF_ULTRASOUND_REPORTS_FIELD),
+  "restored Q10/Q11 Yes must reveal saved report uploads",
+);
+assert.ok(
+  restoredVisibleNames.includes("pef_first_ultrasound_facility"),
+  "restored Q10 Yes must reveal Q12",
+);
+assert.ok(
+  restoredVisibleNames.includes("pef_other_ultrasound_since_first"),
+  "restored Q10 Yes must reveal Q13",
+);
+const restoredReportsQuestion = restoredPefModel.getQuestionByName(PEF_ULTRASOUND_REPORTS_FIELD);
+restoredPefModel.setValue(PEF_ULTRASOUND_REPORTS_FIELD, {
+  report_count: 1,
+  reports: [{
+    attachment_id: "missing-image",
+    report_name: "First ultrasound",
+    local_uri: "",
+    mime_type: "",
+  }],
+});
+validateNativeQuestionTree(restoredReportsQuestion);
+assert.equal(
+  hasNativeValidationProblem(restoredReportsQuestion),
+  true,
+  "an incomplete restored report upload must still block Next",
+);
+restoredPefModel.setValue(PEF_ULTRASOUND_REPORTS_FIELD, completeReports);
+validateNativeQuestionTree(restoredReportsQuestion);
+assert.equal(
+  hasNativeValidationProblem(restoredReportsQuestion),
+  false,
+  "a complete restored report upload must not block Next",
+);
+assert.match(
+  dashboardSource,
+  /options\.value \?\? sender\.getValue\(PEF_ULTRASOUND_REPORTS_FIELD\)/,
+  "PEF attachment validation must fall back to the current model value",
+);
+const nativeSurveyRendererSource = readFileSync(
+  new URL("../components/forms/NativeSurveyRenderer.js", import.meta.url),
+  "utf8",
+);
+assert.match(
+  nativeSurveyRendererSource,
+  /const visibleQuestions = getVisiblePageQuestions\(page\)/,
+  "restored answers must be reflected without a stale visible-question cache",
+);
 const preparedQ8 = preparedPef.pages
   .flatMap((page) => page.elements || [])
   .find((element) => element.name === "pef_pregnancy_rank_since_baseline");

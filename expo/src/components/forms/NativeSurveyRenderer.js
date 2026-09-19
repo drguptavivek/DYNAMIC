@@ -91,7 +91,10 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
   const resolvedPageIntro = typeof pageIntro === "function" ? pageIntro(page) : pageIntro;
   const resolvedPageFooter = typeof pageFooter === "function" ? pageFooter(page) : pageFooter;
   const logicalSectionPosition = getLogicalSurveySectionPosition(model, page);
-  const visibleQuestions = useMemo(() => getVisiblePageQuestions(page), [page, revision]);
+  // Read visibility on every render. Draft restoration assigns the saved
+  // answer object in one operation and can update SurveyJS conditions without
+  // producing a separate renderer revision for each restored answer.
+  const visibleQuestions = getVisiblePageQuestions(page);
   const useCompactPager = compact && compactPager && visibleQuestions.length > 1;
   const activeQuestionIndex = Math.min(questionIndex, Math.max(visibleQuestions.length - 1, 0));
   const visibleQuestionWindow = useCompactPager
