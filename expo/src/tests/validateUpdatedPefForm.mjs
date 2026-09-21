@@ -166,6 +166,11 @@ assert.match(
 );
 assert.match(
   pefUltrasoundRendererSource,
+  /accessibilityLabel=\{`Open Image \$\{imageIndex \+ 1\} in full screen`\}[\s\S]*name="plus"[\s\S]*<Modal[\s\S]*resizeMode: "contain"/,
+  "PEF ultrasound previews must provide a plus control and full-screen image preview",
+);
+assert.match(
+  pefUltrasoundRendererSource,
   /Please make sure Image is not Blurr or croped\. ensure image quality\./,
   "PEF ultrasound previews must show the image quality reminder",
 );

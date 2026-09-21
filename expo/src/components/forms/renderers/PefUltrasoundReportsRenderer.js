@@ -2,6 +2,7 @@
 import React, { useRef, useState } from "react";
 import {
   Image,
+  Modal,
   Platform,
   Pressable,
   StyleSheet,
@@ -124,6 +125,7 @@ export function PefUltrasoundReportsRenderer({
 }) {
   const value = normalizePefUltrasoundReports(question.value);
   const [error, setError] = useState("");
+  const [previewUri, setPreviewUri] = useState("");
 
   function commit(next) {
     const hadValidationError = Array.isArray(question.errors) && question.errors.length > 0;
@@ -267,7 +269,17 @@ export function PefUltrasoundReportsRenderer({
             <View key={image.attachment_id} style={styles.imageCard}>
               <Text style={styles.imageTitle}>{`Image ${imageIndex + 1}`}</Text>
               {image.local_uri ? (
-                <Image source={{ uri: image.local_uri }} style={styles.preview} />
+                <View style={styles.previewWrap}>
+                  <Image source={{ uri: image.local_uri }} style={styles.preview} />
+                  <Pressable
+                    accessibilityLabel={`Open Image ${imageIndex + 1} in full screen`}
+                    accessibilityRole="button"
+                    onPress={() => setPreviewUri(image.local_uri)}
+                    style={styles.expandButton}
+                  >
+                    <MaterialCommunityIcons color="#fff" name="plus" size={25} />
+                  </Pressable>
+                </View>
               ) : null}
               {image.local_uri ? (
                 <Text style={styles.imageQualityHint}>
@@ -307,6 +319,24 @@ export function PefUltrasoundReportsRenderer({
         </View>
       ))}
       {error ? <Text style={styles.error}>{error}</Text> : null}
+      <Modal
+        animationType="fade"
+        onRequestClose={() => setPreviewUri("")}
+        presentationStyle="fullScreen"
+        visible={Boolean(previewUri)}
+      >
+        <View style={styles.fullScreenPreview}>
+          <Image source={{ uri: previewUri }} style={styles.fullScreenImage} />
+          <Pressable
+            accessibilityLabel="Close full screen image"
+            accessibilityRole="button"
+            onPress={() => setPreviewUri("")}
+            style={styles.closePreviewButton}
+          >
+            <MaterialCommunityIcons color="#fff" name="close" size={30} />
+          </Pressable>
+        </View>
+      </Modal>
     </QuestionFrame>
   );
 }
@@ -324,7 +354,12 @@ const styles = StyleSheet.create({
   dateText: { flex: 1, color: "#18202a", fontSize: 16 },
   datePlaceholder: { color: "#667085" },
   webDateInput: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, zIndex: 2, width: "100%", height: "100%", cursor: "pointer", opacity: 0.01 },
-  preview: { width: "100%", height: 220, resizeMode: "cover", borderRadius: 8, backgroundColor: "#e5e7eb" },
+  previewWrap: { position: "relative", width: "100%", height: 220, borderRadius: 8, overflow: "hidden", backgroundColor: "#e5e7eb" },
+  preview: { width: "100%", height: "100%", resizeMode: "cover" },
+  expandButton: { position: "absolute", top: 10, right: 10, width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 22, backgroundColor: "rgba(17, 24, 39, 0.82)", borderWidth: 2, borderColor: "#fff" },
+  fullScreenPreview: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#000" },
+  fullScreenImage: { width: "100%", height: "100%", resizeMode: "contain" },
+  closePreviewButton: { position: "absolute", top: 28, right: 18, width: 48, height: 48, alignItems: "center", justifyContent: "center", borderRadius: 24, backgroundColor: "rgba(17, 24, 39, 0.82)", borderWidth: 1, borderColor: "rgba(255, 255, 255, 0.7)" },
   imageQualityHint: { color: "#475467", fontSize: 13, fontWeight: "700", lineHeight: 19 },
   actions: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   addImageButton: { minHeight: 46, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderWidth: 1, borderColor: "#1769aa", borderRadius: 8, backgroundColor: "#eff6ff" },
