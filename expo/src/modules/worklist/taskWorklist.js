@@ -136,6 +136,22 @@ function describeReconciledProvisional(existingTask, confirmedTask) {
   };
 }
 
+function preserveFinalizedLocalTask(existingTask, incomingTask) {
+  const existingStatus = String(existingTask?.status || existingTask?.lifecycle_status || "").toLowerCase();
+  if (existingStatus !== "completed" || isTerminalTask(incomingTask)) return incomingTask;
+
+  // A pulled open copy must not resurrect work that this device has already
+  // finalized. Keep the server identity while retaining local completion.
+  return {
+    ...incomingTask,
+    status: "completed",
+    lifecycle_status: "completed",
+    source_form_response_id:
+      existingTask?.source_form_response_id || incomingTask?.source_form_response_id || null,
+    closed_at: existingTask?.closed_at || incomingTask?.closed_at || null,
+  };
+}
+
 function sortByProtocolDate(left, right) {
   const leftDate = left.target_date || "";
   const rightDate = right.target_date || "";
@@ -481,9 +497,12 @@ export function reconcilePulledTasks(tasks = [], repository) {
   const reconciled = incomingTasks
     .map((task) => describeReconciledProvisional(existingByIdentity.get(taskIdentity(task)), task))
     .filter(Boolean);
-  const merged = mergeTaskWorklist({ existingTasks, incomingTasks });
+  const tasksToSave = incomingTasks.map((task) =>
+    preserveFinalizedLocalTask(existingByIdentity.get(taskIdentity(task)), task),
+  );
+  const merged = mergeTaskWorklist({ existingTasks, incomingTasks: tasksToSave });
 
-  repository.saveTaskBatch(incomingTasks);
+  repository.saveTaskBatch(tasksToSave);
 
   return {
     saved: incomingTasks.length,

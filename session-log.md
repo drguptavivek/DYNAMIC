@@ -631,3 +631,12 @@ Decisions:
 - The selected image is copied to app-owned storage, retained offline through draft/finalization, queued independently, and uploaded before the Finalized CRF during sync.
 - Finalized CRF JSON keeps ANC image metadata but never a device-local URI. PostgreSQL stores the attachment row and relative path; the server file is written under `imageuploads/{household_id}/{woman_id}/ANC/`.
 - The existing `form_attachments` schema supports this attachment type, so no destructive reset, seed, or schema migration is required.
+
+## 2026-09-21 (Offline BWQ to PEF task continuity) [working]
+Goal: Finalize a pregnant woman's BWQ fully offline, expose her PEF immediately, and prevent BWQ from returning after sync.
+Decisions:
+- WQ final-submit now runs the shared `wq_completed` promotion locally and saves its deterministic PEF/PSF task descriptors without a network dependency.
+- Finalized local tasks retain completed lifecycle state when an older open server copy is pulled, so work cannot be resurrected in the worklist.
+- Form-response sync includes the source task key; the API resolves a provisional mobile task ID to the matching canonical server task before promotion and completion.
+Open:
+- The database-backed HHQ/WQ sync integration could not run locally because Docker Desktop was not running; targeted Expo workflow/reconciliation tests and API tests/typecheck/build passed.

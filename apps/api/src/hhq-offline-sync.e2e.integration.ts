@@ -465,6 +465,7 @@ test("HHQ offline submission creates local WQ workflow, syncs backend, and pulls
     );
 
     const wqResponseId = randomUUID();
+    const offlineWqTaskId = randomUUID();
     const wqPush = await fetchData(`${baseUrl}/sync/push`, {
       method: "POST",
       headers: { Authorization: authorization },
@@ -475,7 +476,8 @@ test("HHQ offline submission creates local WQ workflow, syncs backend, and pulls
             type: "form_response",
             data: {
               id: wqResponseId,
-              task_id: backendWqTasks[0].task_id,
+              task_id: offlineWqTaskId,
+              task_key: wqTaskKey,
               form_code: "WQ",
               form_version: "2026.05.17",
               household_id: householdId,
@@ -495,6 +497,21 @@ test("HHQ offline submission creates local WQ workflow, syncs backend, and pulls
     });
     assert.equal(wqPush.accepted, 1);
     assert.deepEqual(wqPush.errors, []);
+
+    const [storedWqResponse] = await db
+      .select()
+      .from(schema.formResponses)
+      .where(eq(schema.formResponses.form_response_id, wqResponseId));
+    assert.equal(
+      storedWqResponse.task_id,
+      backendWqTasks[0].task_id,
+      "offline provisional task id must reconcile to the canonical server task by task_key",
+    );
+    const [completedBackendWqTask] = await db
+      .select()
+      .from(schema.followUpTasks)
+      .where(eq(schema.followUpTasks.task_id, backendWqTasks[0].task_id));
+    assert.equal(completedBackendWqTask.status, "completed");
 
     const activePregnancies = await db
       .select()

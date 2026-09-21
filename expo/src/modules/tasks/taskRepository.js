@@ -882,11 +882,13 @@ export function saveFormResponse(response) {
     );
 
     if (response.task_id) {
-      db.runSync("UPDATE follow_up_tasks SET status = ?, updated_at = ? WHERE id = ?", [
-        "completed",
-        now,
-        response.task_id,
-      ]);
+      db.runSync(
+        `UPDATE follow_up_tasks
+            SET status = 'completed', lifecycle_status = 'completed',
+                source_form_response_id = ?, updated_at = ?
+          WHERE id = ? OR task_key = ?`,
+        [responseId, now, response.task_id, response.task_key || response.task_id],
+      );
     }
 
     db.runSync("COMMIT");

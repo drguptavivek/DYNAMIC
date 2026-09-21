@@ -1062,6 +1062,7 @@ router.post(
           const {
             id,
             task_id,
+            task_key,
             form_code,
             form_version,
             answers_json,
@@ -1094,6 +1095,27 @@ router.post(
 
           await db.transaction(async (tx) =>
             runWithDb(tx as unknown as typeof db, async () => {
+              let canonicalTaskId = task_id;
+              if (task_key) {
+                const [canonicalTask] = await tx
+                  .select({ task_id: schema.followUpTasks.task_id })
+                  .from(schema.followUpTasks)
+                  .where(
+                    and(
+                      eq(schema.followUpTasks.task_key, task_key),
+                      data.household_id
+                        ? eq(schema.followUpTasks.household_id, data.household_id)
+                        : undefined,
+                      data.subject_id
+                        ? eq(schema.followUpTasks.subject_id, data.subject_id)
+                        : undefined,
+                      form_code ? eq(schema.followUpTasks.form_code, form_code) : undefined,
+                    ),
+                  )
+                  .limit(1);
+                canonicalTaskId = canonicalTask?.task_id || canonicalTaskId;
+              }
+
               await tx.insert(schema.formResponses).values({
                 form_response_id: id,
                 response_id: id,
@@ -1101,7 +1123,7 @@ router.post(
                 locality_code: scope.locality_code,
                 household_id: data.household_id,
                 visit_id: data.visit_id,
-                task_id,
+                task_id: canonicalTaskId,
                 form_code,
                 form_version,
                 subject_type: data.subject_type,
@@ -1134,11 +1156,11 @@ router.post(
                 });
               }
 
-              if (task_id) {
+              if (canonicalTaskId) {
                 await tx
                   .update(schema.followUpTasks)
                   .set({ status: "completed" })
-                  .where(eq(schema.followUpTasks.task_id, task_id));
+                  .where(eq(schema.followUpTasks.task_id, canonicalTaskId));
               }
             }),
           );

@@ -239,6 +239,36 @@ assert.deepEqual(identityReconcileResult.reconciled, [
 ]);
 assert.equal(identityBatches.length, 1);
 
+const finalizedLocalTask = {
+  ...provisionalTask,
+  status: "completed",
+  lifecycle_status: "completed",
+  source_form_response_id: "wq-response-offline-1",
+};
+const finalizedBatches = [];
+const finalizedRepository = {
+  listTasks() {
+    return [finalizedLocalTask];
+  },
+  getTasksByIdentities() {
+    return [finalizedLocalTask];
+  },
+  saveTaskBatch(tasks) {
+    finalizedBatches.push(tasks);
+  },
+};
+const finalizedResult = reconcilePulledTasks([confirmedTask], finalizedRepository);
+assert.equal(finalizedResult.saved, 1);
+assert.equal(finalizedBatches[0][0].id, confirmedTask.id);
+assert.equal(finalizedBatches[0][0].status, "completed");
+assert.equal(finalizedBatches[0][0].lifecycle_status, "completed");
+assert.equal(finalizedBatches[0][0].source_form_response_id, "wq-response-offline-1");
+assert.equal(
+  selectActionableTasks(finalizedResult.merged).length,
+  0,
+  "an open server copy must not resurrect a locally finalized WQ task",
+);
+
 const withdrawnTask = {
   ...confirmedTask,
   id: "server-task-withdrawn",

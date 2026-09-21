@@ -472,4 +472,44 @@ assert.equal(
   "Negative PEF must not create pregnancy follow-up tasks",
 );
 
+const offlineWqSubmission = await saveQuestionnaireSubmission({
+  formCode: "WQ",
+  formVersion: "9 MAY 2026",
+  payload: {
+    household_id: "1-02-0042-03",
+    wq_interview_date: "2026-09-21",
+    wq_pregnant: 1,
+  },
+  taskId: wqTasks[0].id,
+  taskContext: {
+    ...wqTasks[0],
+    woman_id: wqTasks[0].subject_id,
+  },
+  deviceId: "device-1",
+});
+const stateAfterOfflineWq = JSON.parse(
+  window.localStorage.getItem("dynamic_web_sqlite_v2") || "{}",
+);
+const completedOfflineWqTask = stateAfterOfflineWq.follow_up_tasks.find(
+  (task) => task.id === wqTasks[0].id,
+);
+const offlinePefTask = stateAfterOfflineWq.follow_up_tasks.find(
+  (task) =>
+    task.task_type === "PEF" &&
+    task.subject_id === wqTasks[0].subject_id &&
+    task.source_form_response_id === offlineWqSubmission.submission_id,
+);
+assert.equal(completedOfflineWqTask.status, "completed");
+assert.equal(completedOfflineWqTask.lifecycle_status, "completed");
+assert.equal(completedOfflineWqTask.source_form_response_id, offlineWqSubmission.submission_id);
+assert.ok(offlinePefTask, "pregnant WQ final-submit must create PEF locally without network access");
+assert.equal(offlinePefTask.subject_name, "Member Two");
+const offlineWqPushRecord = buildPushRecords({
+  formResponses: stateAfterOfflineWq.form_responses.filter(
+    (response) => response.id === offlineWqSubmission.submission_id,
+  ),
+})[0];
+assert.equal(offlineWqPushRecord.data.task_id, wqTasks[0].id);
+assert.equal(offlineWqPushRecord.data.task_key, wqTasks[0].task_key);
+
 console.log("Validated questionnaire final submission workflow.");

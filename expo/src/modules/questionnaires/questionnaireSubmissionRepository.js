@@ -131,6 +131,7 @@ function buildQuestionnaireResponse({
     id: responseId,
     submission_id: responseId,
     task_id: taskId || taskContext?.id || null,
+    task_key: taskContext?.task_key || null,
     form_code: formCode,
     form_version: formVersion,
     household_id: householdId || null,
@@ -159,6 +160,7 @@ function saveWebFormResponse(response) {
   const row = {
     id: response.id,
     task_id: response.task_id,
+    task_key: response.task_key || null,
     form_code: response.form_code,
     form_version: response.form_version,
     household_id: response.household_id,
@@ -179,7 +181,13 @@ function saveWebFormResponse(response) {
   if (response.task_id) {
     state.follow_up_tasks = (state.follow_up_tasks || []).map((task) =>
       task.id === response.task_id
-        ? { ...task, status: "completed", updated_at: response.submitted_at }
+        ? {
+            ...task,
+            status: "completed",
+            lifecycle_status: "completed",
+            source_form_response_id: response.id,
+            updated_at: response.submitted_at,
+          }
         : task,
     );
   }
@@ -664,6 +672,50 @@ async function promotePefLocally(response, taskContext) {
   await savePefDerivedWorkflow(pregnancy, tasks);
 }
 
+async function promoteWqLocally(response, taskContext) {
+  if (response.form_code !== "WQ" || !response.household_id || !response.subject_id) return;
+  if (isWqVisitorAnswers(response.answers_json)) return;
+
+  const pregnantAnswer = Number(response.answers_json?.wq_pregnant);
+  if (![1, 2, 98].includes(pregnantAnswer)) {
+    // Revisit, incapacitated, refused, and other early outcomes are finalized
+    // evidence but must not start pregnancy surveillance or enrollment work.
+    return;
+  }
+
+  const eventId = `local-wq-completed:${response.subject_id}:${response.id}`;
+  const promotion = promoteFormSubmission({
+    form_code: response.form_code,
+    event_id: eventId,
+    site_id: Number(response.site_id),
+    locality_code: String(response.locality_code || ""),
+    household_id: response.household_id,
+    subject_id: response.subject_id,
+    answers_json: response.answers_json,
+    recorded_at: response.submitted_at,
+    task_id: response.task_id,
+    task_key: response.task_key || taskContext?.task_key,
+    form_response_id: response.id,
+    device_id: response.device_id,
+    context: {
+      woman_id: taskContext?.woman_id || response.subject_id,
+    },
+  });
+  if (!promotion) return;
+
+  const tasks = promotion.task_descriptors.map((descriptor) =>
+    toLocalTask(descriptor, {
+      submittedAt: response.submitted_at,
+      subjectName: taskContext?.subject_name,
+      localityCode: response.locality_code,
+      sourceFormResponseId: response.id,
+    }),
+  );
+  await saveDomainEvent(promotion.event, response.submitted_at);
+
+  await saveTasks(tasks);
+}
+
 export async function listQuestionnaireSubmissions(formCode) {
   const storage = getStorage();
   if (!storage) return [];
@@ -817,6 +869,7 @@ export async function saveQuestionnaireSubmission({
     });
   }
   await promoteHhqLocally(response);
+  await promoteWqLocally(response, taskContext);
   await promotePefLocally(response, taskContext);
   if (
     response.form_code === "PEF" &&

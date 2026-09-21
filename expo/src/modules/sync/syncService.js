@@ -627,7 +627,12 @@ async function pushAttachmentsForResponses({ token, deviceId, formResponses }) {
 
 async function pushRecordBatch({ token, deviceId, formResponses = [], domainEvents = [] }) {
   const attachments = await pushAttachmentsForResponses({ token, deviceId, formResponses });
-  const records = buildPushRecords({ formResponses, domainEvents });
+  const responsesWithTaskKeys = formResponses.map((response) => {
+    if (response?.task_key || !response?.task_id) return response;
+    const task = taskRepository.getTask?.(response.task_id);
+    return task?.task_key ? { ...response, task_key: task.task_key } : response;
+  });
+  const records = buildPushRecords({ formResponses: responsesWithTaskKeys, domainEvents });
   if (records.length === 0) {
     return { pushed: 0, events: 0, uploadErrors: 0, attachments };
   }
