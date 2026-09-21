@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { eq, and, gt, inArray, count, lte, or } from "drizzle-orm";
+import { eq, and, gt, inArray, count, lte, or, sql } from "drizzle-orm";
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import multer from "multer";
@@ -24,6 +24,65 @@ const attachmentUpload = multer({
 });
 const PEF_ULTRASOUND_REPORTS_FIELD = "pef_ultrasound_reports";
 const PEF_ANC_CARD_IMAGE_FIELD = "pef_anc_card_image";
+const TERMINAL_TASK_STATUSES = new Set([
+  "completed",
+  "missed",
+  "cancelled",
+  "superseded",
+  "closed",
+  "closed_final_reason",
+]);
+const UPLOAD_ERROR_RESPONSE_STATUSES = new Set([
+  "duplicate",
+  "held_for_review",
+  "invalid_rejected",
+]);
+const DUPLICATE_EVENT_TYPES: Record<string, string> = {
+  HHQ: "household_baseline_confirmed",
+  WQ: "wq_completed",
+  PEF: "pregnancy_enrolled",
+  PFF: "pregnancy_followup_completed",
+  POF: "pregnancy_outcome_recorded",
+  BAF: "birth_assessment_completed",
+  CDF: "child_death_recorded",
+  VA: "verbal_autopsy_completed",
+};
+
+type SyncClassification = {
+  id: string;
+  status: string;
+  error?: string;
+  household_id?: string | null;
+  subject_id?: string | null;
+};
+
+function buildSubmissionLockKey(data: any): string {
+  const formCode = String(data?.form_code || "").toUpperCase();
+  const householdId = String(data?.household_id || "unknown-household");
+  const subjectId = String(data?.subject_id || householdId || "unknown-subject");
+
+  // WQ, PEF, and PSF all decide the same woman's pregnancy pathway. Lock the
+  // pathway rather than an individual task so two devices cannot promote
+  // contradictory branches concurrently. HHQ is one baseline opportunity per
+  // household. Repeated follow-up forms remain serialized by deterministic
+  // task key.
+  if (formCode === "HHQ") return `form-opportunity|HHQ|${householdId}`;
+  if (["WQ", "PEF", "PSF"].includes(formCode)) {
+    return `woman-pathway|${householdId}|${subjectId}`;
+  }
+  return `task-opportunity|${data?.task_key || data?.task_id || `${householdId}|${subjectId}|${formCode}`}`;
+}
+
+function isDirectContextualPef(data: any): boolean {
+  return String(data?.form_code || "").toUpperCase() === "PEF" &&
+    String(data?.task_key || "").includes("|PEF|direct-pregnancy-detected|");
+}
+
+function isPregnantWqAnswer(answers: unknown): boolean {
+  const parsed = parseAnswersJson(answers);
+  return ["wq_pregnant", "bwq_pregnant", "wq_currently_pregnant", "wq_pregnant_now", "wq_pregnancy_status"]
+    .some((key) => parsed[key] === 1 || parsed[key] === "1" || parsed[key] === true);
+}
 
 interface PageToken {
   since: string;
@@ -1031,7 +1090,7 @@ router.post(
 
     let accepted = 0;
     const acceptedRecords: string[] = [];
-    const classifiedRecords: { id: string; status: string; error?: string }[] = [];
+    const classifiedRecords: SyncClassification[] = [];
     const duplicates: string[] = [];
     const errors: { id: string; error: string }[] = [];
     let syncLogUserId = req.user?.sub ?? null;
@@ -1075,7 +1134,9 @@ router.post(
             continue;
           }
 
-          // Check if already exists
+          // A retry of the exact same immutable response is idempotent. It is
+          // not a second completion and must not be moved to Upload Errors
+          // merely because the device lost the first HTTP response.
           const existing = await db
             .select()
             .from(schema.formResponses)
@@ -1083,7 +1144,22 @@ router.post(
             .limit(1);
 
           if (existing.length > 0) {
-            duplicates.push(id);
+            const existingStatus = existing[0].response_status || "primary";
+            if (UPLOAD_ERROR_RESPONSE_STATUSES.has(existingStatus)) {
+              classifiedRecords.push({
+                id,
+                status: existingStatus,
+                error:
+                  existingStatus === "duplicate"
+                    ? "This form has already been submitted on the server"
+                    : `Server classified this form as ${existingStatus}`,
+                household_id: existing[0].household_id,
+                subject_id: existing[0].subject_id,
+              });
+            } else {
+              acceptedRecords.push(id);
+            }
+            accepted++;
             continue;
           }
 
@@ -1093,12 +1169,44 @@ router.post(
             continue;
           }
 
-          await db.transaction(async (tx) =>
+          const classification = await db.transaction(async (tx) =>
             runWithDb(tx as unknown as typeof db, async () => {
-              let canonicalTaskId = task_id;
+              // PostgreSQL transaction advisory locks make the first valid
+              // server commit authoritative even when two devices sync the
+              // same woman at the same instant.
+              const submissionLockKey = buildSubmissionLockKey(data);
+              await tx.execute(
+                sql`select pg_advisory_xact_lock(hashtextextended(${submissionLockKey}, 0))`,
+              );
+
+              // The optimistic check above keeps ordinary retries cheap. This
+              // second check is required after the lock for two simultaneous
+              // retries of the same immutable response ID.
+              const [existingAfterLock] = await tx
+                .select()
+                .from(schema.formResponses)
+                .where(eq(schema.formResponses.response_id, id))
+                .limit(1);
+              if (existingAfterLock) {
+                const existingStatus = existingAfterLock.response_status || "primary";
+                return UPLOAD_ERROR_RESPONSE_STATUSES.has(existingStatus)
+                  ? {
+                      id,
+                      status: existingStatus,
+                      error:
+                        existingStatus === "duplicate"
+                          ? "This form has already been submitted on the server"
+                          : `Server classified this form as ${existingStatus}`,
+                      household_id: existingAfterLock.household_id,
+                      subject_id: existingAfterLock.subject_id,
+                    }
+                  : null;
+              }
+
+              let canonicalTask: typeof schema.followUpTasks.$inferSelect | undefined;
               if (task_key) {
-                const [canonicalTask] = await tx
-                  .select({ task_id: schema.followUpTasks.task_id })
+                [canonicalTask] = await tx
+                  .select()
                   .from(schema.followUpTasks)
                   .where(
                     and(
@@ -1113,7 +1221,121 @@ router.post(
                     ),
                   )
                   .limit(1);
-                canonicalTaskId = canonicalTask?.task_id || canonicalTaskId;
+              }
+              if (!canonicalTask && task_id) {
+                [canonicalTask] = await tx
+                  .select()
+                  .from(schema.followUpTasks)
+                  .where(eq(schema.followUpTasks.task_id, task_id))
+                  .limit(1);
+              }
+              const canonicalTaskId = canonicalTask?.task_id || task_id || null;
+
+              const priorTaskResponses = canonicalTask?.task_id
+                ? await tx
+                    .select()
+                    .from(schema.formResponses)
+                    .where(eq(schema.formResponses.task_id, canonicalTask.task_id))
+                : [];
+              const primaryTaskResponse = priorTaskResponses.find(
+                (candidate) => !UPLOAD_ERROR_RESPONSE_STATUSES.has(candidate.response_status || "primary"),
+              );
+
+              const formCode = String(form_code || "").toUpperCase();
+              const subjectId = data.subject_id ? String(data.subject_id) : null;
+              const householdId = data.household_id ? String(data.household_id) : null;
+              const pathwayResponses = householdId && subjectId && ["WQ", "PEF", "PSF"].includes(formCode)
+                ? await tx
+                    .select()
+                    .from(schema.formResponses)
+                    .where(
+                      and(
+                        eq(schema.formResponses.household_id, householdId),
+                        eq(schema.formResponses.subject_id, subjectId),
+                        inArray(schema.formResponses.form_code, ["WQ", "PEF", "PSF"]),
+                      ),
+                    )
+                : [];
+              const acceptedPef = pathwayResponses.find(
+                (candidate) =>
+                  candidate.form_code === "PEF" &&
+                  !UPLOAD_ERROR_RESPONSE_STATUSES.has(candidate.response_status || "primary"),
+              );
+              const acceptedWq = pathwayResponses.find(
+                (candidate) =>
+                  candidate.form_code === "WQ" &&
+                  !UPLOAD_ERROR_RESPONSE_STATUSES.has(candidate.response_status || "primary") &&
+                  !["revisit_needed", "superseded_revisit"].includes(candidate.response_status || ""),
+              );
+
+              let responseClassification: SyncClassification | null = null;
+              let primaryConflictResponse = primaryTaskResponse || null;
+              const taskStatus = String(canonicalTask?.status || "").toLowerCase();
+
+              if (acceptedPef && formCode === "PEF") {
+                primaryConflictResponse = acceptedPef;
+                responseClassification = {
+                  id,
+                  status: "duplicate",
+                  error: "This PEF has already been submitted on the server for this woman",
+                  household_id: householdId,
+                  subject_id: subjectId,
+                };
+              } else if (acceptedPef && ["WQ", "PSF"].includes(formCode)) {
+                primaryConflictResponse = acceptedPef;
+                responseClassification = {
+                  id,
+                  status: "invalid_rejected",
+                  error:
+                    formCode === "PSF"
+                      ? "PSF cannot be submitted because PEF is already completed on the server for this woman"
+                      : "BWQ cannot be submitted because this woman's workflow has already advanced to PEF",
+                  household_id: householdId,
+                  subject_id: subjectId,
+                };
+              } else if (primaryTaskResponse) {
+                responseClassification = {
+                  id,
+                  status: "duplicate",
+                  error: "This form has already been submitted on the server",
+                  household_id: householdId,
+                  subject_id: subjectId,
+                };
+              } else if (canonicalTask && TERMINAL_TASK_STATUSES.has(taskStatus)) {
+                responseClassification = {
+                  id,
+                  status: "invalid_rejected",
+                  error: "This task is no longer active because the server workflow has already advanced",
+                  household_id: householdId,
+                  subject_id: subjectId,
+                };
+              } else if ((task_key || task_id) && !canonicalTask) {
+                let validDirectPef = false;
+                if (isDirectContextualPef(data) && acceptedWq) {
+                  validDirectPef = !isPregnantWqAnswer(acceptedWq.answers_json);
+                }
+                if (!validDirectPef) {
+                  responseClassification = {
+                    id,
+                    status: "invalid_rejected",
+                    error: "This local task is not present in the authoritative server workflow",
+                    household_id: householdId,
+                    subject_id: subjectId,
+                  };
+                }
+              } else if (
+                formCode === "WQ" &&
+                acceptedWq &&
+                canonicalTask?.generation_source !== "wq_revisit"
+              ) {
+                primaryConflictResponse = acceptedWq;
+                responseClassification = {
+                  id,
+                  status: "duplicate",
+                  error: "This BWQ has already been submitted on the server for this woman",
+                  household_id: householdId,
+                  subject_id: subjectId,
+                };
               }
 
               await tx.insert(schema.formResponses).values({
@@ -1133,8 +1355,52 @@ router.post(
                 created_offline_at: submitted_at ? new Date(submitted_at) : new Date(),
                 device_id: deviceId,
                 synced_at: new Date(),
+                response_status: responseClassification?.status || "primary",
                 created_at: new Date(),
               });
+
+              if (responseClassification) {
+                const now = new Date();
+                if (responseClassification.status === "duplicate" && primaryConflictResponse) {
+                  await tx.insert(schema.domainEvents).values({
+                    event_id: randomUUID(),
+                    event_type: DUPLICATE_EVENT_TYPES[formCode] || "duplicate_form_submission",
+                    site_id: scope.site_id,
+                    locality_code: scope.locality_code,
+                    household_id: householdId,
+                    subject_type: data.subject_type || null,
+                    subject_id: subjectId,
+                    task_id: canonicalTaskId,
+                    form_response_id: id,
+                    event_datetime: submitted_at ? new Date(submitted_at) : now,
+                    created_offline_at: submitted_at ? new Date(submitted_at) : null,
+                    device_id: deviceId,
+                    sync_status: "synced",
+                    apply_status: "held_duplicate",
+                    created_at: now,
+                  });
+                }
+                await tx
+                  .insert(schema.dataQualityFlags)
+                  .values({
+                    flag_id: `${responseClassification.status}:${primaryConflictResponse?.form_response_id || canonicalTaskId || "workflow"}:${id}`,
+                    site_id: scope.site_id,
+                    flag_type:
+                      responseClassification.status === "duplicate"
+                        ? "duplicate_task_completion"
+                        : "workflow_submission_conflict",
+                    subject_type: data.subject_type || null,
+                    subject_id: subjectId,
+                    task_id: canonicalTaskId,
+                    primary_response_id: primaryConflictResponse?.form_response_id || null,
+                    duplicate_response_id: id,
+                    severity: "warning",
+                    status: "open",
+                    created_at: now,
+                  })
+                  .onConflictDoNothing();
+                return responseClassification;
+              }
 
               await processFormResponse(id);
               const [processedResponse] = await tx
@@ -1146,14 +1412,19 @@ router.post(
                 .limit(1);
               const responseStatus = processedResponse?.response_status || "primary";
               if (responseStatus && responseStatus !== "primary") {
-                classifiedRecords.push({
+                const handlerClassification = {
                   id,
                   status: responseStatus,
                   error:
                     responseStatus === "duplicate"
-                      ? "Duplicate form response held for admin review"
+                      ? "This form has already been submitted on the server"
                       : `Form response classified as ${responseStatus}`,
-                });
+                  household_id: householdId,
+                  subject_id: subjectId,
+                };
+                if (UPLOAD_ERROR_RESPONSE_STATUSES.has(responseStatus)) {
+                  return handlerClassification;
+                }
               }
 
               if (canonicalTaskId) {
@@ -1162,8 +1433,13 @@ router.post(
                   .set({ status: "completed" })
                   .where(eq(schema.followUpTasks.task_id, canonicalTaskId));
               }
+              return null;
             }),
           );
+
+          if (classification) {
+            classifiedRecords.push(classification);
+          }
 
           accepted++;
           acceptedRecords.push(id);

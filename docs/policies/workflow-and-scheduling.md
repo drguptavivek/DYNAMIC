@@ -54,6 +54,7 @@ Rules:
   exists, it starts one from the pregnancy-detection date.
 - Held or duplicate submissions may produce held events for evidence and data-quality review, but must not generate workflow tasks.
 - Offline Expo promotion is provisional but must use the same shared trigger outputs as backend promotion.
+- An actionable PEF or later pregnancy-pathway task suppresses stale actionable WQ and PSF tasks for the same woman. This precedence is subject-scoped; it must not suppress another woman's work in the household.
 
 ## Deterministic Task Keys
 

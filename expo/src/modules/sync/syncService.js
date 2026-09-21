@@ -360,7 +360,7 @@ export async function refreshProtocolForms(formVersions = []) {
 }
 
 export async function pullSync(options = {}) {
-  const { onProgress } = options;
+  const { onProgress, authoritativeHouseholdIds = [] } = options;
   const token = authStore.getToken();
   if (!token) {
     throw new Error("Not authenticated");
@@ -401,6 +401,9 @@ export async function pullSync(options = {}) {
     let formsUpdated = 0;
     let lastData = null;
     let batch = 0;
+    const authoritativeTaskKeysByHousehold = new Map(
+      authoritativeHouseholdIds.map((householdId) => [String(householdId), new Set()]),
+    );
 
     do {
       batch += 1;
@@ -503,6 +506,13 @@ export async function pullSync(options = {}) {
       }
 
       if (tasks.length > 0) {
+        for (const task of tasks) {
+          const householdId = String(task?.household_id || "");
+          const taskKey = String(task?.task_key || "");
+          if (householdId && taskKey && authoritativeTaskKeysByHousehold.has(householdId)) {
+            authoritativeTaskKeysByHousehold.get(householdId).add(taskKey);
+          }
+        }
         await forEachChunk(tasks, CHUNK_SIZE, async (chunk) => {
           reconcilePulledTasks(chunk);
         });
@@ -558,6 +568,13 @@ export async function pullSync(options = {}) {
       }
     } while (nextPageToken);
 
+    let supersededLocalTasks = 0;
+    if (authoritativeTaskKeysByHousehold.size > 0) {
+      supersededLocalTasks = taskRepository.reconcileAuthoritativeHouseholdTasks?.({
+        authoritativeTaskKeysByHousehold,
+      }) || 0;
+    }
+
     const nextCursor = lastData ? selectNextPullCursor(lastData, lastSync) : null;
     if (nextCursor) {
       setLastSyncAt(nextCursor);
@@ -576,6 +593,7 @@ export async function pullSync(options = {}) {
       pulledPregnancies,
       pulledFormResponses,
       formsUpdated,
+      supersededLocalTasks,
     };
   } catch (error) {
     console.error("Pull sync error:", error);
@@ -634,7 +652,14 @@ async function pushRecordBatch({ token, deviceId, formResponses = [], domainEven
   });
   const records = buildPushRecords({ formResponses: responsesWithTaskKeys, domainEvents });
   if (records.length === 0) {
-    return { pushed: 0, events: 0, uploadErrors: 0, attachments };
+    return {
+      pushed: 0,
+      events: 0,
+      uploadErrors: 0,
+      attachments,
+      conflictHouseholdIds: [],
+      conflictNotices: [],
+    };
   }
 
   const response = await fetch(`${API_BASE_URL}/sync/push`, {
@@ -662,6 +687,8 @@ async function pushRecordBatch({ token, deviceId, formResponses = [], domainEven
   const classifiedRecords = Array.isArray(result.classified_records) ? result.classified_records : [];
   const uploadErrorById = new Map();
   const duplicateIds = new Set(serverDuplicates);
+  const conflictHouseholdIds = new Set();
+  const conflictNotices = [];
 
   for (const id of serverDuplicates) {
     uploadErrorById.set(id, "Record already exists on the server");
@@ -672,6 +699,15 @@ async function pushRecordBatch({ token, deviceId, formResponses = [], domainEven
     if (status === "duplicate" || status === "held_for_review" || status === "invalid_rejected") {
       uploadErrorById.set(item.id, item.error || `Server classified this form as ${status}`);
       if (status === "duplicate") duplicateIds.add(item.id);
+      const localResponse = formResponses.find((candidate) => candidate.id === item.id);
+      const householdId = item.household_id || localResponse?.household_id;
+      if (householdId) conflictHouseholdIds.add(String(householdId));
+      conflictNotices.push({
+        id: item.id,
+        formCode: localResponse?.form_code || "Form",
+        subjectId: item.subject_id || localResponse?.subject_id || "",
+        message: uploadErrorById.get(item.id),
+      });
     }
   }
   for (const item of serverErrors) {
@@ -765,6 +801,8 @@ async function pushRecordBatch({ token, deviceId, formResponses = [], domainEven
     uploadErrors: uploadErrorItems.length,
     duplicateErrors: uploadErrorItems.filter((item) => duplicateIds.has(item.id)).length,
     attachments,
+    conflictHouseholdIds: [...conflictHouseholdIds],
+    conflictNotices,
   };
 }
 
@@ -832,6 +870,8 @@ export async function pushSync() {
     let uploadErrors = 0;
     let duplicateErrors = 0;
     let attachments = 0;
+    const conflictHouseholdIds = new Set();
+    const conflictNotices = [];
     let eventsSent = false;
     while (true) {
       const pendingBatch = await taskRepository.getPendingResponseBatch(PUSH_FORM_RESPONSE_BATCH_SIZE);
@@ -848,6 +888,10 @@ export async function pushSync() {
           uploadErrors += eventResult.uploadErrors;
           duplicateErrors += eventResult.duplicateErrors || 0;
           attachments += eventResult.attachments || 0;
+          for (const householdId of eventResult.conflictHouseholdIds || []) {
+            conflictHouseholdIds.add(householdId);
+          }
+          conflictNotices.push(...(eventResult.conflictNotices || []));
           eventsSent = true;
         }
         break;
@@ -864,6 +908,10 @@ export async function pushSync() {
       uploadErrors += batchResult.uploadErrors;
       duplicateErrors += batchResult.duplicateErrors || 0;
       attachments += batchResult.attachments || 0;
+      for (const householdId of batchResult.conflictHouseholdIds || []) {
+        conflictHouseholdIds.add(householdId);
+      }
+      conflictNotices.push(...(batchResult.conflictNotices || []));
       eventsSent = true;
     }
 
@@ -876,6 +924,8 @@ export async function pushSync() {
       drafts: syncedDrafts,
       staleDraftsRemoved,
       draftSyncErrors,
+      conflictHouseholdIds: [...conflictHouseholdIds],
+      conflictNotices,
     };
   } catch (error) {
     console.error("Push sync error:", error);
@@ -928,7 +978,10 @@ export async function syncAll(options = {}) {
       });
       clearHouseholdCacheForSync();
     }
-    const pullResult = await pullSync({ onProgress });
+    const pullResult = await pullSync({
+      onProgress,
+      authoritativeHouseholdIds: pushResult.conflictHouseholdIds || [],
+    });
     const draftParams = new URLSearchParams({
       device_id: getMeta("device_id") || "unregistered-device",
     });
@@ -955,11 +1008,13 @@ export async function syncAll(options = {}) {
       events: pushResult.events,
       uploadErrors: pushResult.uploadErrors,
       duplicateErrors: pushResult.duplicateErrors,
+      conflictNotices: pushResult.conflictNotices || [],
       pulled: pullResult.pulled,
       pulledOpenTasks: pullResult.pulledOpenTasks,
       pulledHouseholds: pullResult.pulledHouseholds,
       pulledMembers: pullResult.pulledMembers,
       pulledFormResponses: pullResult.pulledFormResponses,
+      supersededLocalTasks: pullResult.supersededLocalTasks || 0,
       formsUpdated: pullResult.formsUpdated,
       draftsPushed: pushResult.drafts || 0,
       draftsPulled: pulledDrafts,
@@ -976,10 +1031,12 @@ export async function syncAll(options = {}) {
       pulledHouseholds: pullResult.pulledHouseholds,
       pulledMembers: pullResult.pulledMembers,
       pulledFormResponses: pullResult.pulledFormResponses,
+      supersededLocalTasks: pullResult.supersededLocalTasks || 0,
       pushed: pushResult.pushed,
       events: pushResult.events,
       uploadErrors: pushResult.uploadErrors,
       duplicateErrors: pushResult.duplicateErrors,
+      conflictNotices: pushResult.conflictNotices || [],
       formsUpdated: pullResult.formsUpdated,
       draftsPushed: pushResult.drafts || 0,
       draftsPulled: pulledDrafts,

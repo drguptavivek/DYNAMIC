@@ -222,4 +222,57 @@ function loadTaskRepository(fakeDb) {
   assert.equal(fakeDb.calls.filter((call) => call.method === "getAllSync").length, 0);
 }
 
+{
+  // Conflict reconciliation retires only unmatched provisional tasks in the
+  // affected household. Confirmed tasks and tasks from other households are
+  // outside this local cleanup.
+  const fakeDb = createFakeSqliteDb({
+    getAllSyncResults(sql, params) {
+      if (!sql.includes("FROM follow_up_tasks") || params[0] !== "hh-conflict") return [];
+      return [
+        {
+          id: "keep-authoritative",
+          task_key: "server-key",
+          status: "open",
+          lifecycle_status: "open",
+          sync_status: "pending",
+        },
+        {
+          id: "retire-stale",
+          task_key: "local-only-key",
+          status: "open",
+          lifecycle_status: "open",
+          sync_status: "local",
+        },
+        {
+          id: "keep-history",
+          task_key: "completed-local-key",
+          status: "completed",
+          lifecycle_status: "completed",
+          sync_status: "local",
+        },
+      ];
+    },
+  });
+  const { reconcileAuthoritativeHouseholdTasks } = loadTaskRepository(fakeDb);
+
+  reconcileAuthoritativeHouseholdTasks({
+    authoritativeTaskKeysByHousehold: new Map([
+      ["hh-conflict", new Set(["server-key"])],
+    ]),
+  });
+
+  const supersedeCalls = fakeDb.calls.filter(
+    (call) =>
+      call.method === "runSync" &&
+      call.sql.includes("closed_reason = 'server_workflow_reconciled'"),
+  );
+  assert.equal(supersedeCalls.length, 1);
+  assert.equal(supersedeCalls[0].params[2], "retire-stale");
+  assert.equal(
+    countMatching(fakeDb.calls, (call) => call.method === "runSync" && call.sql === "COMMIT"),
+    1,
+  );
+}
+
 console.log("Sync batch write validation passed");

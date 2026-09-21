@@ -640,3 +640,13 @@ Decisions:
 - Form-response sync includes the source task key; the API resolves a provisional mobile task ID to the matching canonical server task before promotion and completion.
 Open:
 - The database-backed HHQ/WQ sync integration could not run locally because Docker Desktop was not running; targeted Expo workflow/reconciliation tests and API tests/typecheck/build passed.
+
+## 2026-09-21 (Concurrent household sync conflict handling) [working]
+Goal: Keep offline task flow deterministic when two field workers submit work for the same household or woman.
+Decisions:
+- First valid server commit wins per deterministic task/protocol opportunity; same-response retries are idempotent.
+- Duplicate or contradictory records are preserved in Upload Errors without blocking the rest of the sync batch.
+- WQ/PEF/PSF promotion is serialized per woman; accepted PEF blocks stale WQ/PSF promotion.
+- A conflict triggers authoritative task reconciliation only for affected households, while another woman's valid work remains untouched.
+Open:
+- Database-backed concurrency scenarios are added and typechecked, but execution awaits Docker Desktop; targeted Expo tests, API tests/typecheck/build, and event-core tests/typecheck pass.

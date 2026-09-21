@@ -1606,6 +1606,59 @@ export function markPefUploadConflict({ taskId, householdId, subjectId } = {}) {
   }
 }
 
+export function reconcileAuthoritativeHouseholdTasks({ authoritativeTaskKeysByHousehold } = {}) {
+  if (!(authoritativeTaskKeysByHousehold instanceof Map) || authoritativeTaskKeysByHousehold.size === 0) {
+    return 0;
+  }
+
+  const db = getDb();
+  const now = new Date().toISOString();
+  let superseded = 0;
+  try {
+    db.runSync("BEGIN TRANSACTION");
+    for (const [householdId, taskKeys] of authoritativeTaskKeysByHousehold.entries()) {
+      if (!householdId) continue;
+      const authoritativeKeys = taskKeys instanceof Set ? taskKeys : new Set(taskKeys || []);
+      const localTasks = db.getAllSync(
+        `SELECT id, task_key, status, lifecycle_status, sync_status
+           FROM follow_up_tasks
+          WHERE household_id = ?`,
+        [householdId],
+      ) || [];
+
+      for (const task of localTasks) {
+        const syncStatus = String(task?.sync_status || "local").toLowerCase();
+        const status = String(task?.status || task?.lifecycle_status || "open").toLowerCase();
+        const lifecycleStatus = String(task?.lifecycle_status || status).toLowerCase();
+        const isProvisional = ["local", "pending"].includes(syncStatus);
+        const isTerminal = [
+          "completed", "missed", "cancelled", "superseded", "closed", "closed_final_reason",
+        ].includes(status) || [
+          "completed", "missed", "cancelled", "superseded", "closed", "closed_final_reason",
+        ].includes(lifecycleStatus);
+        if (!isProvisional || isTerminal || authoritativeKeys.has(String(task?.task_key || ""))) {
+          continue;
+        }
+
+        const result = db.runSync(
+          `UPDATE follow_up_tasks
+              SET status = 'superseded', lifecycle_status = 'superseded',
+                  closed_reason = 'server_workflow_reconciled', closed_at = ?, updated_at = ?
+            WHERE id = ?`,
+          [now, now, task.id],
+        );
+        superseded += Number(result?.changes || 0);
+      }
+    }
+    db.runSync("COMMIT");
+    return superseded;
+  } catch (error) {
+    db.runSync("ROLLBACK");
+    console.error("Error reconciling authoritative household tasks:", error);
+    throw error;
+  }
+}
+
 export function supersedeLocalPsfTasksForWoman({ householdId, subjectId, reason = "pregnancy_enrolled" } = {}) {
   if (!householdId || !subjectId) return 0;
   const db = getDb();

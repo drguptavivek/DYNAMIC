@@ -228,6 +228,29 @@ class WebDatabase {
       return { changes };
     }
 
+    if (
+      /UPDATE follow_up_tasks SET status = 'superseded', lifecycle_status = 'superseded', closed_reason = 'server_workflow_reconciled', closed_at = \?, updated_at = \? WHERE id = \?/i.test(
+        normalized,
+      )
+    ) {
+      const [closed_at, updated_at, id] = params;
+      let changes = 0;
+      this.state.follow_up_tasks = this.state.follow_up_tasks.map((task) => {
+        if (task.id !== id) return task;
+        changes += 1;
+        return {
+          ...task,
+          status: "superseded",
+          lifecycle_status: "superseded",
+          closed_reason: "server_workflow_reconciled",
+          closed_at,
+          updated_at,
+        };
+      });
+      this.persist();
+      return { changes };
+    }
+
     if (/UPDATE form_responses SET sync_status = 'synced' WHERE id = \?/i.test(normalized)) {
       const [id] = params;
       let changes = 0;
@@ -312,6 +335,22 @@ class WebDatabase {
 
   getAllSync(sql, params = []) {
     const normalized = sql.trim().replace(/\s+/g, " ");
+
+    if (
+      /SELECT id, task_key, status, lifecycle_status, sync_status FROM follow_up_tasks WHERE household_id = \?/i.test(
+        normalized,
+      )
+    ) {
+      return this.state.follow_up_tasks
+        .filter((task) => task.household_id === params[0])
+        .map((task) => ({
+          id: task.id,
+          task_key: task.task_key,
+          status: task.status,
+          lifecycle_status: task.lifecycle_status,
+          sync_status: task.sync_status,
+        }));
+    }
 
     if (/SELECT \* FROM follow_up_tasks WHERE 1=1/i.test(normalized)) {
       let rows = [...this.state.follow_up_tasks];

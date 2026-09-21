@@ -94,6 +94,46 @@ assert.deepEqual(actionable.map((task) => task.id), [
   "future-planned-hhq",
 ]);
 
+const stalePathwayTasks = selectActionableTasks([
+  {
+    ...confirmedTask,
+    id: "stale-wq",
+    task_key: "stale-wq-key",
+    task_type: "WQ",
+    subject_id: "woman-conflict",
+    woman_id: "woman-conflict",
+  },
+  {
+    ...confirmedTask,
+    id: "stale-psf",
+    task_key: "stale-psf-key",
+    task_type: "PSF",
+    subject_id: "woman-conflict",
+    woman_id: "woman-conflict",
+  },
+  {
+    ...confirmedTask,
+    id: "authoritative-pef",
+    task_key: "authoritative-pef-key",
+    task_type: "PEF",
+    subject_id: "woman-conflict",
+    woman_id: "woman-conflict",
+  },
+  {
+    ...confirmedTask,
+    id: "other-woman-psf",
+    task_key: "other-woman-psf-key",
+    task_type: "PSF",
+    subject_id: "woman-other",
+    woman_id: "woman-other",
+  },
+]);
+assert.deepEqual(
+  stalePathwayTasks.map((task) => task.id),
+  ["authoritative-pef", "other-woman-psf"],
+  "PEF suppresses only stale BWQ/PSF work for the same woman",
+);
+
 const futurePlannedTask = {
   ...confirmedTask,
   id: "future-planned-hrf-filter",

@@ -101,6 +101,16 @@ Backend ingest must:
 8. write data-quality flags when needed
 9. commit atomically per accepted record
 
+Competing offline submissions are resolved at the protocol-opportunity level,
+not by rejecting every later form from the same household:
+
+- The first valid server commit for one deterministic task/protocol opportunity is authoritative.
+- Exact retries of the same `response_id` are idempotent success, not duplicate evidence.
+- A later response for the same completed opportunity is retained as duplicate evidence, moved to the device's Upload Errors view, and must not block unrelated records in the same sync.
+- Woman-pathway submissions (`WQ`, `PEF`, and `PSF`) are serialized for the same household and woman so contradictory branches cannot both promote concurrently.
+- Once accepted PEF evidence advances a woman into the pregnancy pathway, stale WQ/PSF evidence is retained as a workflow conflict but cannot change projections or generate tasks.
+- After a conflict, Expo replaces actionable provisional tasks for that affected household with the server task snapshot. Other households and other women's valid evidence remain unaffected.
+
 ## Classification
 
 | Classification | Meaning |

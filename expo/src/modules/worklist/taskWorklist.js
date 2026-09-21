@@ -191,7 +191,35 @@ export function mergeTaskWorklist({ existingTasks = [], incomingTasks = [] } = {
 }
 
 export function selectActionableTasks(tasks = []) {
-  return tasks.filter(isActionableTask).sort(sortByProtocolDate);
+  const advancedPregnancySubjects = new Set(
+    tasks
+      .filter((task) => {
+        const taskType = String(task?.task_type || "").toUpperCase();
+        if (!["PEF", "PFF", "UF", "POF", "BAF", "SBF", "NFF", "CDF"].includes(taskType)) {
+          return false;
+        }
+        const status = String(task?.status || task?.lifecycle_status || "open").toLowerCase();
+        const lifecycleStatus = String(task?.lifecycle_status || status).toLowerCase();
+        return !["cancelled", "superseded", "missed"].includes(status) &&
+          !["cancelled", "superseded", "missed"].includes(lifecycleStatus);
+      })
+      .map((task) => String(task?.woman_id || task?.subject_id || ""))
+      .filter(Boolean),
+  );
+
+  return tasks
+    .filter((task) => {
+      if (!isActionableTask(task)) return false;
+      const taskType = String(task?.task_type || "").toUpperCase();
+      const subjectId = String(task?.woman_id || task?.subject_id || "");
+      // Once a woman has entered the pregnancy pathway, a stale BWQ or PSF
+      // must never reappear as actionable work on the device.
+      if (["WQ", "PSF"].includes(taskType) && advancedPregnancySubjects.has(subjectId)) {
+        return false;
+      }
+      return true;
+    })
+    .sort(sortByProtocolDate);
 }
 
 function normalizeSearchValue(value) {

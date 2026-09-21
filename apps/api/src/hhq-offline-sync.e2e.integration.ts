@@ -359,7 +359,9 @@ test("HHQ offline submission creates local WQ workflow, syncs backend, and pulls
       {
         id: secondResponseId,
         status: "duplicate",
-        error: "Duplicate form response held for admin review",
+        error: "This form has already been submitted on the server",
+        household_id: householdId,
+        subject_id: householdId,
       },
     ]);
     assert.deepEqual(duplicateCompletionPush.errors, []);
@@ -513,6 +515,79 @@ test("HHQ offline submission creates local WQ workflow, syncs backend, and pulls
       .where(eq(schema.followUpTasks.task_id, backendWqTasks[0].task_id));
     assert.equal(completedBackendWqTask.status, "completed");
 
+    const idempotentWqRetry = await fetchData(`${baseUrl}/sync/push`, {
+      method: "POST",
+      headers: { Authorization: authorization },
+      body: JSON.stringify({
+        device_id: "e2e-device",
+        records: [
+          {
+            type: "form_response",
+            data: {
+              id: wqResponseId,
+              task_id: offlineWqTaskId,
+              task_key: wqTaskKey,
+              form_code: "WQ",
+              form_version: "2026.05.17",
+              household_id: householdId,
+              site_id: 1,
+              locality_code: "01",
+              subject_type: "woman",
+              subject_id: eligibleMemberId,
+              answers_json: { household_id: householdId, wq_pregnant: 1 },
+              submitted_at: "2026-09-15T09:00:00.000Z",
+            },
+          },
+        ],
+      }),
+    });
+    assert.deepEqual(idempotentWqRetry.accepted_records, [wqResponseId]);
+    assert.deepEqual(idempotentWqRetry.classified_records, []);
+    assert.deepEqual(idempotentWqRetry.duplicates, []);
+
+    const conflictingWqResponseId = randomUUID();
+    const conflictingWqPush = await fetchData(`${baseUrl}/sync/push`, {
+      method: "POST",
+      headers: { Authorization: authorization },
+      body: JSON.stringify({
+        device_id: "e2e-device-2",
+        records: [
+          {
+            type: "form_response",
+            data: {
+              id: conflictingWqResponseId,
+              task_id: randomUUID(),
+              task_key: wqTaskKey,
+              form_code: "WQ",
+              form_version: "2026.05.17",
+              household_id: householdId,
+              site_id: 1,
+              locality_code: "01",
+              subject_type: "woman",
+              subject_id: eligibleMemberId,
+              answers_json: { household_id: householdId, wq_pregnant: 2 },
+              submitted_at: "2026-09-15T09:05:00.000Z",
+            },
+          },
+        ],
+      }),
+    });
+    assert.deepEqual(conflictingWqPush.errors, []);
+    assert.deepEqual(conflictingWqPush.classified_records, [
+      {
+        id: conflictingWqResponseId,
+        status: "duplicate",
+        error: "This form has already been submitted on the server",
+        household_id: householdId,
+        subject_id: eligibleMemberId,
+      },
+    ]);
+    const [storedConflictingWq] = await db
+      .select()
+      .from(schema.formResponses)
+      .where(eq(schema.formResponses.form_response_id, conflictingWqResponseId));
+    assert.equal(storedConflictingWq.response_status, "duplicate");
+
     const activePregnancies = await db
       .select()
       .from(schema.pregnancies)
@@ -622,6 +697,52 @@ test("HHQ offline submission creates local WQ workflow, syncs backend, and pulls
     assert.ok(
       pregnancyFollowUpTasks.every((task) => task.source_event_id === enrolledPregnancies[0].source_event_id),
     );
+
+    const stalePsfResponseId = randomUUID();
+    const stalePsfPush = await fetchData(`${baseUrl}/sync/push`, {
+      method: "POST",
+      headers: { Authorization: authorization },
+      body: JSON.stringify({
+        device_id: "e2e-device-2",
+        records: [
+          {
+            type: "form_response",
+            data: {
+              id: stalePsfResponseId,
+              task_id: `local-stale-psf-${stalePsfResponseId}`,
+              task_key: `${householdId}|woman|${eligibleMemberId}|PSF|M2|2026-11-15|1.0.0`,
+              form_code: "PSF",
+              form_version: "2026.05.17",
+              household_id: householdId,
+              site_id: 1,
+              locality_code: "01",
+              subject_type: "woman",
+              subject_id: eligibleMemberId,
+              answers_json: {
+                household_id: householdId,
+                psf_pregnant_now: 2,
+              },
+              submitted_at: "2026-09-15T11:00:00.000Z",
+            },
+          },
+        ],
+      }),
+    });
+    assert.deepEqual(stalePsfPush.errors, []);
+    assert.deepEqual(stalePsfPush.classified_records, [
+      {
+        id: stalePsfResponseId,
+        status: "invalid_rejected",
+        error: "PSF cannot be submitted because PEF is already completed on the server for this woman",
+        household_id: householdId,
+        subject_id: eligibleMemberId,
+      },
+    ]);
+    const [storedStalePsf] = await db
+      .select()
+      .from(schema.formResponses)
+      .where(eq(schema.formResponses.form_response_id, stalePsfResponseId));
+    assert.equal(storedStalePsf.response_status, "invalid_rejected");
 
     const duplicatePefResponseId = randomUUID();
     const duplicatePefPush = await fetchData(`${baseUrl}/sync/push`, {

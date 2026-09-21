@@ -57,7 +57,20 @@ export function SyncScreen({ onClockStatusChange } = {}) {
     try {
       const result = await syncService.syncAll();
       setSyncMessage(formatSyncCompletionMessage(result));
-      if (result.duplicateErrors > 0) {
+      if (result.conflictNotices?.length > 0) {
+        const details = result.conflictNotices
+          .slice(0, 3)
+          .map((item) => {
+            const subject = item.subjectId ? ` (${item.subjectId})` : "";
+            return `${item.formCode}${subject}: ${item.message}`;
+          })
+          .join("\n\n");
+        const remaining = result.conflictNotices.length - 3;
+        Alert.alert(
+          "Server workflow already updated",
+          `${details}${remaining > 0 ? `\n\n${remaining} more conflict${remaining === 1 ? "" : "s"} moved to Upload Errors.` : ""}\n\nThese forms were moved to Upload Errors. The remaining forms synced, and this device's tasks were refreshed from the server.`,
+        );
+      } else if (result.duplicateErrors > 0) {
         Alert.alert(
           "Duplicate entry on server",
           `${result.duplicateErrors} form submission${result.duplicateErrors === 1 ? " was" : "s were"} already submitted first by another user. The later form was moved to Upload Errors and its task was closed.`,
