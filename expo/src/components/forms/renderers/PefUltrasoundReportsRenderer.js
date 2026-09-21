@@ -121,7 +121,6 @@ export function PefUltrasoundReportsRenderer({
   locale,
   question,
   onChange,
-  onRequestTopLevelFocus,
 }) {
   const value = normalizePefUltrasoundReports(question.value);
   const [error, setError] = useState("");
@@ -185,14 +184,6 @@ export function PefUltrasoundReportsRenderer({
     updateReport(reportIndex, { images: [...report.images, createEmptyImage()] });
   }
 
-  function restoreUploadFocus() {
-    // Wait for the saved-image preview to render, then return to this upload
-    // control instead of leaving the interviewer at the top of the form.
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => onRequestTopLevelFocus?.(question.name));
-    });
-  }
-
   async function chooseImage(reportIndex, imageIndex, source) {
     setError("");
     beginAppLockMediaActivity();
@@ -219,7 +210,6 @@ export function PefUltrasoundReportsRenderer({
         .reports[reportIndex]?.images[imageIndex];
       if (!current) {
         setError("Select the number of reports before adding an image.");
-        restoreUploadFocus();
         return;
       }
       const stored = await persistPefUltrasoundImage(result.assets[0], current.attachment_id);
@@ -227,10 +217,8 @@ export function PefUltrasoundReportsRenderer({
         await removePersistedPefUltrasoundImage(current.local_uri);
       }
       updateImage(reportIndex, imageIndex, stored);
-      restoreUploadFocus();
     } catch (storageError) {
       setError(storageError?.message || "Could not save the image on this device.");
-      restoreUploadFocus();
     } finally {
       endAppLockMediaActivity();
     }
@@ -281,8 +269,10 @@ export function PefUltrasoundReportsRenderer({
               {image.local_uri ? (
                 <Image source={{ uri: image.local_uri }} style={styles.preview} />
               ) : null}
-              {image.original_name ? (
-                <Text style={styles.fileName}>{`File: ${image.original_name}`}</Text>
+              {image.local_uri ? (
+                <Text style={styles.imageQualityHint}>
+                  Please make sure Image is not Blurr or croped. ensure image quality.
+                </Text>
               ) : null}
               <View style={styles.actions}>
                 <Pressable
@@ -334,8 +324,8 @@ const styles = StyleSheet.create({
   dateText: { flex: 1, color: "#18202a", fontSize: 16 },
   datePlaceholder: { color: "#667085" },
   webDateInput: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, zIndex: 2, width: "100%", height: "100%", cursor: "pointer", opacity: 0.01 },
-  preview: { width: "100%", height: 190, resizeMode: "contain", borderRadius: 8, backgroundColor: "#e5e7eb" },
-  fileName: { color: "#475467", fontSize: 13 },
+  preview: { width: "100%", height: 220, resizeMode: "cover", borderRadius: 8, backgroundColor: "#e5e7eb" },
+  imageQualityHint: { color: "#475467", fontSize: 13, fontWeight: "700", lineHeight: 19 },
   actions: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   addImageButton: { minHeight: 46, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderWidth: 1, borderColor: "#1769aa", borderRadius: 8, backgroundColor: "#eff6ff" },
   addImageText: { color: "#1769aa", fontSize: 15, fontWeight: "800" },

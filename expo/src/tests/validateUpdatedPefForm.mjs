@@ -154,10 +154,25 @@ assert.match(
   /PefUltrasoundReportsRenderer[\s\S]*onRequestTopLevelFocus=\{onRequestTopLevelFocus\}/,
   "PEF report uploads must receive the questionnaire focus callback",
 );
+assert.doesNotMatch(
+  pefUltrasoundRendererSource,
+  /restoreUploadFocus|onRequestTopLevelFocus\?\.\(question\.name\)/,
+  "PEF ultrasound uploads must preserve the current image viewport",
+);
 assert.match(
   pefUltrasoundRendererSource,
-  /updateImage\(reportIndex, imageIndex, stored\);[\s\S]*restoreUploadFocus\(\)/,
-  "a completed image upload must restore the ultrasound section position",
+  /resizeMode: "cover"/,
+  "PEF ultrasound previews must fill their preview box",
+);
+assert.match(
+  pefUltrasoundRendererSource,
+  /Please make sure Image is not Blurr or croped\. ensure image quality\./,
+  "PEF ultrasound previews must show the image quality reminder",
+);
+assert.doesNotMatch(
+  pefUltrasoundRendererSource,
+  /File: \$\{image\.original_name\}/,
+  "PEF ultrasound previews must not expose backend image filenames",
 );
 assert.match(
   pefAncCardRendererSource,
@@ -168,11 +183,6 @@ assert.doesNotMatch(
   pefAncCardRendererSource,
   /Add image|report_count/,
   "PEF Q47 must not offer a second ANC card image",
-);
-assert.match(
-  pefUltrasoundRendererSource,
-  /onRequestTopLevelFocus\?\.\(question\.name\)/,
-  "the report uploader must focus itself instead of the top of the form",
 );
 const wqResponse = {
   id: "response-wq-1",
