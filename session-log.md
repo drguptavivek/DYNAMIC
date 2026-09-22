@@ -1,3 +1,12 @@
+## 2026-09-22 (Ship Q18/Q27/PEF-Q9 fixes) [verified]
+Goal: Commit, push, rebuild the release APK, and install on the phone.
+Decisions:
+- Committed `e5d7432` on `fix/offline-bwq-pef-task-flow` (7 files) and pushed to origin. Prior-session untracked files (test-forms route, screenshots, SQL) left uncommitted.
+- Release build via `sh gradlew assembleRelease` (JDK 21 at Android Studio jbr, daemon stop + metro-cache clear first); APK targets the production API `https://dynamicstudyindia.com/api/v1` via `apiConfig.js` (`__DEV__` false), no URL embedding needed.
+Verification:
+- BUILD SUCCESSFUL in 4m9s; APK 134,044,989 bytes copied to `D:\Android\apk\DYNAMIC-fieldapp-phone.apk`.
+- `adb install -r` Success on R9ZR80DS7BJ; dumpsys shows versionCode 1 / 0.2.0, lastUpdateTime 2026-09-22 16:25:45; MainActivity is topResumedActivity after launch.
+
 ## 2026-09-22 (BWQ Q27_i roster line for resident children) [verified]
 Goal: Q27_i (household child number) must show the child's BHQ roster line number when Q26_i is Yes; keep reverse numbering (…99, 98) only when Q26_i is No.
 Decisions:
