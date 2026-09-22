@@ -1,3 +1,32 @@
+## 2026-09-22 (BWQ Q27_i roster line for resident children) [verified]
+Goal: Q27_i (household child number) must show the child's BHQ roster line number when Q26_i is Yes; keep reverse numbering (…99, 98) only when Q26_i is No.
+Decisions:
+- `applyWqPregnancyHistoryCalculations` (`expo/src/lib/womanSurveyBehaviors.js`): alive child with Q26_i = Yes looks up the roster by baby name (case/spacing-insensitive, sex-consistent match preferred via new `findWqRosterChildLineNumber`) and shows that member's 2-digit line number; roster matches do not consume a reverse slot.
+- Q26_i = No (or Yes without a roster match) keeps the existing reverse numbering anchored on the husband's line, one number per such child.
+- New `attachWqHouseholdRoster(model, members)`; `QuestionnaireDashboard` loadChoices now attaches the roster from `listHouseholdMembers` and recalculates, so already-answered rows re-derive once members load.
+Verification:
+- Extended `validateWomanQuestionnaireSkipLogic.mjs`: Yes+match shows roster line (04/07 incl. messy roster name), No keeps 96, Yes-to-No flip renumbers to 96/95 uniquely; all prior reverse-numbering pins unchanged.
+- `validateWomanQuestionnaireSkipLogic.mjs`, `validateWqConsistencyChecks.mjs`, `validateWqVisitorExclusion.mjs`, `validateUpdatedPefForm.mjs`, `validateSourceSyntax.mjs` pass.
+Open:
+- Name is the only join key between WQ children and the BHQ roster; a Yes child with no name match silently falls back to a reverse number.
+
+## 2026-09-22 (PEF Q9 pregnancy ID dash separator) [verified]
+Goal: Separate the PEF Q9 pregnancy ID rank digit from the woman's ID with a dash.
+Decisions:
+- `buildPefPregnancyId` (`expo/src/lib/pefPrefillHelpers.js`) now returns `<woman_id>-<rank>` (e.g., `1-01-0006-11-02-2`) instead of direct concatenation (`1-01-0006-11-022`).
+- Q9 description in `pregnancy_enrollment_form_v2026.08.25.json` updated to mention the dash; server-side pregnancy IDs (`randomUUID()`/`local-pregnancy:` internal keys) are separate and unchanged, and nothing parses the displayed Q9 format.
+Verification:
+- `validateUpdatedPefForm.mjs`, `validateFormCatalogLazy.mjs`, `validateQuestionnaireSurveyJsonTransforms.mjs`, and `validateForms.mjs` pass with the new pinned format.
+
+## 2026-09-22 (BWQ Q18 husband dropdown head inclusion) [verified]
+Goal: Show the male household head in the BWQ section 1 Q18 husband/partner dropdown.
+Decisions:
+- Q18 eligibility (`isEligibleWqHusbandPartnerMember` in `expo/src/lib/womanSurveyBehaviors.js`) now always lists the head when `sex` is male, even when `age_years` is missing or not over 18 (the old `age_years > 18` gate dropped such heads).
+- Non-head males still require `age_years > 18`; females, including a female head, remain excluded.
+Verification:
+- Extended the pinned choice list in `validateWomanQuestionnaireSkipLogic.mjs`: head with null age and head aged 18 now appear; female head and non-head males aged 18/null still excluded.
+- `validateWomanQuestionnaireSkipLogic.mjs` and `validateWqConsistencyChecks.mjs` pass. The suite's earlier react-native transform failure under Windows tsx/esbuild reproduces on the pristine tree and is unrelated.
+
 ## 2026-09-19 (PEF ultrasound attachment sync transport) [verified]
 Goal: Allow finalized PEF ultrasound images to upload during Sync Now on Expo SDK 57.
 Decisions:

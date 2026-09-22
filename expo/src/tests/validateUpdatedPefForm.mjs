@@ -73,8 +73,8 @@ assert.equal(q1.choices.some((item) => item.disabled), false);
 const q9 = form.pages[0].elements.find((element) => element.sourceCode === "9");
 assert.equal(q9.name, PEF_PREGNANCY_ID_FIELD);
 assert.equal(q9.readOnly, true);
-assert.equal(buildPefPregnancyId("1-01-0006-11-02", 1), "1-01-0006-11-021");
-assert.equal(buildPefPregnancyId("1-01-0006-11-02", 3), "1-01-0006-11-023");
+assert.equal(buildPefPregnancyId("1-01-0006-11-02", 1), "1-01-0006-11-02-1");
+assert.equal(buildPefPregnancyId("1-01-0006-11-02", 3), "1-01-0006-11-02-3");
 assert.equal(buildPefPregnancyId("", 1), "");
 assert.equal(buildPefPregnancyId("1-01-0006-11-02", undefined), "");
 const pregnancyIdValues = {
@@ -93,8 +93,8 @@ const pregnancyIdModel = {
     pregnancyIdValues[name] = value;
   },
 };
-assert.equal(applyPefPregnancyId(pregnancyIdModel), "1-01-0006-11-022");
-assert.equal(pregnancyIdValues[PEF_PREGNANCY_ID_FIELD], "1-01-0006-11-022");
+assert.equal(applyPefPregnancyId(pregnancyIdModel), "1-01-0006-11-02-2");
+assert.equal(pregnancyIdValues[PEF_PREGNANCY_ID_FIELD], "1-01-0006-11-02-2");
 assert.equal(pregnancyIdQuestion.readOnly, true);
 const prefillMapperSource = readFileSync(new URL("../lib/prefillMapper.js", import.meta.url), "utf8");
 const dashboardSource = readFileSync(

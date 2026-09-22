@@ -99,6 +99,7 @@ import {
    applyWqPregnancyHistoryCalculations,
    applyWqPregnancyTrackingEligibility,
    applyWqReproductionSummary,
+  attachWqHouseholdRoster,
   attachWqValidation,
   buildWqHusbandPartnerChoices,
   hasIncompleteWqBornAliveChildFollowups,
@@ -1072,6 +1073,8 @@ export function QuestionnaireDashboard({
       const members = householdId ? await listHouseholdMembers(householdId) : [];
       if (cancelled) return;
       applyWqHusbandPartnerChoices(survey, members, taskContext, prefillData);
+      attachWqHouseholdRoster(survey, members);
+      applyWqPregnancyHistoryCalculations(survey);
       updateSurveyStatus(survey);
     }
     loadChoices();

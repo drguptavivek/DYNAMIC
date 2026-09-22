@@ -505,7 +505,7 @@
           "sourceType": "free_text",
           "rawText": "Pregnancy ID",
           "description": {
-            "default": "One digit added after the woman's ID and assigned at enrollment.",
+            "default": "One digit added after the woman's ID, separated by a dash, and assigned at enrollment.",
             "hi": "",
             "kn": "",
             "mr": "",

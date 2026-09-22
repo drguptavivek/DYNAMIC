@@ -222,7 +222,11 @@ function memberSexLabel(sex) {
 }
 
 function isEligibleWqHusbandPartnerMember(member) {
-  return String(member?.sex) === "1" && Number(member?.age_years) > 18;
+  if (String(member?.sex) !== "1") return false;
+  // Q18 lists all household male members; the male head must always be
+  // selectable even when his age is missing or not yet over 18.
+  if (Number(member?.relationship_to_head) === 1) return true;
+  return Number(member?.age_years) > 18;
 }
 
 function isEligibleWqWomanMember(member) {
@@ -517,6 +521,36 @@ function nextReverseHouseholdLineNumber(baseValue, childOffset) {
   // through zero and wrap, for example 02 -> 01 -> 00 -> 99 -> 98.
   const next = ((start - childOffset - 1) % 100 + 100) % 100;
   return String(next).padStart(2, "0");
+}
+
+export function attachWqHouseholdRoster(model, members = []) {
+  if (!model) return;
+  model.wqHouseholdMembers = Array.isArray(members) ? members : [];
+}
+
+function normalizeWqMemberName(name) {
+  return String(name ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+/**
+ * Q26_i Yes means the child lives in the household, so Q27_i must show the
+ * child's real BHQ roster line number instead of a generated reverse number.
+ * Matches the roster by name (case- and spacing-insensitive), preferring a
+ * sex-consistent member when several share the name.
+ */
+function findWqRosterChildLineNumber(members, babyName, babySex) {
+  const normalizedBabyName = normalizeWqMemberName(babyName);
+  if (!normalizedBabyName) return null;
+  const matches = (Array.isArray(members) ? members : []).filter(
+    (member) => normalizeWqMemberName(member?.member_name) === normalizedBabyName
+  );
+  if (matches.length === 0) return null;
+  const sexAware =
+    babySex === 1 || babySex === 2
+      ? matches.filter((member) => String(member?.sex) === String(babySex))
+      : [];
+  const member = (sexAware.length > 0 ? sexAware : matches)[0];
+  return deriveMemberLineNumber(member);
 }
 
 let wqPregnancyRowIdSequence = 0;
@@ -1274,14 +1308,27 @@ export function applyWqPregnancyHistoryCalculations(model) {
       }
       if (Number(next[WQ_PREGNANCY_CHILD_ALIVE_FIELD]) === 1) {
         delete next[WQ_PREGNANCY_DEATH_AGE_FIELD];
-        // Every still-alive child receives the next unique reverse household
-        // line number in pregnancy/child order. Q26 describes residence with
-        // the respondent; it must not collapse multiple children onto 00.
-        next[WQ_PREGNANCY_CHILD_LINE_FIELD] = nextReverseHouseholdLineNumber(
-          model?.getValue?.(WQ_HUSBAND_PARTNER_LINE_NUMBER_FIELD),
-          livingChildOffset
-        );
-        livingChildOffset += 1;
+        // Q26_i Yes: the child lives in the household, so Q27_i shows the
+        // child's BHQ roster line number. Q26_i No — or a Yes child without a
+        // roster match — keeps the generated reverse household line numbers
+        // (…99, 98) in pregnancy/child order; only those consume a number.
+        const rosterLineNumber =
+          Number(next[WQ_PREGNANCY_CHILD_LIVING_WITH_FIELD]) === 1
+            ? findWqRosterChildLineNumber(
+                model?.wqHouseholdMembers,
+                babyName,
+                next[WQ_PREGNANCY_BABY_SEX_FIELD]
+              )
+            : null;
+        if (rosterLineNumber) {
+          next[WQ_PREGNANCY_CHILD_LINE_FIELD] = rosterLineNumber;
+        } else {
+          next[WQ_PREGNANCY_CHILD_LINE_FIELD] = nextReverseHouseholdLineNumber(
+            model?.getValue?.(WQ_HUSBAND_PARTNER_LINE_NUMBER_FIELD),
+            livingChildOffset
+          );
+          livingChildOffset += 1;
+        }
       } else if (Number(next[WQ_PREGNANCY_CHILD_ALIVE_FIELD]) === 2) {
         delete next[WQ_PREGNANCY_CHILD_AGE_FIELD];
         delete next[WQ_PREGNANCY_CHILD_LIVING_WITH_FIELD];

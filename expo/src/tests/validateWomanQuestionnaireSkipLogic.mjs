@@ -41,6 +41,7 @@ const {
   hasWqReproductionComparisonDeficit,
   hasIncompleteWqBornAliveChildFollowups,
   applyWqReproductionSummary,
+  attachWqHouseholdRoster,
   buildWqHusbandPartnerChoices,
    calculateWqDomesticViolencePhysicalCheckValue,
   calculateWqPregnancyHistoryOutcomeValue,
@@ -692,11 +693,34 @@ assert.deepEqual(
       line_number: 2,
       individual_id: "hh-02",
     },
+    {
+      member_name: "Male Head No Age",
+      sex: 1,
+      age_years: null,
+      relationship_to_head: 1,
+      line_number: 6,
+      individual_id: "hh-06",
+    },
+    {
+      member_name: "Male Head Eighteen",
+      sex: 1,
+      age_years: 18,
+      relationship_to_head: 1,
+      line_number: 7,
+      individual_id: "hh-07",
+    },
+    { member_name: "Female Head", sex: 2, age_years: 40, relationship_to_head: 1, line_number: 8, individual_id: "hh-08" },
     { member_name: "Adult Male Member", sex: 1, age_years: 19, line_number: 3, individual_id: "hh-03" },
     { member_name: "Female Adult", sex: 2, age_years: 30, line_number: 4, individual_id: "hh-04" },
     { member_name: "Male Unknown Age", sex: 1, age_years: null, line_number: 5, individual_id: "hh-05" },
   ]).map((choice) => choice.value),
-  ["Adult Male Head", "Adult Male Member", "Husband not in household"]
+  [
+    "Adult Male Head",
+    "Male Head No Age",
+    "Male Head Eighteen",
+    "Adult Male Member",
+    "Husband not in household",
+  ],
 );
 const outsideHusbandMembers = [
   { member_name: "Woman One", sex: 2, age_years: 24, line_number: 1, individual_id: "2-02-0003-01-01" },
@@ -1677,6 +1701,71 @@ for (const expectedLine of ["00", "99"]) {
   nonResidentLoop.panels.at(-1).getQuestionByName(WQ_FOLLOWUP_COMPLETED_FIELD).value = 1;
   nonResidentLoop.wqAdvanceToNextChild();
 }
+
+// Q27_i with the BHQ roster attached: Q26_i Yes shows the child's roster line
+// number; Q26_i No keeps reverse numbering, and roster matches do not consume
+// a reverse slot.
+const rosterChildLineModel = createWqModel();
+rosterChildLineModel.setValue("wq_husband_partner_line_number", "97");
+attachWqHouseholdRoster(rosterChildLineModel, [
+  { member_name: "Asha", sex: 2, line_number: 4, individual_id: "hh-04" },
+  { member_name: " Ravi  Kumar ", sex: 1, line_number: 7, individual_id: "hh-07" },
+]);
+const rosterHistory = question(rosterChildLineModel, "wq_pregnancy_history");
+for (const [index, name] of ["Asha", "Ravi Kumar", "Away"].entries()) {
+  rosterHistory.addPanel();
+  const panel = rosterHistory.panels.at(-1);
+  panel.getQuestionByName(WQ_PREGNANCY_GROUP_FIELD).value = index + 1;
+  panel.getQuestionByName(WQ_MULTIPLE_BIRTH_INDEX_FIELD).value = 1;
+  panel.getQuestionByName(WQ_MULTIPLE_BIRTH_COUNT_FIELD).value = 1;
+  panel.getQuestionByName(WQ_PREGNANCY_BIRTH_RESULT_FIELD).value = 1;
+  panel.getQuestionByName("pregnancy_02_reproduction_what_name_was_given_to_the_baby").value = name;
+}
+applyWqPregnancyHistoryCalculations(rosterChildLineModel);
+const rosterLoop = question(rosterChildLineModel, WQ_BORN_ALIVE_CHILD_FOLLOWUPS_FIELD);
+function rosterChildPanel(index) {
+  return rosterLoop.panels[index];
+}
+rosterChildPanel(0).getQuestionByName(WQ_PREGNANCY_CHILD_ALIVE_FIELD).value = 1;
+rosterChildPanel(0).getQuestionByName(WQ_PREGNANCY_CHILD_LIVING_WITH_FIELD).value = 1;
+applyWqPregnancyHistoryCalculations(rosterChildLineModel);
+assert.equal(
+  rosterChildPanel(0).getQuestionByName(WQ_PREGNANCY_CHILD_LINE_FIELD).value,
+  "04",
+  "Q26_i Yes must show the child's BHQ roster line number in Q27_i"
+);
+rosterChildPanel(0).getQuestionByName(WQ_FOLLOWUP_COMPLETED_FIELD).value = 1;
+rosterLoop.wqAdvanceToNextChild();
+rosterChildPanel(1).getQuestionByName(WQ_PREGNANCY_CHILD_ALIVE_FIELD).value = 1;
+rosterChildPanel(1).getQuestionByName(WQ_PREGNANCY_CHILD_LIVING_WITH_FIELD).value = 1;
+applyWqPregnancyHistoryCalculations(rosterChildLineModel);
+assert.equal(
+  rosterChildPanel(1).getQuestionByName(WQ_PREGNANCY_CHILD_LINE_FIELD).value,
+  "07",
+  "Q27_i roster lookup must tolerate case and spacing differences in the roster name"
+);
+rosterChildPanel(1).getQuestionByName(WQ_FOLLOWUP_COMPLETED_FIELD).value = 1;
+rosterLoop.wqAdvanceToNextChild();
+rosterChildPanel(2).getQuestionByName(WQ_PREGNANCY_CHILD_ALIVE_FIELD).value = 1;
+rosterChildPanel(2).getQuestionByName(WQ_PREGNANCY_CHILD_LIVING_WITH_FIELD).value = 2;
+applyWqPregnancyHistoryCalculations(rosterChildLineModel);
+assert.equal(
+  rosterChildPanel(2).getQuestionByName(WQ_PREGNANCY_CHILD_LINE_FIELD).value,
+  "96",
+  "Q26_i No must keep the reverse numbering, unaffected by roster-matched siblings"
+);
+rosterChildPanel(0).getQuestionByName(WQ_PREGNANCY_CHILD_LIVING_WITH_FIELD).value = 2;
+applyWqPregnancyHistoryCalculations(rosterChildLineModel);
+assert.equal(
+  rosterChildPanel(0).getQuestionByName(WQ_PREGNANCY_CHILD_LINE_FIELD).value,
+  "96",
+  "Switching Q26_i from Yes to No must fall back to the reverse numbering"
+);
+assert.equal(
+  rosterChildPanel(2).getQuestionByName(WQ_PREGNANCY_CHILD_LINE_FIELD).value,
+  "95",
+  "Reverse numbers must stay unique after Q26_i answers change"
+);
 childLoop.panels[0].getQuestionByName(WQ_PREGNANCY_CHILD_ALIVE_FIELD).value = 2;
 assert.equal(childLoop.panels[0].getQuestionByName(WQ_PREGNANCY_CHILD_AGE_FIELD).isVisible, false);
 assert.equal(childLoop.panels[0].getQuestionByName(WQ_PREGNANCY_DEATH_AGE_FIELD).isVisible, true, "Q24_i No must skip to Q28_i");

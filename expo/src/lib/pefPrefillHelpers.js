@@ -181,7 +181,7 @@ export function buildPefPregnancyId(womanId, pregnancyRank) {
   ) {
     return "";
   }
-  return `${normalizedWomanId}${normalizedRank}`;
+  return `${normalizedWomanId}-${normalizedRank}`;
 }
 
 export function applyPefPregnancyId(model) {
