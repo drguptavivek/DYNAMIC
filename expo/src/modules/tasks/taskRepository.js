@@ -5,8 +5,6 @@ export function listTasks(filters = {}) {
   const db = getDb();
   const { status, task_type, locality_code, overdue } = filters;
 
-  deduplicateLocalTasks();
-
   let sql = "SELECT * FROM follow_up_tasks WHERE 1=1";
   const params = [];
 
@@ -66,7 +64,7 @@ function localSemanticTaskKey(task) {
   return parts.every(Boolean) ? parts.join("|") : null;
 }
 
-function deduplicateLocalTasks() {
+export function deduplicateLocalTasks() {
   const db = getDb();
   const terminal = ["completed", "missed", "cancelled", "superseded", "closed", "closed_final_reason"];
   const placeholders = terminal.map(() => "?").join(",");
@@ -325,7 +323,6 @@ function buildWorklistWhere(filters = {}) {
  */
 export async function listTasksPage(filters = {}) {
   const db = getDb();
-  deduplicateLocalTasks();
   const requestedLimit = Number(filters.limit);
   const limit = Number.isFinite(requestedLimit)
     ? Math.max(1, Math.min(WORKLIST_PAGE_SIZE, Math.trunc(requestedLimit)))
@@ -349,7 +346,10 @@ export async function listTasksPage(filters = {}) {
   }
 
   const { sql: whereSql, params: whereParams, draftPredicate } = buildWorklistWhere(filters);
-  const fromSql = "FROM follow_up_tasks t LEFT JOIN households h ON h.household_id = t.household_id";
+  const normalizedSearch = String(filters.search || "").trim();
+  const fromSql = normalizedSearch.length >= 3
+    ? "FROM follow_up_tasks t LEFT JOIN households h ON h.household_id = t.household_id"
+    : "FROM follow_up_tasks t";
   const countSql = `SELECT COUNT(*) AS total ${fromSql} WHERE ${whereSql}`;
   const countRow = typeof db.getFirstAsync === "function"
     ? await db.getFirstAsync(countSql, whereParams)

@@ -718,3 +718,13 @@ Decisions:
 - A failed refresh leaves finalized local responses intact and reports an actionable session message; other HTTP failures include status and server detail instead of blank `statusText`.
 Open:
 - Rebuild/install and physical-device sync verification await explicit user approval.
+
+## 2026-09-25 (Ten-thousand-task mobile performance) [working]
+Goal: Keep Worklist, Households, and form-history navigation responsive with up to 10,000 local tasks.
+Decisions:
+- Worklist reads are bounded to 100 SQLite rows, avoid the household join when no search is active, and reuse the current first page when returning from another drawer tab.
+- Semantic duplicate-task repair runs after task pull instead of synchronously during every task-list read.
+- Field-worker household/member scope uses an indexed SQLite `EXISTS` query instead of materializing thousands of HHQ IDs in JavaScript.
+- Completed/Uploaded history performs one focus load instead of duplicate mount and focus loads.
+Open:
+- Production APK build/install and physical-device timing with the user's 4,000-task dataset await explicit user approval.

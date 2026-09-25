@@ -604,6 +604,12 @@ export async function pullSync(options = {}) {
         authoritativeTaskKeysByHousehold,
       }) || 0;
     }
+    // Semantic duplicate repair is maintenance work, not a screen-read task.
+    // Run it once after a pull that changed tasks so opening Worklist remains
+    // bounded even when a field worker has ten thousand assignments.
+    if (pulledTasks > 0) {
+      taskRepository.deduplicateLocalTasks?.();
+    }
 
     const nextCursor = lastData ? selectNextPullCursor(lastData, lastSync) : null;
     if (nextCursor) {

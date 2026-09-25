@@ -3,7 +3,7 @@ import { describeNetworkError } from "../../lib/networkErrors.js";
 import { startTiming } from "../../lib/perfLog.js";
 import { useCommittedSearch } from "../../lib/useCommittedSearch.js";
 import { getLocalCalendarDate } from "../../lib/localDate.js";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -57,6 +57,15 @@ const STAGE_FILTER_OPTIONS = [
   { value: "future_planned", label: "Future planned" },
   { value: "draft", label: "Draft" },
 ];
+
+// Expo Router unmounts this screen while another drawer route is open. Keep
+// the already-bounded first page in module memory so returning to Worklist is
+// immediate; taskWorklistRevision and the local calendar date invalidate it.
+let defaultWorklistCache = null;
+
+function defaultWorklistCacheKey({ selectedLocalityCode, worklistRevision, calendarDate }) {
+  return [selectedLocalityCode || "", Number(worklistRevision || 0), calendarDate].join("|");
+}
 
 function groupTasksByUrgency(tasks, options = {}) {
   const { stageFilter = "" } = options;
@@ -385,7 +394,7 @@ function HouseholdDetailsModal({ household, visible, onClose }) {
   );
 }
 
-function TaskRow({ task, onPress, onLongPress, onViewHousehold }) {
+const TaskRow = memo(function TaskRow({ task, onPress, onLongPress, onViewHousehold }) {
   const isDisabled = Boolean(getTaskOpenBlockReason(task));
   const badgeColor = BADGE_COLORS[task.task_type] || "#95a5a6";
   const detailLine = task.household_address || "";
@@ -461,7 +470,7 @@ function TaskRow({ task, onPress, onLongPress, onViewHousehold }) {
       </Pressable>
     </View>
   );
-}
+});
 
 export function WorklistScreen({
   onOpenTask,
@@ -470,11 +479,18 @@ export function WorklistScreen({
   selectedLocalityCode,
   worklistRevision,
 }) {
-  const [tasks, setTasks] = useState([]);
-  const [totalTaskCount, setTotalTaskCount] = useState(0);
-  const [hasMoreTasks, setHasMoreTasks] = useState(false);
+  const initialCalendarDate = getCalendarDate();
+  const initialCacheKey = defaultWorklistCacheKey({
+    selectedLocalityCode,
+    worklistRevision,
+    calendarDate: initialCalendarDate,
+  });
+  const initialCache = defaultWorklistCache?.key === initialCacheKey ? defaultWorklistCache : null;
+  const [tasks, setTasks] = useState(initialCache?.tasks || []);
+  const [totalTaskCount, setTotalTaskCount] = useState(initialCache?.totalTaskCount || 0);
+  const [hasMoreTasks, setHasMoreTasks] = useState(Boolean(initialCache?.hasMoreTasks));
   const [loadingMore, setLoadingMore] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!initialCache);
   const [refreshing, setRefreshing] = useState(false);
   const [syncError, setSyncError] = useState(null);
   const {
@@ -488,9 +504,20 @@ export function WorklistScreen({
   const [taskTypeFilter, setTaskTypeFilter] = useState("");
   const [selectedHouseholdTask, setSelectedHouseholdTask] = useState(null);
   const requestIdRef = useRef(0);
-  const [calendarDate, setCalendarDate] = useState(getCalendarDate);
+  const skipCachedInitialLoadRef = useRef(Boolean(initialCache));
+  const [calendarDate, setCalendarDate] = useState(initialCalendarDate);
 
   useEffect(() => {
+    if (
+      skipCachedInitialLoadRef.current &&
+      localityFilter === (selectedLocalityCode || "") &&
+      !stageFilter &&
+      !taskTypeFilter &&
+      !committedSearch
+    ) {
+      skipCachedInitialLoadRef.current = false;
+      return;
+    }
     loadTasks({ reset: true });
   }, [selectedLocalityCode, worklistRevision, localityFilter, stageFilter, taskTypeFilter, committedSearch, calendarDate]);
 
@@ -538,6 +565,24 @@ export function WorklistScreen({
       setTasks((previous) => (reset ? pageTasks : [...previous, ...pageTasks]));
       setTotalTaskCount(Number(result.total) || 0);
       setHasMoreTasks(Boolean(result.hasMore));
+      if (
+        reset &&
+        localityFilter === (selectedLocalityCode || "") &&
+        !stageFilter &&
+        !taskTypeFilter &&
+        !committedSearch
+      ) {
+        defaultWorklistCache = {
+          key: defaultWorklistCacheKey({
+            selectedLocalityCode,
+            worklistRevision,
+            calendarDate,
+          }),
+          tasks: pageTasks,
+          totalTaskCount: Number(result.total) || 0,
+          hasMoreTasks: Boolean(result.hasMore),
+        };
+      }
       setSyncError(null);
       endLoad({ tasks: pageTasks.length, total: result.total, drafts: activeDrafts.length });
     } catch (error) {
@@ -566,14 +611,16 @@ export function WorklistScreen({
     }
   }
 
-  function handleTaskPress(task) {
+  const handleTaskPress = useCallback((task) => {
     const blockReason = getTaskOpenBlockReason(task);
     if (blockReason) {
       Alert.alert("Form Not Available", blockReason);
       return;
     }
     onOpenTask(task);
-  }
+  }, [onOpenTask]);
+
+  const handleViewHousehold = useCallback((task) => setSelectedHouseholdTask(task), []);
 
   const localityOptions = useMemo(
     () => buildTaskLocalityOptions(tasks, localities),
@@ -713,7 +760,7 @@ export function WorklistScreen({
       <TaskRow
         task={item.task}
         onPress={handleTaskPress}
-        onViewHousehold={setSelectedHouseholdTask}
+        onViewHousehold={handleViewHousehold}
       />
     );
   }

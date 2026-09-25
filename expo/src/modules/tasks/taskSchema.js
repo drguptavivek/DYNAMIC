@@ -255,6 +255,8 @@ export function initTaskDb() {
   for (const statement of [
     "CREATE INDEX IF NOT EXISTS follow_up_tasks_status_target_date_idx ON follow_up_tasks (status, target_date)",
     "CREATE INDEX IF NOT EXISTS follow_up_tasks_locality_status_idx ON follow_up_tasks (assigned_locality_code, status)",
+    "CREATE INDEX IF NOT EXISTS follow_up_tasks_type_status_household_idx ON follow_up_tasks (task_type, status, household_id)",
+    "CREATE INDEX IF NOT EXISTS follow_up_tasks_status_lifecycle_target_idx ON follow_up_tasks (status, lifecycle_status, target_date, task_key)",
     "CREATE INDEX IF NOT EXISTS follow_up_tasks_sync_status_idx ON follow_up_tasks (sync_status)",
     "CREATE INDEX IF NOT EXISTS follow_up_tasks_household_id_idx ON follow_up_tasks (household_id)",
     "CREATE INDEX IF NOT EXISTS follow_up_tasks_household_id_nocase_idx ON follow_up_tasks (household_id COLLATE NOCASE)",

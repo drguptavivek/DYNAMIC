@@ -48,6 +48,11 @@ assert.equal(firstPage.tasks.length, 100);
 assert.equal(firstPage.total, 205);
 assert.equal(firstPage.hasMore, true);
 assert.equal(firstPage.offset, 0);
+assert.equal(
+  calls.filter((call) => call.method === "getAllSync").length,
+  0,
+  "opening a worklist page must not synchronously scan every local task",
+);
 
 const pageQuery = calls.find((call) => call.method === "getAllAsync");
 assert.match(pageQuery.sql, /t\.household_id LIKE \? COLLATE NOCASE/);
@@ -69,6 +74,17 @@ const emptyStandardFilter = await listTasksPage({ task_type: "VA", limit: 100, o
 assert.deepEqual(emptyStandardFilter.tasks, []);
 assert.equal(emptyStandardFilter.total, 0);
 assert.equal(emptyStandardFilter.hasMore, false);
+
+const noSearchStart = calls.length;
+total = 10_000;
+const tenThousandTaskPage = await listTasksPage({ limit: 100, offset: 0 });
+assert.equal(tenThousandTaskPage.tasks.length, 100);
+assert.equal(tenThousandTaskPage.total, 10_000);
+assert.equal(tenThousandTaskPage.hasMore, true);
+const noSearchCalls = calls.slice(noSearchStart);
+for (const call of noSearchCalls.filter((entry) => entry.method.startsWith("get"))) {
+  assert.doesNotMatch(call.sql, /JOIN households/i, "unsearched worklist pages must not join households");
+}
 
 const callsBeforeLargeDraftSet = calls.length;
 await listTasksPage({

@@ -26,6 +26,8 @@ const lastAlterIndex = runSyncCalls.lastIndexOf(alterStatements[alterStatements.
 const expectedIndexes = [
   { table: "follow_up_tasks", columns: ["status", "target_date"] },
   { table: "follow_up_tasks", columns: ["assigned_locality_code", "status"] },
+  { table: "follow_up_tasks", columns: ["task_type", "status", "household_id"] },
+  { table: "follow_up_tasks", columns: ["status", "lifecycle_status", "target_date", "task_key"] },
   { table: "follow_up_tasks", columns: ["sync_status"] },
   { table: "follow_up_tasks", columns: ["household_id"] },
   { table: "follow_up_tasks", columns: ["household_id COLLATE NOCASE"] },

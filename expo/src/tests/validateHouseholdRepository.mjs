@@ -34,9 +34,10 @@ assert.match(taskSchemaSource, /CREATE TABLE IF NOT EXISTS domain_events_outbox[
 assert.match(taskSchemaSource, /ALTER TABLE domain_events_outbox ADD COLUMN updated_at TEXT/);
 assert.match(taskSchemaSource, /ALTER TABLE form_responses ADD COLUMN updated_at TEXT/);
 assert.match(householdRepositorySource, /householdIds/);
-assert.match(householdModuleSource, /listOpenHhqHouseholdIds/);
+assert.match(householdModuleSource, /requireOpenHhqTask: fieldWorker/);
+assert.match(householdRepositorySource, /EXISTS \([\s\S]*FROM follow_up_tasks ft/);
 assert.doesNotMatch(householdModuleSource, /listTasks/);
-assert.match(householdModuleSource, /householdIds:/);
+assert.doesNotMatch(householdModuleSource, /householdIds:/);
 assert.doesNotMatch(householdRepositorySource, /from "\.\.\/storage\/offlineDatabase\.js"/);
 assert.doesNotMatch(taskSchemaSource, /from "\.\.\/storage\/offlineDatabase\.js"/);
 assert.match(offlineDatabaseNativeSource, /import \* as SQLite from "expo-sqlite"/);

@@ -584,6 +584,7 @@ export async function listHouseholds(filters = {}) {
     search,
     localitySearch,
     householdIds,
+    requireOpenHhqTask = false,
     householdNumber,
     address,
     limit = 50,
@@ -619,6 +620,14 @@ export async function listHouseholds(filters = {}) {
     if (hasHouseholdIdFilter) {
       conditions.push("household_id IN (SELECT value FROM json_each(?))");
       params.push(JSON.stringify(normalizedHouseholdIds));
+    }
+    if (requireOpenHhqTask) {
+      conditions.push(`EXISTS (
+        SELECT 1 FROM follow_up_tasks ft
+         WHERE ft.household_id = households.household_id
+           AND ft.task_type = 'HHQ'
+           AND ft.status = 'open'
+      )`);
     }
     if (normalizedLocalitySearch.length >= 3) {
       conditions.push("(locality_code LIKE ? COLLATE NOCASE OR locality_name LIKE ? COLLATE NOCASE)");
@@ -665,7 +674,11 @@ export async function listHouseholds(filters = {}) {
 
   const storage = getStorage();
   if (!storage) return [];
+  const allowedOpenHhqHouseholds = requireOpenHhqTask
+    ? new Set(await import("../tasks/taskRepository.js").then((module) => module.listOpenHhqHouseholdIds()))
+    : null;
   return readStorageArray(storage, HOUSEHOLD_STORAGE_KEY)
+    .filter((row) => !allowedOpenHhqHouseholds || allowedOpenHhqHouseholds.has(String(row.household_id)))
     .filter((row) => !localityCode || row.locality_code === localityCode)
     .filter((row) => !normalizedLocalityCodes.length || normalizedLocalityCodes.includes(String(row.locality_code)))
     .filter((row) => !hasHouseholdIdFilter || normalizedHouseholdIds.includes(String(row.household_id)))
@@ -785,6 +798,7 @@ export async function searchHouseholdMembers(filters = {}) {
     localityCode,
     localityCodes,
     householdIds,
+    requireOpenHhqTask = false,
     name,
     householdNumber,
     address,
@@ -833,6 +847,14 @@ export async function searchHouseholdMembers(filters = {}) {
       sql += " AND m.household_id IN (SELECT value FROM json_each(?))";
       params.push(JSON.stringify(normalizedHouseholdIds));
     }
+    if (requireOpenHhqTask) {
+      sql += ` AND EXISTS (
+        SELECT 1 FROM follow_up_tasks ft
+         WHERE ft.household_id = m.household_id
+           AND ft.task_type = 'HHQ'
+           AND ft.status = 'open'
+      )`;
+    }
     if (normalizedHouseholdNumber) {
       sql += " AND h.household_number = ?";
       params.push(normalizedHouseholdNumber);
@@ -862,6 +884,7 @@ export async function searchHouseholdMembers(filters = {}) {
     localityCode,
     localityCodes: normalizedLocalityCodes,
     householdIds: hasHouseholdIdFilter ? normalizedHouseholdIds : undefined,
+    requireOpenHhqTask,
     householdNumber: normalizedHouseholdNumber,
     address: normalizedAddress,
     limit: hasHouseholdIdFilter ? Math.max(normalizedHouseholdIds.length, limit) : limit

@@ -177,7 +177,7 @@ export function FormSubmissionListScreen({ mode }) {
   const [responses, setResponses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [nowMs, setNowMs] = useState(Date.now());
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const loadRequestRef = useRef(0);
   const {
     input: search,
@@ -284,24 +284,17 @@ export function FormSubmissionListScreen({ mode }) {
     navigateTo(`${ROUTES.questionnaireNew("WQ")}?${params.join("&")}`);
   }, [loadResponses]);
 
-  useEffect(() => {
-    let active = true;
-    setLoading(true);
-    loadResponses()
-      .catch((error) => console.error("Error loading form submission history:", error))
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-    return () => {
-      active = false;
-      loadRequestRef.current += 1;
-    };
-  }, [loadResponses]);
-
   useFocusEffect(
     useCallback(() => {
-      loadResponses().catch((error) => console.error("Error refreshing form submission history:", error));
+      let active = true;
+      setLoading(true);
+      loadResponses()
+        .catch((error) => console.error("Error refreshing form submission history:", error))
+        .finally(() => {
+          if (active) setLoading(false);
+        });
       return () => {
+        active = false;
         loadRequestRef.current += 1;
       };
     }, [loadResponses]),

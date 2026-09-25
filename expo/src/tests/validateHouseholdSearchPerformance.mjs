@@ -25,7 +25,7 @@ assert.match(taskRepository, /export async function listOpenHhqHouseholdIds/);
 assert.match(taskRepository, /SELECT DISTINCT household_id/);
 assert.match(taskRepository, /status = \?\s+AND task_type = \?/);
 const openHhqQuery = taskRepository.match(
-  /export async function listOpenHhqHouseholdIds[\s\S]*?\n}\n/
+  /export async function listOpenHhqHouseholdIds[\s\S]*?\r?\n}\r?\n/
 )?.[0] || "";
 assert.doesNotMatch(openHhqQuery, /SELECT \*/);
 
@@ -41,8 +41,11 @@ assert.doesNotMatch(repository, /LIKE \?[^\n]*%\$\{/);
 assert.match(householdModule, /const SEARCH_DEBOUNCE_MS = 300/);
 assert.match(householdModule, /trimmed\.length < FREE_TEXT_SEARCH_MIN_LENGTH/);
 assert.match(householdModule, /setTimeout\([^\n]*SEARCH_DEBOUNCE_MS/);
-assert.match(householdModule, /listOpenHhqHouseholdIds\(\)/);
-assert.match(householdModule, /openHhqIdsLoading/);
+assert.match(householdModule, /requireOpenHhqTask: fieldWorker/);
+assert.doesNotMatch(householdModule, /listOpenHhqHouseholdIds\(\)/);
+assert.match(repository, /EXISTS \([\s\S]*FROM follow_up_tasks ft/);
+assert.match(repository, /ft\.task_type = 'HHQ'/);
+assert.match(repository, /ft\.status = 'open'/);
 assert.match(householdModule, /householdRequestRef/);
 assert.match(householdModule, /limit: PAGE_SIZE \+ 1/);
 assert.match(householdModule, /limit: MEMBER_SEARCH_PAGE_SIZE \+ 1/);
