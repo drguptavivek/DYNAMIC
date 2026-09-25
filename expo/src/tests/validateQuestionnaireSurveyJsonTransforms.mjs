@@ -160,6 +160,18 @@ const wqHusbandPartnerMobile = findElementByName(
   wqSurveyJson,
   "wq_husband_partner_mobile",
 );
+const wqHusbandPartnerMobileHolder = findElementByName(
+  wqSurveyJson,
+  "wq_husband_partner_mobile_holder_name",
+);
+const wqComplicationsOther = findElementByName(
+  wqSurveyJson,
+  "wq_02_reproduction_what_were_the_complications_mark_all_that_other_specify",
+);
+const wqTobaccoOther = findElementByName(
+  wqSurveyJson,
+  "wq_03_other_health_issues_what_other_type_of_tobacco_do_you_currentl_other_specify",
+);
 const wqProgressiveDob = findElementByName(
   wqSurveyJson,
   "wq_01_respondent_s_backgr_in_what_month_and_year_were_you_born",
@@ -543,6 +555,37 @@ assert.deepEqual(
     { name: "wq_woman_mobile", isRequired: true },
   ],
 );
+const holderNameRegex = {
+  type: "regex",
+  regex: "^[^0-9]+$",
+  text: {
+    default: "Name must not contain numbers.",
+    hi: "",
+    kn: "",
+    mr: "",
+    ta: "",
+    te: "",
+    ur: "",
+  },
+};
+assert.deepEqual(wqMobilePanel.templateElements[0].validators, [holderNameRegex]);
+assert.deepEqual(
+  wqHusbandPartnerMobileHolder.validators,
+  [{ ...holderNameRegex, mobileHolderName: true }],
+  "BWQ husband/partner mobile-holder name must reject numeric characters",
+);
+const holderValidationModel = new Model(wqSurveyJson);
+holderValidationModel.setValue("wq_woman_available", 1);
+holderValidationModel.setValue("wq_consent_study", 1);
+holderValidationModel.setValue("wq_current_marital_status", 1);
+const husbandHolderQuestion = holderValidationModel.getQuestionByName(
+  "wq_husband_partner_mobile_holder_name",
+);
+husbandHolderQuestion.value = "Holder 123";
+assert.equal(husbandHolderQuestion.validate(), false);
+assert.match(husbandHolderQuestion.errors[0].getText(), /must not contain numbers/i);
+husbandHolderQuestion.value = "Holder Name";
+assert.equal(husbandHolderQuestion.validate(), true);
 const wqMobileField = wqMobilePanel.templateElements.find(
   (element) => element.name === "wq_woman_mobile",
 );
@@ -620,6 +663,23 @@ assert.equal(mobilePanel.isRequired, undefined);
 assert.equal(mobilePanel.templateElements.length, 2);
 assert.equal(mobilePanel.templateElements[0].name, "mobile_holder_name");
 assert.equal(mobilePanel.templateElements[0].inputType, "text");
+assert.deepEqual(
+  mobilePanel.templateElements[0].validators,
+  [holderNameRegex],
+  "BHQ mobile-holder names must reject numeric characters",
+);
+const hhqHolderValidationModel = new Model(surveyJson);
+hhqHolderValidationModel.setValue(
+  "hhq_consent_study_provide_pis_explain_study_adult_member",
+  1,
+);
+const hhqMobileQuestion = hhqHolderValidationModel.getQuestionByName("hhq_contact_mobile_numbers");
+const hhqMobileRow = hhqMobileQuestion.panels[0];
+const hhqHolderQuestion = hhqMobileRow.getQuestionByName("mobile_holder_name");
+hhqHolderQuestion.value = "Owner9";
+assert.equal(hhqHolderQuestion.validate(), false);
+hhqHolderQuestion.value = "Owner Name";
+assert.equal(hhqHolderQuestion.validate(), true);
 assert.equal(mobilePanel.templateElements[1].name, "mobile_number");
 assert.equal(mobilePanel.templateElements[1].inputType, "tel");
 assert.equal(mobilePanel.templateElements[1].isRequired, true);
@@ -638,6 +698,35 @@ assert.deepEqual(mobilePanel.templateElements[1].validators, [
     }
   }
 ]);
+
+assert.ok(wqComplicationsOther, "BWQ Q31b Other (specify) must have a text input");
+assert.ok(wqTobaccoOther, "BWQ Q15 Other (specify) must have a text input");
+const wqOtherSpecifyModel = new Model(wqSurveyJson);
+wqOtherSpecifyModel.setValue("wq_02_reproduction_check_12", 1);
+wqOtherSpecifyModel.setValue(
+  "wq_02_reproduction_did_you_ever_experience_a_delivery_by_caes",
+  1,
+);
+assert.equal(
+  wqOtherSpecifyModel.getQuestionByName(wqComplicationsOther.name).isVisible,
+  false,
+);
+wqOtherSpecifyModel.setValue(wqComplicationsOther.name.replace("_other_specify", ""), ["f"]);
+assert.equal(
+  wqOtherSpecifyModel.getQuestionByName(wqComplicationsOther.name).isVisible,
+  true,
+  "BWQ Q31b specify input must appear when Other is checked",
+);
+wqOtherSpecifyModel.setValue(
+  "wq_03_other_health_issues_do_you_currently_smoke_or_use_any_other_ty",
+  1,
+);
+wqOtherSpecifyModel.setValue(wqTobaccoOther.name.replace("_other_specify", ""), ["x"]);
+assert.equal(
+  wqOtherSpecifyModel.getQuestionByName(wqTobaccoOther.name).isVisible,
+  true,
+  "BWQ Q15 specify input must appear when Other is checked",
+);
 assert.equal(memberMaritalStatus.visibleIf, "{panel.member_age_years} >= 13");
 assert.equal(memberBirthRegistration.visibleIf, "{panel.member_age_years} >= 0 and {panel.member_age_years} <= 4");
 assert.equal(memberEverAttendedSchool.visibleIf, "{panel.member_age_years} >= 5");

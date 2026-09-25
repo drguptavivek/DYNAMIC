@@ -1,3 +1,13 @@
+## 2026-09-25 (BWQ Q18 head, mobile-holder validation, Other specify) [verified]
+Goal: Restore the male household head in BWQ Q18, reject numbers in BHQ/BWQ mobile-holder names, and reveal missing BWQ Other (specify) inputs.
+Decisions:
+- Q18 accepts both coded and labelled male/head roster values while still excluding female heads and underage non-head males.
+- BHQ repeat contacts, BWQ repeat contacts, and the BWQ husband/partner holder field use the same no-digits regex validator.
+- Runtime form preparation adds required specify text inputs for BWQ Q31b complications and Q15 tobacco when their Other checkbox is selected, including stale synced definitions.
+Verification:
+- Questionnaire transform and WQ skip-logic tests pass; validation tests reject numeric holder names and confirm both conditional inputs.
+- Expo lint reports 0 errors with 111 existing warnings. Full Expo test reaches the known Node 24 React Native parser limitation after the affected transform test passes.
+
 ## 2026-09-22 (Ship Q18/Q27/PEF-Q9 fixes) [verified]
 Goal: Commit, push, rebuild the release APK, and install on the phone.
 Decisions:

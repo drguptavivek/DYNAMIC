@@ -47,6 +47,15 @@ const WQ_MOBILE_LIST_NAME = "wq_woman_mobile_numbers";
 const WQ_MOBILE_ROW_NAME = "wq_woman_mobile";
 const WQ_MOBILE_HOLDER_ROW_NAME = "wq_woman_mobile_holder_name";
 const WQ_HUSBAND_PARTNER_MOBILE_NAME = "wq_husband_partner_mobile";
+const WQ_HUSBAND_PARTNER_MOBILE_HOLDER_NAME = "wq_husband_partner_mobile_holder_name";
+const WQ_REPRODUCTION_COMPLICATIONS_NAME =
+  "wq_02_reproduction_what_were_the_complications_mark_all_that";
+const WQ_REPRODUCTION_COMPLICATIONS_OTHER_NAME =
+  "wq_02_reproduction_what_were_the_complications_mark_all_that_other_specify";
+const WQ_WOMAN_TOBACCO_TYPES_NAME =
+  "wq_03_other_health_issues_what_other_type_of_tobacco_do_you_currentl";
+const WQ_WOMAN_TOBACCO_TYPES_OTHER_NAME =
+  "wq_03_other_health_issues_what_other_type_of_tobacco_do_you_currentl_other_specify";
 const WQ_WOMAN_AVAILABLE_NAME = "wq_woman_available";
 const WQ_CONSENT_NAME = "wq_consent_study";
 const WQ_MARITAL_NAME = "wq_current_marital_status";
@@ -387,6 +396,7 @@ function toMultipleMobilePanel(element) {
         name: HHQ_MOBILE_HOLDER_ROW_NAME,
         title: "Mobile number holder name",
         inputType: "text",
+        validators: [mobileHolderNameValidator()],
       },
       {
         type: "text",
@@ -454,6 +464,7 @@ function allowMultipleWqMobileNumbers(surveyJson) {
               title: "Mobile number holder name",
               inputType: "text",
               isRequired: true,
+              validators: [mobileHolderNameValidator()],
             },
             {
               type: "text",
@@ -472,6 +483,100 @@ function allowMultipleWqMobileNumbers(surveyJson) {
       if (Array.isArray(next.templateElements)) next.templateElements = visit(next.templateElements);
       return [next];
     });
+  }
+
+  return {
+    ...surveyJson,
+    pages: surveyJson.pages.map((page) => ({ ...page, elements: visit(page.elements) })),
+  };
+}
+
+function mobileHolderNameValidator() {
+  return {
+    type: "regex",
+    regex: "^[^0-9]+$",
+    text: {
+      default: "Name must not contain numbers.",
+      hi: "",
+      kn: "",
+      mr: "",
+      ta: "",
+      te: "",
+      ur: "",
+    },
+  };
+}
+
+function applyMobileHolderNameValidation(surveyJson) {
+  function visit(elements = []) {
+    return elements.map((element) => {
+      const next = { ...element };
+      if (next.name === WQ_HUSBAND_PARTNER_MOBILE_HOLDER_NAME) {
+        next.validators = [
+          ...(next.validators || []).filter((validator) => validator?.mobileHolderName !== true),
+          { ...mobileHolderNameValidator(), mobileHolderName: true },
+        ];
+      }
+      if (Array.isArray(next.elements)) next.elements = visit(next.elements);
+      if (Array.isArray(next.templateElements)) next.templateElements = visit(next.templateElements);
+      return next;
+    });
+  }
+
+  return {
+    ...surveyJson,
+    pages: surveyJson.pages.map((page) => ({ ...page, elements: visit(page.elements) })),
+  };
+}
+
+function applyWqMissingOtherSpecifyInputs(surveyJson) {
+  const specifications = new Map([
+    [WQ_REPRODUCTION_COMPLICATIONS_NAME, {
+      name: WQ_REPRODUCTION_COMPLICATIONS_OTHER_NAME,
+      title: "Specify other complication",
+      selectedValue: "f",
+      sourceCode: "31b_specifyother",
+    }],
+    [WQ_WOMAN_TOBACCO_TYPES_NAME, {
+      name: WQ_WOMAN_TOBACCO_TYPES_OTHER_NAME,
+      title: "Specify other tobacco type",
+      selectedValue: "x",
+      sourceCode: "15_specifyother",
+    }],
+  ]);
+
+  function visit(elements = []) {
+    const result = [];
+    for (const element of elements) {
+      const next = { ...element };
+      if (Array.isArray(next.elements)) next.elements = visit(next.elements);
+      if (Array.isArray(next.templateElements)) next.templateElements = visit(next.templateElements);
+      result.push(next);
+
+      const specification = specifications.get(next.name);
+      if (!specification || elements.some((candidate) => candidate?.name === specification.name)) continue;
+      result.push({
+        type: "text",
+        name: specification.name,
+        title: { default: specification.title },
+        order: Number(next.order || 0) + 0.1,
+        section_order: next.section_order,
+        sourceCode: specification.sourceCode,
+        sourceType: "text_other_specify",
+        rawText: "Other (specify)",
+        inputType: "text",
+        visibleIf: `{${next.name}} contains '${specification.selectedValue}'`,
+        isRequired: true,
+        validators: [{
+          type: "text",
+          minLength: 1,
+          maxLength: 120,
+          text: { default: "Specify the other response." },
+        }],
+        description: { default: "Complete only if Other (specify) is selected." },
+      });
+    }
+    return result;
   }
 
   return {
@@ -1320,6 +1425,8 @@ export function prepareQuestionnaireSurveyJson(form) {
     surveyJson = applyWqBiomarkerEntryFormats(surveyJson);
     surveyJson = applyWqMobileNumberConstraints(surveyJson);
     surveyJson = allowMultipleWqMobileNumbers(surveyJson);
+    surveyJson = applyMobileHolderNameValidation(surveyJson);
+    surveyJson = applyWqMissingOtherSpecifyInputs(surveyJson);
     surveyJson = applyWqReproductionQuestionText(surveyJson);
     surveyJson = applyWqHealthSectionIntro(surveyJson);
     surveyJson = applyWqSmokingQuestionText(surveyJson);

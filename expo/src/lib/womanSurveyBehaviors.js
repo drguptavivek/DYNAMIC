@@ -216,18 +216,36 @@ function normalizeLineNumber(value) {
 }
 
 function memberSexLabel(sex) {
-  if (String(sex) === "1") return "Male";
-  if (String(sex) === "2") return "Female";
+  if (isMaleWqMemberSex(sex)) return "Male";
+  if (isFemaleWqMemberSex(sex)) return "Female";
   return "";
 }
 
+function normalizeWqMemberSex(sex) {
+  return String(sex ?? "").trim().toLowerCase();
+}
+
+function isMaleWqMemberSex(sex) {
+  return ["1", "m", "male", "man", "boy"].includes(normalizeWqMemberSex(sex));
+}
+
+function isFemaleWqMemberSex(sex) {
+  return ["2", "f", "female", "woman", "girl"].includes(normalizeWqMemberSex(sex));
+}
+
+function isWqHouseholdHeadRelationship(value) {
+  return ["1", "head", "household head"].includes(
+    String(value ?? "").trim().toLowerCase()
+  );
+}
+
 function isEligibleWqHusbandPartnerMember(member, { householdHeadName = "" } = {}) {
-  if (String(member?.sex) !== "1") return false;
+  if (!isMaleWqMemberSex(member?.sex)) return false;
   // Q18 lists all household male members; the male head must always be
   // selectable even when his roster relationship is stale or his age is
   // missing/not yet over 18. The stored household-head name is the fallback
   // identity when relationship_to_head was saved incorrectly.
-  if (Number(member?.relationship_to_head) === 1) return true;
+  if (isWqHouseholdHeadRelationship(member?.relationship_to_head)) return true;
   if (
     normalizeWqMemberName(householdHeadName) &&
     normalizeWqMemberName(member?.member_name) === normalizeWqMemberName(householdHeadName)
