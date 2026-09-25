@@ -9,6 +9,15 @@ import { addDays, parseISODate, toISODate } from "@dynamic/shared-workflow";
 
 const router = Router();
 const HHQ_ASSIGNMENT_WINDOW_DAYS = 180;
+const ASSIGNMENT_DB_BATCH_SIZE = 500;
+
+function chunks<T>(values: T[], size = ASSIGNMENT_DB_BATCH_SIZE): T[][] {
+  const result: T[][] = [];
+  for (let index = 0; index < values.length; index += size) {
+    result.push(values.slice(index, index + size));
+  }
+  return result;
+}
 
 const assignmentListSchema = z.object({
   site_id: z.coerce.number().int().positive(),
@@ -152,15 +161,20 @@ router.post(
         addDays(parseISODate(assignmentDate), HHQ_ASSIGNMENT_WINDOW_DAYS),
       );
 
-      const fieldWorkers = await db
-        .select({
-          user_id: schema.users.user_id,
-          role: schema.users.role,
-          site_id: schema.users.site_id,
-          active: schema.users.active,
-        })
-        .from(schema.users)
-        .where(inArray(schema.users.user_id, uniqueUserIds));
+      const fieldWorkers = [];
+      for (const userIdBatch of chunks(uniqueUserIds)) {
+        fieldWorkers.push(
+          ...(await db
+            .select({
+              user_id: schema.users.user_id,
+              role: schema.users.role,
+              site_id: schema.users.site_id,
+              active: schema.users.active,
+            })
+            .from(schema.users)
+            .where(inArray(schema.users.user_id, userIdBatch))),
+        );
+      }
 
       if (
         fieldWorkers.length !== uniqueUserIds.length ||
@@ -183,15 +197,20 @@ router.post(
         return;
       }
 
-      const households = await db
-        .select({
-          household_id: schema.households.household_id,
-          site_id: schema.households.site_id,
-          locality_code: schema.households.locality_code,
-          baseline_enrollment_status: schema.households.baseline_enrollment_status,
-        })
-        .from(schema.households)
-        .where(inArray(schema.households.household_id, uniqueHouseholdIds));
+      const households = [];
+      for (const householdIdBatch of chunks(uniqueHouseholdIds)) {
+        households.push(
+          ...(await db
+            .select({
+              household_id: schema.households.household_id,
+              site_id: schema.households.site_id,
+              locality_code: schema.households.locality_code,
+              baseline_enrollment_status: schema.households.baseline_enrollment_status,
+            })
+            .from(schema.households)
+            .where(inArray(schema.households.household_id, householdIdBatch))),
+        );
+      }
 
       if (households.length !== uniqueHouseholdIds.length) {
         sendError(res, 400, "INVALID_HOUSEHOLD", "One or more households do not exist");
@@ -207,7 +226,13 @@ router.post(
         return;
       }
 
-      const values = uniqueHouseholdIds.flatMap((householdId) =>
+      for (const householdIdBatch of chunks(uniqueHouseholdIds)) {
+        await db
+          .delete(schema.fieldWorkerHouseholdAssignments)
+          .where(inArray(schema.fieldWorkerHouseholdAssignments.household_id, householdIdBatch));
+      }
+
+      const assignmentValues = uniqueHouseholdIds.flatMap((householdId) =>
         uniqueUserIds.map((userId) => ({
           assignment_id: randomUUID(),
           household_id: householdId,
@@ -217,69 +242,72 @@ router.post(
           updated_at: now,
         })),
       );
-
-      await db
-        .delete(schema.fieldWorkerHouseholdAssignments)
-        .where(inArray(schema.fieldWorkerHouseholdAssignments.household_id, uniqueHouseholdIds));
-
-      await db
-        .insert(schema.fieldWorkerHouseholdAssignments)
-        .values(values)
-        .onConflictDoUpdate({
-          target: [
-            schema.fieldWorkerHouseholdAssignments.household_id,
-            schema.fieldWorkerHouseholdAssignments.user_id,
-          ],
-          set: {
-            assigned_by_user_id: req.user!.sub,
-            updated_at: now,
-          },
-        });
+      for (const valueBatch of chunks(assignmentValues)) {
+        await db
+          .insert(schema.fieldWorkerHouseholdAssignments)
+          .values(valueBatch)
+          .onConflictDoUpdate({
+            target: [
+              schema.fieldWorkerHouseholdAssignments.household_id,
+              schema.fieldWorkerHouseholdAssignments.user_id,
+            ],
+            set: {
+              assigned_by_user_id: req.user!.sub,
+              updated_at: now,
+            },
+          });
+      }
 
       // Assignment changes must advance the household sync watermark. Without
       // this, devices that already completed an incremental sync never see
       // newly assigned households because the household rows themselves did
       // not change.
-      await db
-        .update(schema.households)
-        .set({ updated_at: now })
-        .where(inArray(schema.households.household_id, uniqueHouseholdIds));
+      for (const householdIdBatch of chunks(uniqueHouseholdIds)) {
+        await db
+          .update(schema.households)
+          .set({ updated_at: now })
+          .where(inArray(schema.households.household_id, householdIdBatch));
+      }
 
       // A reassignment starts one new HHQ visit window for the household. Do
       // not leave an older pending assignment-date task actionable alongside
       // it; completed/closed evidence is preserved for audit and is not
       // touched here.
-      await db
-        .update(schema.followUpTasks)
-        .set({
-          status: "superseded",
-          action_state: "disabled",
-          disabled_reason: "Superseded by household reassignment",
-          updated_at: now,
-        })
-        .where(
-          and(
-            inArray(schema.followUpTasks.household_id, uniqueHouseholdIds),
-            eq(schema.followUpTasks.task_type, "HHQ"),
-            inArray(schema.followUpTasks.status, ["planned", "open", "in_progress"]),
-          ),
-        );
+      for (const householdIdBatch of chunks(uniqueHouseholdIds)) {
+        await db
+          .update(schema.followUpTasks)
+          .set({
+            status: "superseded",
+            action_state: "disabled",
+            disabled_reason: "Superseded by household reassignment",
+            updated_at: now,
+          })
+          .where(
+            and(
+              inArray(schema.followUpTasks.household_id, householdIdBatch),
+              eq(schema.followUpTasks.task_type, "HHQ"),
+              inArray(schema.followUpTasks.status, ["planned", "open", "in_progress"]),
+            ),
+          );
+      }
 
       // Assignment changes also need to make already-created actionable work
       // visible to a device that did not previously have this household. The
       // mobile pull is incremental and keys task delivery by updated_at; an
       // assignment-row change alone would otherwise leave existing WQ/visit
       // tasks outside that device's next pull window.
-      await db
-        .update(schema.followUpTasks)
-        .set({ updated_at: now })
-        .where(
-          and(
-            inArray(schema.followUpTasks.household_id, uniqueHouseholdIds),
-            ne(schema.followUpTasks.task_type, "HHQ"),
-            inArray(schema.followUpTasks.status, ["planned", "open", "in_progress"]),
-          ),
-        );
+      for (const householdIdBatch of chunks(uniqueHouseholdIds)) {
+        await db
+          .update(schema.followUpTasks)
+          .set({ updated_at: now })
+          .where(
+            and(
+              inArray(schema.followUpTasks.household_id, householdIdBatch),
+              ne(schema.followUpTasks.task_type, "HHQ"),
+              inArray(schema.followUpTasks.status, ["planned", "open", "in_progress"]),
+            ),
+          );
+      }
 
       const hhqTaskValues = households
         .filter((household) => (household.baseline_enrollment_status ?? "pending") === "pending")
@@ -308,10 +336,10 @@ router.post(
           updated_at: now,
         }));
 
-      if (hhqTaskValues.length > 0) {
+      for (const taskBatch of chunks(hhqTaskValues)) {
         await db
           .insert(schema.followUpTasks)
-          .values(hhqTaskValues)
+          .values(taskBatch)
           .onConflictDoUpdate({
             target: schema.followUpTasks.task_key,
             set: {
@@ -367,13 +395,18 @@ router.delete(
       const uniqueHouseholdIds = [...new Set(data.household_ids)];
       const uniqueUserIds = data.user_ids ? [...new Set(data.user_ids)] : [];
 
-      const households = await db
-        .select({
-          household_id: schema.households.household_id,
-          site_id: schema.households.site_id,
-        })
-        .from(schema.households)
-        .where(inArray(schema.households.household_id, uniqueHouseholdIds));
+      const households = [];
+      for (const householdIdBatch of chunks(uniqueHouseholdIds)) {
+        households.push(
+          ...(await db
+            .select({
+              household_id: schema.households.household_id,
+              site_id: schema.households.site_id,
+            })
+            .from(schema.households)
+            .where(inArray(schema.households.household_id, householdIdBatch))),
+        );
+      }
 
       if (households.length !== uniqueHouseholdIds.length) {
         sendError(res, 400, "INVALID_HOUSEHOLD", "One or more households do not exist");
@@ -387,14 +420,24 @@ router.delete(
         return;
       }
 
-      const deleteConditions = [
-        inArray(schema.fieldWorkerHouseholdAssignments.household_id, uniqueHouseholdIds),
-      ];
-      if (uniqueUserIds.length > 0) {
-        deleteConditions.push(inArray(schema.fieldWorkerHouseholdAssignments.user_id, uniqueUserIds));
+      for (const householdIdBatch of chunks(uniqueHouseholdIds)) {
+        if (uniqueUserIds.length === 0) {
+          await db
+            .delete(schema.fieldWorkerHouseholdAssignments)
+            .where(inArray(schema.fieldWorkerHouseholdAssignments.household_id, householdIdBatch));
+          continue;
+        }
+        for (const userIdBatch of chunks(uniqueUserIds)) {
+          await db
+            .delete(schema.fieldWorkerHouseholdAssignments)
+            .where(
+              and(
+                inArray(schema.fieldWorkerHouseholdAssignments.household_id, householdIdBatch),
+                inArray(schema.fieldWorkerHouseholdAssignments.user_id, userIdBatch),
+              ),
+            );
+        }
       }
-
-      await db.delete(schema.fieldWorkerHouseholdAssignments).where(and(...deleteConditions));
 
       sendSuccess(res, { cleared: uniqueHouseholdIds.length });
     } catch (error) {

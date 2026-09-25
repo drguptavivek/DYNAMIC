@@ -1,6 +1,6 @@
 /**
  * Regression guards for the sync/history database hot path. Uploads must
- * consume 100-row response batches, include domain events only once, and
+ * consume 100-row response batches, keep events with their response batch, and
  * refuse a server response that classifies none of the rows. History reads
  * must select metadata only (answers_json is intentionally absent).
  */
@@ -47,7 +47,11 @@ assert.deepEqual(batches.map((batch) => batch.length), [100, 100, 5]);
 assert.equal(batches.length, 3);
 assert.match(syncServiceSource, /const PUSH_FORM_RESPONSE_BATCH_SIZE = 100/);
 assert.match(syncServiceSource, /while \(true\) \{[\s\S]+getPendingResponseBatch\(PUSH_FORM_RESPONSE_BATCH_SIZE\)/);
-assert.match(syncServiceSource, /domainEvents: eventsSent \? \[\] : pendingEvents/);
+assert.match(syncServiceSource, /partitionDomainEventsForResponses\(remainingPendingEvents, pendingBatch\)/);
+assert.match(syncServiceSource, /remainingPendingEvents = eventPartition\.remaining/);
+assert.match(syncServiceSource, /failedResponses = new Map\(\)/);
+assert.match(syncServiceSource, /markResponsesUploadErrorBatch\(attachmentUploadErrorItems\)/);
+assert.doesNotMatch(syncServiceSource, /throw new Error\(`Could not upload \$\{attachment\.display_name\}/);
 assert.match(syncServiceSource, /Push sync made no progress/);
 
 // Exercise the async repository path and ensure the query stays bounded and

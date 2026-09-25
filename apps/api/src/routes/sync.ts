@@ -13,6 +13,7 @@ import { appendAreaScopeCondition, canAccessLocation } from "../lib/areaScope";
 import { runWithDb } from "../lib/dbContext";
 import { getDataAccessProfile, requireDataAccess } from "../lib/dataAccess";
 import { buildFormAttachmentLocation, isSupportedImageBuffer } from "../lib/formAttachmentStorage";
+import { ensureAssignedPendingHhqTasks } from "../lib/assignedHhqTasks";
 
 const router = Router();
 const attachmentUpload = multer({
@@ -781,6 +782,13 @@ router.get(
       .orderBy(schema.children.child_id)
       .limit(pageSize)
       .offset(offset);
+
+    // Assignment rows and initial HHQ tasks can drift after operational data
+    // cleanup or older releases. Repair only missing baseline work in the
+    // signed-in field worker's explicit household scope before pulling tasks.
+    if (req.user!.role === "field_worker") {
+      await ensureAssignedPendingHhqTasks(req.user!.sub, syncCursorDate);
+    }
 
     // Query tasks
     const tasksConditions: any[] = [

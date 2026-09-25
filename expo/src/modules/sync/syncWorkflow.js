@@ -139,6 +139,25 @@ export function selectNextPullCursor(syncPayload = {}, fallbackCursor = null) {
   return Number.isNaN(parsed.getTime()) ? null : nextCursor;
 }
 
+export function getEventFormResponseId(event) {
+  const payload = parseJsonObject(event?.payload);
+  return payload.form_response_id || payload.source_response_id || null;
+}
+
+export function partitionDomainEventsForResponses(domainEvents = [], formResponses = []) {
+  const responseIds = new Set(formResponses.map((response) => response?.id).filter(Boolean));
+  const matching = [];
+  const remaining = [];
+
+  for (const event of domainEvents) {
+    const responseId = getEventFormResponseId(event);
+    if (responseId && responseIds.has(responseId)) matching.push(event);
+    else remaining.push(event);
+  }
+
+  return { matching, remaining };
+}
+
 const OUT_OF_SCOPE_DRAFT_ERROR = "Draft is outside the user's assigned area scope";
 
 export function classifyDraftSyncErrors(errors = []) {

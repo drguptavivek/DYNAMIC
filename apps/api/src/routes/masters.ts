@@ -9,7 +9,13 @@ import { requireRole } from "../middleware/auth";
 import { sendError, sendSuccess } from "../lib/errors";
 
 const router = Router();
-const upload = multer({ storage: multer.memoryStorage() });
+const MAX_MAPPING_FRAME_CSV_ROWS = 100_000;
+const MAPPING_FRAME_INSERT_BATCH_SIZE = 1_000;
+const MAPPING_FRAME_PREVIEW_ROW_LIMIT = 1_000;
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 100 * 1024 * 1024, files: 1 },
+});
 
 // ============= STUDY SITES =============
 
@@ -814,6 +820,9 @@ async function buildMappingFramePreviewRows(
   if (rows.length < 2) {
     throw new Error("CSV must contain header row and at least one data row");
   }
+  if (rows.length - 1 > MAX_MAPPING_FRAME_CSV_ROWS) {
+    throw new Error(`CSV must not contain more than ${MAX_MAPPING_FRAME_CSV_ROWS} household rows`);
+  }
 
   const indexes = getCsvColumnIndexes(rows[0]);
   const missingColumns = getRequiredCsvColumnErrors(indexes);
@@ -943,48 +952,51 @@ async function insertMappingFrameImportRows(rows: ReadyMappingFramePreviewRow[])
   if (rows.length === 0) return { inserted: 0, skipped: 0 };
 
   const now = new Date();
-  const mappingRows = rows.map((record) => ({
-    household_id: record.household_id,
-    site_id: record.site_id,
-    locality_code: record.locality_code,
-    structure_map_id: record.structure_map_id,
-    household_number: record.household_number,
-    structure_id: record.structure_id,
-    mapping_status: "listed" as const,
-    baseline_enrollment_status: "pending" as const,
-  }));
-  const householdRows = rows.map((record) => ({
-    household_id: record.household_id,
-    site_id: record.site_id,
-    locality_code: record.locality_code,
-    structure_map_id: record.structure_map_id,
-    household_number: record.household_number,
-    address: record.address,
-    household_head_name: record.household_head_name,
-    baseline_enrollment_status: "pending",
-    cohort_status: "listed",
-    household_characteristics: {
-      mapping_frame_comments: record.comments,
-      mapping_frame_source: "csv_import",
-      mapping_frame_source_line: record.source_line,
-    },
-    sync_status: "synced",
-    created_at: now,
-    updated_at: now,
-  }));
-
   let inserted = 0;
   await db.transaction(async (tx) => {
-    const mappingResult = await tx
-      .insert(schema.mappingFrame)
-      .values(mappingRows)
-      .onConflictDoNothing();
-    inserted = mappingResult.rowCount || 0;
+    for (let offset = 0; offset < rows.length; offset += MAPPING_FRAME_INSERT_BATCH_SIZE) {
+      const batch = rows.slice(offset, offset + MAPPING_FRAME_INSERT_BATCH_SIZE);
+      const mappingRows = batch.map((record) => ({
+        household_id: record.household_id,
+        site_id: record.site_id,
+        locality_code: record.locality_code,
+        structure_map_id: record.structure_map_id,
+        household_number: record.household_number,
+        structure_id: record.structure_id,
+        mapping_status: "listed" as const,
+        baseline_enrollment_status: "pending" as const,
+      }));
+      const householdRows = batch.map((record) => ({
+        household_id: record.household_id,
+        site_id: record.site_id,
+        locality_code: record.locality_code,
+        structure_map_id: record.structure_map_id,
+        household_number: record.household_number,
+        address: record.address,
+        household_head_name: record.household_head_name,
+        baseline_enrollment_status: "pending",
+        cohort_status: "listed",
+        household_characteristics: {
+          mapping_frame_comments: record.comments,
+          mapping_frame_source: "csv_import",
+          mapping_frame_source_line: record.source_line,
+        },
+        sync_status: "synced",
+        created_at: now,
+        updated_at: now,
+      }));
 
-    await tx
-      .insert(schema.households)
-      .values(householdRows)
-      .onConflictDoNothing();
+      const mappingResult = await tx
+        .insert(schema.mappingFrame)
+        .values(mappingRows)
+        .onConflictDoNothing();
+      inserted += mappingResult.rowCount || 0;
+
+      await tx
+        .insert(schema.households)
+        .values(householdRows)
+        .onConflictDoNothing();
+    }
   });
 
   return { inserted, skipped: rows.length - inserted };
@@ -1373,7 +1385,15 @@ router.post(
 
       sendSuccess(
         res,
-        { rows, ready, duplicate, invalid },
+        {
+          rows: rows.slice(0, MAPPING_FRAME_PREVIEW_ROW_LIMIT),
+          ready,
+          duplicate,
+          invalid,
+          total_rows: rows.length,
+          previewed_rows: Math.min(rows.length, MAPPING_FRAME_PREVIEW_ROW_LIMIT),
+          preview_truncated: rows.length > MAPPING_FRAME_PREVIEW_ROW_LIMIT,
+        },
         200,
         { total: rows.length },
       );

@@ -333,6 +333,14 @@
   font-weight: 600;
 }
 
+.info {
+  margin: 10px 0;
+  padding: 10px 12px;
+  border-left: 4px solid #2563eb;
+  background: #eff6ff;
+  color: #1e3a5f;
+}
+
 .previewToolbar {
   display: flex;
   justify-content: space-between;

@@ -8,12 +8,30 @@ const {
   classifyDraftSyncErrors,
   countOpenPulledTasks,
   formatClockDelta,
+  getEventFormResponseId,
+  partitionDomainEventsForResponses,
   selectChangedFormCodes,
   selectNextPullCursor,
   summarizeClockStatus,
   summarizePendingSyncData,
   formatSyncCompletionMessage,
 } = await import("../modules/sync/syncWorkflow.js");
+
+const responseLinkedEvents = [
+  { id: "event-1", payload: { form_response_id: "response-1" } },
+  { id: "event-2", payload: JSON.stringify({ source_response_id: "response-2" }) },
+  { id: "event-standalone", payload: { household_id: "household-1" } },
+];
+assert.equal(getEventFormResponseId(responseLinkedEvents[0]), "response-1");
+assert.equal(getEventFormResponseId(responseLinkedEvents[1]), "response-2");
+assert.equal(getEventFormResponseId(responseLinkedEvents[2]), null);
+assert.deepEqual(
+  partitionDomainEventsForResponses(responseLinkedEvents, [{ id: "response-1" }]),
+  {
+    matching: [responseLinkedEvents[0]],
+    remaining: [responseLinkedEvents[1], responseLinkedEvents[2]],
+  },
+);
 
 const user = {
   site_id: 2,

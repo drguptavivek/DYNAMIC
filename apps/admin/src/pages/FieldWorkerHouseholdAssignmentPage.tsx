@@ -3,6 +3,7 @@ import { api } from "../lib/api";
 import styles from "./FieldWorkerHouseholdAssignmentPage.module.css";
 
 const HOUSEHOLD_PAGE_SIZE = 1000;
+const ASSIGNMENT_REQUEST_BATCH_SIZE = 500;
 
 interface Site {
   site_id: number;
@@ -109,8 +110,8 @@ export default function FieldWorkerHouseholdAssignmentPage() {
   );
 
   const allVisibleSelected =
-    pagedHouseholds.length > 0 &&
-    pagedHouseholds.every((household) => selectedHouseholdIds.includes(household.household_id));
+    searchedHouseholds.length > 0 &&
+    searchedHouseholds.every((household) => selectedHouseholdIds.includes(household.household_id));
 
   useEffect(() => {
     setHouseholdPage(1);
@@ -220,7 +221,7 @@ export default function FieldWorkerHouseholdAssignmentPage() {
     setSelectedHouseholdIds((current) => [
       ...new Set([
         ...current,
-        ...pagedHouseholds.map((household) => household.household_id),
+        ...searchedHouseholds.map((household) => household.household_id),
       ]),
     ]);
   }
@@ -245,9 +246,22 @@ export default function FieldWorkerHouseholdAssignmentPage() {
 
     setTableLoading(true);
     try {
-      await api.delete<{ cleared: number }>("/field-worker-household-assignments", {
-        household_ids: selectedHouseholdIds,
-      });
+      for (
+        let offset = 0;
+        offset < selectedHouseholdIds.length;
+        offset += ASSIGNMENT_REQUEST_BATCH_SIZE
+      ) {
+        const householdBatch = selectedHouseholdIds.slice(
+          offset,
+          offset + ASSIGNMENT_REQUEST_BATCH_SIZE,
+        );
+        setMessage(
+          `Clearing households ${offset + 1}-${Math.min(offset + householdBatch.length, selectedHouseholdIds.length)} of ${selectedHouseholdIds.length}...`,
+        );
+        await api.delete<{ cleared: number }>("/field-worker-household-assignments", {
+          household_ids: householdBatch,
+        });
+      }
       await loadAssignmentTable({ resetSelection: false });
       setWorkerIdsByHouseholdId((current) => {
         const next = { ...current };
@@ -329,10 +343,16 @@ export default function FieldWorkerHouseholdAssignmentPage() {
 
     setTableLoading(true);
     try {
-      await api.post<{ assigned: number; field_workers: number }>(
-        "/field-worker-household-assignments",
-        { household_ids: householdIds, user_ids: uniqueUserIds },
-      );
+      for (let offset = 0; offset < householdIds.length; offset += ASSIGNMENT_REQUEST_BATCH_SIZE) {
+        const householdBatch = householdIds.slice(offset, offset + ASSIGNMENT_REQUEST_BATCH_SIZE);
+        setMessage(
+          `Assigning households ${offset + 1}-${Math.min(offset + householdBatch.length, householdIds.length)} of ${householdIds.length}...`,
+        );
+        await api.post<{ assigned: number; field_workers: number }>(
+          "/field-worker-household-assignments",
+          { household_ids: householdBatch, user_ids: uniqueUserIds },
+        );
+      }
       setBulkAssignOpen(false);
       setBulkWorkerIds([]);
       await loadAssignmentTable({ resetSelection: false });

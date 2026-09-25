@@ -46,6 +46,43 @@ export function markEventSynced(eventId) {
   }
 }
 
+export function markEventsUploadErrorForResponses(responseIds = []) {
+  const ids = new Set((Array.isArray(responseIds) ? responseIds : []).filter(Boolean));
+  if (ids.size === 0) return 0;
+  const db = getDb();
+  const now = new Date().toISOString();
+  let updated = 0;
+
+  try {
+    const rows = db.getAllSync(
+      "SELECT id, payload FROM domain_events_outbox WHERE sync_status = 'pending'",
+      [],
+    ) || [];
+    db.runSync("BEGIN TRANSACTION");
+    for (const row of rows) {
+      let payload = {};
+      try {
+        payload = typeof row.payload === "string" ? JSON.parse(row.payload) : row.payload || {};
+      } catch {
+        payload = {};
+      }
+      const responseId = payload.form_response_id || payload.source_response_id;
+      if (!ids.has(responseId)) continue;
+      const result = db.runSync(
+        "UPDATE domain_events_outbox SET sync_status = 'upload_error', updated_at = ? WHERE id = ?",
+        [now, row.id],
+      );
+      updated += Number(result?.changes || 0);
+    }
+    db.runSync("COMMIT");
+    return updated;
+  } catch (error) {
+    db.runSync("ROLLBACK");
+    console.error("Error marking response events as upload errors:", error);
+    throw error;
+  }
+}
+
 /**
  * Delete synced events (cleanup after successful sync)
  * @returns {number} Number of events deleted

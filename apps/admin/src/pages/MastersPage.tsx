@@ -50,6 +50,9 @@ interface MappingImportPreview {
   ready: number;
   duplicate: number;
   invalid: number;
+  total_rows: number;
+  previewed_rows: number;
+  preview_truncated: boolean;
 }
 
 interface MappingImportUpload {
@@ -1180,6 +1183,12 @@ function MappingCsvImportModal({
                 <span>{preview.duplicate} duplicate</span>
                 <span>{preview.invalid} invalid</span>
               </div>
+              {preview.preview_truncated && (
+                <div className={styles.info}>
+                  Showing the first {preview.previewed_rows.toLocaleString()} of{" "}
+                  {preview.total_rows.toLocaleString()} validated rows. Import will process the complete CSV.
+                </div>
+              )}
               <div className={styles.previewToolbar}>
                 <input
                   type="text"

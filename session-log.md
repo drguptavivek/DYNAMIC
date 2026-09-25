@@ -694,3 +694,19 @@ Goal: Ensure the male household head appears in BWQ Section 1 Q18 husband/partne
 Decisions:
 - Q18 still lists eligible adult male roster members and members explicitly coded as Head.
 - When a historical roster relationship is stale, an exact normalized match to the household's stored head name is also included, but only if that roster member is male.
+## 2026-09-25 (Repair missing assigned HHQ tasks) [working]
+Goal: Restore HHQ work when assigned pending households exist but their server task rows were removed or never created.
+Decisions:
+- Field-worker sync idempotently reconciles only missing HHQ tasks for explicitly assigned households whose baseline remains pending.
+- Existing actionable and finished HHQ tasks are preserved; unrelated task types and completed households are untouched.
+Open:
+- Deploy the API change, then sync `jeetu1` again to create and download the missing HHQ tasks.
+
+## 2026-09-25 (Large household operations and isolated sync failures) [working]
+Goal: Support mapping-frame CSVs up to 100,000 households, unrestricted bulk assignment, and continued sync when one form attachment fails.
+Decisions:
+- CSV validation covers the complete file, imports in database batches, and limits only the browser preview to 1,000 rows; upload/proxy limits are 100 MB with a 10-minute API timeout.
+- Admin select-all covers every filtered household and assignment/clear requests run in 500-household batches; the API also batches database reads and writes.
+- A failed attachment moves only its owning response and linked event to Upload Errors. Remaining response batches and events continue syncing.
+Open:
+- Production release and physical-device verification await explicit user approval.

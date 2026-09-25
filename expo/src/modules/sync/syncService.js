@@ -17,6 +17,8 @@ import {
   collectAcceptedSyncIds,
   collectAssignedLocalityCodes,
   countOpenPulledTasks,
+  getEventFormResponseId,
+  partitionDomainEventsForResponses,
   selectChangedFormCodes,
   selectNextPullCursor,
   summarizeClockStatus,
@@ -624,6 +626,8 @@ const PUSH_FORM_RESPONSE_BATCH_SIZE = 100;
 
 async function pushAttachmentsForResponses({ token, deviceId, formResponses }) {
   const attachments = await listPendingAttachmentsForResponses(formResponses.map((response) => response.id));
+  const failedResponses = new Map();
+  let uploaded = 0;
   for (const attachment of attachments) {
     try {
       const payload = await uploadAttachment({
@@ -634,29 +638,59 @@ async function pushAttachmentsForResponses({ token, deviceId, formResponses }) {
       });
       const data = unwrapApiData(payload);
       await markAttachmentSynced(attachment.attachment_id, data.relative_path);
+      uploaded += 1;
     } catch (error) {
       const message = error?.message || "Attachment upload failed";
       await markAttachmentUploadError(attachment.attachment_id, message);
-      throw new Error(`Could not upload ${attachment.display_name}: ${message}`);
+      if (!failedResponses.has(attachment.form_response_id)) {
+        failedResponses.set(
+          attachment.form_response_id,
+          `Could not upload ${attachment.display_name}: ${message}`,
+        );
+      }
     }
   }
-  return attachments.length;
+  return { uploaded, failedResponses };
 }
 
 async function pushRecordBatch({ token, deviceId, formResponses = [], domainEvents = [] }) {
-  const attachments = await pushAttachmentsForResponses({ token, deviceId, formResponses });
-  const responsesWithTaskKeys = formResponses.map((response) => {
+  const attachmentResult = await pushAttachmentsForResponses({ token, deviceId, formResponses });
+  const attachmentUploadErrorItems = [...attachmentResult.failedResponses.entries()].map(
+    ([id, message]) => ({ id, message }),
+  );
+  const blockedResponseIds = new Set(attachmentResult.failedResponses.keys());
+  const uploadableFormResponses = formResponses.filter((response) => !blockedResponseIds.has(response.id));
+  const uploadableDomainEvents = domainEvents.filter(
+    (event) => !blockedResponseIds.has(getEventFormResponseId(event)),
+  );
+
+  if (attachmentUploadErrorItems.length > 0) {
+    taskRepository.markResponsesUploadErrorBatch(attachmentUploadErrorItems);
+    const { markQuestionnaireSubmissionUploadError } = await import(
+      "../questionnaires/questionnaireSubmissionRepository.js"
+    );
+    for (const item of attachmentUploadErrorItems) {
+      markQuestionnaireSubmissionUploadError(item.id, item.message);
+    }
+    const { markEventsUploadErrorForResponses } = await import("../events/eventOutbox.js");
+    markEventsUploadErrorForResponses([...blockedResponseIds]);
+  }
+
+  const responsesWithTaskKeys = uploadableFormResponses.map((response) => {
     if (response?.task_key || !response?.task_id) return response;
     const task = taskRepository.getTask?.(response.task_id);
     return task?.task_key ? { ...response, task_key: task.task_key } : response;
   });
-  const records = buildPushRecords({ formResponses: responsesWithTaskKeys, domainEvents });
+  const records = buildPushRecords({
+    formResponses: responsesWithTaskKeys,
+    domainEvents: uploadableDomainEvents,
+  });
   if (records.length === 0) {
     return {
       pushed: 0,
       events: 0,
-      uploadErrors: 0,
-      attachments,
+      uploadErrors: attachmentUploadErrorItems.length,
+      attachments: attachmentResult.uploaded,
       conflictHouseholdIds: [],
       conflictNotices: [],
     };
@@ -699,7 +733,7 @@ async function pushRecordBatch({ token, deviceId, formResponses = [], domainEven
     if (status === "duplicate" || status === "held_for_review" || status === "invalid_rejected") {
       uploadErrorById.set(item.id, item.error || `Server classified this form as ${status}`);
       if (status === "duplicate") duplicateIds.add(item.id);
-      const localResponse = formResponses.find((candidate) => candidate.id === item.id);
+      const localResponse = uploadableFormResponses.find((candidate) => candidate.id === item.id);
       const householdId = item.household_id || localResponse?.household_id;
       if (householdId) conflictHouseholdIds.add(String(householdId));
       conflictNotices.push({
@@ -718,7 +752,7 @@ async function pushRecordBatch({ token, deviceId, formResponses = [], domainEven
 
   const uploadErrorItems = [];
   const syncedIds = [];
-  for (const item of formResponses) {
+  for (const item of uploadableFormResponses) {
     if (uploadErrorById.has(item.id)) {
       uploadErrorItems.push({ id: item.id, message: uploadErrorById.get(item.id) });
     } else if (acceptedIds.has(item.id)) {
@@ -733,7 +767,7 @@ async function pushRecordBatch({ token, deviceId, formResponses = [], domainEven
   for (const item of uploadErrorItems) {
     markQuestionnaireSubmissionUploadError(item.id, item.message);
     if (duplicateIds.has(item.id)) {
-      const response = formResponses.find((candidate) => candidate.id === item.id);
+      const response = uploadableFormResponses.find((candidate) => candidate.id === item.id);
       if (String(response?.form_code || "").toUpperCase() === "PEF") {
         taskRepository.markPefUploadConflict?.({
           taskId: response?.task_id,
@@ -750,9 +784,9 @@ async function pushRecordBatch({ token, deviceId, formResponses = [], domainEven
   }
 
   const { markEventSynced } = await import("../events/eventOutbox.js");
-  const pendingEventIds = new Set(domainEvents.map((event) => event.id));
+  const pendingEventIds = new Set(uploadableDomainEvents.map((event) => event.id));
   const handledEventErrorIds = new Set();
-  for (const event of domainEvents) {
+  for (const event of uploadableDomainEvents) {
     if (acceptedIds.has(event.id)) {
       markEventSynced(event.id);
     }
@@ -781,6 +815,7 @@ async function pushRecordBatch({ token, deviceId, formResponses = [], domainEven
   }
 
   const processedResponseIds = new Set([
+    ...attachmentUploadErrorItems.map((item) => item.id),
     ...syncedIds,
     ...uploadErrorItems.map((item) => item.id),
   ]);
@@ -790,7 +825,7 @@ async function pushRecordBatch({ token, deviceId, formResponses = [], domainEven
   ]);
   if (
     processedResponseIds.size < formResponses.length ||
-    processedEventIds.size < domainEvents.length
+    processedEventIds.size < uploadableDomainEvents.length
   ) {
     throw new Error("Push sync made no progress for one or more records; pending records were not classified by the server");
   }
@@ -798,9 +833,9 @@ async function pushRecordBatch({ token, deviceId, formResponses = [], domainEven
   return {
     pushed: syncedIds.length,
     events: processedEventIds.size,
-    uploadErrors: uploadErrorItems.length,
+    uploadErrors: attachmentUploadErrorItems.length + uploadErrorItems.length,
     duplicateErrors: uploadErrorItems.filter((item) => duplicateIds.has(item.id)).length,
-    attachments,
+    attachments: attachmentResult.uploaded,
     conflictHouseholdIds: [...conflictHouseholdIds],
     conflictNotices,
   };
@@ -872,16 +907,16 @@ export async function pushSync() {
     let attachments = 0;
     const conflictHouseholdIds = new Set();
     const conflictNotices = [];
-    let eventsSent = false;
+    let remainingPendingEvents = pendingEvents;
     while (true) {
       const pendingBatch = await taskRepository.getPendingResponseBatch(PUSH_FORM_RESPONSE_BATCH_SIZE);
       if (pendingBatch.length === 0) {
-        if (!eventsSent && pendingEvents.length > 0) {
+        if (remainingPendingEvents.length > 0) {
           const eventResult = await pushRecordBatch({
             token,
             deviceId,
             formResponses: [],
-            domainEvents: pendingEvents,
+            domainEvents: remainingPendingEvents,
           });
           pushed += eventResult.pushed;
           events += eventResult.events;
@@ -892,16 +927,19 @@ export async function pushSync() {
             conflictHouseholdIds.add(householdId);
           }
           conflictNotices.push(...(eventResult.conflictNotices || []));
-          eventsSent = true;
+          remainingPendingEvents = [];
         }
         break;
       }
+
+      const eventPartition = partitionDomainEventsForResponses(remainingPendingEvents, pendingBatch);
+      remainingPendingEvents = eventPartition.remaining;
 
       const batchResult = await pushRecordBatch({
         token,
         deviceId,
         formResponses: pendingBatch,
-        domainEvents: eventsSent ? [] : pendingEvents,
+        domainEvents: eventPartition.matching,
       });
       pushed += batchResult.pushed;
       events += batchResult.events;
@@ -912,7 +950,6 @@ export async function pushSync() {
         conflictHouseholdIds.add(householdId);
       }
       conflictNotices.push(...(batchResult.conflictNotices || []));
-      eventsSent = true;
     }
 
     return {

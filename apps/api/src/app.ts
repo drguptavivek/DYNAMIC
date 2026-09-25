@@ -54,7 +54,9 @@ export function createApp() {
     next();
   });
 
-  app.use(express.json());
+  // Bulk household assignment requests can legitimately contain tens of
+  // thousands of household ids. Nginx still enforces the outer request cap.
+  app.use(express.json({ limit: "25mb" }));
 
   app.get("/health", (_req, res) => {
     res.json({ status: "ok", service: "dynamic-api" });
