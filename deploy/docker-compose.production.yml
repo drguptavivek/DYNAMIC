@@ -45,6 +45,7 @@ services:
     volumes:
       - ./nginx/production.conf:/etc/nginx/conf.d/default.conf:ro
       - /etc/dynamic/tls:/etc/nginx/tls:ro
+      - /data/dynamic/downloads:/srv/downloads:ro
     healthcheck:
       test: ["CMD-SHELL", "wget --no-check-certificate -qO- https://127.0.0.1/health >/dev/null"]
       interval: 15s

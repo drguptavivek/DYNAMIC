@@ -12,6 +12,7 @@ Before cloning, verify the EBS mount and configure Docker (an OS-level file) so 
 findmnt /data
 lsblk -o NAME,SIZE,FSTYPE,MOUNTPOINTS
 sudo install -d -m 0750 /data/docker_volumes /data/dynamic/releases /data/dynamic/imageuploads
+sudo install -d -m 0755 /data/dynamic/downloads
 sudo chown dynamic-api:dynamic-api /data/dynamic/imageuploads
 sudo install -d -m 0755 /etc/docker
 printf '{"data-root":"/data/docker_volumes"}\n' | sudo tee /etc/docker/daemon.json
@@ -59,6 +60,27 @@ sudo docker compose -f /data/dynamic/current/deploy/docker-compose.production.ym
 The earlier `2026-09-18-form-attachments.sql` remains the base table-creation script for a new installation.
 
 `dynamic-docker` starts the production Compose file, named volumes, and Nginx. `dynamic-web` runs the built admin bundle through Vite's production preview server, not the development HMR server. It does not run schema pushes or development seeds. Apply reviewed versioned migrations separately after a verified backup; never use `make db-reset-full` or `make db-push` in production.
+
+## Android APK download
+
+Production Android APKs are stored outside individual Git releases under `/data/dynamic/downloads` and mounted read-only into Nginx. Publish the signed APK atomically so an interrupted copy can never replace the live download:
+
+```bash
+sudo install -d -o root -g root -m 0755 /data/dynamic/downloads
+sudo install -o root -g root -m 0644 /path/to/app-release.apk /data/dynamic/downloads/dynamic-field-app.apk.new
+sudo mv /data/dynamic/downloads/dynamic-field-app.apk.new /data/dynamic/downloads/dynamic-field-app.apk
+sudo docker compose -f /data/dynamic/current/deploy/docker-compose.production.yml --env-file /etc/dynamic/production.env up -d --no-deps --force-recreate nginx
+```
+
+Verify the Nginx configuration before publishing the URL, then confirm the public response content type, size, and checksum:
+
+```bash
+sudo docker compose -f /data/dynamic/current/deploy/docker-compose.production.yml --env-file /etc/dynamic/production.env exec -T nginx nginx -t
+curl --fail --silent --show-error --head https://dynamicstudyindia.com/downloads/dynamic-field-app.apk
+sha256sum /data/dynamic/downloads/dynamic-field-app.apk
+```
+
+The public download URL is `https://dynamicstudyindia.com/downloads/dynamic-field-app.apk`. Keep the Android signing key unchanged between releases so an installed app can be upgraded without clearing local data.
 
 ## Operations, backup, and rollback
 

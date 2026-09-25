@@ -746,3 +746,10 @@ Decisions:
 - Completed/Uploaded history performs one focus load instead of duplicate mount and focus loads.
 Open:
 - Production APK build/install and physical-device timing with the user's 4,000-task dataset await explicit user approval.
+
+## 2026-09-25 (Public production APK download) [working]
+Goal: Serve the signed Android production APK from the existing EC2 host without coupling it to a Git release.
+Decisions:
+- Store the APK persistently at `/data/dynamic/downloads/dynamic-field-app.apk` and mount that directory read-only into Nginx.
+- Expose only GET/HEAD under `/downloads/`; keep directory listing disabled and preserve all existing admin/API routes.
+- Publish each APK atomically and verify its public size, content type, signature, and SHA-256 checksum.
