@@ -6,7 +6,7 @@ import * as taskRepository from "../tasks/taskRepository.js";
 import { formatSyncCompletionMessage } from "./syncWorkflow.js";
 import { describeNetworkError } from "../../lib/networkErrors.js";
 
-export function SyncScreen({ onClockStatusChange } = {}) {
+export function SyncScreen({ onClockStatusChange, onSyncComplete } = {}) {
   const [lastSync, setLastSync] = useState(null);
   const [pendingSummary, setPendingSummary] = useState({
     responses: 0,
@@ -56,6 +56,15 @@ export function SyncScreen({ onClockStatusChange } = {}) {
 
     try {
       const result = await syncService.syncAll();
+      if (typeof onSyncComplete === "function") {
+        try {
+          await onSyncComplete(result);
+        } catch (refreshError) {
+          // Sync has already completed successfully. A presentation-layer
+          // refresh failure must not report the synced records as failed.
+          console.warn("Could not refresh app state after sync:", refreshError);
+        }
+      }
       setSyncMessage(formatSyncCompletionMessage(result));
       if (result.conflictNotices?.length > 0) {
         const details = result.conflictNotices

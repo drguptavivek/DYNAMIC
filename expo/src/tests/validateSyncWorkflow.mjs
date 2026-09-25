@@ -29,11 +29,21 @@ const authStoreSource = fs.readFileSync(
   path.resolve(testRoot, "../modules/auth/authStore.js"),
   "utf8",
 );
+const syncScreenSource = fs.readFileSync(
+  path.resolve(testRoot, "../modules/sync/SyncScreen.js"),
+  "utf8",
+);
+const syncRouteSource = fs.readFileSync(path.resolve(testRoot, "../../app/sync.js"), "utf8");
 assert.match(authStoreSource, /export async function refreshStoredSession\(\)/);
 assert.match(syncServiceSource, /response\.status === 401 \|\| response\.status === 403/);
 assert.match(syncServiceSource, /await authStore\.refreshStoredSession\(\)/);
 assert.match(syncServiceSource, /completed forms remain saved on this device/);
 assert.match(syncServiceSource, /Assignment refresh failed \(\$\{statusLabel\}\)/);
+assert.match(syncScreenSource, /SyncScreen\(\{ onClockStatusChange, onSyncComplete \}/);
+assert.match(syncScreenSource, /await onSyncComplete\(result\)/);
+assert.match(syncRouteSource, /notifyTaskWorklistChanged\(\)/);
+assert.match(syncRouteSource, /await refreshLocalities\(\)/);
+assert.match(syncRouteSource, /onSyncComplete=\{handleSyncComplete\}/);
 
 const responseLinkedEvents = [
   { id: "event-1", payload: { form_response_id: "response-1" } },

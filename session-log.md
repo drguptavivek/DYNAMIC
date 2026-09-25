@@ -1,3 +1,12 @@
+## 2026-09-25 (Refresh Worklist automatically after sync) [verified]
+Goal: Show newly pulled tasks immediately after Sync Now without requiring a manual Worklist refresh.
+Decisions:
+- SyncScreen now invokes its completion callback after a successful sync while keeping presentation refresh failures separate from sync failure reporting.
+- The Sync route invalidates the in-memory Worklist revision/cache and refreshes locality choices after each successful sync.
+Verification:
+- Sync workflow regression and source-syntax validation pass; targeted lint has no errors and only the pre-existing SyncScreen mount-effect warning.
+- Full Expo test reaches the known Node 24 React Native parser limitation after the earlier questionnaire tests; the focused sync regression passes separately.
+
 ## 2026-09-25 (BWQ Q18 source-roster recovery) [verified]
 Goal: Fix Q18 still showing only Husband not in household after the prior male-head eligibility correction.
 Decisions:
