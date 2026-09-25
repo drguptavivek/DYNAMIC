@@ -58,7 +58,7 @@ import {
   applyPregnancySurveillanceCalculations,
   shouldRecalculatePregnancySurveillance,
 } from "../../lib/pregnancySurveillanceBehaviors.js";
-import { listHouseholdMembers } from "../households/householdRepository.js";
+import { getHousehold, listHouseholdMembers } from "../households/householdRepository.js";
 import { getDraftSavedMessage } from "./draftSaveMessages.js";
 import { applyQuestionnaireLanguageFromLocale } from "../../lib/questionnaireLanguageField.js";
 import { createSurveyModel } from "../../polyfills/surveyCoreNative.js";
@@ -304,11 +304,16 @@ function deriveCurrentWomanIdFromTask(taskContext, prefillData) {
   );
 }
 
-function applyWqHusbandPartnerChoices(model, members, taskContext, prefillData) {
+function applyWqHusbandPartnerChoices(model, members, household, taskContext, prefillData) {
   const question = model?.getQuestionByName?.(WQ_HUSBAND_PARTNER_NAME_FIELD);
   if (!question) return;
   question.householdMemberChoices = buildWqHusbandPartnerChoices(members, {
     currentWomanId: deriveCurrentWomanIdFromTask(taskContext, prefillData),
+    householdHeadName:
+      household?.household_head_name ||
+      prefillData?.wq_household_head_name ||
+      prefillData?.household_head_name ||
+      "",
   });
   question.husbandPartnerLineNumberField = WQ_HUSBAND_PARTNER_LINE_NUMBER_FIELD;
 }
@@ -1070,9 +1075,11 @@ export function QuestionnaireDashboard({
     let cancelled = false;
     const householdId = deriveHouseholdIdFromTask(taskContext, prefillData);
     async function loadChoices() {
-      const members = householdId ? await listHouseholdMembers(householdId) : [];
+      const [members, household] = householdId
+        ? await Promise.all([listHouseholdMembers(householdId), getHousehold(householdId)])
+        : [[], null];
       if (cancelled) return;
-      applyWqHusbandPartnerChoices(survey, members, taskContext, prefillData);
+      applyWqHusbandPartnerChoices(survey, members, household, taskContext, prefillData);
       attachWqHouseholdRoster(survey, members);
       applyWqPregnancyHistoryCalculations(survey);
       updateSurveyStatus(survey);

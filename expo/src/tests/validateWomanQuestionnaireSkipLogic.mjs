@@ -722,6 +722,31 @@ assert.deepEqual(
     "Husband not in household",
   ],
 );
+assert.deepEqual(
+  buildWqHusbandPartnerChoices(
+    [
+      {
+        member_name: "Stored Male Head",
+        sex: 1,
+        age_years: 17,
+        relationship_to_head: 2,
+        line_number: 9,
+        individual_id: "hh-09",
+      },
+      {
+        member_name: "Stored Female Head",
+        sex: 2,
+        age_years: 35,
+        relationship_to_head: 2,
+        line_number: 10,
+        individual_id: "hh-10",
+      },
+    ],
+    { householdHeadName: "  stored MALE head " }
+  ).map((choice) => choice.value),
+  ["Stored Male Head", "Husband not in household"],
+  "Q18 must include the stored household head when he is male even if the roster relationship is stale",
+);
 const outsideHusbandMembers = [
   { member_name: "Woman One", sex: 2, age_years: 24, line_number: 1, individual_id: "2-02-0003-01-01" },
   { member_name: "Woman Two", sex: 2, age_years: 30, line_number: 2, individual_id: "2-02-0003-01-02" },

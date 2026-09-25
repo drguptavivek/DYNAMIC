@@ -688,3 +688,9 @@ Decisions:
 - A conflict triggers authoritative task reconciliation only for affected households, while another woman's valid work remains untouched.
 Open:
 - Database-backed concurrency scenarios are added and typechecked, but execution awaits Docker Desktop; targeted Expo tests, API tests/typecheck/build, and event-core tests/typecheck pass.
+
+## 2026-09-25 (BWQ Q18 male household-head fallback) [working]
+Goal: Ensure the male household head appears in BWQ Section 1 Q18 husband/partner choices.
+Decisions:
+- Q18 still lists eligible adult male roster members and members explicitly coded as Head.
+- When a historical roster relationship is stale, an exact normalized match to the household's stored head name is also included, but only if that roster member is male.

@@ -221,11 +221,19 @@ function memberSexLabel(sex) {
   return "";
 }
 
-function isEligibleWqHusbandPartnerMember(member) {
+function isEligibleWqHusbandPartnerMember(member, { householdHeadName = "" } = {}) {
   if (String(member?.sex) !== "1") return false;
   // Q18 lists all household male members; the male head must always be
-  // selectable even when his age is missing or not yet over 18.
+  // selectable even when his roster relationship is stale or his age is
+  // missing/not yet over 18. The stored household-head name is the fallback
+  // identity when relationship_to_head was saved incorrectly.
   if (Number(member?.relationship_to_head) === 1) return true;
+  if (
+    normalizeWqMemberName(householdHeadName) &&
+    normalizeWqMemberName(member?.member_name) === normalizeWqMemberName(householdHeadName)
+  ) {
+    return true;
+  }
   return Number(member?.age_years) > 18;
 }
 
@@ -273,7 +281,10 @@ export function buildWqHusbandPartnerChoices(members = [], options = {}) {
     members,
   });
   const memberChoices = members
-    .filter((member) => member?.member_name && isEligibleWqHusbandPartnerMember(member))
+    .filter(
+      (member) =>
+        member?.member_name && isEligibleWqHusbandPartnerMember(member, options)
+    )
     .map((member) => {
       const lineNumber = normalizeLineNumber(member.line_number);
       const age = member.age_years === undefined || member.age_years === null
