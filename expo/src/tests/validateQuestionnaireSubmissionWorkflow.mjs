@@ -85,6 +85,8 @@ assert.equal(submission.locality_code, "02");
 assert.equal(submission.subject_type, "household");
 assert.equal(submission.subject_id, "1-02-0042-03");
 assert.equal(submission.sync_status, "pending");
+assert.equal(submission.user_id, "fieldworker-1");
+assert.equal(submission.device_id, "device-1");
 
 const visibleSubmissions = JSON.parse(
   window.localStorage.getItem("dynamic_questionnaire_submissions_v1") || "[]",
@@ -100,6 +102,8 @@ assert.equal(webSqliteState.form_responses[0].household_id, "1-02-0042-03");
 assert.equal(webSqliteState.form_responses[0].subject_type, "household");
 assert.equal(webSqliteState.form_responses[0].subject_id, "1-02-0042-03");
 assert.equal(webSqliteState.form_responses[0].sync_status, "pending");
+assert.equal(webSqliteState.form_responses[0].user_id, "fieldworker-1");
+assert.equal(webSqliteState.form_responses[0].device_id, "device-1");
 assert.equal(webSqliteState.domain_events_outbox.length, 1);
 assert.equal(webSqliteState.domain_events_outbox[0].event_type, "household_baseline_confirmed");
 assert.equal(webSqliteState.domain_events_outbox[0].sync_status, "pending");
@@ -380,6 +384,7 @@ assert.equal(normalizedPefResponse.data.form_code, "PEF");
 assert.equal(normalizedPefResponse.data.household_id, "1-02-0042-03");
 assert.equal(normalizedPefResponse.data.subject_type, "woman");
 assert.equal(normalizedPefResponse.data.subject_id, "1-02-0042-03-02");
+assert.equal(normalizedHhqResponse.data.user_id, "fieldworker-1");
 const normalizedHhqEvent = syncRecords.find(
   (record) =>
     record.type === "domain_event" && record.data.event_type === "household_baseline_confirmed",

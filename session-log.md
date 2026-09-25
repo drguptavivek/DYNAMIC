@@ -753,3 +753,12 @@ Decisions:
 - Store the APK persistently at `/data/dynamic/downloads/dynamic-field-app.apk` and mount that directory read-only into Nginx.
 - Expose only GET/HEAD under `/downloads/`; keep directory listing disabled and preserve all existing admin/API routes.
 - Publish each APK atomically and verify its public size, content type, signature, and SHA-256 checksum.
+
+## 2026-09-25 (Form submitter metadata) [working]
+Goal: Identify the field worker who finalized each form without adding questionnaire or renderer fields.
+Decisions:
+- Finalized local responses capture the logged-in `user_id` alongside the existing `device_id`; sync carries both as response metadata.
+- PostgreSQL stores the submitter in `form_responses.submitted_by_user_id`, and form-wise CSV exports include worker ID, username, display name, and device ID.
+- Existing sync authentication is reused; no new questionnaire logic or workflow validation is introduced.
+Open:
+- Apply `deploy/sql/2026-09-25-form-response-submitter.sql` before deploying the API. Historical responses remain unattributed unless separately backfilled from reliable audit evidence.

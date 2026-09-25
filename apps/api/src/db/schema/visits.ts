@@ -39,6 +39,7 @@ export const formResponses = pgTable("form_responses", {
   created_offline_at: timestamp("created_offline_at", { withTimezone: true }),
   updated_offline_at: timestamp("updated_offline_at", { withTimezone: true }),
   device_id: text("device_id"),
+  submitted_by_user_id: text("submitted_by_user_id"),
   synced_at: timestamp("synced_at", { withTimezone: true }),
   response_status: text("response_status").default("primary"),
   created_at: timestamp("created_at", { withTimezone: true }),

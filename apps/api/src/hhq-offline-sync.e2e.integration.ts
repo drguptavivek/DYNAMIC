@@ -273,6 +273,7 @@ test("HHQ offline submission creates local WQ workflow, syncs backend, and pulls
     formVersion: "2026.05.17",
     payload: hhqPayload,
     deviceId: "e2e-device",
+    userId: smokeUser.user_id,
   });
 
   assert.equal(submission.household_id, householdId);
@@ -324,6 +325,13 @@ test("HHQ offline submission creates local WQ workflow, syncs backend, and pulls
     assert.equal(pushed.accepted, 1);
     assert.deepEqual(pushed.accepted_records, [submission.submission_id]);
     assert.deepEqual(pushed.errors, []);
+
+    const [storedSubmission] = await db
+      .select()
+      .from(schema.formResponses)
+      .where(eq(schema.formResponses.form_response_id, submission.submission_id));
+    assert.equal(storedSubmission.submitted_by_user_id, smokeUser.user_id);
+    assert.equal(storedSubmission.device_id, "e2e-device");
 
     const duplicatePush = await fetchData(`${baseUrl}/sync/push`, {
       method: "POST",

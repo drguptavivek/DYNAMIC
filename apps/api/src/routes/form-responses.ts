@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { eq, and, sql, desc } from "drizzle-orm";
+import { eq, and, sql, desc, inArray } from "drizzle-orm";
 import { db, schema } from "../db";
 import { sendError, sendSuccess } from "../lib/errors";
 import { getPagination } from "../lib/pagination";
@@ -112,12 +112,55 @@ router.get("/export", requireDataAccess("can_access_raw_crfs"), async (req: Requ
       sendError(res, 404, "FORM_NOT_FOUND", `Form code ${formCode} not found`);
       return;
     }
+    const submitterIds = [...new Set(
+      responses
+        .map((response) => response.submitted_by_user_id)
+        .filter((userId): userId is string => Boolean(userId)),
+    )];
+    const submitters = submitterIds.length > 0
+      ? await db
+          .select({
+            user_id: schema.users.user_id,
+            username: schema.users.username,
+            display_name: schema.users.display_name,
+          })
+          .from(schema.users)
+          .where(inArray(schema.users.user_id, submitterIds))
+      : [];
+    const submitterById = new Map(submitters.map((user) => [user.user_id, user]));
     const fields = collectExportFields(formJson);
     const uniqueFields = [...new Map(fields.map((field) => [field.key, field])).values()];
-    const headers = ["form_response_id", "household_id", "subject_type", "subject_id", "form_version", "submitted_at", ...uniqueFields.map((field) => field.key)];
+    const headers = [
+      "form_response_id",
+      "household_id",
+      "subject_type",
+      "subject_id",
+      "form_version",
+      "submitted_at",
+      "submitted_by_user_id",
+      "submitted_by_username",
+      "submitted_by_name",
+      "device_id",
+      ...uniqueFields.map((field) => field.key),
+    ];
     const rows = responses.map((response) => {
       const answers = (response.answers_json || {}) as Record<string, unknown>;
-      return [response.form_response_id, response.household_id, response.subject_type, response.subject_id, response.form_version, response.synced_at || response.created_at, ...uniqueFields.map((field) => displayAnswer(answerForField(answers, field.key), field.key))];
+      const submitter = response.submitted_by_user_id
+        ? submitterById.get(response.submitted_by_user_id)
+        : undefined;
+      return [
+        response.form_response_id,
+        response.household_id,
+        response.subject_type,
+        response.subject_id,
+        response.form_version,
+        response.synced_at || response.created_at,
+        response.submitted_by_user_id,
+        submitter?.username,
+        submitter?.display_name,
+        response.device_id,
+        ...uniqueFields.map((field) => displayAnswer(answerForField(answers, field.key), field.key)),
+      ];
     });
     const csv = [headers, ...rows].map((row) => row.map(csvCell).join(",")).join("\r\n") + "\r\n";
     res.status(200).set({ "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename=${formCode.toLowerCase()}-form-responses.csv` }).send(`\uFEFF${csv}`);
@@ -185,6 +228,7 @@ router.get("/", async (req: Request, res: Response) => {
         submitted_at: schema.formResponses.synced_at,
         sync_status: schema.formResponses.response_status,
         device_id: schema.formResponses.device_id,
+        submitted_by_user_id: schema.formResponses.submitted_by_user_id,
       })
       .from(schema.formResponses)
       .where(conditions.length > 0 ? and(...conditions) : undefined)

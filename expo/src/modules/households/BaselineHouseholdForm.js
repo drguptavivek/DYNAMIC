@@ -771,6 +771,7 @@ export function BaselineHouseholdForm({
         payload: model.data,
         taskContext,
         deviceId: user?.device_id || "dev-device",
+        userId: user?.user_id || user?.id || null,
       });
       if (draftIdRef.current) {
         await markQuestionnaireDraftSubmitted({

@@ -1017,6 +1017,7 @@ export function QuestionnaireDashboard({
           taskId: taskContext?.id,
           taskContext,
           deviceId: user?.device_id || "dev-device",
+          userId: user?.user_id || user?.id || null,
           correctionResponseId: correctionContext?.responseId,
         });
       } catch (error) {

@@ -108,6 +108,7 @@ function buildQuestionnaireResponse({
   taskId,
   taskContext,
   deviceId,
+  userId,
   submittedAt,
 }) {
   const householdId =
@@ -148,6 +149,7 @@ function buildQuestionnaireResponse({
         ? WQ_VISITOR_EXCLUDED_STATUS
         : null,
     device_id: deviceId || "unknown",
+    user_id: userId || null,
     created_at: submittedAt,
     updated_at: submittedAt,
   };
@@ -175,6 +177,7 @@ function saveWebFormResponse(response) {
     sync_error_at: response.sync_error_at || null,
     server_response_status: response.server_response_status || null,
     device_id: response.device_id,
+    user_id: response.user_id || null,
     created_at: response.created_at,
   };
   state.form_responses = [row, ...(state.form_responses || []).filter((item) => item.id !== row.id)];
@@ -775,6 +778,7 @@ export async function saveQuestionnaireSubmission({
   taskId,
   taskContext,
   deviceId,
+  userId,
   correctionResponseId,
 }) {
   const storage = getStorage();
@@ -832,6 +836,7 @@ export async function saveQuestionnaireSubmission({
     taskId,
     taskContext,
     deviceId,
+    userId,
     submittedAt: now,
   });
   const submission = { ...response };
