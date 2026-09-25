@@ -18,7 +18,7 @@ import {
   removeQuestionnaireDraft,
   saveQuestionnaireDraft,
 } from "./questionnaireDraftRepository";
-import { linkWqVisitorCorrectionDraft } from "../tasks/taskRepository.js";
+import { getFormResponseById, linkWqVisitorCorrectionDraft } from "../tasks/taskRepository.js";
 import {
   COMPACT_PREVIEW_SECTION_NAME,
   HOUSEHOLD_MEMBER_SUMMARY_SECTION_NAME,
@@ -59,6 +59,7 @@ import {
   shouldRecalculatePregnancySurveillance,
 } from "../../lib/pregnancySurveillanceBehaviors.js";
 import { getHousehold, listHouseholdMembers } from "../households/householdRepository.js";
+import { extractMemberRows } from "../households/householdIds.js";
 import { getDraftSavedMessage } from "./draftSaveMessages.js";
 import { applyQuestionnaireLanguageFromLocale } from "../../lib/questionnaireLanguageField.js";
 import { createSurveyModel } from "../../polyfills/surveyCoreNative.js";
@@ -102,6 +103,7 @@ import {
   attachWqHouseholdRoster,
   attachWqValidation,
   buildWqHusbandPartnerChoices,
+  mergeWqHouseholdMembers,
   hasIncompleteWqBornAliveChildFollowups,
   hasWqReproductionComparisonDeficit,
   requestNextWqPregnancy,
@@ -316,6 +318,24 @@ function applyWqHusbandPartnerChoices(model, members, household, taskContext, pr
       "",
   });
   question.husbandPartnerLineNumberField = WQ_HUSBAND_PARTNER_LINE_NUMBER_FIELD;
+}
+
+function getWqSourceHouseholdContext(taskContext, householdId) {
+  const response = getFormResponseById(
+    taskContext?.source_form_response_id || taskContext?.sourceFormResponseId
+  );
+  if (String(response?.form_code || "").toUpperCase() !== "HHQ") {
+    return { members: [], householdHeadName: "" };
+  }
+  const answers = response?.answers_json || {};
+  return {
+    members: extractMemberRows(
+      householdId,
+      answers,
+      response?.submitted_at || response?.updated_at || new Date().toISOString()
+    ),
+    householdHeadName: String(answers?.hhq_household_head_name || ""),
+  };
 }
 
 function getDataSignature(data) {
@@ -1075,11 +1095,16 @@ export function QuestionnaireDashboard({
     let cancelled = false;
     const householdId = deriveHouseholdIdFromTask(taskContext, prefillData);
     async function loadChoices() {
-      const [members, household] = householdId
+      const [cachedMembers, household] = householdId
         ? await Promise.all([listHouseholdMembers(householdId), getHousehold(householdId)])
         : [[], null];
       if (cancelled) return;
-      applyWqHusbandPartnerChoices(survey, members, household, taskContext, prefillData);
+      const sourceContext = getWqSourceHouseholdContext(taskContext, householdId);
+      const members = mergeWqHouseholdMembers(cachedMembers, sourceContext.members);
+      const resolvedHousehold = sourceContext.householdHeadName && !household?.household_head_name
+        ? { ...(household || {}), household_head_name: sourceContext.householdHeadName }
+        : household;
+      applyWqHusbandPartnerChoices(survey, members, resolvedHousehold, taskContext, prefillData);
       attachWqHouseholdRoster(survey, members);
       applyWqPregnancyHistoryCalculations(survey);
       updateSurveyStatus(survey);

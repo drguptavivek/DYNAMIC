@@ -331,6 +331,25 @@ export function buildWqHusbandPartnerChoices(members = [], options = {}) {
   ];
 }
 
+export function mergeWqHouseholdMembers(cachedMembers = [], sourceMembers = []) {
+  const byId = new Map();
+  for (const member of [...sourceMembers, ...cachedMembers]) {
+    const key = String(
+      member?.individual_id ||
+      `${member?.household_id || ""}:${member?.line_number || ""}:${member?.member_name || ""}`
+    );
+    if (!key) continue;
+    const existing = byId.get(key) || {};
+    const nonBlankValues = Object.fromEntries(
+      Object.entries(member || {}).filter(([, value]) => value !== undefined && value !== null && value !== "")
+    );
+    byId.set(key, { ...existing, ...nonBlankValues });
+  }
+  return [...byId.values()].sort((left, right) =>
+    Number(left?.line_number || 0) - Number(right?.line_number || 0)
+  );
+}
+
 /**
  * Works out what the husband/partner dropdown (WQ Q18/Q19) currently holds.
  * - "member": a listed household male was picked (name matches a choice and

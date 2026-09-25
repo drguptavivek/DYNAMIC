@@ -1,3 +1,11 @@
+## 2026-09-25 (BWQ Q18 source-roster recovery) [verified]
+Goal: Fix Q18 still showing only Husband not in household after the prior male-head eligibility correction.
+Decisions:
+- If the local household-member cache is empty or incomplete, rebuild and merge the roster from the BHQ response referenced by the BWQ task's source_form_response_id.
+- Include asynchronously attached householdMemberChoices in the native question render signature so Q18 refreshes when roster loading finishes.
+Verification:
+- Question-render memo regression proves an asynchronously added head changes Q18's render signature; focused questionnaire tests and source syntax pass.
+
 ## 2026-09-25 (BWQ Q18 head, mobile-holder validation, Other specify) [verified]
 Goal: Restore the male household head in BWQ Q18, reject numbers in BHQ/BWQ mobile-holder names, and reveal missing BWQ Other (specify) inputs.
 Decisions:

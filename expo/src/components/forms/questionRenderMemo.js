@@ -60,6 +60,13 @@ function multipleTextItemErrorsSignature(question) {
     .join(";");
 }
 
+function householdMemberChoicesSignature(question) {
+  if (!Array.isArray(question?.householdMemberChoices)) return "";
+  return question.householdMemberChoices
+    .map((choice) => [choice?.value, choice?.text, choice?.lineNumber, choice?.memberId].join(":"))
+    .join(",");
+}
+
 /**
  * Builds a cheap-to-compute signature capturing everything a leaf renderer's
  * output could depend on: its own value, title (post-interpolation), description,
@@ -78,6 +85,7 @@ export function buildQuestionRenderSignature(question, locale = "default") {
   const choices = getNativeQuestionChoices(question, locale)
     .map((choice) => `${choice.value}:${choice.text}`)
     .join(",");
+  const householdMemberChoices = householdMemberChoicesSignature(question);
   const ownValue = safeStringifyValue(question.value);
   return [
     question.name,
@@ -88,6 +96,7 @@ export function buildQuestionRenderSignature(question, locale = "default") {
     title,
     description,
     choices,
+    householdMemberChoices,
     ownValue,
   ].join("");
 }

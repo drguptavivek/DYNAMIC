@@ -43,6 +43,7 @@ const {
   applyWqReproductionSummary,
   attachWqHouseholdRoster,
   buildWqHusbandPartnerChoices,
+  mergeWqHouseholdMembers,
    calculateWqDomesticViolencePhysicalCheckValue,
   calculateWqPregnancyHistoryOutcomeValue,
    calculateWqPregnancyTrackingEligibilityValue,
@@ -755,6 +756,24 @@ assert.deepEqual(
   ).map((choice) => choice.value),
   ["Stored Male Head", "Husband not in household"],
   "Q18 must include the stored household head when he is male even if the roster relationship is stale",
+);
+const recoveredRoster = mergeWqHouseholdMembers(
+  [{ individual_id: "hh-01", member_name: "Male Head", sex: "", line_number: 1 }],
+  [{
+    individual_id: "hh-01",
+    household_id: "hh",
+    member_name: "Male Head",
+    sex: 1,
+    relationship_to_head: 1,
+    line_number: 1,
+  }],
+);
+assert.equal(recoveredRoster.length, 1);
+assert.equal(recoveredRoster[0].sex, 1, "blank cached sex must not erase recovered BHQ roster sex");
+assert.deepEqual(
+  buildWqHusbandPartnerChoices(recoveredRoster).map((choice) => choice.value),
+  ["Male Head", "Husband not in household"],
+  "Q18 must include a male head recovered from the source BHQ response",
 );
 const outsideHusbandMembers = [
   { member_name: "Woman One", sex: 2, age_years: 24, line_number: 1, individual_id: "2-02-0003-01-01" },

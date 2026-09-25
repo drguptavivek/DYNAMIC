@@ -243,4 +243,32 @@ function baseProps(question, overrides = {}) {
   );
 }
 
+// --- Q18 choices are attached after the household roster loads asynchronously. ---
+{
+  const model = buildModel();
+  const husband = model.getQuestionByName("wq_husband_partner_name");
+  husband.householdMemberChoices = [{
+    value: "Husband not in household",
+    text: "Husband not in household",
+    lineNumber: "00",
+    memberId: "",
+  }];
+  const signatureBeforeRoster = buildQuestionRenderSignature(husband, LOCALE);
+  husband.householdMemberChoices = [
+    {
+      value: "Ramesh",
+      text: "01 - Ramesh",
+      lineNumber: "01",
+      memberId: "1-01-0001-01-01",
+    },
+    ...husband.householdMemberChoices,
+  ];
+  const signatureAfterRoster = buildQuestionRenderSignature(husband, LOCALE);
+  assert.notEqual(
+    signatureAfterRoster,
+    signatureBeforeRoster,
+    "Q18 must re-render when asynchronous household-member choices arrive",
+  );
+}
+
 console.log("Validated question render memo comparator.");
