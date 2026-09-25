@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const {
   collectAssignedLocalityCodes,
@@ -16,6 +19,21 @@ const {
   summarizePendingSyncData,
   formatSyncCompletionMessage,
 } = await import("../modules/sync/syncWorkflow.js");
+
+const testRoot = path.dirname(fileURLToPath(import.meta.url));
+const syncServiceSource = fs.readFileSync(
+  path.resolve(testRoot, "../modules/sync/syncService.js"),
+  "utf8",
+);
+const authStoreSource = fs.readFileSync(
+  path.resolve(testRoot, "../modules/auth/authStore.js"),
+  "utf8",
+);
+assert.match(authStoreSource, /export async function refreshStoredSession\(\)/);
+assert.match(syncServiceSource, /response\.status === 401 \|\| response\.status === 403/);
+assert.match(syncServiceSource, /await authStore\.refreshStoredSession\(\)/);
+assert.match(syncServiceSource, /completed forms remain saved on this device/);
+assert.match(syncServiceSource, /Assignment refresh failed \(\$\{statusLabel\}\)/);
 
 const responseLinkedEvents = [
   { id: "event-1", payload: { form_response_id: "response-1" } },

@@ -710,3 +710,11 @@ Decisions:
 - A failed attachment moves only its owning response and linked event to Upload Errors. Remaining response batches and events continue syncing.
 Open:
 - Production release and physical-device verification await explicit user approval.
+
+## 2026-09-25 (Refresh expired mobile session during sync) [working]
+Goal: Prevent an offline-open field session from failing assignment refresh when its two-day access token expires.
+Decisions:
+- Assignment refresh retries once with the stored rotating refresh token after HTTP 401/403.
+- A failed refresh leaves finalized local responses intact and reports an actionable session message; other HTTP failures include status and server detail instead of blank `statusText`.
+Open:
+- Rebuild/install and physical-device sync verification await explicit user approval.

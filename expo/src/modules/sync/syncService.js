@@ -76,21 +76,49 @@ export function setAssignedLocalities(codes) {
 }
 
 export async function refreshAssignments() {
-  const token = authStore.getToken();
+  let token = authStore.getToken();
   if (!token) {
     throw new Error("Not authenticated");
   }
 
-  const response = await fetch(`${API_BASE_URL}/users/me`, {
-    method: "GET",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-  });
+  const requestAssignments = (accessToken) =>
+    fetch(`${API_BASE_URL}/users/me`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+  let response = await requestAssignments(token);
+  if (response.status === 401 || response.status === 403) {
+    const refreshed = await authStore.refreshStoredSession();
+    if (refreshed.ok && refreshed.accessToken) {
+      token = refreshed.accessToken;
+      response = await requestAssignments(token);
+    } else if (refreshed.definitive) {
+      throw new Error(
+        "Your login session has expired. Sign in again; completed forms remain saved on this device.",
+      );
+    } else {
+      throw new Error(
+        "Could not refresh the login session. Check the internet connection and try sync again.",
+      );
+    }
+  }
 
   if (!response.ok) {
-    throw new Error(`Assignment refresh failed: ${response.statusText}`);
+    let serverMessage = "";
+    try {
+      const payload = await response.json();
+      serverMessage = payload?.error?.message || payload?.message || "";
+    } catch {
+      // Use the HTTP status fallback when the server response is not JSON.
+    }
+    const statusLabel = `HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ""}`;
+    throw new Error(
+      `Assignment refresh failed (${statusLabel})${serverMessage ? `: ${serverMessage}` : ""}`,
+    );
   }
 
   const user = unwrapApiData(await response.json());

@@ -260,7 +260,7 @@ export function getUser() {
   return null;
 }
 
-async function refreshStoredSession() {
+export async function refreshStoredSession() {
   const refreshToken = getRefreshToken();
   if (!refreshToken) {
     return { ok: false, definitive: true };
