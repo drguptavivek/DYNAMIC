@@ -771,3 +771,12 @@ Decisions:
 - Existing sync authentication is reused; no new questionnaire logic or workflow validation is introduced.
 Open:
 - Apply `deploy/sql/2026-09-25-form-response-submitter.sql` before deploying the API. Historical responses remain unattributed unless separately backfilled from reliable audit evidence.
+
+## 2026-09-28 (PFF 25 August workbook rebuild) [working]
+Goal: Replace the malformed May PFF extraction with the questions, coded options, and routing in `07 - pregnancy follow-up form.xlsx`.
+Decisions:
+- Preserve workflow-critical PFF field names while mapping workbook question numbers through `sourceCode`; code the workbook's uncoded shifted/temporarily-away option as 4.
+- In-person visits use Q1-Q19 plus on-site Q35-Q39; telephonic or away visits use the full Q1-Q34 path. Workbook skip instructions control ultrasound, care, hospitalization, and symptom follow-ups.
+- PFF ultrasound and ANC images reuse the durable offline attachment queue. A reported pregnancy end creates an immediate POF task locally and on the server; never-pregnant and death outcomes close the applicable future PFF workflow.
+Open:
+- Physical-device PFF testing, build/install, commit/push, and deployment remain pending explicit approval.

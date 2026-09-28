@@ -318,7 +318,10 @@ export function FieldAppProvider({ children }) {
     };
     if (taskForOpen.household_id) {
       try {
-        const context = getHouseholdContextSync(taskForOpen.household_id, taskForOpen.subject_id);
+        const memberId = taskForOpen.household_member_id
+          || taskForOpen.woman_id
+          || taskForOpen.subject_id;
+        const context = getHouseholdContextSync(taskForOpen.household_id, memberId);
         const { prefill, readOnlyFields: roFields } = buildPrefillForTask(
           taskForOpen,
           context.household,

@@ -701,9 +701,10 @@ export function toDraftSyncRecord(draft) {
   const householdId = getHouseholdIdFromDraft(draft);
   const [siteId, localityCode] = String(householdId || "").split("-");
   const jsonPayload = { ...(draft.json_payload || {}) };
-  const reports = jsonPayload.pef_ultrasound_reports;
-  if (reports?.reports) {
-    jsonPayload.pef_ultrasound_reports = {
+  for (const reportsField of ["pef_ultrasound_reports", "pff_additional_ultrasound_reports"]) {
+    const reports = jsonPayload[reportsField];
+    if (!reports?.reports) continue;
+    jsonPayload[reportsField] = {
       report_count: Number(reports.report_count) || 0,
       reports: reports.reports.map((report, index) => ({
         report_id: report.report_id || report.attachment_id || null,
@@ -719,14 +720,19 @@ export function toDraftSyncRecord(draft) {
       })),
     };
   }
-  const ancCardImage = jsonPayload.pef_anc_card_image;
-  if (ancCardImage && typeof ancCardImage === "object") {
-    jsonPayload.pef_anc_card_image = {
-      attachment_id: ancCardImage.attachment_id || null,
-      original_name: ancCardImage.original_name || null,
-      mime_type: ancCardImage.mime_type || null,
-      file_size: Number.isFinite(Number(ancCardImage.file_size))
-        ? Number(ancCardImage.file_size)
+  for (const imageField of [
+    "pef_anc_card_image",
+    "pff_first_ultrasound_report_image",
+    "pff_anc_card_image",
+  ]) {
+    const image = jsonPayload[imageField];
+    if (!image || typeof image !== "object") continue;
+    jsonPayload[imageField] = {
+      attachment_id: image.attachment_id || null,
+      original_name: image.original_name || null,
+      mime_type: image.mime_type || null,
+      file_size: Number.isFinite(Number(image.file_size))
+        ? Number(image.file_size)
         : null,
     };
   }

@@ -183,17 +183,76 @@ export function buildPefPrefill(member, household, task = null) {
  * Build prefill for Pregnancy Follow-up Form (PFF)
  * Read-only: pregnancy/woman identifiers
  */
-export function buildPffPrefill(member, household) {
-  if (!member || !household) {
-    return { prefill: {}, readOnlyFields: [] };
+export function buildPffPrefill(member, household, task = null, today = new Date()) {
+  if (!household) {
+    return {
+      prefill: { pff_visit_date: formatLocalIsoDate(today) },
+      readOnlyFields: [],
+    };
   }
 
+  const pregnancyId = task?.pregnancy_id || task?.subject_id || "";
+  const womanId = member?.individual_id || task?.woman_id || task?.household_member_id || "";
+  const sourceResponses = womanId ? listFormResponses({ subject_id: womanId }) : [];
+  const pregnancyResponses = pregnancyId ? listFormResponses({ subject_id: pregnancyId }) : [];
+  const responses = [...pregnancyResponses, ...sourceResponses];
+
+  function answersOf(response) {
+    if (!response) return {};
+    if (response.answers_json && typeof response.answers_json === "object") {
+      return response.answers_json;
+    }
+    try {
+      return JSON.parse(response.answers_json || response.json_payload || "{}");
+    } catch {
+      return {};
+    }
+  }
+
+  const pefResponse = responses.find((response) => String(response.form_code || "").toUpperCase() === "PEF");
+  const pefAnswers = answersOf(pefResponse);
+  const latestPff = responses
+    .filter((response) => String(response.form_code || "").toUpperCase() === "PFF")
+    .sort((left, right) => String(right.submitted_at || right.created_at || "")
+      .localeCompare(String(left.submitted_at || left.created_at || "")))[0];
+  const latestPffAnswers = answersOf(latestPff);
+
+  const wqResponse = responses.find((response) => {
+    const code = String(response.form_code || "").toUpperCase();
+    return code === "WQ" || code === "BWQ";
+  });
+  const wqAnswers = answersOf(wqResponse);
+  const height = wqAnswers.wq_height_measured_site_cm
+    || pefAnswers.pef_height_cm
+    || pefAnswers.pef_height_cm_automatically_filled_woman_s_questionnaire
+    || "";
+  const husbandName = member?.husband_name
+    || pefAnswers.pef_husband_name
+    || latestPffAnswers.pff_husband_name
+    || "";
+  const ultrasoundAlreadyRecorded = Number(pefAnswers.pef_first_ultrasound_report) === 1
+    || Boolean(pefAnswers.pef_ultrasound_reports?.report_count);
+
   const prefill = {
-    pff_woman_name: member.member_name,
-    pff_woman_hh_member_id: member.individual_id,
+    pff_pregnancy_id: pregnancyId,
+    pff_woman_name: member?.member_name || task?.subject_name || pefAnswers.pef_woman_name || "",
+    pff_husband_name: husbandName,
+    pff_current_address: household.address || pefAnswers.pef_current_address || "",
+    pff_last_contact_date: latestPffAnswers.pff_visit_date || "",
+    pff_visit_date: formatLocalIsoDate(today),
+    pff_ultrasound_form_already_been_filled: ultrasoundAlreadyRecorded ? 1 : "",
+    pff_height_cm_automatically_filled_woman_s_questionnaire: height,
   };
 
-  const readOnlyFields = ["pff_woman_name", "pff_woman_hh_member_id"];
+  const readOnlyFields = [
+    "pff_pregnancy_id",
+    "pff_woman_name",
+    "pff_husband_name",
+    "pff_current_address",
+    "pff_ultrasound_form_already_been_filled",
+  ].filter((fieldName) => prefill[fieldName] !== "");
+  if (prefill.pff_last_contact_date) readOnlyFields.push("pff_last_contact_date");
+  if (height) readOnlyFields.push("pff_height_cm_automatically_filled_woman_s_questionnaire");
 
   return { prefill, readOnlyFields };
 }
@@ -338,7 +397,7 @@ export function buildPrefillForTask(task, household, member) {
     case "PEF":
       return buildPefPrefill(member, household, task);
     case "PFF":
-      return buildPffPrefill(member, household);
+      return buildPffPrefill(member, household, task);
     case "PSF":
       return buildPsfPrefill(member, household);
     case "POF":

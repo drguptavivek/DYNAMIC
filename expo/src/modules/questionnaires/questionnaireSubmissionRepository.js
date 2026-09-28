@@ -33,6 +33,9 @@ const WEB_SQLITE_STORAGE_KEY = "dynamic_web_sqlite_v2";
 const HOUSEHOLD_STORAGE_KEY = "dynamic_households_v4";
 const MEMBER_STORAGE_KEY = "dynamic_household_members_v4";
 const HHQ_COMPETENT_RESPONDENT_FIELD = "hhq_competent_respondent_available";
+const PFF_FIRST_ULTRASOUND_IMAGE_FIELD = "pff_first_ultrasound_report_image";
+const PFF_ADDITIONAL_ULTRASOUND_REPORTS_FIELD = "pff_additional_ultrasound_reports";
+const PFF_ANC_CARD_IMAGE_FIELD = "pff_anc_card_image";
 
 function getStorage() {
   if (typeof window === "undefined" || !window.localStorage) return null;
@@ -675,6 +678,61 @@ async function promotePefLocally(response, taskContext) {
   await savePefDerivedWorkflow(pregnancy, tasks);
 }
 
+async function promotePffLocally(response, taskContext) {
+  if (response.form_code !== "PFF" || !response.household_id || !response.subject_id) return;
+  const womanId = taskContext?.woman_id || taskContext?.household_member_id;
+  if (!womanId) return;
+  const promotion = promoteFormSubmission({
+    form_code: "PFF",
+    event_id: `local-pregnancy-followup:${response.subject_id}:${response.id}`,
+    site_id: Number(response.site_id),
+    locality_code: String(response.locality_code || ""),
+    household_id: response.household_id,
+    subject_id: response.subject_id,
+    answers_json: response.answers_json,
+    recorded_at: response.submitted_at,
+    task_id: response.task_id,
+    task_key: taskContext?.task_key,
+    form_response_id: response.id,
+    device_id: response.device_id,
+    context: {
+      pregnancy_id: taskContext?.pregnancy_id || response.subject_id,
+      woman_id: womanId,
+    },
+  });
+  if (!promotion) return;
+  await saveDomainEvent(promotion.event, response.submitted_at);
+  await saveTasks(promotion.task_descriptors.map((descriptor) =>
+    toLocalTask(descriptor, {
+      submittedAt: response.submitted_at,
+      subjectName: taskContext?.subject_name,
+      localityCode: response.locality_code,
+      sourceFormResponseId: response.id,
+    }),
+  ));
+
+  const pregnancyStatus = Number(response.answers_json?.pff_pregnancy_status);
+  const vitalStatus = Number(response.answers_json?.pff_vital_migration_status_woman);
+  if (pregnancyStatus === 2 || pregnancyStatus === 3 || vitalStatus === 2) {
+    try {
+      const taskRepository = await import("../tasks/taskRepository.js");
+      taskRepository.closeLocalPffWorkflow?.({
+        pregnancyId: taskContext?.pregnancy_id || response.subject_id,
+        womanId,
+        currentTaskId: response.task_id,
+        closeAllWomanTasks: vitalStatus === 2,
+        reason: vitalStatus === 2
+          ? "woman_reported_dead"
+          : pregnancyStatus === 3
+            ? "never_pregnant"
+            : "pregnancy_outcome_reported",
+      });
+    } catch (error) {
+      console.warn("Could not close local PFF workflow:", error);
+    }
+  }
+}
+
 async function promoteWqLocally(response, taskContext) {
   if (response.form_code !== "WQ" || !response.household_id || !response.subject_id) return;
   if (isWqVisitorAnswers(response.answers_json)) return;
@@ -798,6 +856,9 @@ export async function saveQuestionnaireSubmission({
   let finalPayload = payload || {};
   let finalizedUltrasoundReports = null;
   let finalizedAncCardImage = null;
+  let finalizedPffFirstUltrasoundImage = null;
+  let finalizedPffAdditionalUltrasoundReports = null;
+  let finalizedPffAncCardImage = null;
   if (
     String(formCode || "").toUpperCase() === "PEF" &&
     Number(finalPayload[PEF_ULTRASOUND_AVAILABLE_FIELD]) === 1
@@ -828,6 +889,46 @@ export async function saveQuestionnaireSubmission({
     finalPayload = { ...finalPayload };
     delete finalPayload[PEF_ANC_CARD_IMAGE_FIELD];
   }
+  if (String(formCode || "").toUpperCase() === "PFF") {
+    if (Number(finalPayload.pff_first_ultrasound_report) === 1) {
+      finalizedPffFirstUltrasoundImage = finalPayload[PFF_FIRST_ULTRASOUND_IMAGE_FIELD];
+      const attachmentError = validatePefAncCardImage(finalizedPffFirstUltrasoundImage);
+      if (attachmentError) throw new Error(attachmentError.replace("ANC card", "ultrasound report"));
+      finalPayload = {
+        ...finalPayload,
+        [PFF_FIRST_ULTRASOUND_IMAGE_FIELD]: sanitizePefAncCardImage(finalizedPffFirstUltrasoundImage),
+      };
+    } else if (Object.prototype.hasOwnProperty.call(finalPayload, PFF_FIRST_ULTRASOUND_IMAGE_FIELD)) {
+      finalPayload = { ...finalPayload };
+      delete finalPayload[PFF_FIRST_ULTRASOUND_IMAGE_FIELD];
+    }
+    if (Number(finalPayload.pff_other_ultrasound_tests_since_first) === 1) {
+      finalizedPffAdditionalUltrasoundReports = finalPayload[PFF_ADDITIONAL_ULTRASOUND_REPORTS_FIELD];
+      const attachmentError = validatePefUltrasoundReports(finalizedPffAdditionalUltrasoundReports);
+      if (attachmentError) throw new Error(attachmentError);
+      finalPayload = {
+        ...finalPayload,
+        [PFF_ADDITIONAL_ULTRASOUND_REPORTS_FIELD]: sanitizePefUltrasoundReports(
+          finalizedPffAdditionalUltrasoundReports,
+        ),
+      };
+    } else if (Object.prototype.hasOwnProperty.call(finalPayload, PFF_ADDITIONAL_ULTRASOUND_REPORTS_FIELD)) {
+      finalPayload = { ...finalPayload };
+      delete finalPayload[PFF_ADDITIONAL_ULTRASOUND_REPORTS_FIELD];
+    }
+    if (Number(finalPayload.pff_may_see_anc_card) === 1) {
+      finalizedPffAncCardImage = finalPayload[PFF_ANC_CARD_IMAGE_FIELD];
+      const attachmentError = validatePefAncCardImage(finalizedPffAncCardImage);
+      if (attachmentError) throw new Error(attachmentError);
+      finalPayload = {
+        ...finalPayload,
+        [PFF_ANC_CARD_IMAGE_FIELD]: sanitizePefAncCardImage(finalizedPffAncCardImage),
+      };
+    } else if (Object.prototype.hasOwnProperty.call(finalPayload, PFF_ANC_CARD_IMAGE_FIELD)) {
+      finalPayload = { ...finalPayload };
+      delete finalPayload[PFF_ANC_CARD_IMAGE_FIELD];
+    }
+  }
 
   const response = buildQuestionnaireResponse({
     formCode,
@@ -857,6 +958,33 @@ export async function saveQuestionnaireSubmission({
       value: { reports: [finalizedAncCardImage] },
     });
   }
+  if (finalizedPffFirstUltrasoundImage) {
+    const { saveFinalizedAttachments } = await import("../attachments/attachmentRepository.js");
+    await saveFinalizedAttachments({
+      response,
+      questionName: PFF_FIRST_ULTRASOUND_IMAGE_FIELD,
+      value: { reports: [finalizedPffFirstUltrasoundImage] },
+      womanId: taskContext?.woman_id || taskContext?.household_member_id,
+    });
+  }
+  if (finalizedPffAdditionalUltrasoundReports) {
+    const { saveFinalizedAttachments } = await import("../attachments/attachmentRepository.js");
+    await saveFinalizedAttachments({
+      response,
+      questionName: PFF_ADDITIONAL_ULTRASOUND_REPORTS_FIELD,
+      value: finalizedPffAdditionalUltrasoundReports,
+      womanId: taskContext?.woman_id || taskContext?.household_member_id,
+    });
+  }
+  if (finalizedPffAncCardImage) {
+    const { saveFinalizedAttachments } = await import("../attachments/attachmentRepository.js");
+    await saveFinalizedAttachments({
+      response,
+      questionName: PFF_ANC_CARD_IMAGE_FIELD,
+      value: { reports: [finalizedPffAncCardImage] },
+      womanId: taskContext?.woman_id || taskContext?.household_member_id,
+    });
+  }
 
   await saveCanonicalFormResponse(response);
   if (correctionResponseId) {
@@ -876,6 +1004,7 @@ export async function saveQuestionnaireSubmission({
   await promoteHhqLocally(response);
   await promoteWqLocally(response, taskContext);
   await promotePefLocally(response, taskContext);
+  await promotePffLocally(response, taskContext);
   if (
     response.form_code === "PEF" &&
     response.household_id &&

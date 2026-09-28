@@ -675,7 +675,9 @@ async function promotePff(
       return;
     }
 
-    if (answers.pff_pregnancy_status === 2 || answers.pff_pregnancy_status === "2") {
+    const pregnancyStatus = Number(answers.pff_pregnancy_status);
+    const vitalStatus = Number(answers.pff_vital_migration_status_woman);
+    if (pregnancyStatus === 2) {
       await getDb()
         .update(schema.pregnancies)
         .set({
@@ -683,6 +685,70 @@ async function promotePff(
           updated_at: now,
         })
         .where(eq(schema.pregnancies.pregnancy_id, pregnancy.pregnancy_id));
+
+      const promotion = promoteFormSubmission({
+        form_code: "PFF",
+        event_id: eventId,
+        site_id: pregnancy.site_id,
+        locality_code: pregnancy.locality_code,
+        household_id: pregnancy.household_id || householdId,
+        subject_id: pregnancy.pregnancy_id,
+        answers_json: answers,
+        recorded_at: (response.created_offline_at ?? now).toISOString(),
+        task_id: response.task_id,
+        form_response_id: response.form_response_id,
+        device_id: response.device_id,
+        context: {
+          pregnancy_id: pregnancy.pregnancy_id,
+          woman_id: pregnancy.woman_id,
+        },
+      });
+      if (promotion) await writeTasksFromDescriptors(promotion.task_descriptors);
+    }
+
+    if (pregnancyStatus === 2 || pregnancyStatus === 3 || vitalStatus === 2) {
+      await getDb()
+        .update(schema.followUpTasks)
+        .set({
+          status: "superseded",
+          closed_at: now,
+          closed_reason: vitalStatus === 2
+            ? "woman_reported_dead"
+            : pregnancyStatus === 3
+              ? "never_pregnant"
+              : "pregnancy_outcome_reported",
+          superseded_by_event_id: eventId,
+          updated_at: now,
+        })
+        .where(and(
+          eq(schema.followUpTasks.pregnancy_id, pregnancy.pregnancy_id),
+          eq(schema.followUpTasks.task_type, "PFF"),
+          response.task_id ? ne(schema.followUpTasks.task_id, response.task_id) : undefined,
+          inArray(schema.followUpTasks.status, ["open", "planned", "pending", "due", "overdue"]),
+        ));
+    }
+
+    if (pregnancyStatus === 3 || vitalStatus === 2) {
+      await getDb()
+        .update(schema.pregnancies)
+        .set({ pregnancy_status: "closed", updated_at: now })
+        .where(eq(schema.pregnancies.pregnancy_id, pregnancy.pregnancy_id));
+    }
+
+    if (vitalStatus === 2) {
+      await getDb()
+        .update(schema.followUpTasks)
+        .set({
+          status: "cancelled",
+          closed_at: now,
+          closed_reason: "woman_reported_dead",
+          updated_at: now,
+        })
+        .where(and(
+          eq(schema.followUpTasks.woman_id, pregnancy.woman_id),
+          response.task_id ? ne(schema.followUpTasks.task_id, response.task_id) : undefined,
+          inArray(schema.followUpTasks.status, ["open", "planned", "pending", "due", "overdue"]),
+        ));
     }
   } catch (err) {
     console.error(`Error in promotePff for ${householdId}/${subjectId}:`, err);

@@ -173,6 +173,58 @@ export interface PregnancyOutcomeTaskGenerationInput {
   config?: ProtocolConfig;
 }
 
+export interface PregnancyFollowupOutcomeTaskGenerationInput {
+  household_id: string;
+  pregnancy_id: string;
+  woman_id: string;
+  report_date: string;
+  source_event_id: string;
+  config?: ProtocolConfig;
+}
+
+export function generatePregnancyFollowupOutcomeTaskDescriptors(
+  input: PregnancyFollowupOutcomeTaskGenerationInput,
+): TaskDescriptor[] {
+  const config = getConfig(input.config);
+  const modeRule = getModeRule(config, "POF");
+  const disposition = getAttemptDisposition(config, "POF");
+  const availability = getFormAvailability(config, "POF");
+  return [{
+    task_key: buildTaskKey(
+      input.household_id,
+      "pregnancy",
+      input.pregnancy_id,
+      "POF",
+      "POF-outcome-reported",
+      input.report_date,
+      config.rules_version,
+    ),
+    household_id: input.household_id,
+    subject_type: "pregnancy",
+    subject_id: input.pregnancy_id,
+    woman_id: input.woman_id,
+    pregnancy_id: input.pregnancy_id,
+    task_type: "POF",
+    form_code: "POF",
+    protocol_visit_label: "POF-outcome-reported",
+    generation_source: "event_triggered",
+    source_event_id: input.source_event_id,
+    anchor_date: input.report_date,
+    window_start: input.report_date,
+    target_date: input.report_date,
+    deadline_date: addDaysIso(input.report_date, 14),
+    default_expected_mode: modeRule.default_mode,
+    allowed_modes: modeRule.allowed_modes,
+    mode_rule_strength: modeRule.strength,
+    max_failed_attempts: disposition.max_failed_attempts,
+    requires_final_close_reason: disposition.requires_final_close_reason,
+    rules_version: config.rules_version,
+    form_availability: availability.availability,
+    action_state: "pending",
+    disabled_reason: availability.disabled_reason,
+  }];
+}
+
 export function generatePregnancyOutcomeTaskDescriptors(
   input: PregnancyOutcomeTaskGenerationInput,
 ): TaskDescriptor[] {

@@ -135,6 +135,9 @@ const WQ_HUSBAND_PARTNER_LINE_NUMBER_FIELD = "wq_husband_partner_line_number";
 const WQ_EXCLUDED_MESSAGE = "This women is excluded from the study";
 const WQ_RESCHEDULE_MESSAGE = "Reschedule has been setup";
 const PEF_ULTRASOUND_FIELD = "pef_any_time_during_pregnancy_ultrasound";
+const PFF_FIRST_ULTRASOUND_IMAGE_FIELD = "pff_first_ultrasound_report_image";
+const PFF_ADDITIONAL_ULTRASOUND_REPORTS_FIELD = "pff_additional_ultrasound_reports";
+const PFF_ANC_CARD_IMAGE_FIELD = "pff_anc_card_image";
 
 function isHouseholdQuestionnaire(form) {
   return String(form?.form_code || "").toUpperCase() === "HHQ";
@@ -154,6 +157,10 @@ function isPregnancySurveillanceForm(form) {
 
 function isPregnancyEnrollmentForm(form) {
   return String(form?.form_code || "").toUpperCase() === "PEF";
+}
+
+function isPregnancyFollowupForm(form) {
+  return String(form?.form_code || "").toUpperCase() === "PFF";
 }
 
 function clampWqVisitNo(value) {
@@ -632,6 +639,38 @@ export function QuestionnaireDashboard({
         ) {
           const imageValue = options.value ?? sender.getValue(PEF_ANC_CARD_IMAGE_FIELD);
           const message = validatePefAncCardImage(imageValue);
+          if (message) options.error = message;
+        }
+      });
+    }
+
+    if (isPregnancyFollowupForm(form)) {
+      model.onValidateQuestion.add((sender, options) => {
+        if (
+          options.name === PFF_FIRST_ULTRASOUND_IMAGE_FIELD &&
+          Number(sender.getValue("pff_first_ultrasound_report")) === 1
+        ) {
+          const message = validatePefAncCardImage(
+            options.value ?? sender.getValue(PFF_FIRST_ULTRASOUND_IMAGE_FIELD),
+          );
+          if (message) options.error = message.replace("ANC card", "ultrasound report");
+        }
+        if (
+          options.name === PFF_ADDITIONAL_ULTRASOUND_REPORTS_FIELD &&
+          Number(sender.getValue("pff_other_ultrasound_tests_since_first")) === 1
+        ) {
+          const message = validatePefUltrasoundReports(
+            options.value ?? sender.getValue(PFF_ADDITIONAL_ULTRASOUND_REPORTS_FIELD),
+          );
+          if (message) options.error = message;
+        }
+        if (
+          options.name === PFF_ANC_CARD_IMAGE_FIELD &&
+          Number(sender.getValue("pff_may_see_anc_card")) === 1
+        ) {
+          const message = validatePefAncCardImage(
+            options.value ?? sender.getValue(PFF_ANC_CARD_IMAGE_FIELD),
+          );
           if (message) options.error = message;
         }
       });

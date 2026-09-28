@@ -1,6 +1,8 @@
 import type { DomainEventEnvelope, PregnancyFollowupCompletedPayload } from "../types";
 import type { BaseEventInput, EventPromotionResult } from "./types";
+import { generatePregnancyFollowupOutcomeTaskDescriptors } from "../task-generation/pregnancy";
 import type { ProtocolConfig, TaskDescriptor } from "./workflowHelpers";
+import { noWorkflowForHeldEvent } from "./workflowHelpers";
 
 export const EVENT_TYPE = "pregnancy_followup_completed";
 
@@ -51,8 +53,21 @@ export function reduceEvent(): null {
   return null;
 }
 
-export function planWorkflow(): TaskDescriptor[] {
-  return [];
+export function planWorkflow(input: {
+  event: DomainEventEnvelope<PregnancyFollowupCompletedPayload>;
+  config?: ProtocolConfig;
+}): TaskDescriptor[] {
+  if (noWorkflowForHeldEvent(input.event)) return [];
+  const payload = input.event.payload;
+  if (Number(payload.pregnancy_status) !== 2) return [];
+  return generatePregnancyFollowupOutcomeTaskDescriptors({
+    household_id: payload.household_id,
+    pregnancy_id: payload.pregnancy_id,
+    woman_id: payload.woman_id,
+    report_date: payload.visit_date,
+    source_event_id: input.event.event_id,
+    config: input.config,
+  });
 }
 
 export function promoteEvidence(
@@ -62,7 +77,7 @@ export function promoteEvidence(
   return {
     event,
     projection: reduceEvent(),
-    task_descriptors: planWorkflow(),
+    task_descriptors: planWorkflow({ event, config: input.config }),
     data_quality_flags: [],
   };
 }

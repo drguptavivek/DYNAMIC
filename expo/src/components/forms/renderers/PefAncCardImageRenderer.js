@@ -26,6 +26,7 @@ export function PefAncCardImageRenderer({
   onRequestTopLevelFocus,
 }) {
   const image = normalizePefAncCardImage(question.value);
+  const imageLabel = question.imageCategory === "ANC" ? "ANC card" : "report";
   const [error, setError] = useState("");
 
   function commit(next) {
@@ -68,7 +69,8 @@ export function PefAncCardImageRenderer({
           });
       if (result.canceled || !result.assets?.[0]) return;
 
-      const attachmentId = image?.attachment_id || `pef-anc-${Crypto.randomUUID()}`;
+      const attachmentId = image?.attachment_id
+        || `${String(question.name || "form-image").replace(/[^a-zA-Z0-9_-]/g, "-")}-${Crypto.randomUUID()}`;
       const stored = await persistPefAncCardImage(result.assets[0], attachmentId);
       if (image?.local_uri && image.local_uri !== stored.local_uri) {
         await removePersistedPefAncCardImage(image.local_uri);
@@ -76,7 +78,7 @@ export function PefAncCardImageRenderer({
       commit({ attachment_id: attachmentId, ...stored });
       restoreUploadFocus();
     } catch (storageError) {
-      setError(storageError?.message || "Could not save the ANC card image on this device.");
+      setError(storageError?.message || `Could not save the ${imageLabel} image on this device.`);
       restoreUploadFocus();
     } finally {
       endAppLockMediaActivity();
@@ -92,7 +94,7 @@ export function PefAncCardImageRenderer({
   return (
     <QuestionFrame locale={locale} question={question}>
       {image?.local_uri ? <Image source={{ uri: image.local_uri }} style={styles.preview} /> : null}
-      {image?.original_name ? <Text style={styles.fileName}>{`File: ${image.original_name}`}</Text> : null}
+      <Text style={styles.qualityNote}>Please make sure the image is not blurred or cropped. Ensure image quality.</Text>
       <View style={styles.actions}>
         <Pressable onPress={() => chooseImage("camera")} style={controlStyles.button}>
           <Text style={controlStyles.buttonText}>{image?.local_uri ? "Retake" : "Camera"}</Text>
@@ -119,7 +121,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: "#e5e7eb",
   },
-  fileName: { color: "#475467", fontSize: 13, marginTop: 8 },
+  qualityNote: { color: "#475467", fontSize: 13, marginTop: 8 },
   actions: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 },
   removeButton: {
     minHeight: 44,

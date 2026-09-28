@@ -23,7 +23,7 @@ async function nativeDb() {
   return getDb();
 }
 
-export async function saveFinalizedAttachments({ response, questionName, value }) {
+export async function saveFinalizedAttachments({ response, questionName, value, womanId = null }) {
   const reports = Array.isArray(value?.reports) ? value.reports : [];
   const now = new Date().toISOString();
   const rows = reports.flatMap((report, reportIndex) => {
@@ -36,7 +36,7 @@ export async function saveFinalizedAttachments({ response, questionName, value }
         form_code: response.form_code,
         question_name: questionName,
         household_id: response.household_id,
-        woman_id: response.subject_id,
+        woman_id: womanId || response.subject_id,
         report_sequence: reportIndex + 1,
         image_sequence: imageIndex + 1,
         ultrasound_date: report.ultrasound_date || null,

@@ -2,6 +2,7 @@ import {
   birthAssessmentCompleted,
   fieldEventRegistry,
   pregnancyEnrolled,
+  pregnancyFollowupCompleted,
   pregnancyOutcomeRecorded,
 } from "../index";
 import { promoteFormSubmission } from "../../index";
@@ -158,6 +159,48 @@ describe("field event modules", () => {
     expect(tasks.some((task) => task.task_type === "PFF")).toBe(true);
     expect(tasks.some((task) => task.task_type === "UF")).toBe(true);
     expect(tasks.every((task) => task.source_event_id === "evt-pef-1")).toBe(true);
+  });
+
+  it("creates an immediate POF task when PFF reports that pregnancy ended", () => {
+    const event = pregnancyFollowupCompleted.buildEvent({
+      event_id: "evt-pff-outcome-1",
+      site_id: 1,
+      locality_code: "01",
+      household_id: "1-01-0001-01",
+      pregnancy_id: "preg-1",
+      woman_id: "woman-1",
+      visit_date: "2026-10-20",
+      pregnancy_status: "2",
+      recorded_at: "2026-10-20T10:00:00.000Z",
+      form_response_id: "resp-pff-1",
+      task_id: "task-pff-1",
+    });
+
+    expect(pregnancyFollowupCompleted.planWorkflow({ event })).toEqual([
+      expect.objectContaining({
+        task_key: "1-01-0001-01|pregnancy|preg-1|POF|POF-outcome-reported|2026-10-20|v1",
+        task_type: "POF",
+        subject_id: "preg-1",
+        woman_id: "woman-1",
+        target_date: "2026-10-20",
+      }),
+    ]);
+  });
+
+  it("does not create a POF task while PFF reports an ongoing pregnancy", () => {
+    const event = pregnancyFollowupCompleted.buildEvent({
+      event_id: "evt-pff-ongoing-1",
+      site_id: 1,
+      locality_code: "01",
+      household_id: "1-01-0001-01",
+      pregnancy_id: "preg-1",
+      woman_id: "woman-1",
+      visit_date: "2026-10-20",
+      pregnancy_status: "1",
+      recorded_at: "2026-10-20T10:00:00.000Z",
+    });
+
+    expect(pregnancyFollowupCompleted.planWorkflow({ event })).toEqual([]);
   });
 
   it("plans BAF tasks from pregnancy_outcome_recorded", () => {

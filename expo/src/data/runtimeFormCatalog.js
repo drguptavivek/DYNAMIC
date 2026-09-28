@@ -1,7 +1,7 @@
 import { getBundledFormByCode } from "./formCatalog";
 import { getCachedProtocolForm } from "../modules/sync/syncService.js";
 
-const CLIENT_RENDERER_FIELDS = ["renderAs"];
+const CLIENT_RENDERER_FIELDS = ["renderAs", "imageCategory"];
 
 function visitElements(elements, callback) {
   for (const element of elements || []) {
@@ -53,7 +53,7 @@ export function getRuntimeFormByCode(formCode) {
     // publishes the same form version. This prevents an older cached protocol
     // payload from silently replacing the updated offline questionnaire.
     if (
-      normalizedCode === "PEF" &&
+      ["PEF", "PFF"].includes(normalizedCode) &&
       String(cachedForm.version || "") !== String(bundledForm?.version || "")
     ) {
       return bundledForm;

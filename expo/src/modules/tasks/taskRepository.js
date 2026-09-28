@@ -1686,6 +1686,46 @@ export function supersedeLocalPsfTasksForWoman({ householdId, subjectId, reason 
   }
 }
 
+export function closeLocalPffWorkflow({
+  pregnancyId,
+  womanId,
+  currentTaskId,
+  closeAllWomanTasks = false,
+  reason = "pregnancy_outcome_reported",
+} = {}) {
+  if (!pregnancyId || !womanId) return 0;
+  const db = getDb();
+  const now = new Date().toISOString();
+  const terminalStatuses = "'completed','missed','cancelled','superseded','closed','closed_final_reason'";
+  try {
+    const pffResult = db.runSync(
+      `UPDATE follow_up_tasks
+       SET status = 'superseded', lifecycle_status = 'superseded',
+           closed_reason = ?, closed_at = ?, updated_at = ?
+       WHERE pregnancy_id = ? AND UPPER(task_type) = 'PFF'
+         AND (? IS NULL OR id <> ?)
+         AND status NOT IN (${terminalStatuses})`,
+      [reason, now, now, pregnancyId, currentTaskId || null, currentTaskId || null],
+    );
+    let changes = Number(pffResult?.changes || 0);
+    if (closeAllWomanTasks) {
+      const womanResult = db.runSync(
+        `UPDATE follow_up_tasks
+         SET status = 'cancelled', lifecycle_status = 'cancelled',
+             closed_reason = ?, closed_at = ?, updated_at = ?
+         WHERE woman_id = ? AND (? IS NULL OR id <> ?)
+           AND status NOT IN (${terminalStatuses})`,
+        [reason, now, now, womanId, currentTaskId || null, currentTaskId || null],
+      );
+      changes += Number(womanResult?.changes || 0);
+    }
+    return changes;
+  } catch (error) {
+    console.error("Error closing local PFF workflow:", error);
+    throw error;
+  }
+}
+
 export function getTaskAttempts(taskId) {
   const db = getDb();
   try {
