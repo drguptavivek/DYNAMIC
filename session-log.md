@@ -1,3 +1,11 @@
+## 2026-09-28 (PFF linked PEF identity and previous visit prefill) [verified]
+Goal: Auto-fill PFF pregnancy ID, woman name, and husband name from the PEF that generated the task, and Q5 from the latest earlier PFF.
+Decisions:
+- Prefer the task's linked PEF response over newer unrelated PEF responses for the same woman; missing PEF values remain manually editable.
+- Use the latest earlier PFF visit date as the last-contact date and make it read-only only when that earlier date exists; the first PFF remains manually selectable.
+Verification:
+- Updated PFF regression, source-syntax validation, bundled-form validation, and Expo lint pass with no errors (existing warnings remain).
+
 ## 2026-09-25 (Refresh Worklist automatically after sync) [verified]
 Goal: Show newly pulled tasks immediately after Sync Now without requiring a manual Worklist refresh.
 Decisions:

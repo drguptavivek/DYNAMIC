@@ -7,6 +7,12 @@ import {
   assertNativeSurveySupport,
   getNativeRendererKind,
 } from "../components/forms/nativeSurveyModel.js";
+import {
+  buildPffLinkedSourcePrefill,
+  findPffSourcePefResponse,
+  findPreviousPffResponse,
+  parsePffSourceAnswers,
+} from "../lib/pffPrefillHelpers.js";
 
 const elements = form.pages.flatMap((page) => page.elements || []);
 const byName = new Map(elements.map((element) => [element.name, element]));
@@ -61,5 +67,85 @@ assert.equal(model.getQuestionByName("pff_other_ultrasound_tests_since_first").i
 
 model.setValue("pff_pregnancy_status", 3);
 assert.equal(model.getPageByName("page_02_care_and_symptoms").isVisible, false);
+
+const linkedPef = {
+  id: "pef-response-linked",
+  form_code: "PEF",
+  submitted_at: "2026-09-20T10:00:00.000Z",
+  answers_json: {
+    pef_pregnancy_id: "1-01-0001-02-1",
+    pef_woman_name: "Sita Devi",
+    pef_husband_name: "Mohan Lal",
+  },
+};
+const newerPef = {
+  id: "pef-response-newer",
+  form_code: "PEF",
+  submitted_at: "2026-09-21T10:00:00.000Z",
+  answers_json: JSON.stringify({ pef_pregnancy_id: "wrong-pregnancy" }),
+};
+assert.equal(
+  findPffSourcePefResponse(
+    [newerPef, linkedPef],
+    { source_form_response_id: linkedPef.id },
+  ),
+  linkedPef,
+  "PFF identity must come from the PEF response that generated its task",
+);
+assert.deepEqual(parsePffSourceAnswers(linkedPef), linkedPef.answers_json);
+assert.deepEqual(parsePffSourceAnswers(newerPef), { pef_pregnancy_id: "wrong-pregnancy" });
+
+const olderPff = {
+  id: "pff-response-older",
+  task_id: "pff-task-1",
+  form_code: "PFF",
+  submitted_at: "2026-09-22T10:00:00.000Z",
+  answers_json: { pff_visit_date: "2026-09-22" },
+};
+const latestPff = {
+  id: "pff-response-latest",
+  task_id: "pff-task-2",
+  form_code: "PFF",
+  submitted_at: "2026-09-25T10:00:00.000Z",
+  answers_json: { pff_visit_date: "2026-09-25" },
+};
+assert.equal(
+  findPreviousPffResponse([olderPff, latestPff], { id: "pff-task-3" }),
+  latestPff,
+  "PFF last visit date must come from the latest earlier PFF",
+);
+assert.equal(
+  findPreviousPffResponse([latestPff], { id: "pff-task-2" }),
+  null,
+  "The first PFF must leave last visit date available for manual entry",
+);
+assert.deepEqual(
+  buildPffLinkedSourcePrefill(
+    [newerPef, linkedPef, olderPff, latestPff],
+    { id: "pff-task-3", source_form_response_id: linkedPef.id },
+  ),
+  {
+    pefAnswers: linkedPef.answers_json,
+    previousPffAnswers: latestPff.answers_json,
+    prefill: {
+      pff_pregnancy_id: "1-01-0001-02-1",
+      pff_woman_name: "Sita Devi",
+      pff_husband_name: "Mohan Lal",
+      pff_last_contact_date: "2026-09-25",
+    },
+    readOnlyFields: [
+      "pff_pregnancy_id",
+      "pff_woman_name",
+      "pff_husband_name",
+      "pff_last_contact_date",
+    ],
+  },
+);
+const firstPffPrefill = buildPffLinkedSourcePrefill(
+  [linkedPef],
+  { id: "pff-task-1", source_form_response_id: linkedPef.id },
+);
+assert.equal(firstPffPrefill.prefill.pff_last_contact_date, "");
+assert.equal(firstPffPrefill.readOnlyFields.includes("pff_last_contact_date"), false);
 
 console.log("Validated updated PFF workbook mapping and routing.");
