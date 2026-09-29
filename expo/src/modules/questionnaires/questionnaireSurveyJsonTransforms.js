@@ -10,6 +10,9 @@ import {
 
 const HHQ_FORM_CODE = "HHQ";
 const PEF_FORM_CODE = "PEF";
+const PFF_FORM_CODE = "PFF";
+const PFF_VITAL_STATUS_FIELD = "pff_vital_migration_status_woman";
+const PFF_DEAD_STOP_MESSAGE_FIELD = "pff_dead_stop_message";
 const PEF_ULTRASOUND_DONE_FIELD = "pef_any_time_during_pregnancy_ultrasound";
 const PEF_ULTRASOUND_AVAILABLE_FIELD = "pef_first_ultrasound_report";
 const PEF_ULTRASOUND_REPORTS_FIELD = "pef_ultrasound_reports";
@@ -283,6 +286,36 @@ function applyPefNegativeUptOutcome(surveyJson) {
       },
     ],
   };
+}
+
+function applyPffDeathStop(surveyJson) {
+  const deathGuard = `{${PFF_VITAL_STATUS_FIELD}} != 2`;
+  const withDeathGuard = (visibleIf) => visibleIf
+    ? `(${visibleIf}) and (${deathGuard})`
+    : deathGuard;
+  let foundVitalStatus = false;
+
+  const pages = (surveyJson.pages || []).map((page) => {
+    const vitalStatusIndex = (page.elements || []).findIndex(
+      (element) => element.name === PFF_VITAL_STATUS_FIELD,
+    );
+    if (vitalStatusIndex >= 0) {
+      foundVitalStatus = true;
+      return {
+        ...page,
+        elements: page.elements.map((element, index) => (
+          index <= vitalStatusIndex || element.name === PFF_DEAD_STOP_MESSAGE_FIELD
+            ? element
+            : { ...element, visibleIf: withDeathGuard(element.visibleIf) }
+        )),
+      };
+    }
+    return foundVitalStatus
+      ? { ...page, visibleIf: withDeathGuard(page.visibleIf) }
+      : page;
+  });
+
+  return foundVitalStatus ? { ...surveyJson, pages } : surveyJson;
 }
 
 function applyMandatoryHhqSurveyJson(surveyJson) {
@@ -1412,6 +1445,9 @@ export function prepareQuestionnaireSurveyJson(form) {
     surveyJson = addPefUltrasoundReports(surveyJson);
     surveyJson = addPefAncCardImage(surveyJson);
     surveyJson = applyPefNegativeUptOutcome(surveyJson);
+  }
+  if (String(form?.form_code || "").toUpperCase() === PFF_FORM_CODE) {
+    surveyJson = applyPffDeathStop(surveyJson);
   }
   if (isHhqForm(form)) {
     surveyJson = allowMultipleHhqMobileNumbers(surveyJson);

@@ -827,3 +827,10 @@ Goal: Remind the field worker to fill POF after a finalized PFF reports the preg
 Decisions:
 - Show `Fill pregnancy outcome form.` only after successful PFF final save when Q10=2 and Q8 is not Dead; dismiss to Completed Forms.
 - Other PFF outcomes and all other forms retain their existing completion navigation.
+
+## 2026-09-29 (PFF Q8 cached-form death stop) [local verification]
+Goal: Hide all PFF questions after Q8 when Dead is selected, including for older synced definitions sharing the bundled version label.
+Decisions:
+- Apply the death visibility guard while preparing PFF for Survey Core; preserve the Q8 question and death-stop message, and leave other forms unchanged.
+- Regression-test an older cached PFF whose Q12 and later-page visibility rules lack the guard, including correction back to Alive.
+Open: Device confirmation and APK/server update await explicit request; the temporary immediate-PFF testing override remains local-only.

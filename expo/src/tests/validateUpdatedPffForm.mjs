@@ -113,6 +113,24 @@ for (const element of firstPageElements.slice(firstPageElements.findIndex((item)
   if (element.name === "pff_dead_stop_message") continue;
   assert.equal(model.getQuestionByName(element.name).isVisible, false, `${element.name} must stop after a reported death`);
 }
+
+// A synced PFF can retain this version label while carrying older visibility
+// rules. The runtime stop must still hide Q12 and every later section.
+const staleCachedPff = structuredClone(form);
+const staleFirstPage = staleCachedPff.pages[0];
+delete staleFirstPage.elements.find((item) => item.name === "pff_any_time_during_pregnancy_ultrasound_test").visibleIf;
+delete staleCachedPff.pages[1].visibleIf;
+const staleModel = new Model(prepareQuestionnaireSurveyJson(staleCachedPff));
+staleModel.setValue("pff_visit_type", 2);
+staleModel.setValue("pff_vital_migration_status_woman", 1);
+staleModel.setValue("pff_pregnancy_status", 1);
+staleModel.setValue("pff_ultrasound_form_already_been_filled", 1);
+assert.equal(staleModel.getQuestionByName("pff_any_time_during_pregnancy_ultrasound_test").isVisible, true);
+staleModel.setValue("pff_vital_migration_status_woman", 2);
+assert.equal(staleModel.getQuestionByName("pff_any_time_during_pregnancy_ultrasound_test").isVisible, false);
+assert.equal(staleModel.getPageByName("page_02_care_and_symptoms").isVisible, false);
+staleModel.setValue("pff_vital_migration_status_woman", 1);
+assert.equal(staleModel.getQuestionByName("pff_any_time_during_pregnancy_ultrasound_test").isVisible, true);
 model.setValue("pff_vital_migration_status_woman", 1);
 
 model.setValue("pff_ultrasound_form_already_been_filled", 2);
