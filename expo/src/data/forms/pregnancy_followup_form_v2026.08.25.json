@@ -32,8 +32,8 @@
           "choices": [
             { "value": 1, "text": { "default": "Alive" } },
             { "value": 2, "text": { "default": "Dead" } },
-            { "value": 4, "text": { "default": "Shifted within the area / temporarily away" } },
-            { "value": 3, "text": { "default": "Permanently moved outside the catchment area" } }
+            { "value": 3, "text": { "default": "Shifted within the area / temporarily away" } },
+            { "value": 4, "text": { "default": "Permanently moved outside the catchment area" } }
           ],
           "description": { "default": "If dead, stop this form and close future tasks for this woman. If shifted or away, continue with the full telephonic form." }
         },
@@ -55,33 +55,34 @@
             { "value": 2, "text": { "default": "No, not pregnant anymore" } },
             { "value": 3, "text": { "default": "No, was never pregnant" } }
           ],
-          "description": { "default": "If no longer pregnant, complete questions 11-15 and then submit to start the Pregnancy Outcome Form. If never pregnant, stop and close this pregnancy record." }
+          "description": { "default": "If no longer pregnant, complete questions 11-15 and then submit to start the Pregnancy Outcome Form. If never pregnant, stop here and return to pregnancy surveillance after final submission." }
         },
-        { "type": "html", "name": "pff_never_pregnant_stop_message", "visibleIf": "{pff_pregnancy_status} = 3", "html": "The woman reports that she was never pregnant. Stop this interview and submit the form to close the pregnancy record." },
+        { "type": "html", "name": "pff_never_pregnant_stop_message", "visibleIf": "{pff_vital_migration_status_woman} != 2 and {pff_pregnancy_status} = 3", "html": "The woman reports that she was never pregnant. Stop this interview and submit the form to resume pregnancy surveillance." },
         {
           "type": "radiogroup", "name": "pff_ultrasound_form_already_been_filled", "title": { "default": "11. Has the dating ultrasound form already been filled?" }, "sourceCode": "11", "sourceType": "select_one", "rawText": "Dating ultrasound form already filled", "isRequired": true, "visibleIf": "{pff_vital_migration_status_woman} != 2 and ({pff_pregnancy_status} = 1 or {pff_pregnancy_status} = 2)",
           "choices": [ { "value": 1, "text": { "default": "Yes" } }, { "value": 2, "text": { "default": "No" } } ],
           "description": { "default": "Automatically filled as Yes when an ultrasound report was uploaded during pregnancy enrollment. If No, skip to question 15." }
         },
         {
-          "type": "radiogroup", "name": "pff_any_time_during_pregnancy_ultrasound_test", "title": { "default": "12. At any time during this pregnancy, have you had an ultrasound test?" }, "sourceCode": "12", "sourceType": "select_one", "rawText": "At any time this pregnancy, ultrasound", "isRequired": true, "visibleIf": "{pff_ultrasound_form_already_been_filled} = 1",
+          "type": "radiogroup", "name": "pff_any_time_during_pregnancy_ultrasound_test", "title": { "default": "12. At any time during this pregnancy, have you had an ultrasound test?" }, "sourceCode": "12", "sourceType": "select_one", "rawText": "At any time this pregnancy, ultrasound", "isRequired": true, "visibleIf": "{pff_vital_migration_status_woman} != 2 and ({pff_pregnancy_status} = 1 or {pff_pregnancy_status} = 2) and {pff_ultrasound_form_already_been_filled} = 1",
           "choices": [ { "value": 1, "text": { "default": "Yes" } }, { "value": 2, "text": { "default": "No" } } ],
           "description": { "default": "If No, arrange follow-up and skip to question 16." }
         },
         {
-          "type": "radiogroup", "name": "pff_first_ultrasound_report", "title": { "default": "13. Is the first ultrasound report available?" }, "sourceCode": "13", "sourceType": "select_one", "rawText": "First ultrasound report available", "isRequired": true, "visibleIf": "{pff_any_time_during_pregnancy_ultrasound_test} = 1",
+          "type": "radiogroup", "name": "pff_first_ultrasound_report", "title": { "default": "13. Is the first ultrasound report available?" }, "sourceCode": "13", "sourceType": "select_one", "rawText": "First ultrasound report available", "isRequired": true, "visibleIf": "{pff_vital_migration_status_woman} != 2 and ({pff_pregnancy_status} = 1 or {pff_pregnancy_status} = 2) and {pff_any_time_during_pregnancy_ultrasound_test} = 1",
           "choices": [ { "value": 1, "text": { "default": "Yes" } }, { "value": 2, "text": { "default": "No" } } ],
           "description": { "default": "If Yes, upload the report and complete the Dating Ultrasound Form. If No, follow up to locate the report." }
         },
-        { "type": "text", "name": "pff_first_ultrasound_report_image", "title": { "default": "Upload first ultrasound report" }, "sourceCode": "13_UPLOAD", "sourceType": "image", "rawText": "Upload first ultrasound report", "renderAs": "form_single_image", "imageCategory": "ULTRASOUND", "isRequired": true, "visibleIf": "{pff_first_ultrasound_report} = 1" },
-        { "type": "text", "name": "pff_ultrasound_facility", "title": { "default": "14. Where was the first ultrasound performed?" }, "sourceCode": "14", "sourceType": "free_text", "rawText": "Where first ultrasound performed", "isRequired": true, "visibleIf": "{pff_any_time_during_pregnancy_ultrasound_test} = 1", "description": { "default": "Enter the name and address of the facility." }, "validators": [ { "type": "text", "minLength": 2, "maxLength": 200, "text": { "default": "Enter the facility name and address." } } ] },
+        { "type": "text", "name": "pff_first_ultrasound_report_image", "title": { "default": "Upload first ultrasound report" }, "sourceCode": "13_UPLOAD", "sourceType": "image", "rawText": "Upload first ultrasound report", "renderAs": "form_single_image", "imageCategory": "ULTRASOUND", "isRequired": true, "visibleIf": "{pff_vital_migration_status_woman} != 2 and ({pff_pregnancy_status} = 1 or {pff_pregnancy_status} = 2) and {pff_first_ultrasound_report} = 1" },
+        { "type": "text", "name": "pff_ultrasound_facility", "title": { "default": "14. Where was the first ultrasound performed?" }, "sourceCode": "14", "sourceType": "free_text", "rawText": "Where first ultrasound performed", "isRequired": true, "visibleIf": "{pff_vital_migration_status_woman} != 2 and ({pff_pregnancy_status} = 1 or {pff_pregnancy_status} = 2) and {pff_any_time_during_pregnancy_ultrasound_test} = 1", "description": { "default": "Enter the name and address of the facility." }, "validators": [ { "type": "text", "minLength": 2, "maxLength": 200, "text": { "default": "Enter the facility name and address." } } ] },
         {
           "type": "radiogroup", "name": "pff_other_ultrasound_tests_since_first", "title": { "default": "15. Have you had any other ultrasound tests since the first ultrasound?" }, "sourceCode": "15", "sourceType": "select_one", "rawText": "Any other ultrasound tests since first", "isRequired": true,
           "visibleIf": "{pff_vital_migration_status_woman} != 2 and ({pff_pregnancy_status} = 1 or {pff_pregnancy_status} = 2) and ({pff_ultrasound_form_already_been_filled} = 2 or {pff_any_time_during_pregnancy_ultrasound_test} = 1)",
           "choices": [ { "value": 1, "text": { "default": "Yes" } }, { "value": 2, "text": { "default": "No" } } ],
           "description": { "default": "If Yes, upload the additional reports and check their dates against reports already uploaded." }
         },
-        { "type": "text", "name": "pff_additional_ultrasound_reports", "title": { "default": "Upload additional ultrasound reports" }, "sourceCode": "15_UPLOAD", "sourceType": "image_collection", "rawText": "Upload additional ultrasound reports", "renderAs": "form_ultrasound_reports", "imageCategory": "ULTRASOUND", "isRequired": true, "visibleIf": "{pff_other_ultrasound_tests_since_first} = 1" }
+        { "type": "text", "name": "pff_additional_ultrasound_reports", "title": { "default": "Upload additional ultrasound reports" }, "sourceCode": "15_UPLOAD", "sourceType": "image_collection", "rawText": "Upload additional ultrasound reports", "renderAs": "form_ultrasound_reports", "imageCategory": "ULTRASOUND", "isRequired": true, "visibleIf": "{pff_vital_migration_status_woman} != 2 and ({pff_pregnancy_status} = 1 or {pff_pregnancy_status} = 2) and {pff_other_ultrasound_tests_since_first} = 1" },
+        { "type": "html", "name": "pff_pregnancy_ended_stop_message", "visibleIf": "{pff_vital_migration_status_woman} != 2 and {pff_pregnancy_status} = 2", "html": "The pregnancy has ended. Review and submit this short form after question 15 to create the Pregnancy Outcome Form task." }
       ]
     },
     {
@@ -114,14 +115,14 @@
           "type": "radiogroup", "name": "pff_hospitalization_related_to_pregnancy", "title": { "default": "19. Was the hospitalization related to the pregnancy?" }, "sourceCode": "19", "sourceType": "select_one", "rawText": "Hospitalization related to pregnancy", "isRequired": true, "visibleIf": "{pff_hospitalized_past_30_days} = 1",
           "choices": [ { "value": 1, "text": { "default": "Yes" } }, { "value": 2, "text": { "default": "No" } }, { "value": 8, "text": { "default": "Don't know" } } ]
         },
-        { "type": "html", "name": "pff_short_form_stop_note", "visibleIf": "{pff_visit_type} = 1", "html": "The short in-person interview ends here. Submit the form after question 19." }
+        { "type": "html", "name": "pff_short_form_stop_note", "visibleIf": "{pff_visit_type} = 1 and {pff_vital_migration_status_woman} = 1", "html": "The short in-person interview ends here. Submit the form after question 19." }
       ]
     },
     {
       "name": "page_03_telephonic_symptoms",
       "order": 3,
       "title": { "default": "Telephonic symptoms" },
-      "visibleIf": "{pff_visit_type} = 2 and {pff_vital_migration_status_woman} != 2 and {pff_pregnancy_status} = 1",
+      "visibleIf": "({pff_visit_type} = 2 or {pff_vital_migration_status_woman} = 3 or {pff_vital_migration_status_woman} = 4) and {pff_vital_migration_status_woman} != 2 and {pff_pregnancy_status} = 1",
       "elements": [
         { "type": "html", "name": "pff_symptoms_intro", "visibleIf": "{pff_visit_type} = 2 or {pff_vital_migration_status_woman} = 3 or {pff_vital_migration_status_woman} = 4 or {pff_temporarily_away_status} = 2 or {pff_temporarily_away_status} = 3", "html": "Now ask about symptoms experienced during the past 30 days." },
         { "type": "radiogroup", "name": "pff_difficult_rapid_breathing", "title": { "default": "20. Did you have difficult or rapid breathing, or shortness of breath?" }, "sourceCode": "20", "sourceType": "select_one", "rawText": "Difficult/rapid breathing or shortness of breath", "isRequired": true, "visibleIf": "{pff_visit_type} = 2 or {pff_vital_migration_status_woman} = 3 or {pff_vital_migration_status_woman} = 4 or {pff_temporarily_away_status} = 2 or {pff_temporarily_away_status} = 3", "choices": [ { "value": 1, "text": { "default": "Yes" } }, { "value": 2, "text": { "default": "No" } }, { "value": 8, "text": { "default": "Don't know" } } ] },
@@ -150,7 +151,7 @@
       "name": "page_04_measurements_and_anc",
       "order": 4,
       "title": { "default": "Measurements and ANC card" },
-      "visibleIf": "{pff_vital_migration_status_woman} != 2 and {pff_pregnancy_status} = 1 and {pff_visit_type} = 2",
+      "visibleIf": "{pff_vital_migration_status_woman} != 2 and {pff_pregnancy_status} = 1 and ({pff_visit_type} = 2 or {pff_vital_migration_status_woman} = 3 or {pff_vital_migration_status_woman} = 4)",
       "elements": [
         { "type": "text", "name": "pff_weight_kg_measured_site", "title": { "default": "35. Weight (kg)" }, "sourceCode": "35", "sourceType": "decimal", "rawText": "Weight measured on site", "renderingHint": { "render_as": "numeric_textbox" }, "maxLength": 5, "isRequired": true, "validators": [ { "type": "numeric" }, { "type": "regex", "regex": "^\\d{2,3}\\.\\d$", "text": { "default": "Enter weight as 2 to 3 digits with 1 decimal place (for example 45.6 or 121.4)." } } ], "description": { "default": "Measure on site." } },
         { "type": "text", "name": "pff_height_cm_automatically_filled_woman_s_questionnaire", "title": { "default": "36. Height (cm)" }, "sourceCode": "36", "sourceType": "decimal", "rawText": "Height auto displayed from Woman's Questionnaire", "renderingHint": { "render_as": "numeric_textbox" }, "maxLength": 5, "isRequired": true, "validators": [ { "type": "numeric" }, { "type": "regex", "regex": "^\\d{3}(?:\\.\\d)?$", "text": { "default": "Enter height as 3 digits with up to 1 decimal place (for example 165 or 165.5)." } } ], "description": { "default": "Automatically displayed from the Woman's Questionnaire. Enter manually if the source value is missing." } },
@@ -169,7 +170,7 @@
   ],
   "notes": [
     "Questions and sourceCode values follow the 25 August 2026 workbook.",
-    "The workbook leaves the code for shifted within area or temporarily away blank; the app stores it as code 4 to keep it distinct from codes 1, 2, and 3.",
-    "For an in-person visit, the short form stops after question 19. A telephonic visit continues through questions 20-39."
+    "Shifted within area or temporarily away is stored as code 3; permanently moved outside the catchment area is stored as code 4.",
+    "For an in-person visit while the woman is alive and at home, the short form stops after question 19. A telephonic visit or shifted/moved status continues through questions 20-39."
   ]
 }

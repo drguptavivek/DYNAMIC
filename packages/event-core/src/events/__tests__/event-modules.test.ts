@@ -203,6 +203,44 @@ describe("field event modules", () => {
     expect(pregnancyFollowupCompleted.planWorkflow({ event })).toEqual([]);
   });
 
+  it("does not create a POF task when PFF reports the woman was never pregnant", () => {
+    const promotion = promoteFormSubmission({
+      form_code: "PFF",
+      event_id: "evt-pff-never-pregnant-1",
+      site_id: 1,
+      locality_code: "01",
+      household_id: "1-01-0001-01",
+      subject_id: "preg-1",
+      recorded_at: "2026-10-20T10:00:00.000Z",
+      answers_json: { pff_visit_date: "2026-10-20", pff_pregnancy_status: 3 },
+      context: { pregnancy_id: "preg-1", woman_id: "woman-1" },
+    });
+
+    expect(promotion?.event.payload).toMatchObject({ pregnancy_status: "3" });
+    expect(promotion?.task_descriptors).toEqual([]);
+  });
+
+  it("does not create an outcome task from a stale pregnancy answer when PFF reports the woman dead", () => {
+    const promotion = promoteFormSubmission({
+      form_code: "PFF",
+      event_id: "evt-pff-dead-1",
+      site_id: 1,
+      locality_code: "01",
+      household_id: "1-01-0001-01",
+      subject_id: "preg-1",
+      recorded_at: "2026-10-20T10:00:00.000Z",
+      answers_json: {
+        pff_visit_date: "2026-10-20",
+        pff_vital_migration_status_woman: 2,
+        pff_pregnancy_status: 2,
+      },
+      context: { pregnancy_id: "preg-1", woman_id: "woman-1" },
+    });
+
+    expect(promotion?.event.payload).toMatchObject({ pregnancy_status: null });
+    expect(promotion?.task_descriptors).toEqual([]);
+  });
+
   it("plans BAF tasks from pregnancy_outcome_recorded", () => {
     const event = pregnancyOutcomeRecorded.buildEvent({
       event_id: "evt-pof-1",

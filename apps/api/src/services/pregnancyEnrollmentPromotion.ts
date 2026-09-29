@@ -3,7 +3,7 @@ import {
   promoteFormSubmission,
   type PregnancyProjection,
 } from "@dynamic/event-core";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, gte, inArray, isNull, or } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { schema } from "../db";
 import { getDb } from "../lib/dbContext";
@@ -15,6 +15,50 @@ const PEF_NEGATIVE_UPT_VALUE = 2;
 
 function isNegativeUpt(answers: FormAnswers): boolean {
   return Number(answers.pef_on_spot_upt_result) === PEF_NEGATIVE_UPT_VALUE;
+}
+
+export async function restorePregnancySurveillanceAfterNeverPregnantPff(input: {
+  womanId: string;
+  householdId: string;
+  detectedDate: string | null;
+  visitDate: string;
+  responseId: string;
+}): Promise<void> {
+  const now = new Date();
+  await getDb()
+    .update(schema.followUpTasks)
+    .set({ status: "planned", closed_at: null, closed_reason: null, updated_at: now })
+    .where(and(
+      eq(schema.followUpTasks.woman_id, input.womanId),
+      eq(schema.followUpTasks.task_type, "PSF"),
+      inArray(schema.followUpTasks.status, ["cancelled", "superseded"]),
+      inArray(schema.followUpTasks.closed_reason, ["pregnancy_detected", "pregnancy_enrolled"]),
+      or(isNull(schema.followUpTasks.deadline_date), gte(schema.followUpTasks.deadline_date, input.visitDate)),
+    ));
+
+  const psfTasks = await getDb()
+    .select({ status: schema.followUpTasks.status })
+    .from(schema.followUpTasks)
+    .where(and(
+      eq(schema.followUpTasks.woman_id, input.womanId),
+      eq(schema.followUpTasks.task_type, "PSF"),
+    ));
+  const hasActionablePsf = psfTasks.some((task) =>
+    ["open", "planned", "pending", "due", "overdue", "in_progress"].includes(task.status || ""),
+  );
+  if (!hasActionablePsf) {
+    const anchorDate = psfTasks.length > 0 ? input.visitDate : input.detectedDate || input.visitDate;
+    await writeTasksFromDescriptors(generatePregnancySurveillanceTaskDescriptors({
+      household_id: input.householdId,
+      woman_id: input.womanId,
+      eligibility_date: anchorDate,
+      source_event_id: input.responseId,
+    }));
+  }
+  await getDb()
+    .update(schema.eligibleWomen)
+    .set({ tracking_status: "not_pregnant", updated_at: now })
+    .where(eq(schema.eligibleWomen.woman_id, input.womanId));
 }
 
 async function restorePregnancySurveillanceAfterNegativeUpt(

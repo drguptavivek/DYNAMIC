@@ -13,7 +13,7 @@ import {
   toIsoDate,
 } from "./promotionEventBridge";
 import { promoteHhq } from "./hhqFormPromotion";
-import { promotePef } from "./pregnancyEnrollmentPromotion";
+import { promotePef, restorePregnancySurveillanceAfterNeverPregnantPff } from "./pregnancyEnrollmentPromotion";
 import { holdUnsupportedFormForReview } from "./unsupportedFormPromotion";
 import { promotePregnancySurveillance } from "./pregnancySurveillancePromotion";
 import { generatePregnancySurveillanceTaskDescriptors } from "@dynamic/event-core";
@@ -677,7 +677,7 @@ async function promotePff(
 
     const pregnancyStatus = Number(answers.pff_pregnancy_status);
     const vitalStatus = Number(answers.pff_vital_migration_status_woman);
-    if (pregnancyStatus === 2) {
+    if (pregnancyStatus === 2 && vitalStatus !== 2) {
       await getDb()
         .update(schema.pregnancies)
         .set({
@@ -724,7 +724,7 @@ async function promotePff(
           eq(schema.followUpTasks.pregnancy_id, pregnancy.pregnancy_id),
           eq(schema.followUpTasks.task_type, "PFF"),
           response.task_id ? ne(schema.followUpTasks.task_id, response.task_id) : undefined,
-          inArray(schema.followUpTasks.status, ["open", "planned", "pending", "due", "overdue"]),
+          inArray(schema.followUpTasks.status, ["open", "planned", "pending", "due", "overdue", "in_progress"]),
         ));
     }
 
@@ -747,8 +747,17 @@ async function promotePff(
         .where(and(
           eq(schema.followUpTasks.woman_id, pregnancy.woman_id),
           response.task_id ? ne(schema.followUpTasks.task_id, response.task_id) : undefined,
-          inArray(schema.followUpTasks.status, ["open", "planned", "pending", "due", "overdue"]),
+          inArray(schema.followUpTasks.status, ["open", "planned", "pending", "due", "overdue", "in_progress"]),
         ));
+    }
+    if (pregnancyStatus === 3 && vitalStatus !== 2) {
+      await restorePregnancySurveillanceAfterNeverPregnantPff({
+        womanId: pregnancy.woman_id,
+        householdId: pregnancy.household_id || householdId,
+        detectedDate: pregnancy.detected_date,
+        visitDate,
+        responseId: response.form_response_id,
+      });
     }
   } catch (err) {
     console.error(`Error in promotePff for ${householdId}/${subjectId}:`, err);

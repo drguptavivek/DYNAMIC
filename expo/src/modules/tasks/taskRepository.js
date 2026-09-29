@@ -705,8 +705,8 @@ export function saveEligibleWoman(woman) {
   }
 }
 
-export function applyLocalNegativePefOutcome({ womanId } = {}) {
-  if (!womanId) return { restoredPsfTasks: 0, hasPsfTasks: false, detectedDate: null };
+export function applyLocalNegativePefOutcome({ womanId, restoreAfterEnrollment = false, resumeDate = null } = {}) {
+  if (!womanId) return { restoredPsfTasks: 0, hasPsfTasks: false, hasActionablePsfTasks: false, detectedDate: null };
   const db = getDb();
   const now = new Date().toISOString();
   try {
@@ -730,8 +730,19 @@ export function applyLocalNegativePefOutcome({ womanId } = {}) {
           SET status = 'planned', lifecycle_status = 'planned',
               closed_reason = NULL, closed_at = NULL, updated_at = ?
         WHERE subject_id = ? AND UPPER(task_type) = 'PSF'
-          AND status = 'cancelled' AND closed_reason = 'pregnancy_detected'`,
-      [now, womanId],
+          AND ((status = 'cancelled' AND closed_reason = 'pregnancy_detected'
+              AND (? = 0 OR window_end IS NULL OR window_end >= ?))
+            OR (? = 1 AND status IN ('cancelled', 'superseded')
+              AND closed_reason = 'pregnancy_enrolled'
+              AND (window_end IS NULL OR window_end >= ?)))`,
+      [now, womanId, restoreAfterEnrollment ? 1 : 0, resumeDate, restoreAfterEnrollment ? 1 : 0, resumeDate],
+    );
+    const actionablePsf = db.getFirstSync(
+      `SELECT id FROM follow_up_tasks
+        WHERE subject_id = ? AND UPPER(task_type) = 'PSF'
+          AND status IN ('open', 'planned', 'pending', 'due', 'overdue', 'in_progress')
+        LIMIT 1`,
+      [womanId],
     );
     db.runSync(
       `UPDATE pregnancies
@@ -749,6 +760,7 @@ export function applyLocalNegativePefOutcome({ womanId } = {}) {
     return {
       restoredPsfTasks: Number(restored?.changes || 0),
       hasPsfTasks: Boolean(existingPsf),
+      hasActionablePsfTasks: Boolean(actionablePsf),
       detectedDate: pregnancy?.detected_date || null,
     };
   } catch (error) {

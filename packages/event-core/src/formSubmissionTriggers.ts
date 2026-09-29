@@ -126,12 +126,15 @@ function triggerPef(input: FormSubmissionTriggerInput): EventPromotionResult<unk
 }
 
 function triggerPff(input: FormSubmissionTriggerInput): EventPromotionResult<unknown> {
+  const answers = input.answers_json ?? {};
   return fieldEventRegistry.PFF.promoteEvidence({
     ...input,
     pregnancy_id: requireValue(input.context?.pregnancy_id ?? input.subject_id, "pregnancy_id"),
     woman_id: requireValue(input.context?.woman_id, "woman_id"),
     visit_date: dateFrom(input, ["pff_visit_date"]),
-    pregnancy_status: answerString(input.answers_json ?? {}, ["pff_pregnancy_status"]),
+    pregnancy_status: Number(answers.pff_vital_migration_status_woman) === 2
+      ? null
+      : answerString(answers, ["pff_pregnancy_status"]),
   });
 }
 

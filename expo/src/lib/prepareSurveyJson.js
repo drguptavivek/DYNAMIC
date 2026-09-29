@@ -37,18 +37,22 @@ function hasLocaleObject(value) {
   return value && typeof value === "object" && !Array.isArray(value);
 }
 
-function prefixedTitle(title, sourceCode) {
+function prefixedTitle(title, sourceCode, avoidDoublePrefix = false) {
   if (!sourceCode) return title;
   const prefix = `${sourceCode}. `;
   if (hasLocaleObject(title)) {
     return Object.fromEntries(
       Object.entries(title).map(([locale, value]) => [
         locale,
-        typeof value === "string" && value ? `${prefix}${value}` : value
+        typeof value === "string" && value
+          ? (avoidDoublePrefix && value.startsWith(prefix) ? value : `${prefix}${value}`)
+          : value
       ])
     );
   }
-  return typeof title === "string" && title ? `${prefix}${title}` : title;
+  return typeof title === "string" && title
+    ? (avoidDoublePrefix && title.startsWith(prefix) ? title : `${prefix}${title}`)
+    : title;
 }
 
 function cleanLocalizedValue(value) {
@@ -67,7 +71,7 @@ function cleanChoice(choice) {
   return next;
 }
 
-function cleanElement(element) {
+function cleanElement(element, avoidDoublePrefix = false) {
   const next = {};
   for (const [key, value] of Object.entries(element)) {
     if (SUPPORTED_SURVEY_KEYS.has(key)) next[key] = value;
@@ -81,17 +85,18 @@ function cleanElement(element) {
   if (Array.isArray(next.items)) {
     next.items = next.items.map(cleanChoice);
   }
-  if (element.sourceCode && element.sourceType !== "text_other_specify") {
-    next.title = prefixedTitle(next.title, element.sourceCode);
+  if (element.sourceCode && element.sourceType !== "text_other_specify" &&
+      !(avoidDoublePrefix && String(element.sourceCode).endsWith("_UPLOAD"))) {
+    next.title = prefixedTitle(next.title, element.sourceCode, avoidDoublePrefix);
   }
   if (element.renderingHint?.render_as) {
     next.renderAs = element.renderingHint.render_as;
   }
   if (Array.isArray(next.elements)) {
-    next.elements = next.elements.map(cleanElement);
+    next.elements = next.elements.map((child) => cleanElement(child, avoidDoublePrefix));
   }
   if (Array.isArray(next.templateElements)) {
-    next.templateElements = next.templateElements.map(cleanElement);
+    next.templateElements = next.templateElements.map((child) => cleanElement(child, avoidDoublePrefix));
   }
   return next;
 }
@@ -111,7 +116,7 @@ export function prepareSurveyJson(form) {
       title: page.title,
       description: page.description,
       ...(page.visibleIf ? { visibleIf: page.visibleIf } : {}),
-      elements: page.elements.map(cleanElement)
+      elements: page.elements.map((element) => cleanElement(element, form.form_code === "PFF"))
     }))
   };
 }

@@ -806,3 +806,24 @@ Decisions:
 - Send HHQ before later forms in an offline batch; derive PEF attachment woman ID from the submitted form when retrying older uploads. Server also accepts a female household member when the eligible-woman projection is not yet present.
 Verification: Focused PFF, draft, and sync tests plus API typecheck/build pass; a release APK with the temporary PFF testing override was installed on SM-T225 for local testing.
 Open: EC2 update and field retry remain; the temporary PFF-after-PEF test override must not be committed or published in the public APK.
+
+## 2026-09-29 (PFF Q8 routing and labels) [local verification]
+Goal: Show one question number per PFF item and handle Q8 death/relocation outcomes consistently.
+Decisions:
+- Keep source codes/answer keys unchanged; avoid adding a second PFF number to titles already numbered in the questionnaire, and leave upload subitems unnumbered.
+- Q8 codes are 1 Alive, 2 Dead, 3 Shifted within area/temporarily away, 4 Permanently moved outside catchment. Codes 3/4 show the full form even for an in-person visit.
+- Q8 Dead hides all later questions. Existing local/server closure cancels the woman's future tasks after final submit; stale hidden pregnancy answers cannot create a POF task.
+Open: Physical-device confirmation remains; no commit, push, APK build, or AWS update requested for this change.
+
+## 2026-09-29 (PFF Q10 outcome routing) [local verification]
+Goal: End PFF after Q15 for ended pregnancy, or after Q10 for never-pregnant, and restore the correct next task.
+Decisions:
+- Q10=2 keeps Q11-15 and creates POF on final submit; Q10=3 hides all later questions, closes the pregnancy/PFF series, and resumes PSF tasks previously suspended for detection/enrollment.
+- Expo restores PSF offline before sync; the API mirrors that decision, and sync permits resumed PSF only when accepted never-pregnant PFF evidence exists and no active pregnancy remains.
+Open: Device and database-backed workflow verification remain; no commit, push, build, or deployment requested.
+
+## 2026-09-29 (PFF outcome reminder) [local verification]
+Goal: Remind the field worker to fill POF after a finalized PFF reports the pregnancy has ended.
+Decisions:
+- Show `Fill pregnancy outcome form.` only after successful PFF final save when Q10=2 and Q8 is not Dead; dismiss to Completed Forms.
+- Other PFF outcomes and all other forms retain their existing completion navigation.

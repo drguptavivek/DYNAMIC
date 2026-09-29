@@ -483,23 +483,28 @@ function resolvePsfScheduleAnchor(response, taskContext, detectedDate) {
     detectedDate ||
     taskContext?.anchor_date ||
     response.answers_json?.pef_enrollment_date ||
+    response.answers_json?.pff_visit_date ||
     response.submitted_at.split("T")[0]
   );
 }
 
-async function applyLocalNegativePefState(response, taskContext) {
+async function applyLocalNegativePefState(response, taskContext, { restoreAfterEnrollment = false } = {}) {
   const womanId = taskContext?.woman_id || response.subject_id;
   try {
     const taskRepository = await import("../tasks/taskRepository.js");
     if (typeof taskRepository.applyLocalNegativePefOutcome === "function") {
-      return taskRepository.applyLocalNegativePefOutcome({ womanId });
+      return taskRepository.applyLocalNegativePefOutcome({
+        womanId,
+        restoreAfterEnrollment,
+        resumeDate: response.answers_json?.pff_visit_date || response.submitted_at.slice(0, 10),
+      });
     }
   } catch {
     // Node tests and web fallback do not load the native SQLite adapter.
   }
 
   const storage = getStorage();
-  if (!storage) return { restoredPsfTasks: 0, hasPsfTasks: false, detectedDate: null };
+  if (!storage) return { restoredPsfTasks: 0, hasPsfTasks: false, hasActionablePsfTasks: false, detectedDate: null };
   const state = readWebSqliteState(storage);
   const now = response.submitted_at;
   const activePregnancy = (state.pregnancies || []).find(
@@ -513,8 +518,11 @@ async function applyLocalNegativePefState(response, taskContext) {
     if (
       task.subject_id === womanId &&
       String(task.task_type || "").toUpperCase() === "PSF" &&
-      task.status === "cancelled" &&
-      task.closed_reason === "pregnancy_detected"
+      ((task.status === "cancelled" && task.closed_reason === "pregnancy_detected" &&
+        (!restoreAfterEnrollment || !task.window_end || task.window_end >= (response.answers_json?.pff_visit_date || now.slice(0, 10)))) ||
+        (restoreAfterEnrollment && ["cancelled", "superseded"].includes(task.status) &&
+          task.closed_reason === "pregnancy_enrolled" &&
+          (!task.window_end || task.window_end >= (response.answers_json?.pff_visit_date || now.slice(0, 10)))))
     ) {
       restoredPsfTasks += 1;
       return {
@@ -542,6 +550,10 @@ async function applyLocalNegativePefState(response, taskContext) {
   return {
     restoredPsfTasks,
     hasPsfTasks,
+    hasActionablePsfTasks: (state.follow_up_tasks || []).some(
+      (task) => task.subject_id === womanId && String(task.task_type || "").toUpperCase() === "PSF" &&
+        ["open", "planned", "pending", "due", "overdue", "in_progress"].includes(task.status),
+    ),
     detectedDate: activePregnancy?.detected_date || null,
   };
 }
@@ -770,6 +782,30 @@ async function promotePffLocally(response, taskContext) {
       });
     } catch (error) {
       console.warn("Could not close local PFF workflow:", error);
+    }
+  }
+  if (pregnancyStatus === 3 && vitalStatus !== 2) {
+    const surveillanceContext = { ...taskContext, woman_id: womanId };
+    const localState = await applyLocalNegativePefState(
+      response,
+      surveillanceContext,
+      { restoreAfterEnrollment: true },
+    );
+    if (!localState?.hasActionablePsfTasks) {
+      const anchorDate = localState?.hasPsfTasks
+        ? String(response.answers_json?.pff_visit_date || response.submitted_at.slice(0, 10))
+        : resolvePsfScheduleAnchor(response, surveillanceContext, localState?.detectedDate);
+      const tasks = generatePregnancySurveillanceTaskDescriptors({
+        household_id: response.household_id,
+        woman_id: womanId,
+        eligibility_date: anchorDate,
+        source_event_id: response.id,
+      }).map((descriptor) => toLocalTask(descriptor, {
+        submittedAt: response.submitted_at,
+        localityCode: response.locality_code,
+        sourceFormResponseId: response.id,
+      }));
+      await saveTasks(tasks);
     }
   }
 }

@@ -1,4 +1,5 @@
 import { getFormDisplayCode } from "../../lib/formDisplayCodes.js";
+import { shouldShowPffOutcomeReminder } from "../../lib/pffOutcomeReminder.js";
 import { startTiming } from "../../lib/perfLog.js";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
@@ -1081,6 +1082,10 @@ export function QuestionnaireDashboard({
         ]);
       } else if (isPregnancySurveillanceForm(form) && Number(sender.data?.psf_pregnant_now) === 1) {
         Alert.alert("PEF form generated for this woman.", "", [
+          { text: "OK", onPress: () => navigateTo(ROUTES.completedForms) },
+        ]);
+      } else if (shouldShowPffOutcomeReminder(form.form_code, sender.data)) {
+        Alert.alert("Fill pregnancy outcome form.", "", [
           { text: "OK", onPress: () => navigateTo(ROUTES.completedForms) },
         ]);
       } else if (

@@ -52,9 +52,18 @@ Rules:
   it does not emit `pregnancy_enrolled`, closes any provisional active pregnancy,
   and restores the woman's previously suspended PSF tasks. If no PSF series
   exists, it starts one from the pregnancy-detection date.
+- A finalized PFF with Q10 `No, not pregnant anymore` ends after Q15 and creates
+  the Pregnancy Outcome Form task. Q10 `No, never pregnant` ends after Q10,
+  closes that pregnancy and its remaining PFF tasks, and resumes only PSF tasks
+  suspended for pregnancy detection/enrollment whose windows have not expired.
+  If no actionable PSF task remains, start a new PSF series for that woman
+  without reviving completed history or expired rounds.
 - Held or duplicate submissions may produce held events for evidence and data-quality review, but must not generate workflow tasks.
 - Offline Expo promotion is provisional but must use the same shared trigger outputs as backend promotion.
 - An actionable PEF or later pregnancy-pathway task suppresses stale actionable WQ and PSF tasks for the same woman. This precedence is subject-scoped; it must not suppress another woman's work in the household.
+- An accepted PEF normally blocks later PSF evidence for that woman, except after
+  accepted PFF evidence establishes she was never pregnant and no pregnancy
+  remains active. This permits the resumed PSF series to sync.
 
 ## Deterministic Task Keys
 

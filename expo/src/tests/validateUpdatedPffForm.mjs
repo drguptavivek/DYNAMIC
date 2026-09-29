@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { Model } from "survey-core";
 import form from "../data/forms/pregnancy_followup_form_v2026.08.25.json" with { type: "json" };
 import { prepareQuestionnaireSurveyJson } from "../modules/questionnaires/questionnaireSurveyJsonTransforms.js";
+import { shouldShowPffOutcomeReminder } from "../lib/pffOutcomeReminder.js";
 import {
   assertNativeSurveySupport,
   getNativeRendererKind,
@@ -19,6 +20,11 @@ const elements = form.pages.flatMap((page) => page.elements || []);
 const byName = new Map(elements.map((element) => [element.name, element]));
 
 assert.equal(form.form_code, "PFF");
+assert.equal(shouldShowPffOutcomeReminder("PFF", { pff_pregnancy_status: 2, pff_vital_migration_status_woman: 1 }), true);
+assert.equal(shouldShowPffOutcomeReminder("PFF", { pff_pregnancy_status: 1, pff_vital_migration_status_woman: 1 }), false);
+assert.equal(shouldShowPffOutcomeReminder("PFF", { pff_pregnancy_status: 3, pff_vital_migration_status_woman: 1 }), false);
+assert.equal(shouldShowPffOutcomeReminder("PFF", { pff_pregnancy_status: 2, pff_vital_migration_status_woman: 2 }), false);
+assert.equal(shouldShowPffOutcomeReminder("PEF", { pff_pregnancy_status: 2, pff_vital_migration_status_woman: 1 }), false);
 assert.equal(form.version, "25 AUGUST 2026");
 assert.equal(form.source_excel, "07 - pregnancy follow-up form.xlsx");
 for (const sourceCode of [
@@ -30,6 +36,15 @@ for (const sourceCode of [
 }
 
 assert.deepEqual(byName.get("pff_visit_type").choices.map((choice) => choice.value), [1, 2]);
+assert.deepEqual(
+  byName.get("pff_vital_migration_status_woman").choices.map((choice) => [choice.value, choice.text.default]),
+  [
+    [1, "Alive"],
+    [2, "Dead"],
+    [3, "Shifted within the area / temporarily away"],
+    [4, "Permanently moved outside the catchment area"],
+  ],
+);
 assert.deepEqual(byName.get("pff_pregnancy_status").choices.map((choice) => choice.value), [1, 2, 3]);
 assert.equal(byName.get("pff_care_locations").type, "checkbox");
 assert.equal(byName.get("pff_additional_symptom_types").type, "checkbox");
@@ -48,6 +63,12 @@ assert.equal(
 
 const model = new Model(prepareQuestionnaireSurveyJson(form));
 assert.deepEqual(assertNativeSurveySupport(model), []);
+for (const element of elements.filter((item) => /^\d+$/.test(item.sourceCode || ""))) {
+  const title = model.getQuestionByName(element.name).title;
+  assert.ok(title.startsWith(`${element.sourceCode}. `), `Question ${element.sourceCode} lost its number`);
+  assert.ok(!title.startsWith(`${element.sourceCode}. ${element.sourceCode}. `), `Question ${element.sourceCode} has duplicate numbering`);
+}
+assert.equal(model.getQuestionByName("pff_first_ultrasound_report_image").title, "Upload first ultrasound report");
 assert.equal(getNativeRendererKind(model.getQuestionByName("pff_first_ultrasound_report_image")), "pef-anc-card-image");
 assert.equal(getNativeRendererKind(model.getQuestionByName("pff_additional_ultrasound_reports")), "pef-ultrasound-reports");
 
@@ -65,19 +86,55 @@ assert.equal(model.getPageByName("page_03_telephonic_symptoms").isVisible, true)
 assert.equal(model.getPageByName("page_04_measurements_and_anc").isVisible, true);
 model.setValue("pff_vital_migration_status_woman", 4);
 model.setValue("pff_visit_type", 1);
-assert.equal(model.getPageByName("page_03_telephonic_symptoms").isVisible, false);
-assert.equal(model.getPageByName("page_04_measurements_and_anc").isVisible, false);
+assert.equal(model.getPageByName("page_03_telephonic_symptoms").isVisible, true);
+assert.equal(model.getPageByName("page_04_measurements_and_anc").isVisible, true);
+assert.equal(model.getQuestionByName("pff_short_form_stop_note").isVisible, false);
 model.setValue("pff_visit_type", 2);
 assert.equal(model.getPageByName("page_03_telephonic_symptoms").isVisible, true);
 assert.equal(model.getPageByName("page_04_measurements_and_anc").isVisible, true);
+model.setValue("pff_vital_migration_status_woman", 3);
+model.setValue("pff_visit_type", 1);
+assert.equal(model.getPageByName("page_03_telephonic_symptoms").isVisible, true);
+assert.equal(model.getPageByName("page_04_measurements_and_anc").isVisible, true);
+model.setValue("pff_vital_migration_status_woman", 1);
+
+model.setValue("pff_visit_type", 2);
+model.setValue("pff_ultrasound_form_already_been_filled", 1);
+model.setValue("pff_any_time_during_pregnancy_ultrasound_test", 1);
+model.setValue("pff_first_ultrasound_report", 1);
+model.setValue("pff_other_ultrasound_tests_since_first", 1);
+model.setValue("pff_vital_migration_status_woman", 2);
+assert.equal(model.getQuestionByName("pff_dead_stop_message").isVisible, true);
+for (const page of form.pages.slice(1)) {
+  assert.equal(model.getPageByName(page.name).isVisible, false, `${page.name} must stop after a reported death`);
+}
+const firstPageElements = form.pages[0].elements;
+for (const element of firstPageElements.slice(firstPageElements.findIndex((item) => item.name === "pff_vital_migration_status_woman") + 1)) {
+  if (element.name === "pff_dead_stop_message") continue;
+  assert.equal(model.getQuestionByName(element.name).isVisible, false, `${element.name} must stop after a reported death`);
+}
 model.setValue("pff_vital_migration_status_woman", 1);
 
 model.setValue("pff_ultrasound_form_already_been_filled", 2);
 assert.equal(model.getQuestionByName("pff_any_time_during_pregnancy_ultrasound_test").isVisible, false);
 assert.equal(model.getQuestionByName("pff_other_ultrasound_tests_since_first").isVisible, true);
 
+model.setValue("pff_pregnancy_status", 2);
+assert.equal(model.getQuestionByName("pff_other_ultrasound_tests_since_first").isVisible, true);
+assert.equal(model.getQuestionByName("pff_pregnancy_ended_stop_message").isVisible, true);
+for (const page of form.pages.slice(1)) {
+  assert.equal(model.getPageByName(page.name).isVisible, false, `${page.name} must stop after Q15 when pregnancy has ended`);
+}
+
 model.setValue("pff_pregnancy_status", 3);
-assert.equal(model.getPageByName("page_02_care_and_symptoms").isVisible, false);
+assert.equal(model.getQuestionByName("pff_never_pregnant_stop_message").isVisible, true);
+for (const page of form.pages.slice(1)) {
+  assert.equal(model.getPageByName(page.name).isVisible, false, `${page.name} must stop after Q10 when pregnancy never occurred`);
+}
+for (const element of firstPageElements.slice(firstPageElements.findIndex((item) => item.name === "pff_pregnancy_status") + 1)) {
+  if (element.name === "pff_never_pregnant_stop_message") continue;
+  assert.equal(model.getQuestionByName(element.name).isVisible, false, `${element.name} must stop after Q10`);
+}
 
 const linkedPef = {
   id: "pef-response-linked",

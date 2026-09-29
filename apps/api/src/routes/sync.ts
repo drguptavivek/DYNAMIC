@@ -14,6 +14,7 @@ import { runWithDb } from "../lib/dbContext";
 import { getDataAccessProfile, requireDataAccess } from "../lib/dataAccess";
 import { buildFormAttachmentLocation, isSupportedImageBuffer } from "../lib/formAttachmentStorage";
 import { ensureAssignedPendingHhqTasks } from "../lib/assignedHhqTasks";
+import { canResumePsfAfterNeverPregnantPff } from "../lib/psfResumeEligibility";
 
 const router = Router();
 const attachmentUpload = multer({
@@ -1301,6 +1302,30 @@ router.post(
                   !UPLOAD_ERROR_RESPONSE_STATUSES.has(candidate.response_status || "primary") &&
                   !["revisit_needed", "superseded_revisit"].includes(candidate.response_status || ""),
               );
+              let psfResumedAfterNeverPregnantPff = false;
+              if (acceptedPef && formCode === "PSF" && householdId && subjectId) {
+                const womanPregnancies = await tx
+                  .select({ pregnancy_id: schema.pregnancies.pregnancy_id, pregnancy_status: schema.pregnancies.pregnancy_status })
+                  .from(schema.pregnancies)
+                  .where(and(
+                    eq(schema.pregnancies.woman_id, subjectId),
+                    eq(schema.pregnancies.household_id, householdId),
+                  ));
+                if (!womanPregnancies.some((pregnancy) => pregnancy.pregnancy_status === "active") && womanPregnancies.length) {
+                  const completedPff = await tx
+                    .select({ subject_id: schema.formResponses.subject_id, answers_json: schema.formResponses.answers_json, response_status: schema.formResponses.response_status })
+                    .from(schema.formResponses)
+                    .where(and(
+                      eq(schema.formResponses.form_code, "PFF"),
+                      eq(schema.formResponses.household_id, householdId),
+                      inArray(schema.formResponses.subject_id, womanPregnancies.map((pregnancy) => pregnancy.pregnancy_id)),
+                    ));
+                  psfResumedAfterNeverPregnantPff = canResumePsfAfterNeverPregnantPff(
+                    womanPregnancies,
+                    completedPff.filter((candidate) => !UPLOAD_ERROR_RESPONSE_STATUSES.has(candidate.response_status || "primary")),
+                  );
+                }
+              }
 
               let responseClassification: SyncClassification | null = null;
               let primaryConflictResponse = primaryTaskResponse || null;
@@ -1315,7 +1340,7 @@ router.post(
                   household_id: householdId,
                   subject_id: subjectId,
                 };
-              } else if (acceptedPef && ["WQ", "PSF"].includes(formCode)) {
+              } else if (acceptedPef && (formCode === "WQ" || (formCode === "PSF" && !psfResumedAfterNeverPregnantPff))) {
                 primaryConflictResponse = acceptedPef;
                 responseClassification = {
                   id,
