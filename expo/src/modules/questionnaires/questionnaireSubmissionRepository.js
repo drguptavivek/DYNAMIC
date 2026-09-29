@@ -989,6 +989,7 @@ export async function saveQuestionnaireSubmission({
       response,
       questionName: PEF_ULTRASOUND_REPORTS_FIELD,
       value: finalizedUltrasoundReports,
+      womanId: taskContext?.woman_id || finalPayload.pef_woman_hh_member_id || response.subject_id,
     });
   }
   if (finalizedAncCardImage) {
@@ -997,6 +998,7 @@ export async function saveQuestionnaireSubmission({
       response,
       questionName: PEF_ANC_CARD_IMAGE_FIELD,
       value: { reports: [finalizedAncCardImage] },
+      womanId: taskContext?.woman_id || finalPayload.pef_woman_hh_member_id || response.subject_id,
     });
   }
   if (finalizedPffFirstUltrasoundImage) {

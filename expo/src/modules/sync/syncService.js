@@ -660,15 +660,31 @@ const PUSH_FORM_RESPONSE_BATCH_SIZE = 100;
 
 async function pushAttachmentsForResponses({ token, deviceId, formResponses }) {
   const attachments = await listPendingAttachmentsForResponses(formResponses.map((response) => response.id));
+  const responseById = new Map(formResponses.map((response) => [response.id, response]));
   const failedResponses = new Map();
   let uploaded = 0;
   for (const attachment of attachments) {
     try {
+      // Older PEF submissions could store the pregnancy/household subject as
+      // the attachment woman ID. Recover the woman ID from the finalized form
+      // so previously failed uploads can succeed on retry without refilling.
+      let uploadRow = attachment;
+      if (attachment.form_code === "PEF") {
+        const response = responseById.get(attachment.form_response_id);
+        let answers = response?.answers_json || {};
+        if (typeof answers === "string") {
+          try { answers = JSON.parse(answers); } catch { answers = {}; }
+        }
+        const formWomanId = answers?.pef_woman_hh_member_id;
+        if (typeof formWomanId === "string" && formWomanId.startsWith(`${attachment.household_id}-`)) {
+          uploadRow = { ...attachment, woman_id: formWomanId };
+        }
+      }
       const payload = await uploadAttachment({
         apiBaseUrl: API_BASE_URL,
         token,
         deviceId,
-        attachment,
+        attachment: uploadRow,
       });
       const data = unwrapApiData(payload);
       await markAttachmentSynced(attachment.attachment_id, data.relative_path);
@@ -911,7 +927,10 @@ export async function pushSync() {
         },
         body: JSON.stringify({
           device_id: deviceId,
-          drafts: drafts.map(toDraftSyncRecord),
+          drafts: drafts.map((draft) => toDraftSyncRecord(
+            draft,
+            draft.task_id ? taskRepository.getTask?.(draft.task_id) : null,
+          )),
         }),
       });
       if (!draftResponse.ok) {
@@ -966,13 +985,18 @@ export async function pushSync() {
         break;
       }
 
-      const eventPartition = partitionDomainEventsForResponses(remainingPendingEvents, pendingBatch);
+      // HHQ promotes household members on the server. Send it before later
+      // forms in the same local batch so their attachment ownership check
+      // can see the woman even when every form was completed offline.
+      const hhqResponses = pendingBatch.filter((item) => item.form_code === "HHQ");
+      const responsesToPush = hhqResponses.length > 0 ? hhqResponses : pendingBatch;
+      const eventPartition = partitionDomainEventsForResponses(remainingPendingEvents, responsesToPush);
       remainingPendingEvents = eventPartition.remaining;
 
       const batchResult = await pushRecordBatch({
         token,
         deviceId,
-        formResponses: pendingBatch,
+        formResponses: responsesToPush,
         domainEvents: eventPartition.matching,
       });
       pushed += batchResult.pushed;

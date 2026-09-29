@@ -697,8 +697,10 @@ export async function listQuestionnaireDraftsForSync(userId) {
   return rows.filter((row) => !isWqVisitorCorrectionDraft(row));
 }
 
-export function toDraftSyncRecord(draft) {
-  const householdId = getHouseholdIdFromDraft(draft);
+export function toDraftSyncRecord(draft, task = null) {
+  // Legacy PFF drafts can have a pregnancy ID as subject and no household
+  // column. The local task retains the household even before server sync.
+  const householdId = task?.household_id || getHouseholdIdFromDraft(draft);
   const [siteId, localityCode] = String(householdId || "").split("-");
   const jsonPayload = { ...(draft.json_payload || {}) };
   for (const reportsField of ["pef_ultrasound_reports", "pff_additional_ultrasound_reports"]) {

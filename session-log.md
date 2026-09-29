@@ -797,3 +797,12 @@ Decisions:
 - PFF ultrasound and ANC images reuse the durable offline attachment queue. A reported pregnancy end creates an immediate POF task locally and on the server; never-pregnant and death outcomes close the applicable future PFF workflow.
 Open:
 - Physical-device PFF testing, build/install, commit/push, and deployment remain pending explicit approval.
+
+## 2026-09-29 (PFF routing and offline sync repair) [local verification]
+Goal: Stop in-person PFF after Q19, retain all telephonic questions, and repair PFF draft/PEF image sync errors.
+Decisions:
+- Gate PFF Q20-39 behind telephonic Q7; in-person ends on the Q16-19 page.
+- Resolve draft household scope from its local task, including existing PFF drafts whose subject is a pregnancy ID.
+- Send HHQ before later forms in an offline batch; derive PEF attachment woman ID from the submitted form when retrying older uploads. Server also accepts a female household member when the eligible-woman projection is not yet present.
+Verification: Focused PFF, draft, and sync tests plus API typecheck/build pass; a release APK with the temporary PFF testing override was installed on SM-T225 for local testing.
+Open: EC2 update and field retry remain; the temporary PFF-after-PEF test override must not be committed or published in the public APK.

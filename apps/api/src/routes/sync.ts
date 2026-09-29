@@ -1011,7 +1011,17 @@ router.post(
           eq(schema.eligibleWomen.woman_id, womanId),
           eq(schema.eligibleWomen.household_id, householdId),
         )).limit(1);
-      if (!woman) {
+      // The HHQ member can reach the server before her eligible-woman
+      // projection does. Keep the household ownership check, but allow an
+      // attachment for that exact female member while projection catches up.
+      const [householdMember] = woman ? [] : await db.select({
+        household_member_id: schema.householdMembers.household_member_id,
+      }).from(schema.householdMembers).where(and(
+        eq(schema.householdMembers.household_member_id, womanId),
+        eq(schema.householdMembers.household_id, householdId),
+        eq(schema.householdMembers.sex, 2),
+      )).limit(1);
+      if (!woman && !householdMember) {
         return sendError(res, 400, "INVALID_ATTACHMENT_SUBJECT", "Woman does not belong to this household");
       }
 

@@ -429,14 +429,14 @@ export function QuestionnaireDashboard({
       taskId: taskContext?.id,
       subjectType: taskContext?.subject_type,
       subjectId: taskContext?.subject_id,
-      householdId: taskContext?.household_id,
+      householdId: deriveHouseholdIdFromTask(taskContext, prefillData),
       keyTaskId: correctionContext ? `wq-correction:${correctionContext.responseId}` : undefined,
       preferredDraftId: correctionContext?.draftId,
       strictDraftKey: Boolean(correctionContext),
       deviceId: user?.device_id || "dev-device",
       userId: user?.user_id || user?.id || user?.username || "dev-user",
     };
-  }, [form, taskContext, user, correctionContext]);
+  }, [form, taskContext, prefillData, user, correctionContext]);
 
   function updateSurveyStatus(model) {
     const nextData = { ...(model?.data || {}) };

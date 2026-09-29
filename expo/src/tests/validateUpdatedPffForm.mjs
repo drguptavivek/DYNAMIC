@@ -55,12 +55,22 @@ model.setValue("pff_visit_type", 1);
 model.setValue("pff_vital_migration_status_woman", 1);
 model.setValue("pff_pregnancy_status", 1);
 assert.equal(model.getQuestionByName("pff_difficult_rapid_breathing").isVisible, false);
-assert.equal(model.getQuestionByName("pff_weight_kg_measured_site").isVisible, true);
+assert.equal(model.getPageByName("page_03_telephonic_symptoms").isVisible, false);
+assert.equal(model.getPageByName("page_04_measurements_and_anc").isVisible, false);
 
 model.setValue("pff_visit_type", 2);
 model.setValue("pff_temporarily_away_status", 1);
 assert.equal(model.getQuestionByName("pff_difficult_rapid_breathing").isVisible, true);
-assert.equal(model.getPageByName("page_03_measurements_and_anc").isVisible, false);
+assert.equal(model.getPageByName("page_03_telephonic_symptoms").isVisible, true);
+assert.equal(model.getPageByName("page_04_measurements_and_anc").isVisible, true);
+model.setValue("pff_vital_migration_status_woman", 4);
+model.setValue("pff_visit_type", 1);
+assert.equal(model.getPageByName("page_03_telephonic_symptoms").isVisible, false);
+assert.equal(model.getPageByName("page_04_measurements_and_anc").isVisible, false);
+model.setValue("pff_visit_type", 2);
+assert.equal(model.getPageByName("page_03_telephonic_symptoms").isVisible, true);
+assert.equal(model.getPageByName("page_04_measurements_and_anc").isVisible, true);
+model.setValue("pff_vital_migration_status_woman", 1);
 
 model.setValue("pff_ultrasound_form_already_been_filled", 2);
 assert.equal(model.getQuestionByName("pff_any_time_during_pregnancy_ultrasound_test").isVisible, false);
