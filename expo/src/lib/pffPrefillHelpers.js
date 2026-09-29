@@ -35,12 +35,26 @@ const PFF_PEF_SNAPSHOT_FIELDS = [
   "pef_first_ultrasound_report",
 ];
 
+export function hasPefUltrasoundUploads(answers = {}) {
+  const reports = answers.pef_ultrasound_reports?.reports;
+  if (Array.isArray(reports)) {
+    return reports.some((report) => {
+      const images = Array.isArray(report?.images) ? report.images : [report];
+      return images.some((image) => Boolean(image?.attachment_id));
+    });
+  }
+  return answers.pef_ultrasound_uploaded === true;
+}
+
 export function buildPffPefSnapshot(answers = {}) {
-  return Object.fromEntries(
-    PFF_PEF_SNAPSHOT_FIELDS
-      .filter((name) => answers[name] !== undefined && answers[name] !== null && answers[name] !== "")
-      .map((name) => [name, answers[name]]),
-  );
+  return {
+    ...Object.fromEntries(
+      PFF_PEF_SNAPSHOT_FIELDS
+        .filter((name) => answers[name] !== undefined && answers[name] !== null && answers[name] !== "")
+        .map((name) => [name, answers[name]]),
+    ),
+    pef_ultrasound_uploaded: hasPefUltrasoundUploads(answers),
+  };
 }
 
 export function parsePffTaskSnapshot(task) {
@@ -101,6 +115,7 @@ export function buildPffLinkedSourcePrefill(responses = [], task = null) {
     pff_woman_name: pefAnswers.pef_woman_name || "",
     pff_husband_name: pefAnswers.pef_husband_name || "",
     pff_last_contact_date: previousPffAnswers.pff_visit_date || task?.pff_last_visit_date || "",
+    pff_ultrasound_form_already_been_filled: hasPefUltrasoundUploads(pefAnswers) ? 1 : 2,
   };
 
   return {

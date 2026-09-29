@@ -834,3 +834,10 @@ Decisions:
 - Apply the death visibility guard while preparing PFF for Survey Core; preserve the Q8 question and death-stop message, and leave other forms unchanged.
 - Regression-test an older cached PFF whose Q12 and later-page visibility rules lack the guard, including correction back to Alive.
 Open: Device confirmation and APK/server update await explicit request; the temporary immediate-PFF testing override remains local-only.
+
+## 2026-09-29 (PFF Q11 ultrasound prefill) [local verification]
+Goal: Auto-select PFF Q11 from actual PEF ultrasound image uploads, including after PEF is no longer locally available.
+Decisions:
+- Store only an ultrasound-upload boolean in the PEF-to-PFF task snapshot; Q11 is read-only Yes when an image attachment exists, otherwise No.
+- Guard Q13, its image upload, and Q14 directly by Q11 so stale Q12 draft answers cannot reveal them after No; Q15 routing stays unchanged.
+Open: Device confirmation remains; no commit, push, APK build, or AWS update requested.

@@ -209,21 +209,16 @@ export function buildPffPrefill(member, household, task = null, today = new Date
     || pefAnswers.pef_height_cm
     || pefAnswers.pef_height_cm_automatically_filled_woman_s_questionnaire
     || "";
-  const ultrasoundAlreadyRecorded = Number(pefAnswers.pef_first_ultrasound_report) === 1
-    || Boolean(pefAnswers.pef_ultrasound_reports?.report_count);
-
   const prefill = {
     ...sourcePrefill.prefill,
     pff_current_address: household?.address || pefAnswers.pef_current_address || "",
     pff_visit_date: formatLocalIsoDate(today),
-    pff_ultrasound_form_already_been_filled: ultrasoundAlreadyRecorded ? 1 : "",
     pff_height_cm_automatically_filled_woman_s_questionnaire: height,
   };
 
   const readOnlyFields = [
     ...sourcePrefill.readOnlyFields,
     "pff_current_address",
-    "pff_ultrasound_form_already_been_filled",
   ].filter((fieldName) => prefill[fieldName] !== "");
   if (height) readOnlyFields.push("pff_height_cm_automatically_filled_woman_s_questionnaire");
 

@@ -364,6 +364,7 @@ assert.deepEqual(JSON.parse(pffTasks[0].pff_pef_snapshot_json), {
   pef_current_address: pefPayload.pef_current_address,
   pef_height_cm: pefPayload.pef_height_cm,
   pef_first_ultrasound_report: 1,
+  pef_ultrasound_uploaded: true,
 });
 assert.equal(pffTasks[0].sync_status, "pending");
 assert.equal(ufTasks[0].source_event_id, pregnancyEvent.event_id);

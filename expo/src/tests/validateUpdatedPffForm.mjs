@@ -11,6 +11,7 @@ import {
 import {
   buildPffLinkedSourcePrefill,
   buildPffPefSnapshot,
+  hasPefUltrasoundUploads,
   findPffSourcePefResponse,
   findPreviousPffResponse,
   parsePffSourceAnswers,
@@ -135,6 +136,9 @@ model.setValue("pff_vital_migration_status_woman", 1);
 
 model.setValue("pff_ultrasound_form_already_been_filled", 2);
 assert.equal(model.getQuestionByName("pff_any_time_during_pregnancy_ultrasound_test").isVisible, false);
+assert.equal(model.getQuestionByName("pff_first_ultrasound_report").isVisible, false);
+assert.equal(model.getQuestionByName("pff_first_ultrasound_report_image").isVisible, false);
+assert.equal(model.getQuestionByName("pff_ultrasound_facility").isVisible, false);
 assert.equal(model.getQuestionByName("pff_other_ultrasound_tests_since_first").isVisible, true);
 
 model.setValue("pff_pregnancy_status", 2);
@@ -218,12 +222,14 @@ assert.deepEqual(
       pff_woman_name: "Sita Devi",
       pff_husband_name: "Mohan Lal",
       pff_last_contact_date: "2026-09-25",
+      pff_ultrasound_form_already_been_filled: 2,
     },
     readOnlyFields: [
       "pff_pregnancy_id",
       "pff_woman_name",
       "pff_husband_name",
       "pff_last_contact_date",
+      "pff_ultrasound_form_already_been_filled",
     ],
   },
 );
@@ -233,15 +239,22 @@ const firstPffPrefill = buildPffLinkedSourcePrefill(
 );
 assert.equal(firstPffPrefill.prefill.pff_last_contact_date, "");
 assert.equal(firstPffPrefill.readOnlyFields.includes("pff_last_contact_date"), false);
+assert.equal(firstPffPrefill.prefill.pff_ultrasound_form_already_been_filled, 2);
+assert.equal(hasPefUltrasoundUploads({ pef_first_ultrasound_report: 1 }), false);
+assert.equal(hasPefUltrasoundUploads({ pef_ultrasound_reports: { report_count: 1, reports: [{ images: [] }] } }), false);
+assert.equal(hasPefUltrasoundUploads({ pef_ultrasound_reports: { reports: [{ images: [{ attachment_id: "pef-image-1" }] }] } }), true);
 
 const retainedPef = buildPffPefSnapshot({
   ...linkedPef.answers_json,
   pef_woman_hh_member_id: "1-01-0001-02",
   pef_height_cm: "165.5",
   pef_first_ultrasound_report: 1,
+  pef_ultrasound_reports: { report_count: 1, reports: [{ images: [{ attachment_id: "pef-image-1" }] }] },
   unrelated_sensitive_answer: "do not copy",
 });
 assert.equal(retainedPef.unrelated_sensitive_answer, undefined);
+assert.equal(retainedPef.pef_ultrasound_uploaded, true);
+assert.equal(retainedPef.pef_ultrasound_reports, undefined);
 const syncedPffPrefill = buildPffLinkedSourcePrefill([], {
   id: "pff-task-after-sync",
   subject_id: "1-01-0001-02-1",
@@ -251,6 +264,7 @@ assert.equal(syncedPffPrefill.prefill.pff_pregnancy_id, linkedPef.answers_json.p
 assert.equal(syncedPffPrefill.prefill.pff_woman_name, "Sita Devi");
 assert.equal(syncedPffPrefill.prefill.pff_husband_name, "Mohan Lal");
 assert.equal(syncedPffPrefill.prefill.pff_last_contact_date, "");
+assert.equal(syncedPffPrefill.prefill.pff_ultrasound_form_already_been_filled, 1);
 assert.equal(syncedPffPrefill.pefAnswers.pef_height_cm, "165.5");
 assert.ok(syncedPffPrefill.readOnlyFields.includes("pff_pregnancy_id"));
 assert.equal(buildPffLinkedSourcePrefill([], {
@@ -258,5 +272,11 @@ assert.equal(buildPffLinkedSourcePrefill([], {
   pff_last_visit_date: "2026-09-25",
 }).prefill.pff_last_contact_date, "2026-09-25");
 assert.equal(byName.get("pff_pregnancy_id").description, undefined);
+
+const noUploadSnapshot = buildPffPefSnapshot({ pef_first_ultrasound_report: 1 });
+assert.equal(noUploadSnapshot.pef_ultrasound_uploaded, false);
+assert.equal(buildPffLinkedSourcePrefill([], {
+  pff_pef_snapshot_json: JSON.stringify(noUploadSnapshot),
+}).prefill.pff_ultrasound_form_already_been_filled, 2);
 
 console.log("Validated updated PFF workbook mapping and routing.");
