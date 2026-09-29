@@ -13,7 +13,7 @@
       "order": 1,
       "title": { "default": "Visit and pregnancy status" },
       "elements": [
-        { "type": "text", "name": "pff_pregnancy_id", "title": { "default": "1. Pregnancy ID" }, "sourceCode": "1", "sourceType": "prefilled_identity", "rawText": "Pregnancy ID", "isRequired": true, "description": { "default": "Automatically filled from the Pregnancy Enrollment Form." } },
+        { "type": "text", "name": "pff_pregnancy_id", "title": { "default": "1. Pregnancy ID" }, "sourceCode": "1", "sourceType": "prefilled_identity", "rawText": "Pregnancy ID", "isRequired": true },
         { "type": "text", "name": "pff_woman_name", "title": { "default": "2. Name of woman" }, "sourceCode": "2", "sourceType": "prefilled_identity", "rawText": "Name of woman", "isRequired": true, "description": { "default": "Automatically filled from the Pregnancy Enrollment Form." } },
         { "type": "text", "name": "pff_husband_name", "title": { "default": "3. Name of husband" }, "sourceCode": "3", "sourceType": "prefilled_identity", "rawText": "Name of husband", "description": { "default": "Automatically filled from the Pregnancy Enrollment Form." } },
         { "type": "text", "name": "pff_current_address", "title": { "default": "4. Current address for navigation" }, "sourceCode": "4", "sourceType": "prefilled_identity", "rawText": "Display current address for navigation", "isRequired": true, "description": { "default": "Automatically displayed from the household record." } },

@@ -12,6 +12,7 @@ import {
 import {
   buildPffLinkedSourcePrefill,
   parsePffSourceAnswers,
+  parsePffTaskSnapshot,
 } from "./pffPrefillHelpers.js";
 
 function formatLocalIsoDate(date = new Date()) {
@@ -188,15 +189,10 @@ export function buildPefPrefill(member, household, task = null) {
  * Read-only: pregnancy/woman identifiers
  */
 export function buildPffPrefill(member, household, task = null, today = new Date()) {
-  if (!household) {
-    return {
-      prefill: { pff_visit_date: formatLocalIsoDate(today) },
-      readOnlyFields: [],
-    };
-  }
-
   const pregnancyId = task?.pregnancy_id || task?.subject_id || "";
-  const womanId = member?.individual_id || task?.woman_id || task?.household_member_id || "";
+  const taskSnapshot = parsePffTaskSnapshot(task);
+  const womanId = member?.individual_id || task?.woman_id || task?.household_member_id
+    || taskSnapshot.pef_woman_hh_member_id || "";
   const sourceResponses = womanId ? listFormResponses({ subject_id: womanId }) : [];
   const pregnancyResponses = pregnancyId ? listFormResponses({ subject_id: pregnancyId }) : [];
   const responses = [...pregnancyResponses, ...sourceResponses];
@@ -218,7 +214,7 @@ export function buildPffPrefill(member, household, task = null, today = new Date
 
   const prefill = {
     ...sourcePrefill.prefill,
-    pff_current_address: household.address || pefAnswers.pef_current_address || "",
+    pff_current_address: household?.address || pefAnswers.pef_current_address || "",
     pff_visit_date: formatLocalIsoDate(today),
     pff_ultrasound_form_already_been_filled: ultrasoundAlreadyRecorded ? 1 : "",
     pff_height_cm_automatically_filled_woman_s_questionnaire: height,

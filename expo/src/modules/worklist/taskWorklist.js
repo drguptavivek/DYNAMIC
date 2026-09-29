@@ -137,13 +137,20 @@ function describeReconciledProvisional(existingTask, confirmedTask) {
 }
 
 function preserveFinalizedLocalTask(existingTask, incomingTask) {
+  const taskWithSnapshot = {
+    ...incomingTask,
+    woman_id: incomingTask.woman_id || existingTask?.woman_id,
+    pregnancy_id: incomingTask.pregnancy_id || existingTask?.pregnancy_id,
+    pff_pef_snapshot_json: incomingTask.pff_pef_snapshot_json || existingTask?.pff_pef_snapshot_json,
+    pff_last_visit_date: incomingTask.pff_last_visit_date || existingTask?.pff_last_visit_date,
+  };
   const existingStatus = String(existingTask?.status || existingTask?.lifecycle_status || "").toLowerCase();
-  if (existingStatus !== "completed" || isTerminalTask(incomingTask)) return incomingTask;
+  if (existingStatus !== "completed" || isTerminalTask(taskWithSnapshot)) return taskWithSnapshot;
 
   // A pulled open copy must not resurrect work that this device has already
   // finalized. Keep the server identity while retaining local completion.
   return {
-    ...incomingTask,
+    ...taskWithSnapshot,
     status: "completed",
     lifecycle_status: "completed",
     source_form_response_id:

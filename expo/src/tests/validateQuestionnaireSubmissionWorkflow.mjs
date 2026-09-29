@@ -237,6 +237,11 @@ const pefTaskContext = {
 };
 const pefPayload = {
   household_id: "1-02-0042-03",
+  pef_pregnancy_id: "local-pregnancy:1-02-0042-03-02:1",
+  pef_woman_name: "Test Woman",
+  pef_husband_name: "Test Husband",
+  pef_current_address: "Test Address",
+  pef_height_cm: "165.5",
   pef_enrollment_date: "2026-09-15",
   pef_any_time_during_pregnancy_ultrasound: 1,
   pef_first_ultrasound_report: 1,
@@ -351,6 +356,15 @@ assert.equal(pffTasks[0].subject_type, "pregnancy");
 assert.equal(pffTasks[0].subject_id, "local-pregnancy:1-02-0042-03-02:1");
 assert.equal(pffTasks[0].source_event_id, pregnancyEvent.event_id);
 assert.equal(pffTasks[0].source_form_response_id, pefSubmission.submission_id);
+assert.deepEqual(JSON.parse(pffTasks[0].pff_pef_snapshot_json), {
+  pef_pregnancy_id: pefPayload.pef_pregnancy_id,
+  pef_woman_hh_member_id: pefTaskContext.woman_id,
+  pef_woman_name: pefPayload.pef_woman_name,
+  pef_husband_name: pefPayload.pef_husband_name,
+  pef_current_address: pefPayload.pef_current_address,
+  pef_height_cm: pefPayload.pef_height_cm,
+  pef_first_ultrasound_report: 1,
+});
 assert.equal(pffTasks[0].sync_status, "pending");
 assert.equal(ufTasks[0].source_event_id, pregnancyEvent.event_id);
 assert.equal(ufTasks[0].source_form_response_id, pefSubmission.submission_id);

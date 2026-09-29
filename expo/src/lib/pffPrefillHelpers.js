@@ -24,6 +24,34 @@ export function parsePffSourceAnswers(response) {
   }
 }
 
+const PFF_PEF_SNAPSHOT_FIELDS = [
+  "pef_pregnancy_id",
+  "pef_woman_hh_member_id",
+  "pef_woman_name",
+  "pef_husband_name",
+  "pef_current_address",
+  "pef_height_cm",
+  "pef_height_cm_automatically_filled_woman_s_questionnaire",
+  "pef_first_ultrasound_report",
+];
+
+export function buildPffPefSnapshot(answers = {}) {
+  return Object.fromEntries(
+    PFF_PEF_SNAPSHOT_FIELDS
+      .filter((name) => answers[name] !== undefined && answers[name] !== null && answers[name] !== "")
+      .map((name) => [name, answers[name]]),
+  );
+}
+
+export function parsePffTaskSnapshot(task) {
+  try {
+    const snapshot = task?.pff_pef_snapshot_json;
+    return snapshot && typeof snapshot === "object" ? snapshot : JSON.parse(snapshot || "{}");
+  } catch {
+    return {};
+  }
+}
+
 export function findPffSourcePefResponse(responses = [], task = null) {
   const pefResponses = (Array.isArray(responses) ? responses : [])
     .filter((response) => String(response?.form_code || "").toUpperCase() === "PEF")
@@ -63,13 +91,16 @@ export function findPreviousPffResponse(responses = [], task = null) {
 }
 
 export function buildPffLinkedSourcePrefill(responses = [], task = null) {
-  const pefAnswers = parsePffSourceAnswers(findPffSourcePefResponse(responses, task));
+  const pefAnswers = {
+    ...parsePffSourceAnswers(findPffSourcePefResponse(responses, task)),
+    ...parsePffTaskSnapshot(task),
+  };
   const previousPffAnswers = parsePffSourceAnswers(findPreviousPffResponse(responses, task));
   const prefill = {
-    pff_pregnancy_id: pefAnswers.pef_pregnancy_id || "",
+    pff_pregnancy_id: pefAnswers.pef_pregnancy_id || task?.pregnancy_id || task?.subject_id || "",
     pff_woman_name: pefAnswers.pef_woman_name || "",
     pff_husband_name: pefAnswers.pef_husband_name || "",
-    pff_last_contact_date: previousPffAnswers.pff_visit_date || "",
+    pff_last_contact_date: previousPffAnswers.pff_visit_date || task?.pff_last_visit_date || "",
   };
 
   return {

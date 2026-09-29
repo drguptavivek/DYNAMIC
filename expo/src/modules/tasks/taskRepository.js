@@ -470,6 +470,8 @@ export function saveTask(task) {
     household_id,
     subject_type,
     subject_id,
+    woman_id,
+    pregnancy_id,
     subject_name,
     task_type,
     protocol_visit_label,
@@ -490,6 +492,8 @@ export function saveTask(task) {
     generation_source,
     source_event_id,
     source_form_response_id,
+    pff_pef_snapshot_json,
+    pff_last_visit_date,
     sync_status = task.sync_status || "local",
     server_commit_sequence,
     created_at = now,
@@ -498,20 +502,25 @@ export function saveTask(task) {
   try {
     db.runSync(
       `INSERT OR REPLACE INTO follow_up_tasks
-       (id, task_key, household_id, subject_type, subject_id, subject_name, task_type,
+       (id, task_key, household_id, subject_type, subject_id, woman_id, pregnancy_id,
+        subject_name, task_type,
         protocol_visit_label, target_date, window_start, window_end, status,
         lifecycle_status, failed_attempt_count, max_failed_attempts, requires_final_close_reason,
         closed_reason, closed_at,
         form_availability, disabled_reason, assigned_locality_code, rules_version,
-        generation_source, source_event_id, source_form_response_id, sync_status, server_commit_sequence,
+        generation_source, source_event_id, source_form_response_id, pff_pef_snapshot_json,
+        pff_last_visit_date,
+        sync_status, server_commit_sequence,
         created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         task_key,
         household_id,
         subject_type,
         subject_id,
+        woman_id,
+        pregnancy_id,
         subject_name,
         task_type,
         protocol_visit_label,
@@ -532,6 +541,8 @@ export function saveTask(task) {
         generation_source,
         source_event_id,
         source_form_response_id,
+        pff_pef_snapshot_json,
+        pff_last_visit_date,
         sync_status,
         server_commit_sequence,
         created_at,
@@ -558,6 +569,8 @@ export function saveTaskBatch(tasks) {
         household_id,
         subject_type,
         subject_id,
+        woman_id,
+        pregnancy_id,
         subject_name,
         task_type,
         protocol_visit_label,
@@ -578,6 +591,8 @@ export function saveTaskBatch(tasks) {
         generation_source,
         source_event_id,
         source_form_response_id,
+        pff_pef_snapshot_json,
+        pff_last_visit_date,
         sync_status = task.sync_status || "local",
         server_commit_sequence,
         created_at = now,
@@ -585,20 +600,25 @@ export function saveTaskBatch(tasks) {
 
       db.runSync(
         `INSERT OR REPLACE INTO follow_up_tasks
-         (id, task_key, household_id, subject_type, subject_id, subject_name, task_type,
+         (id, task_key, household_id, subject_type, subject_id, woman_id, pregnancy_id,
+          subject_name, task_type,
           protocol_visit_label, target_date, window_start, window_end, status,
           lifecycle_status, failed_attempt_count, max_failed_attempts, requires_final_close_reason,
           closed_reason, closed_at,
           form_availability, disabled_reason, assigned_locality_code, rules_version,
-          generation_source, source_event_id, source_form_response_id, sync_status, server_commit_sequence,
+          generation_source, source_event_id, source_form_response_id, pff_pef_snapshot_json,
+          pff_last_visit_date,
+          sync_status, server_commit_sequence,
           created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           id,
           task_key,
           household_id,
           subject_type,
           subject_id,
+          woman_id,
+          pregnancy_id,
           subject_name,
           task_type,
           protocol_visit_label,
@@ -619,6 +639,8 @@ export function saveTaskBatch(tasks) {
           generation_source,
           source_event_id,
           source_form_response_id,
+          pff_pef_snapshot_json,
+          pff_last_visit_date,
           sync_status,
           server_commit_sequence,
           created_at,
@@ -1684,6 +1706,20 @@ export function supersedeLocalPsfTasksForWoman({ householdId, subjectId, reason 
     console.error("Error superseding local PSF tasks:", error);
     throw error;
   }
+}
+
+export function retainPffLastVisitDate({ pregnancyId, currentTaskId, visitDate } = {}) {
+  if (!pregnancyId || !/^\d{4}-\d{2}-\d{2}$/.test(String(visitDate || ""))) return 0;
+  const db = getDb();
+  const result = db.runSync(
+    `UPDATE follow_up_tasks
+     SET pff_last_visit_date = ?, updated_at = ?
+     WHERE UPPER(task_type) = 'PFF' AND subject_id = ?
+       AND (? IS NULL OR id <> ?)
+       AND status NOT IN ('completed', 'missed', 'cancelled', 'superseded', 'closed', 'closed_final_reason')`,
+    [visitDate, new Date().toISOString(), pregnancyId, currentTaskId || null, currentTaskId || null],
+  );
+  return Number(result?.changes || 0);
 }
 
 export function closeLocalPffWorkflow({

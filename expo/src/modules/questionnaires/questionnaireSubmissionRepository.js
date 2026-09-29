@@ -9,6 +9,7 @@ import {
   normalizeIdPart,
 } from "../households/householdIds.js";
 import { normalizeTaskAttemptLimits } from "../worklist/taskWorklist.js";
+import { buildPffPefSnapshot, parsePffTaskSnapshot } from "../../lib/pffPrefillHelpers.js";
 import {
   WQ_VISITOR_EXCLUDED_STATUS,
   canCorrectExcludedWqResponse,
@@ -666,13 +667,22 @@ async function promotePefLocally(response, taskContext) {
     created_at: response.submitted_at,
     updated_at: response.submitted_at,
   };
-  const tasks = promotion.task_descriptors.map((descriptor) =>
-    toLocalTask(descriptor, {
+  const pffSnapshot = buildPffPefSnapshot({
+    ...(response.answers_json || {}),
+    pef_pregnancy_id: response.answers_json?.pef_pregnancy_id || pregnancyId,
+    pef_woman_hh_member_id: response.answers_json?.pef_woman_hh_member_id
+      || taskContext?.woman_id || response.subject_id,
+  });
+  const tasks = promotion.task_descriptors.map((descriptor) => {
+    const task = toLocalTask(descriptor, {
       submittedAt: response.submitted_at,
       localityCode: response.locality_code,
       sourceFormResponseId: response.id,
-    }),
-  );
+    });
+    return String(descriptor.task_type || "").toUpperCase() === "PFF"
+      ? { ...task, pff_pef_snapshot_json: JSON.stringify(pffSnapshot) }
+      : task;
+  });
 
   await saveDomainEvent(promotion.event, response.submitted_at);
   await savePefDerivedWorkflow(pregnancy, tasks);
@@ -680,7 +690,8 @@ async function promotePefLocally(response, taskContext) {
 
 async function promotePffLocally(response, taskContext) {
   if (response.form_code !== "PFF" || !response.household_id || !response.subject_id) return;
-  const womanId = taskContext?.woman_id || taskContext?.household_member_id;
+  const womanId = taskContext?.woman_id || taskContext?.household_member_id
+    || parsePffTaskSnapshot(taskContext).pef_woman_hh_member_id;
   if (!womanId) return;
   const promotion = promoteFormSubmission({
     form_code: "PFF",
@@ -702,14 +713,44 @@ async function promotePffLocally(response, taskContext) {
   });
   if (!promotion) return;
   await saveDomainEvent(promotion.event, response.submitted_at);
-  await saveTasks(promotion.task_descriptors.map((descriptor) =>
-    toLocalTask(descriptor, {
+  const visitDate = String(response.answers_json?.pff_visit_date || "");
+  await saveTasks(promotion.task_descriptors.map((descriptor) => {
+    const task = toLocalTask(descriptor, {
       submittedAt: response.submitted_at,
       subjectName: taskContext?.subject_name,
       localityCode: response.locality_code,
       sourceFormResponseId: response.id,
-    }),
-  ));
+    });
+    return String(descriptor.task_type || "").toUpperCase() === "PFF"
+      ? {
+          ...task,
+          pff_pef_snapshot_json: taskContext?.pff_pef_snapshot_json || null,
+          pff_last_visit_date: visitDate,
+        }
+      : task;
+  }));
+
+  const pregnancyId = taskContext?.pregnancy_id || response.subject_id;
+  try {
+    const taskRepository = await import("../tasks/taskRepository.js");
+    taskRepository.retainPffLastVisitDate?.({
+      pregnancyId,
+      currentTaskId: response.task_id,
+      visitDate,
+    });
+  } catch {
+    const storage = getStorage();
+    if (storage) {
+      const state = readWebSqliteState(storage);
+      state.follow_up_tasks = (state.follow_up_tasks || []).map((task) =>
+        String(task.task_type || "").toUpperCase() === "PFF" &&
+        task.subject_id === pregnancyId && task.id !== response.task_id
+          ? { ...task, pff_last_visit_date: visitDate }
+          : task,
+      );
+      storage.setItem(WEB_SQLITE_STORAGE_KEY, JSON.stringify(state));
+    }
+  }
 
   const pregnancyStatus = Number(response.answers_json?.pff_pregnancy_status);
   const vitalStatus = Number(response.answers_json?.pff_vital_migration_status_woman);

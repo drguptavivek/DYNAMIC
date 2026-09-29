@@ -9,6 +9,7 @@ import {
 } from "../components/forms/nativeSurveyModel.js";
 import {
   buildPffLinkedSourcePrefill,
+  buildPffPefSnapshot,
   findPffSourcePefResponse,
   findPreviousPffResponse,
   parsePffSourceAnswers,
@@ -147,5 +148,30 @@ const firstPffPrefill = buildPffLinkedSourcePrefill(
 );
 assert.equal(firstPffPrefill.prefill.pff_last_contact_date, "");
 assert.equal(firstPffPrefill.readOnlyFields.includes("pff_last_contact_date"), false);
+
+const retainedPef = buildPffPefSnapshot({
+  ...linkedPef.answers_json,
+  pef_woman_hh_member_id: "1-01-0001-02",
+  pef_height_cm: "165.5",
+  pef_first_ultrasound_report: 1,
+  unrelated_sensitive_answer: "do not copy",
+});
+assert.equal(retainedPef.unrelated_sensitive_answer, undefined);
+const syncedPffPrefill = buildPffLinkedSourcePrefill([], {
+  id: "pff-task-after-sync",
+  subject_id: "1-01-0001-02-1",
+  pff_pef_snapshot_json: JSON.stringify(retainedPef),
+});
+assert.equal(syncedPffPrefill.prefill.pff_pregnancy_id, linkedPef.answers_json.pef_pregnancy_id);
+assert.equal(syncedPffPrefill.prefill.pff_woman_name, "Sita Devi");
+assert.equal(syncedPffPrefill.prefill.pff_husband_name, "Mohan Lal");
+assert.equal(syncedPffPrefill.prefill.pff_last_contact_date, "");
+assert.equal(syncedPffPrefill.pefAnswers.pef_height_cm, "165.5");
+assert.ok(syncedPffPrefill.readOnlyFields.includes("pff_pregnancy_id"));
+assert.equal(buildPffLinkedSourcePrefill([], {
+  pff_pef_snapshot_json: JSON.stringify(retainedPef),
+  pff_last_visit_date: "2026-09-25",
+}).prefill.pff_last_contact_date, "2026-09-25");
+assert.equal(byName.get("pff_pregnancy_id").description, undefined);
 
 console.log("Validated updated PFF workbook mapping and routing.");

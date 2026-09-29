@@ -1,3 +1,12 @@
+## 2026-09-29 (PFF offline source snapshot) [verified]
+Goal: Keep PFF identity and related PEF values available after PEF sync, and retain the previous PFF visit date.
+Decisions:
+- Save a small PEF answer snapshot on generated PFF tasks; keep it through local SQLite upgrades and server task reconciliation.
+- Retain woman/pregnancy task IDs and propagate the last completed PFF visit date to remaining PFF tasks.
+- Remove the explanatory text below PFF Pregnancy ID; the field displays the PEF pregnancy ID when available.
+Verification:
+- PFF prefill, submission workflow, task worklist, and task schema checks pass; both SQLite task insert statements have matching columns and placeholders.
+
 ## 2026-09-28 (PFF linked PEF identity and previous visit prefill) [verified]
 Goal: Auto-fill PFF pregnancy ID, woman name, and husband name from the PEF that generated the task, and Q5 from the latest earlier PFF.
 Decisions:

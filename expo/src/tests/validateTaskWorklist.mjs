@@ -245,6 +245,24 @@ assert.equal(savedBatches.length, 1);
 assert.equal(savedBatches[0].length, 1);
 assert.equal(savedBatches[0][0].id, "server-task-1");
 
+const pffSnapshot = JSON.stringify({ pef_pregnancy_id: "pregnancy-1", pef_woman_name: "Sita" });
+const snapshotBatches = [];
+reconcilePulledTasks(
+  [{ ...confirmedTask, task_type: "PFF", woman_id: null, pff_pef_snapshot_json: null }],
+  {
+    listTasks: () => [],
+    getTasksByIdentities: () => [{
+      ...provisionalTask,
+      task_type: "PFF",
+      woman_id: "woman-1",
+      pff_pef_snapshot_json: pffSnapshot,
+    }],
+    saveTaskBatch: (tasks) => snapshotBatches.push(tasks),
+  },
+);
+assert.equal(snapshotBatches[0][0].pff_pef_snapshot_json, pffSnapshot);
+assert.equal(snapshotBatches[0][0].woman_id, "woman-1");
+
 const identityCalls = [];
 const identityBatches = [];
 let identityListTasksCalled = false;
