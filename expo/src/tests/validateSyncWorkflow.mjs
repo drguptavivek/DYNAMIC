@@ -37,6 +37,7 @@ const syncRouteSource = fs.readFileSync(path.resolve(testRoot, "../../app/sync.j
 assert.match(authStoreSource, /export async function refreshStoredSession\(\)/);
 assert.match(syncServiceSource, /response\.status === 401 \|\| response\.status === 403/);
 assert.match(syncServiceSource, /await authStore\.refreshStoredSession\(\)/);
+assert.match(syncServiceSource, /getGeneratedTaskKeys\(\s*response\.id, response\.task_id/);
 assert.match(syncServiceSource, /completed forms remain saved on this device/);
 assert.match(syncServiceSource, /Assignment refresh failed \(\$\{statusLabel\}\)/);
 assert.match(syncScreenSource, /SyncScreen\(\{ onClockStatusChange, onSyncComplete \}/);
@@ -104,6 +105,13 @@ assert.deepEqual(records, [
     },
   },
 ]);
+
+assert.deepEqual(
+  buildPushRecords({
+    formResponses: [{ id: "response-with-tasks", generated_task_keys: ["household|woman|person|PSF|round-1|2026-10-01|v1"] }],
+  })[0].data.generated_task_keys,
+  ["household|woman|person|PSF|round-1|2026-10-01|v1"],
+);
 
 assert.deepEqual(
   [

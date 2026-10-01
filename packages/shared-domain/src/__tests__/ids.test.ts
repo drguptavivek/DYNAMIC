@@ -1,6 +1,14 @@
-import { buildHouseholdId, buildMemberID, buildChildId, buildTaskKey } from "../ids";
+import { buildHouseholdId, buildMemberID, buildChildId, buildDetectedPregnancyId, buildTaskKey, nextPregnancySequence } from "../ids";
 
 describe("ID construction functions", () => {
+  it("uses the detecting response to give phone and server the same pregnancy ID", () => {
+    expect(buildDetectedPregnancyId("woman-1", "response-1"))
+      .toBe("pregnancy:woman-1:response-1");
+  });
+  it("numbers a later pregnancy after the woman's highest prior sequence", () => {
+    expect(nextPregnancySequence([])).toBe(1);
+    expect(nextPregnancySequence([2, 1])).toBe(3);
+  });
   describe("buildHouseholdId", () => {
     it("produces correct format", () => {
       const result = buildHouseholdId({

@@ -24,6 +24,7 @@ const { saveQuestionnaireSubmission } = await import(
   "../modules/questionnaires/questionnaireSubmissionRepository.js"
 );
 const { buildPushRecords } = await import("../modules/sync/syncWorkflow.js");
+const { getLocalCalendarDate } = await import("../lib/localDate.js");
 
 const hhqPayload = {
   hhq_site_id: 1,
@@ -531,5 +532,73 @@ const offlineWqPushRecord = buildPushRecords({
 })[0];
 assert.equal(offlineWqPushRecord.data.task_id, wqTasks[0].id);
 assert.equal(offlineWqPushRecord.data.task_key, wqTasks[0].task_key);
+
+// Every pathway creates its PSF series locally without opening future rounds early.
+const testToday = getLocalCalendarDate();
+const psfCases = [
+  { formCode: "WQ", womanId: "1-02-0043-04-01", payload: { wq_interview_date: testToday, wq_pregnant: 2 } },
+  { formCode: "PFF", womanId: "1-02-0043-04-02", payload: { pff_visit_date: testToday, pff_pregnancy_status: 3 } },
+  { formCode: "POF", womanId: "1-02-0043-04-03", payload: {
+    pof_delivery_date: testToday,
+    pof_number_live_born_infants_fill_one_birth_assessment: 1,
+  } },
+];
+for (const { formCode, womanId, payload } of psfCases) {
+  const taskContext = {
+    id: `test-${formCode}-${womanId}`,
+    household_id: "1-02-0043-04",
+    subject_type: formCode === "WQ" ? "woman" : "pregnancy",
+    subject_id: formCode === "WQ" ? womanId : `local-pregnancy:${womanId}:1`,
+    woman_id: womanId,
+    pregnancy_id: `local-pregnancy:${womanId}:1`,
+    task_type: formCode,
+  };
+  const submitted = await saveQuestionnaireSubmission({
+    formCode, formVersion: "test", payload, taskId: taskContext.id, taskContext, deviceId: "device-1",
+  });
+  const state = JSON.parse(window.localStorage.getItem("dynamic_web_sqlite_v2") || "{}");
+  const rounds = state.follow_up_tasks.filter((task) =>
+    task.task_type === "PSF" && task.subject_id === womanId &&
+    task.source_form_response_id === submitted.submission_id,
+  );
+  assert.ok(rounds.length > 1, `${formCode} must create a local PSF series`);
+  assert.ok(rounds.every((task) => task.target_date > testToday),
+    `${formCode} must preserve the protocol schedule`);
+  assert.ok(rounds.some((task) => task.window_start > testToday && task.lifecycle_status === "planned"),
+    `${formCode} must keep later PSF rounds closed until their window opens`);
+  if (formCode === "POF") {
+    const bafTasks = state.follow_up_tasks.filter((task) =>
+      task.task_type === "BAF" && task.source_form_response_id === submitted.submission_id,
+    );
+    assert.equal(bafTasks.length, 1, "POF must create its BAF task offline");
+    const bafSubmission = await saveQuestionnaireSubmission({
+      formCode: "BAF", formVersion: "test", taskId: bafTasks[0].id, taskContext: bafTasks[0], deviceId: "device-1",
+      payload: { baf_birth_date: testToday, baf_vital_status_infant_birth: 1, baf_child_vital_status: 1 },
+    });
+    const afterBaf = JSON.parse(window.localStorage.getItem("dynamic_web_sqlite_v2") || "{}");
+    assert.ok(afterBaf.follow_up_tasks.some((task) =>
+      task.task_type === "NFF" && task.source_form_response_id === bafSubmission.submission_id &&
+      task.subject_id === `${bafTasks[0].pregnancy_id}-B1`,
+    ), "BAF must create newborn follow-up offline with a stable child ID");
+  }
+}
+
+const psfWomanId = "1-02-0043-04-01";
+const beforePositivePsf = JSON.parse(window.localStorage.getItem("dynamic_web_sqlite_v2") || "{}");
+const firstPsfTask = beforePositivePsf.follow_up_tasks.filter((task) =>
+  task.task_type === "PSF" && task.subject_id === psfWomanId,
+).sort((a, b) => a.target_date.localeCompare(b.target_date))[0];
+assert.ok(firstPsfTask);
+const positivePsf = await saveQuestionnaireSubmission({
+  formCode: "PSF", formVersion: "test", taskId: firstPsfTask.id, taskContext: firstPsfTask, deviceId: "device-1",
+  payload: { psf_interview_date: testToday, psf_pregnant_now: 1 },
+});
+const afterPositivePsf = JSON.parse(window.localStorage.getItem("dynamic_web_sqlite_v2") || "{}");
+assert.ok(afterPositivePsf.follow_up_tasks.some((task) =>
+  task.task_type === "PEF" && task.source_form_response_id === positivePsf.submission_id,
+));
+assert.ok(afterPositivePsf.follow_up_tasks.filter((task) =>
+  task.task_type === "PSF" && task.subject_id === psfWomanId && task.id !== firstPsfTask.id,
+).every((task) => task.status === "cancelled" && task.closed_reason === "pregnancy_detected"));
 
 console.log("Validated questionnaire final submission workflow.");

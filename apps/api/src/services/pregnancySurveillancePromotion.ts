@@ -5,6 +5,7 @@ import { and, eq, inArray, or } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { pregnancyDetected } from "@dynamic/event-core";
 import { writeTasksFromDescriptors } from "./taskWriter";
+import { buildDetectedPregnancyId, nextPregnancySequence } from "@dynamic/shared-domain";
 
 type FormResponseRow = typeof schema.formResponses.$inferSelect;
 
@@ -74,15 +75,15 @@ export async function promotePregnancySurveillance(
       .from(schema.eligibleWomen)
       .where(eq(schema.eligibleWomen.woman_id, womanId))
       .limit(1);
-    const [existingPregnancy] = await getDb()
+    const priorPregnancies = await getDb()
       .select()
       .from(schema.pregnancies)
-      .where(and(eq(schema.pregnancies.woman_id, womanId), eq(schema.pregnancies.pregnancy_status, "active")))
-      .limit(1);
-    const detectedDate = values.interview_date || new Date().toISOString().slice(0, 10);
+      .where(eq(schema.pregnancies.woman_id, womanId));
+    const existingPregnancy = priorPregnancies.find((pregnancy) => pregnancy.pregnancy_status === "active");
+    const detectedDate = values.interview_date || (response.created_offline_at ?? now).toISOString().slice(0, 10);
     let pregnancyId = existingPregnancy?.pregnancy_id;
     if (!pregnancyId) {
-      pregnancyId = randomUUID();
+      pregnancyId = buildDetectedPregnancyId(womanId, response.form_response_id);
       await getDb().insert(schema.pregnancies).values({
         pregnancy_id: pregnancyId,
         woman_id: womanId,
@@ -90,7 +91,7 @@ export async function promotePregnancySurveillance(
         household_id: householdId,
         site_id: response.site_id,
         locality_code: response.locality_code,
-        pregnancy_sequence: 1,
+        pregnancy_sequence: nextPregnancySequence(priorPregnancies.map((pregnancy) => pregnancy.pregnancy_sequence)),
         pregnancy_status: "active",
         detected_date: detectedDate,
         detection_source: "psf",
@@ -106,12 +107,31 @@ export async function promotePregnancySurveillance(
       household_id: householdId,
       woman_id: womanId,
       detected_date: detectedDate,
-      recorded_at: now.toISOString(),
+      recorded_at: (response.created_offline_at ?? now).toISOString(),
       task_id: response.task_id,
       form_response_id: response.form_response_id,
       device_id: response.device_id || undefined,
     });
-    await writeTasksFromDescriptors(pregnancyDetected.planWorkflow({ event: detectedEvent }));
+    await getDb().insert(schema.domainEvents).values({
+      event_id: detectedEvent.event_id,
+      event_type: detectedEvent.event_type,
+      site_id: response.site_id,
+      locality_code: response.locality_code,
+      household_id: householdId,
+      subject_type: "woman",
+      subject_id: womanId,
+      task_id: response.task_id,
+      form_response_id: response.form_response_id,
+      event_datetime: response.created_offline_at ?? now,
+      created_offline_at: response.created_offline_at,
+      device_id: response.device_id,
+      sync_status: "synced",
+      apply_status: "applied",
+      created_at: now,
+    });
+    await writeTasksFromDescriptors(pregnancyDetected.planWorkflow({ event: detectedEvent }).map((task) =>
+      task.task_type === "PEF" ? { ...task, pregnancy_id: pregnancyId } : task,
+    ));
     await getDb()
       .update(schema.followUpTasks)
       .set({ status: "cancelled", closed_at: now, closed_reason: "pregnancy_detected", updated_at: now })

@@ -39,6 +39,12 @@ export const buildChildId = (params: ChildIdParams): string => {
   return `${params.pregnancy_id}-B${params.birth_rank}`;
 };
 
+export const buildDetectedPregnancyId = (womanId: string, responseId: string): string =>
+  `pregnancy:${womanId}:${responseId}`;
+
+export const nextPregnancySequence = (priorSequences: number[]): number =>
+  Math.max(0, ...priorSequences) + 1;
+
 export const buildTaskKey = (params: TaskKeyParams): string => {
   return `${params.household_id}|${params.subject_type}|${params.subject_id}|${params.task_type}|${params.protocol_visit_label}|${params.target_date}|${params.rules_version}`;
 };

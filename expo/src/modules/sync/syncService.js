@@ -727,9 +727,17 @@ async function pushRecordBatch({ token, deviceId, formResponses = [], domainEven
   }
 
   const responsesWithTaskKeys = uploadableFormResponses.map((response) => {
-    if (response?.task_key || !response?.task_id) return response;
-    const task = taskRepository.getTask?.(response.task_id);
-    return task?.task_key ? { ...response, task_key: task.task_key } : response;
+    const task = !response?.task_key && response?.task_id
+      ? taskRepository.getTask?.(response.task_id)
+      : null;
+    const generatedTaskKeys = taskRepository.getGeneratedTaskKeys(
+      response.id, response.task_id, response.task_key || task?.task_key,
+    );
+    return {
+      ...response,
+      ...(task?.task_key ? { task_key: task.task_key } : {}),
+      ...(generatedTaskKeys.length ? { generated_task_keys: generatedTaskKeys } : {}),
+    };
   });
   const records = buildPushRecords({
     formResponses: responsesWithTaskKeys,

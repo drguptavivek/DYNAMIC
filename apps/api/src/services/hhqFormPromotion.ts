@@ -4,7 +4,7 @@ import { randomUUID } from "crypto";
 import { schema } from "../db";
 import { getDb } from "../lib/dbContext";
 import { buildHhqHouseholdPromotionValues, buildHhqMemberPromotionValues } from "./hhqPromotion";
-import { writeTasksFromDescriptors } from "./taskWriter";
+import { checkGeneratedTaskKey, writeTasksFromDescriptors } from "./taskWriter";
 import type { FormAnswers } from "./promotionEventBridge";
 
 type FormResponseRow = typeof schema.formResponses.$inferSelect;
@@ -130,11 +130,13 @@ async function promoteHhqEarlyStop(
       : toIsoDate(response.created_offline_at ?? now);
   const targetDate = addDaysIso(visitDate, HHQ_REVISIT_DELAY_DAYS);
   const protocolVisitLabel = `baseline-visit-${nextVisitNo}`;
+  const taskKey = `${household.household_id}|household|${household.household_id}|HHQ|${protocolVisitLabel}|${targetDate}|v1`;
+  checkGeneratedTaskKey(taskKey);
   await getDb()
     .insert(schema.followUpTasks)
     .values({
       task_id: randomUUID(),
-      task_key: `${household.household_id}|household|${household.household_id}|HHQ|${protocolVisitLabel}|${targetDate}|v1`,
+      task_key: taskKey,
       site_id: household.site_id,
       locality_code: household.locality_code,
       household_id: household.household_id,
@@ -340,6 +342,23 @@ export async function promoteHhq(response: FormResponseRow, answers: FormAnswers
         task_id: response.task_id,
         form_response_id: response.form_response_id,
         device_id: response.device_id,
+      });
+      await getDb().insert(schema.domainEvents).values({
+        event_id: eligibleWomanEvent.event_id,
+        event_type: eligibleWomanEvent.event_type,
+        site_id: household.site_id,
+        locality_code: household.locality_code,
+        household_id: household.household_id,
+        subject_type: "woman",
+        subject_id: promotedMember.household_member_id,
+        task_id: response.task_id,
+        form_response_id: response.form_response_id,
+        event_datetime: response.created_offline_at ?? now,
+        created_offline_at: response.created_offline_at,
+        device_id: response.device_id,
+        sync_status: "synced",
+        apply_status: "applied",
+        created_at: now,
       });
       wqTasks.push(...eligibleWomanIdentified.planWorkflow({ event: eligibleWomanEvent }));
     }

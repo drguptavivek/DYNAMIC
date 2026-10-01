@@ -7,6 +7,7 @@ import { db, schema } from "../db";
 import { JwtPayload, optionalAuth, requireAuth } from "../middleware/auth";
 import { sendError, sendSuccess } from "../lib/errors";
 import { processFormResponse } from "../services/eventProcessor";
+import { withGeneratedTaskKeys } from "../services/taskWriter";
 import { getEffectiveFormVersionManifest } from "../lib/formLanguage";
 import { buildSyncClockMetadata } from "../lib/syncClock";
 import { appendAreaScopeCondition, canAccessLocation } from "../lib/areaScope";
@@ -246,8 +247,9 @@ const toExpoTaskStatus = (status: string | null): string => {
   return "open";
 };
 
-const mapTaskForExpo = (task: typeof schema.followUpTasks.$inferSelect) => ({
+const mapTaskForExpo = (task: typeof schema.followUpTasks.$inferSelect, childId?: string) => ({
   ...task,
+  child_id: childId ?? task.child_id,
   id: task.task_id,
   task_key: task.task_key,
   window_end: task.deadline_date,
@@ -814,6 +816,21 @@ router.get(
       .orderBy(schema.followUpTasks.task_id)
       .limit(pageSize)
       .offset(offset);
+    const bafPregnancyIds = [...new Set(tasksData
+      .filter((task) => task.task_type === "BAF" && task.pregnancy_id && /^BAF-birth-\d+$/.test(task.protocol_visit_label || ""))
+      .map((task) => task.pregnancy_id!))];
+    const bafChildren = bafPregnancyIds.length > 0
+      ? await db.select({
+          child_id: schema.children.child_id,
+          pregnancy_id: schema.children.pregnancy_id,
+          birth_rank: schema.children.birth_rank,
+        }).from(schema.children).where(inArray(schema.children.pregnancy_id, bafPregnancyIds))
+      : [];
+    const bafChildIds = new Map<string, string | null>();
+    for (const child of bafChildren) {
+      const key = `${child.pregnancy_id}|${child.birth_rank}`;
+      bafChildIds.set(key, bafChildIds.has(key) ? null : child.child_id);
+    }
 
     // Query task attempts
     const taskIds = tasksData.map((t) => t.task_id);
@@ -878,7 +895,13 @@ router.get(
       eligible_women: eligibleWomenData,
       pregnancies: pregnanciesData,
       children: childrenData,
-      tasks: tasksData.map(mapTaskForExpo),
+      tasks: tasksData.map((task) => {
+        const rank = /^BAF-birth-(\d+)$/.exec(task.protocol_visit_label || "");
+        const childId = task.task_type === "BAF" && task.pregnancy_id && rank
+          ? bafChildIds.get(`${task.pregnancy_id}|${Number(rank[1])}`) ?? undefined
+          : undefined;
+        return mapTaskForExpo(task, childId);
+      }),
       task_attempts: taskAttempts,
       form_responses: formResponsesData.map(mapFormResponseForExpo),
       protocol_config_version: "1.0.0",
@@ -1249,7 +1272,7 @@ router.post(
                       data.household_id
                         ? eq(schema.followUpTasks.household_id, data.household_id)
                         : undefined,
-                      data.subject_id
+                      data.subject_id && String(form_code).toUpperCase() !== "BAF"
                         ? eq(schema.followUpTasks.subject_id, data.subject_id)
                         : undefined,
                       form_code ? eq(schema.followUpTasks.form_code, form_code) : undefined,
@@ -1462,7 +1485,11 @@ router.post(
                 return responseClassification;
               }
 
-              await processFormResponse(id);
+              if (Object.prototype.hasOwnProperty.call(data, "generated_task_keys")) {
+                await withGeneratedTaskKeys(data.generated_task_keys, () => processFormResponse(id));
+              } else {
+                await processFormResponse(id);
+              }
               const [processedResponse] = await tx
                 .select({
                   response_status: schema.formResponses.response_status,

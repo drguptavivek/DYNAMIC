@@ -5,6 +5,7 @@ import {
 } from "@dynamic/event-core";
 import { and, eq, gte, inArray, isNull, or } from "drizzle-orm";
 import { randomUUID } from "crypto";
+import { buildDetectedPregnancyId, nextPregnancySequence } from "@dynamic/shared-domain";
 import { schema } from "../db";
 import { getDb } from "../lib/dbContext";
 import { writeTasksFromDescriptors } from "./taskWriter";
@@ -194,25 +195,30 @@ export async function promotePef(
       .from(schema.pregnancies)
       .where(eq(schema.pregnancies.household_member_id, subjectId));
 
-    const activePregnancy =
+    let activePregnancy =
       pregnancies.find((candidate) => candidate.pregnancy_status === "active") ?? null;
-    let pregnancy = activePregnancy ?? pregnancies[0] ?? null;
+    let pregnancy = activePregnancy;
     if (!pregnancy) {
       const now = new Date();
       const enrollmentDate =
         typeof answers.pef_enrollment_date === "string" && answers.pef_enrollment_date
           ? answers.pef_enrollment_date
           : (response.created_offline_at ?? now).toISOString().slice(0, 10);
+      const submittedPregnancyId = String(answers.pef_pregnancy_id || "");
+      const pregnancyId = submittedPregnancyId.startsWith(`${subjectId}-`) &&
+        /^[1-9]$/.test(submittedPregnancyId.slice(subjectId.length + 1))
+        ? submittedPregnancyId
+        : buildDetectedPregnancyId(subjectId, response.form_response_id);
       const [createdPregnancy] = await getDb()
         .insert(schema.pregnancies)
         .values({
-          pregnancy_id: randomUUID(),
+          pregnancy_id: pregnancyId,
           woman_id: subjectId,
           household_member_id: subjectId,
           household_id: householdId,
           site_id: response.site_id,
           locality_code: response.locality_code,
-          pregnancy_sequence: 1,
+          pregnancy_sequence: nextPregnancySequence(pregnancies.map((prior) => prior.pregnancy_sequence)),
           pregnancy_status: "active",
           detected_date: enrollmentDate,
           detection_source: "pef_direct_contextual_action",
@@ -221,6 +227,7 @@ export async function promotePef(
         })
         .returning();
       pregnancy = createdPregnancy;
+      activePregnancy = createdPregnancy;
     }
 
     const now = new Date();

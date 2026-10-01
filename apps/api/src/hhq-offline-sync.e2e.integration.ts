@@ -83,6 +83,34 @@ test("HHQ early-stop submission schedules HHQ revisit and does not create HRF ta
     });
     const authorization = `Bearer ${login.access_token}`;
     const sinceBeforePush = new Date(Date.now() - 1000).toISOString();
+    const invalidResponseId = `${responseId}-invalid-plan`;
+    const formRecord = {
+      type: "form_response",
+      data: {
+        id: responseId,
+        task_id: baselineTaskId,
+        form_code: "HHQ",
+        form_version: "2026.05.17",
+        household_id: householdId,
+        site_id: 1,
+        locality_code: "01",
+        subject_type: "household",
+        subject_id: householdId,
+        generated_task_keys: [`${householdId}|household|${householdId}|HHQ|baseline-visit-2|2026-09-02|v1`],
+        answers_json: {
+          hhq_site_id: 1,
+          hhq_locality_code: "01",
+          hhq_structure_map_id: structureMapId,
+          hhq_household_number: "02",
+          hhq_household_address: "E2E revisit address",
+          hhq_household_head_name: "E2E Revisit Head",
+          hhq_interview_date: "2026-09-01",
+          hhq_visit_no: 1,
+          hhq_competent_respondent_available: 2,
+        },
+        submitted_at: submittedAt,
+      },
+    };
 
     const pushed = await fetchData(`${baseUrl}/sync/push`, {
       method: "POST",
@@ -90,38 +118,17 @@ test("HHQ early-stop submission schedules HHQ revisit and does not create HRF ta
       body: JSON.stringify({
         device_id: "e2e-early-stop-device",
         records: [
-          {
-            type: "form_response",
-            data: {
-              id: responseId,
-              task_id: baselineTaskId,
-              form_code: "HHQ",
-              form_version: "2026.05.17",
-              household_id: householdId,
-              site_id: 1,
-              locality_code: "01",
-              subject_type: "household",
-              subject_id: householdId,
-              answers_json: {
-                hhq_site_id: 1,
-                hhq_locality_code: "01",
-                hhq_structure_map_id: structureMapId,
-                hhq_household_number: "02",
-                hhq_household_address: "E2E revisit address",
-                hhq_household_head_name: "E2E Revisit Head",
-                hhq_interview_date: "2026-09-01",
-                hhq_visit_no: 1,
-                hhq_competent_respondent_available: 2,
-              },
-              submitted_at: submittedAt,
-            },
-          },
+          { ...formRecord, data: { ...formRecord.data, id: invalidResponseId, generated_task_keys: ["wrong-task-key"] } },
+          formRecord,
         ],
       }),
     });
 
     assert.equal(pushed.accepted, 1);
-    assert.deepEqual(pushed.errors, []);
+    assert.deepEqual(pushed.errors, [{ id: invalidResponseId, error: "Generated task keys do not match server workflow" }]);
+    const rejectedResponse = await db.select().from(schema.formResponses)
+      .where(eq(schema.formResponses.form_response_id, invalidResponseId));
+    assert.equal(rejectedResponse.length, 0);
 
     const storedResponse = await db
       .select()
@@ -941,6 +948,7 @@ test("HHQ offline submission creates local WQ workflow, syncs backend, and pulls
       .from(schema.children)
       .where(eq(schema.children.pregnancy_id, activePregnancies[0].pregnancy_id));
     assert.equal(childRows.length, 1);
+    assert.equal(childRows[0].child_id, `${activePregnancies[0].pregnancy_id}-B1`);
     assert.equal(childRows[0].source_event_id, outcomeEvents[0].event_id);
 
     const bafTasks = (await db
@@ -964,13 +972,14 @@ test("HHQ offline submission creates local WQ workflow, syncs backend, and pulls
             data: {
               id: bafResponseId,
               task_id: bafTasks[0].task_id,
+              task_key: bafTasks[0].task_key,
               form_code: "BAF",
               form_version: "2026.05.17",
               household_id: householdId,
               site_id: 1,
               locality_code: "01",
-              subject_type: "child",
-              subject_id: childRows[0].child_id,
+              subject_type: "pregnancy",
+              subject_id: activePregnancies[0].pregnancy_id,
               answers_json: {
                 household_id: householdId,
                 baf_weight_birth_grams: "2800",
@@ -1047,6 +1056,10 @@ test("HHQ offline submission creates local WQ workflow, syncs backend, and pulls
           task.task_key === wqTaskKey && task.id !== localWqTasks[0].id && task.task_type === "WQ",
       ),
     );
+    assert.ok(pulled.tasks.some(
+      (task: { task_key: string; child_id: string }) =>
+        task.task_key === bafTasks[0].task_key && task.child_id === childRows[0].child_id,
+    ));
 
     const pulledMembers = await fetchData(`${baseUrl}/sync/pull/members`, {
       method: "POST",

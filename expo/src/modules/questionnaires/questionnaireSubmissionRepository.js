@@ -1,14 +1,18 @@
 import {
+  childDeathRecorded,
   eligibleWomanIdentified,
   generatePregnancySurveillanceTaskDescriptors,
+  pregnancyDetected,
   promoteFormSubmission,
 } from "@dynamic/event-core";
+import { buildChildId, buildDetectedPregnancyId } from "@dynamic/shared-domain";
 import {
   buildHouseholdIdFromHhqData,
   extractHouseholdRegistryFields,
   normalizeIdPart,
 } from "../households/householdIds.js";
 import { normalizeTaskAttemptLimits } from "../worklist/taskWorklist.js";
+import { getLocalCalendarDate } from "../../lib/localDate.js";
 import { buildPffPefSnapshot, parsePffTaskSnapshot } from "../../lib/pffPrefillHelpers.js";
 import {
   WQ_VISITOR_EXCLUDED_STATUS,
@@ -265,6 +269,9 @@ function isWqEligible(member) {
 }
 
 function toLocalTask(descriptor, { submittedAt, subjectName, localityCode, sourceFormResponseId }) {
+  const opensOn = descriptor.window_start || descriptor.target_date || "";
+  const planned = !["HHQ", "WQ"].includes(String(descriptor.task_type || "").toUpperCase()) &&
+    opensOn > getLocalCalendarDate();
   return normalizeTaskAttemptLimits({
     id: createLocalUuid("local-task"),
     task_key: descriptor.task_key,
@@ -274,6 +281,7 @@ function toLocalTask(descriptor, { submittedAt, subjectName, localityCode, sourc
     subject_name: subjectName,
     woman_id: descriptor.woman_id,
     pregnancy_id: descriptor.pregnancy_id,
+    child_id: descriptor.child_id,
     task_type: descriptor.task_type,
     form_code: descriptor.form_code,
     protocol_visit_label: descriptor.protocol_visit_label,
@@ -281,7 +289,7 @@ function toLocalTask(descriptor, { submittedAt, subjectName, localityCode, sourc
     window_start: descriptor.window_start,
     window_end: descriptor.deadline_date,
     status: "open",
-    lifecycle_status: "open",
+    lifecycle_status: planned ? "planned" : "open",
     failed_attempt_count: 0,
     max_failed_attempts: descriptor.max_failed_attempts,
     requires_final_close_reason: descriptor.requires_final_close_reason,
@@ -325,8 +333,9 @@ function buildEligibleWoman({ householdId, household, member, interviewDate, sub
 function buildPregnancyId(response, taskContext) {
   return (
     taskContext?.pregnancy_id ||
+    response.answers_json?.pef_pregnancy_id ||
     response.answers_json?.pregnancy_id ||
-    `local-pregnancy:${response.subject_id}:1`
+    buildDetectedPregnancyId(response.subject_id, response.id)
   );
 }
 
@@ -842,7 +851,9 @@ async function promoteWqLocally(response, taskContext) {
   if (!promotion) return;
 
   const tasks = promotion.task_descriptors.map((descriptor) =>
-    toLocalTask(descriptor, {
+    toLocalTask(pregnantAnswer === 1 && descriptor.task_type === "PEF"
+      ? { ...descriptor, pregnancy_id: buildDetectedPregnancyId(response.subject_id, response.id) }
+      : descriptor, {
       submittedAt: response.submitted_at,
       subjectName: taskContext?.subject_name,
       localityCode: response.locality_code,
@@ -852,6 +863,186 @@ async function promoteWqLocally(response, taskContext) {
   await saveDomainEvent(promotion.event, response.submitted_at);
 
   await saveTasks(tasks);
+}
+
+async function promotePofLocally(response, taskContext) {
+  if (response.form_code !== "POF" || !response.household_id || !response.subject_id) return;
+  const womanId = taskContext?.woman_id || response.answers_json?.pof_woman_hh_member_id;
+  const pregnancyId = taskContext?.pregnancy_id ||
+    (response.subject_type === "pregnancy" ? response.subject_id : null);
+  if (!womanId || !pregnancyId) return;
+  const promotion = promoteFormSubmission({
+    form_code: "POF",
+    event_id: `local-pregnancy-outcome:${pregnancyId}:${response.id}`,
+    site_id: Number(response.site_id),
+    locality_code: String(response.locality_code || ""),
+    household_id: response.household_id,
+    subject_id: pregnancyId,
+    answers_json: response.answers_json,
+    recorded_at: response.submitted_at,
+    task_id: response.task_id,
+    task_key: response.task_key,
+    form_response_id: response.id,
+    device_id: response.device_id,
+    context: { pregnancy_id: pregnancyId, woman_id: womanId },
+  });
+  if (!promotion) return;
+  const tasks = [
+    ...promotion.task_descriptors,
+    ...generatePregnancySurveillanceTaskDescriptors({
+      household_id: response.household_id,
+      woman_id: womanId,
+      eligibility_date: promotion.event.payload.outcome_date,
+      source_event_id: promotion.event.event_id,
+    }),
+  ].map((descriptor) => toLocalTask(descriptor, {
+    submittedAt: response.submitted_at,
+    localityCode: response.locality_code,
+    sourceFormResponseId: response.id,
+  }));
+  await saveDomainEvent(promotion.event, response.submitted_at);
+  await saveTasks(tasks);
+}
+
+async function promotePsfLocally(response, taskContext) {
+  if (response.form_code !== "PSF" || !response.household_id ||
+      Number(response.answers_json?.psf_pregnant_now) !== 1) return;
+  const womanId = taskContext?.woman_id ||
+    (response.subject_type === "woman" ? response.subject_id : null);
+  if (!womanId) return;
+  const promotion = pregnancyDetected.promoteEvidence({
+    event_id: `local-pregnancy-detected:${womanId}:${response.id}`,
+    site_id: Number(response.site_id),
+    locality_code: String(response.locality_code || ""),
+    household_id: response.household_id,
+    woman_id: womanId,
+    detected_date: response.answers_json?.psf_interview_date || response.submitted_at.slice(0, 10),
+    recorded_at: response.submitted_at,
+    task_id: response.task_id,
+    task_key: response.task_key,
+    form_response_id: response.id,
+    device_id: response.device_id,
+  });
+  let taskRepository = null;
+  try {
+    taskRepository = await import("../tasks/taskRepository.js");
+  } catch {
+    // Node tests and web fallback do not load the native SQLite adapter.
+  }
+  if (taskRepository?.cancelLocalPsfTasksForPregnancyDetection) {
+    taskRepository.cancelLocalPsfTasksForPregnancyDetection({
+      householdId: response.household_id,
+      womanId,
+    });
+  } else {
+    const storage = getStorage();
+    if (storage) {
+      const state = readWebSqliteState(storage);
+      state.follow_up_tasks = (state.follow_up_tasks || []).map((task) =>
+        task.household_id === response.household_id && task.subject_id === womanId &&
+        task.task_type === "PSF" &&
+        !["completed", "missed", "cancelled", "superseded", "closed", "closed_final_reason"].includes(task.status)
+          ? { ...task, status: "cancelled", lifecycle_status: "cancelled",
+            closed_reason: "pregnancy_detected", closed_at: response.submitted_at }
+          : task);
+      storage.setItem(WEB_SQLITE_STORAGE_KEY, JSON.stringify(state));
+    }
+  }
+  await saveDomainEvent(promotion.event, response.submitted_at);
+  await saveTasks(promotion.task_descriptors.map((descriptor) => toLocalTask({
+    ...descriptor,
+    pregnancy_id: descriptor.task_type === "PEF"
+      ? buildDetectedPregnancyId(womanId, response.id)
+      : descriptor.pregnancy_id,
+  }, {
+    submittedAt: response.submitted_at,
+    localityCode: response.locality_code,
+    sourceFormResponseId: response.id,
+  })));
+}
+
+async function promoteChildFormLocally(response, taskContext) {
+  const formCode = response.form_code;
+  if (!["BAF", "NFF", "CDF"].includes(formCode) || !response.household_id) return;
+  const pregnancyId = taskContext?.pregnancy_id || response.answers_json?.baf_pregnancy_id;
+  const womanId = taskContext?.woman_id || response.answers_json?.baf_woman_hh_member_id;
+  const birthRank = formCode === "BAF"
+    ? /^BAF-birth-(\d+)$/.exec(String(taskContext?.protocol_visit_label || ""))
+    : null;
+  const childId = taskContext?.child_id || response.answers_json?.baf_birth_id ||
+    (response.subject_type === "child" ? response.subject_id : null) ||
+    (pregnancyId && birthRank
+      ? buildChildId({ pregnancy_id: pregnancyId, birth_rank: Number(birthRank[1]) })
+      : null);
+  if (!childId || !pregnancyId || !womanId) return;
+
+  let promotion;
+  if (formCode === "NFF") {
+    if (Number(response.answers_json?.nff_child_vital_status) !== 2) return;
+    const event = childDeathRecorded.buildEvent({
+      event_id: `local-child-death:${childId}:${response.id}`,
+      site_id: Number(response.site_id),
+      locality_code: String(response.locality_code || ""),
+      household_id: response.household_id,
+      pregnancy_id: pregnancyId,
+      woman_id: womanId,
+      child_id: childId,
+      death_date: response.answers_json?.nff_interview_date || response.submitted_at.slice(0, 10),
+      recorded_at: response.submitted_at,
+      task_id: response.task_id,
+      task_key: response.task_key,
+      form_response_id: response.id,
+      device_id: response.device_id,
+    });
+    promotion = { event, task_descriptors: childDeathRecorded.planWorkflow({ event }) };
+  } else {
+    if (formCode === "BAF" && !(
+      taskContext?.birth_date || response.answers_json?.baf_birth_date
+    )) return;
+    if (formCode === "BAF" && (
+      ![1, 2].includes(Number(response.answers_json?.baf_vital_status_infant_birth)) ||
+      ![1, 2].includes(Number(response.answers_json?.baf_child_vital_status))
+    )) return;
+    promotion = promoteFormSubmission({
+      form_code: formCode,
+      event_id: `local-${formCode.toLowerCase()}:${childId}:${response.id}`,
+      site_id: Number(response.site_id),
+      locality_code: String(response.locality_code || ""),
+      household_id: response.household_id,
+      subject_id: childId,
+      answers_json: response.answers_json,
+      recorded_at: response.submitted_at,
+      task_id: response.task_id,
+      task_key: response.task_key,
+      form_response_id: response.id,
+      device_id: response.device_id,
+      context: {
+        pregnancy_id: pregnancyId,
+        woman_id: womanId,
+        child_id: childId,
+        ...(formCode === "BAF" ? {
+          birth_date: taskContext?.birth_date || response.answers_json?.baf_birth_date,
+          birth_status: Number(response.answers_json?.baf_vital_status_infant_birth) === 2
+            ? "stillbirth" : "live_birth",
+          current_vital_status: Number(response.answers_json?.baf_child_vital_status) === 2
+            ? "deceased" : "alive",
+          death_date: taskContext?.death_date || response.answers_json?.baf_death_date,
+        } : {}),
+      },
+    });
+  }
+  if (!promotion) return;
+  await saveDomainEvent(promotion.event, response.submitted_at);
+  await saveTasks(promotion.task_descriptors
+    .filter((descriptor) => formCode !== "CDF" || descriptor.task_type !== "CDF")
+    .map((descriptor) => ({
+      ...toLocalTask(descriptor, {
+        submittedAt: response.submitted_at,
+        localityCode: response.locality_code,
+        sourceFormResponseId: response.id,
+      }),
+      pregnancy_id: descriptor.pregnancy_id || pregnancyId,
+    })));
 }
 
 export async function listQuestionnaireSubmissions(formCode) {
@@ -1084,6 +1275,9 @@ export async function saveQuestionnaireSubmission({
   await promoteWqLocally(response, taskContext);
   await promotePefLocally(response, taskContext);
   await promotePffLocally(response, taskContext);
+  await promotePofLocally(response, taskContext);
+  await promotePsfLocally(response, taskContext);
+  await promoteChildFormLocally(response, taskContext);
   if (
     response.form_code === "PEF" &&
     response.household_id &&

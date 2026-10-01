@@ -2,6 +2,31 @@ import { schema } from "../db";
 import { getDb } from "../lib/dbContext";
 import { TaskDescriptor } from "@dynamic/shared-workflow";
 import { randomUUID } from "crypto";
+import { AsyncLocalStorage } from "node:async_hooks";
+
+const generatedTaskKeys = new AsyncLocalStorage<{ expected: Set<string>; seen: Set<string> }>();
+
+export async function withGeneratedTaskKeys<T>(keys: unknown, work: () => Promise<T>): Promise<T> {
+  if (!Array.isArray(keys) || keys.length > 1000 ||
+      keys.some((key) => typeof key !== "string" || !key || key.length > 512) ||
+      new Set(keys).size !== keys.length) {
+    throw new Error("Invalid generated_task_keys");
+  }
+  const expected = new Set<string>(keys);
+  return generatedTaskKeys.run({ expected, seen: new Set() }, async () => {
+    const result = await work();
+    const seen = generatedTaskKeys.getStore()!.seen;
+    if (seen.size !== expected.size) throw new Error("Generated task keys do not match server workflow");
+    return result;
+  });
+}
+
+export function checkGeneratedTaskKey(key: string): void {
+  const plan = generatedTaskKeys.getStore();
+  if (!plan) return;
+  if (!plan.expected.has(key)) throw new Error("Generated task keys do not match server workflow");
+  plan.seen.add(key);
+}
 
 function parseHouseholdId(householdId: string): { site_id: number; locality_code: string } {
   const parts = householdId.split("-");
@@ -15,6 +40,7 @@ export async function writeTasksFromDescriptors(descriptors: TaskDescriptor[]): 
   if (descriptors.length === 0) return;
 
   for (const descriptor of descriptors) {
+    checkGeneratedTaskKey(descriptor.task_key);
     const { site_id, locality_code } = parseHouseholdId(descriptor.household_id);
 
     await getDb()
