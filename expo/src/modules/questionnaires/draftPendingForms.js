@@ -20,7 +20,8 @@ export function getDraftSiteId(draft) {
     return Number.isFinite(parsed) ? parsed : String(siteFromPayload);
   }
 
-  const householdId = answers.hhq_household_id || draft?.subject_id || "";
+  const householdId = getDraftHouseholdId(draft);
+  if (!householdId) return null;
   const firstPart = String(householdId).split("-")[0];
   const parsed = Number(firstPart);
   return Number.isFinite(parsed) ? parsed : null;
@@ -36,8 +37,11 @@ function normalizeHouseholdIdPart(value, width) {
 }
 
 function householdIdFromIndividualId(value) {
-  const parts = normalizeId(value).split("-");
-  if (parts.length >= 5) return parts.slice(0, 4).join("-");
+  const parts = normalizeId(value).replace(/^local-pregnancy:/, "").split("-");
+  if (parts.length >= 4 && /^\d+$/.test(parts[0]) && /^\d+$/.test(parts[1]) &&
+      /^[A-Z0-9]+$/i.test(parts[2]) && /^[A-Z0-9]+$/i.test(parts[3])) {
+    return parts.slice(0, 4).join("-");
+  }
   return "";
 }
 
@@ -55,16 +59,18 @@ export function getDraftSubjectId(draft) {
 }
 
 export function getDraftHouseholdId(draft) {
-  if (draft?.household_id) return normalizeId(draft.household_id);
+  const storedHouseholdId = householdIdFromIndividualId(draft?.household_id);
+  if (storedHouseholdId) return storedHouseholdId;
 
   const answers = draft?.json_payload || {};
-  if (answers.hhq_household_id) return normalizeId(answers.hhq_household_id);
-  if (answers.household_id) return normalizeId(answers.household_id);
+  const answerHouseholdId = householdIdFromIndividualId(answers.hhq_household_id || answers.household_id);
+  if (answerHouseholdId) return answerHouseholdId;
   const siteId = normalizeHouseholdIdPart(answers.hhq_site_id);
   const localityCode = normalizeHouseholdIdPart(answers.hhq_locality_code, 2);
   const rawStructureNumber = String(answers.hhq_structure_map_id || "").trim().toUpperCase();
   if (rawStructureNumber && !/^[A-Z0-9]{1,6}$/.test(rawStructureNumber)) {
-    return draft?.subject_id ? normalizeId(draft.subject_id) : "";
+    return householdIdFromIndividualId(getDraftSubjectId(draft)) ||
+      householdIdFromIndividualId(draft?.subject_id);
   }
   const structureNumber = /^\d+$/.test(rawStructureNumber) && rawStructureNumber.length < 4
     ? rawStructureNumber.padStart(4, "0")
@@ -73,9 +79,14 @@ export function getDraftHouseholdId(draft) {
   if (siteId && localityCode && structureNumber && householdNumber) {
     return [siteId, localityCode, structureNumber, householdNumber].join("-");
   }
-  const subjectHouseholdId = householdIdFromIndividualId(getDraftSubjectId(draft));
+  const subjectHouseholdId = [
+    getDraftSubjectId(draft),
+    answers.pef_woman_hh_member_id,
+    answers.pff_pregnancy_id,
+    draft?.subject_id,
+  ].map(householdIdFromIndividualId).find(Boolean);
   if (subjectHouseholdId) return subjectHouseholdId;
-  return draft?.subject_id ? normalizeId(draft.subject_id) : "";
+  return "";
 }
 
 export function getDraftComparableIds(draft) {
@@ -154,7 +165,7 @@ export function deriveDraftIndexFields(draft) {
     answers.hhq_locality_code !== null &&
     answers.hhq_locality_code !== ""
       ? normalizeHouseholdIdPart(answers.hhq_locality_code, 2)
-      : null;
+      : draft?.locality_code || householdId?.split("-")[1] || null;
 
   const womanIdSource = answers.wq_enter_structure_id_woman || answers.individual_id || answers.woman_id;
   const womanId = womanIdSource ? normalizeId(womanIdSource) : null;

@@ -1,7 +1,7 @@
 /**
  * Persists mutable questionnaire drafts in browser storage or the shared native SQLite database.
  */
-import { deriveDraftIndexFields } from "./draftPendingForms.js";
+import { deriveDraftIndexFields, getDraftHouseholdId } from "./draftPendingForms.js";
 
 const DRAFT_STORAGE_KEY = "dynamic_questionnaire_drafts_v1";
 
@@ -260,16 +260,6 @@ export async function removeQuestionnaireDraft(draftId) {
   const db = await getNativeDatabase();
   const result = db.runSync("DELETE FROM questionnaire_drafts WHERE draft_id = ?", [draftId]);
   return Number(result?.changes || 0) > 0;
-}
-
-function getHouseholdIdFromDraft(draft) {
-  const candidate = getPayloadHouseholdId(
-    draft?.json_payload || {},
-    draft?.subject_id,
-    draft?.household_id,
-  );
-  const parts = String(candidate || "").split("-");
-  return parts.length >= 4 ? parts.slice(0, 4).join("-") : candidate || null;
 }
 
 function normalizeHouseholdIdPart(value, width) {
@@ -700,7 +690,7 @@ export async function listQuestionnaireDraftsForSync(userId) {
 export function toDraftSyncRecord(draft, task = null) {
   // Legacy PFF drafts can have a pregnancy ID as subject and no household
   // column. The local task retains the household even before server sync.
-  const householdId = task?.household_id || getHouseholdIdFromDraft(draft);
+  const householdId = getDraftHouseholdId({ ...draft, household_id: task?.household_id || draft.household_id }) || null;
   const [siteId, localityCode] = String(householdId || "").split("-");
   const jsonPayload = { ...(draft.json_payload || {}) };
   for (const reportsField of ["pef_ultrasound_reports", "pff_additional_ultrasound_reports"]) {
@@ -746,8 +736,8 @@ export function toDraftSyncRecord(draft, task = null) {
     subject_type: draft.subject_type,
     subject_id: draft.subject_id,
     household_id: householdId,
-    site_id: Number.parseInt(siteId, 10),
-    locality_code: localityCode,
+    site_id: Number.parseInt(siteId || draft.site_id || task?.site_id, 10),
+    locality_code: localityCode || draft.locality_code || task?.locality_code,
     user_id: draft.user_id,
     device_id: draft.device_id,
     json_payload: jsonPayload,

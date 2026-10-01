@@ -269,6 +269,30 @@ const legacyPffDraft = toDraftSyncRecord({
 assert.equal(legacyPffDraft.household_id, "2-02-0009-01");
 assert.equal(legacyPffDraft.site_id, 2);
 assert.equal(legacyPffDraft.locality_code, "02");
+const offlinePffDraft = toDraftSyncRecord({
+  ...crossDeviceDraft,
+  form_code: "PFF",
+  household_id: null,
+  site_id: null,
+  locality_code: null,
+  subject_id: "local-pregnancy:2-02-0009-01-02:1",
+  json_payload: { pff_pregnancy_id: "local-pregnancy:2-02-0009-01-02:1" },
+});
+assert.equal(offlinePffDraft.household_id, "2-02-0009-01");
+assert.equal(offlinePffDraft.site_id, 2);
+assert.equal(offlinePffDraft.locality_code, "02");
+const offlinePefDraft = toDraftSyncRecord({
+  ...crossDeviceDraft,
+  form_code: "PEF",
+  household_id: null,
+  site_id: null,
+  locality_code: null,
+  subject_id: "2-02-0009-01-02",
+  json_payload: {},
+});
+assert.equal(offlinePefDraft.household_id, "2-02-0009-01");
+assert.equal(offlinePefDraft.locality_code, "02");
+assert.equal(getDraftHouseholdId({ subject_id: "pregnancy-without-household-prefix" }), "");
 const attachmentDraftSyncRecord = toDraftSyncRecord({
   ...crossDeviceDraft,
   form_code: "PEF",
