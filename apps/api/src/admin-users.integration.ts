@@ -192,6 +192,32 @@ test("central admin can create, update, assign, and deactivate a user", async ()
     );
     assert.equal(deletedAssignment.message, "Assignment removed");
 
+    await db.update(schema.users).set({
+      role: "site_data_manager",
+      totp_enabled: true,
+      totp_secret: "test-secret",
+    }).where(eq(schema.users.user_id, createdUser.user_id));
+    const securityReset = await fetchData(`${baseUrl}/users/${createdUser.user_id}/security-reset`, {
+      method: "POST",
+      headers: { Authorization: authorization },
+      body: JSON.stringify({ reset_totp: true }),
+    });
+    assert.equal(securityReset.reset, true);
+    const [resetUser] = await db.select({
+      totp_enabled: schema.users.totp_enabled,
+      totp_secret: schema.users.totp_secret,
+    }).from(schema.users).where(eq(schema.users.user_id, createdUser.user_id));
+    assert.equal(resetUser.totp_enabled, false);
+    assert.equal(resetUser.totp_secret, null);
+    await db.update(schema.users).set({ role: "central_admin" }).where(eq(schema.users.user_id, createdUser.user_id));
+    const peerReset = await fetch(`${baseUrl}/users/${createdUser.user_id}/security-reset`, {
+      method: "POST",
+      headers: { Authorization: authorization, "Content-Type": "application/json" },
+      body: JSON.stringify({ reset_totp: true }),
+    });
+    assert.equal(peerReset.status, 403);
+    await db.update(schema.users).set({ role: "site_data_manager" }).where(eq(schema.users.user_id, createdUser.user_id));
+
     await db.update(schema.users).set({ email: null }).where(eq(schema.users.user_id, createdUser.user_id));
     const updatedCredentials = await fetchData(`${baseUrl}/users/${createdUser.user_id}`, {
       method: "PATCH",

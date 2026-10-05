@@ -276,6 +276,17 @@ export default function UsersPage() {
     return null;
   }
 
+  function canResetSecurity(target: User): boolean {
+    if (!currentUser || currentUser.user_id === target.user_id) return false;
+    if (currentUser.role === "central_admin") return ROLE_RANK[target.role] < ROLE_RANK.central_admin;
+    if (currentUser.role === "central_data_manager") {
+      return ["us_collaborator", "site_investigator", "site_research_scientist", "site_data_manager"].includes(target.role);
+    }
+    return (currentUser.role === "site_data_manager" || currentUser.role === "site_research_scientist") &&
+      target.site_id === currentUser.site_id &&
+      (target.role === "field_worker" || target.role === "field_supervisor");
+  }
+
   async function handleStatusToggle(target: User) {
     if (statusDisabledReason(target)) return;
     setSavingStatusFor(target.user_id);
@@ -297,7 +308,7 @@ export default function UsersPage() {
   }
 
   async function handleSecurityReset(target: User) {
-    if (currentUser?.user_id === target.user_id) return;
+    if (!canResetSecurity(target)) return;
     const confirmed = window.confirm(
       `Reset lockout, account status, and authenticator enrollment for ${target.username}?`,
     );
@@ -430,8 +441,8 @@ export default function UsersPage() {
                         <button
                           onClick={() => void handleSecurityReset(listedUser)}
                           className={styles.actionBtn}
-                          disabled={securityResetFor === listedUser.user_id || Boolean(statusDisabledReason(listedUser))}
-                          title="Unlock, activate, and reset TOTP"
+                          disabled={securityResetFor === listedUser.user_id || !canResetSecurity(listedUser)}
+                          title={canResetSecurity(listedUser) ? "Unlock, activate, and reset TOTP" : "You cannot reset this account"}
                         >
                           {securityResetFor === listedUser.user_id ? "Resetting..." : "Security"}
                         </button>

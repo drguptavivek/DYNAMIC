@@ -100,6 +100,7 @@ Role rules:
 - User creation and editing must save the selected site and active locality assignments atomically; every locality must belong to the selected site.
 - Account status is changed only by an authorized manager. A user cannot change their own status or the status of a higher-precedence role. Status precedence is `field_worker` < `field_supervisor` < `site_data_manager` < `site_research_scientist` < (`central_data_manager`, `us_collaborator`) < `central_admin`.
 - Deactivating a user revokes all of that user's active refresh sessions so existing access tokens stop authorizing requests.
+- Security reset clears lockout and authenticator enrollment, and revokes sessions. Central Admins may reset lower-role users, but not themselves or peer Central Admins. Central Data Managers may reset US Collaborators, Site Investigators, Site Research Scientists, and Site Data Managers. Site Data Managers and Site Research Scientists may reset Field Workers and Field Supervisors only at their own site. Self-reset requires the server CLI.
 - US collaborators can log in to approved dashboards and data views, but can access only non-PII aggregate, de-identified, or analysis-ready study data.
 - US collaborators must not access participant names, direct identifiers, contact details, free-text notes that may contain identifiers, device/user audit trails that identify participants, or raw CRF answers unless explicitly de-identified for their view.
 - Admin correction and data-quality permissions must follow role and site/locality scope.

@@ -689,10 +689,10 @@ router.post(
       const actorRole = req.user!.role as UserRole;
       const targetRole = target.role as UserRole;
       const allowed =
+        (actorRole === "central_admin" && roleRank[targetRole] < roleRank[actorRole]) ||
         ((actorRole === "site_data_manager" || actorRole === "site_research_scientist") &&
           ["field_worker", "field_supervisor"].includes(targetRole) && target.site_id === req.user!.site_id) ||
-        (actorRole === "central_data_manager" && ["us_collaborator", "site_investigator", "site_research_scientist", "site_data_manager"].includes(targetRole)) ||
-        (actorRole === "central_admin" && targetRole === "central_data_manager");
+        (actorRole === "central_data_manager" && ["us_collaborator", "site_investigator", "site_research_scientist", "site_data_manager"].includes(targetRole));
       if (!allowed) { sendError(res, 403, "INSUFFICIENT_PERMISSIONS", "You cannot reset this account"); return; }
       const updateData: Record<string, unknown> = {
         failed_login_attempts: 0,

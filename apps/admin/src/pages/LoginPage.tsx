@@ -57,6 +57,7 @@ export default function LoginPage() {
           <button type="submit" disabled={loading} className={styles.submitBtn}>
             <span>{loading ? "Verifying access..." : totpStep ? "Verify and sign in" : "Continue securely"}</span><b aria-hidden="true">↗</b>
           </button>
+          {totpStep && <button type="button" disabled={loading} className={styles.backBtn} onClick={() => { setTotpStep(false); setTotpCode(""); setError(""); }}>Back to password</button>}
         </form>
         <p className={styles.notice}><span>⌁</span> Protected with encrypted authentication and TOTP</p>
       </div>
