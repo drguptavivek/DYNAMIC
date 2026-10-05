@@ -192,6 +192,18 @@ test("central admin can create, update, assign, and deactivate a user", async ()
     );
     assert.equal(deletedAssignment.message, "Assignment removed");
 
+    await db.update(schema.users).set({ email: null }).where(eq(schema.users.user_id, createdUser.user_id));
+    const updatedCredentials = await fetchData(`${baseUrl}/users/${createdUser.user_id}`, {
+      method: "PATCH",
+      headers: { Authorization: authorization },
+      body: JSON.stringify({ email: `${username}-updated@example.test`, password: "updated-field-password" }),
+    });
+    assert.equal(updatedCredentials.user.email, `${username}-updated@example.test`);
+    await fetchData(`${baseUrl}/auth/login`, {
+      method: "POST",
+      body: JSON.stringify({ username, password: "updated-field-password" }),
+    });
+
     const deletedUser = await fetchData(`${baseUrl}/users/${createdUser.user_id}`, {
       method: "DELETE",
       headers: { Authorization: authorization },

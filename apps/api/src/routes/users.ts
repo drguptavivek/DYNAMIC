@@ -778,7 +778,7 @@ router.patch(
         sendError(res, 404, "USER_NOT_FOUND", "User not found");
         return;
       }
-      if (data.password && !user.email) {
+      if (data.password && !(data.email ?? user.email)) {
         sendError(res, 400, "EMAIL_NOT_REGISTERED", "This user has no registered email address");
         return;
       }
@@ -892,7 +892,7 @@ router.patch(
       if (data.password) {
         try {
           const delivery = await sendCredentialsEmail({
-            to: user.email!,
+            to: (data.email ?? user.email)!,
             username: user.username,
             password: data.password,
           });
