@@ -102,6 +102,11 @@ Late completion does not shift future anchors.
 Repeated scheduled series use current-due behavior:
 
 - HRF, PFF, and NFF complete the current due task only.
+- PFF planned modes alternate by protocol round: the first is in-person
+  (`face_to_face`), the second telephonic, then in-person and telephonic again.
+  The interviewer may choose either mode in the PFF dropdown. Store that actual
+  mode in the submitted form separately from the task's planned mode; it never
+  changes the mode of later scheduled rounds.
 - Missed old rounds are preserved as missed/superseded/reportable.
 - Do not backfill old rounds as if they happened on time.
 - Do not emit a wall of future actionable tasks.

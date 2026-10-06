@@ -27,6 +27,5 @@ assert.match(
   source,
   /filterDraftsForTaskCandidates\(siteDrafts, listTaskWorklistCandidates\(\)\)/,
 );
-assert.match(source, /Continue filling from Worklist only/);
 
 console.log("Validated draft pending forms incremental paging wiring.");

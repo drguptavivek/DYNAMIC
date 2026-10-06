@@ -486,6 +486,7 @@ export function saveTask(task) {
     subject_name,
     task_type,
     protocol_visit_label,
+    default_expected_mode,
     target_date,
     window_start,
     window_end,
@@ -515,7 +516,7 @@ export function saveTask(task) {
       `INSERT OR REPLACE INTO follow_up_tasks
        (id, task_key, household_id, subject_type, subject_id, woman_id, pregnancy_id, child_id,
         subject_name, task_type,
-        protocol_visit_label, target_date, window_start, window_end, status,
+        protocol_visit_label, default_expected_mode, target_date, window_start, window_end, status,
         lifecycle_status, failed_attempt_count, max_failed_attempts, requires_final_close_reason,
         closed_reason, closed_at,
         form_availability, disabled_reason, assigned_locality_code, rules_version,
@@ -523,7 +524,7 @@ export function saveTask(task) {
         pff_last_visit_date,
         sync_status, server_commit_sequence,
         created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         task_key,
@@ -536,6 +537,7 @@ export function saveTask(task) {
         subject_name,
         task_type,
         protocol_visit_label,
+        default_expected_mode ?? null,
         target_date,
         window_start,
         window_end,
@@ -587,6 +589,7 @@ export function saveTaskBatch(tasks) {
         subject_name,
         task_type,
         protocol_visit_label,
+        default_expected_mode,
         target_date,
         window_start,
         window_end,
@@ -615,7 +618,7 @@ export function saveTaskBatch(tasks) {
         `INSERT OR REPLACE INTO follow_up_tasks
          (id, task_key, household_id, subject_type, subject_id, woman_id, pregnancy_id, child_id,
           subject_name, task_type,
-          protocol_visit_label, target_date, window_start, window_end, status,
+          protocol_visit_label, default_expected_mode, target_date, window_start, window_end, status,
           lifecycle_status, failed_attempt_count, max_failed_attempts, requires_final_close_reason,
           closed_reason, closed_at,
           form_availability, disabled_reason, assigned_locality_code, rules_version,
@@ -623,7 +626,7 @@ export function saveTaskBatch(tasks) {
           pff_last_visit_date,
           sync_status, server_commit_sequence,
           created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           id,
           task_key,
@@ -636,6 +639,7 @@ export function saveTaskBatch(tasks) {
           subject_name,
           task_type,
           protocol_visit_label,
+          default_expected_mode ?? null,
           target_date,
           window_start,
           window_end,

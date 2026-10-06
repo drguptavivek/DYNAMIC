@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { stubOfflineDatabase } from "./helpers/stubOfflineDatabase.mjs";
 
 const storage = new Map();
 globalThis.window = {
@@ -115,5 +116,55 @@ const rowsAfterMissingKeys = db.getAllSync(
   ["open"],
 );
 assert.equal(rowsAfterMissingKeys.length, 6);
+
+// Exercise both production persistence paths with the real web storage shim.
+const taskWrites = [];
+const schemaStatements = [];
+const runSync = db.runSync.bind(db);
+db.runSync = (sql, params = []) => {
+  schemaStatements.push(sql);
+  if (/INSERT OR REPLACE INTO follow_up_tasks/i.test(sql)) {
+    const columns = sql.match(/follow_up_tasks\s*\(([^)]+)\)/i)[1].split(",").map((column) => column.trim());
+    assert.equal(columns.length, params.length, "native task columns and bindings must match");
+    assert.equal((sql.match(/\?/g) || []).length, params.length, "native task placeholders must match bindings");
+    taskWrites.push(Object.fromEntries(columns.map((column, index) => [column, params[index]])));
+  }
+  return runSync(sql, params);
+};
+const require = stubOfflineDatabase(db, import.meta.url);
+const { saveTask, saveTaskBatch, getTask } = require("../modules/tasks/taskRepository.js");
+const plannedPff = {
+  id: "pff-round-1",
+  task_key: "pregnancy-1|PFF|M1",
+  household_id: "2-02-0002-02",
+  subject_type: "pregnancy",
+  subject_id: "pregnancy-1",
+  woman_id: "woman-1",
+  pregnancy_id: "pregnancy-1",
+  task_type: "PFF",
+  protocol_visit_label: "PFF-M1",
+  default_expected_mode: "face_to_face",
+  target_date: "2026-10-01",
+  pff_pef_snapshot_json: JSON.stringify({ pef_woman_hh_member_id: "woman-1" }),
+};
+saveTask(plannedPff);
+saveTaskBatch([{ ...plannedPff, id: "pff-round-2", task_key: "pregnancy-1|PFF|M2",
+  protocol_visit_label: "PFF-M2", default_expected_mode: "telephonic" }]);
+assert.deepEqual(taskWrites.map((task) => task.default_expected_mode), ["face_to_face", "telephonic"]);
+assert.ok(schemaStatements.some((sql) => /CREATE TABLE IF NOT EXISTS follow_up_tasks/.test(sql)
+  && /default_expected_mode TEXT/.test(sql)), "new native databases store the planned mode");
+assert.ok(schemaStatements.includes("ALTER TABLE follow_up_tasks ADD COLUMN default_expected_mode TEXT"),
+  "existing native databases get an additive planned mode column");
+for (const [id, mode] of [["pff-round-1", "face_to_face"], ["pff-round-2", "telephonic"]]) {
+  const storedTask = getTask(id);
+  assert.equal(storedTask.default_expected_mode, mode);
+  assert.equal(storedTask.task_type, "PFF");
+  assert.equal(storedTask.woman_id, plannedPff.woman_id);
+  assert.equal(storedTask.pregnancy_id, plannedPff.pregnancy_id);
+  assert.equal(storedTask.pff_pef_snapshot_json, plannedPff.pff_pef_snapshot_json);
+}
+const reloadedDb = openDatabaseSync();
+assert.equal(reloadedDb.getFirstSync("SELECT * FROM follow_up_tasks WHERE id = ?", ["pff-round-2"])
+  .default_expected_mode, "telephonic");
 
 console.log("Web SQLite task storage validation passed");

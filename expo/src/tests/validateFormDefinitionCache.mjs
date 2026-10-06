@@ -21,6 +21,8 @@ import { Model } from "survey-core";
 import { createFakeSqliteDb } from "./helpers/createFakeSqliteDb.mjs";
 import { stubOfflineDatabase } from "./helpers/stubOfflineDatabase.mjs";
 
+globalThis.__DEV__ = false;
+
 const testRoot = path.dirname(fileURLToPath(import.meta.url));
 
 /**

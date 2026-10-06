@@ -58,37 +58,8 @@ class WebDatabase {
     }
 
     if (/INSERT OR REPLACE INTO follow_up_tasks/i.test(normalized)) {
-      const columns = [
-        "id",
-        "task_key",
-        "household_id",
-        "subject_type",
-        "subject_id",
-        "subject_name",
-        "task_type",
-        "protocol_visit_label",
-        "target_date",
-        "window_start",
-        "window_end",
-        "status",
-        "lifecycle_status",
-        "failed_attempt_count",
-        "max_failed_attempts",
-        "requires_final_close_reason",
-        "closed_reason",
-        "closed_at",
-        "form_availability",
-        "disabled_reason",
-        "assigned_locality_code",
-        "rules_version",
-        "generation_source",
-        "source_event_id",
-        "source_form_response_id",
-        "sync_status",
-        "server_commit_sequence",
-        "created_at",
-        "updated_at",
-      ];
+      const columns = normalized.match(/follow_up_tasks\s*\(([^)]+)\)/i)[1]
+        .split(",").map((column) => column.trim());
       const row = rowFromColumns(columns, params);
       this.state.follow_up_tasks = [
         row,

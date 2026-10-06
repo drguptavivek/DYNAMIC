@@ -107,7 +107,7 @@ export function generatePregnancyEnrollmentTaskDescriptors(
       window_start: schedule.window_start,
       target_date: schedule.target_date,
       deadline_date: schedule.deadline,
-      default_expected_mode: pffModeRule.default_mode,
+      default_expected_mode: schedule.round % 2 === 1 ? "face_to_face" : "telephonic",
       allowed_modes: pffModeRule.allowed_modes,
       mode_rule_strength: pffModeRule.strength,
       max_failed_attempts: pffDisposition.max_failed_attempts,

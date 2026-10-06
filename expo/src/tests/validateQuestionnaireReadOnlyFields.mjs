@@ -1,4 +1,8 @@
 import assert from "node:assert/strict";
+import { createFakeSqliteDb } from "./helpers/createFakeSqliteDb.mjs";
+import { stubOfflineDatabase } from "./helpers/stubOfflineDatabase.mjs";
+
+const require = stubOfflineDatabase(createFakeSqliteDb(), import.meta.url);
 
 const { applyReadOnlyFields } = await import(
   "../modules/questionnaires/questionnaireReadOnlyFields.js"
@@ -6,7 +10,7 @@ const { applyReadOnlyFields } = await import(
 const { applyHhqTaskHouseholdPrefill, parseHhqTaskHouseholdId } = await import(
   "../modules/households/hhqTaskPrefill.js"
 );
-const { buildHhqPrefill, buildWqPrefill, mergePrefillIntoBlankValues } = await import(
+const { buildHhqPrefill, buildWqPrefill, mergePrefillIntoBlankValues } = require(
   "../lib/prefillMapper.js"
 );
 

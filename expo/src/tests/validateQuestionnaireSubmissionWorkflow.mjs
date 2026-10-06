@@ -409,6 +409,38 @@ assert.ok(normalizedHhqEvent);
 assert.equal(normalizedHhqEvent.data.locality_code, "02");
 assert.equal(syncRecords.filter((record) => record.type === "domain_event").length, 2);
 
+const scheduledPffRounds = [...pffTasks].sort((a, b) => a.target_date.localeCompare(b.target_date));
+assert.ok(scheduledPffRounds.length >= 3);
+const plannedModes = scheduledPffRounds.map((task, index) =>
+  index % 2 === 0 ? "face_to_face" : "telephonic");
+assert.deepEqual(scheduledPffRounds.map((task) => task.default_expected_mode), plannedModes);
+for (const [index, selectedMode] of [[0, 2], [1, 1]]) {
+  const task = scheduledPffRounds[index];
+  const pffSubmission = await saveQuestionnaireSubmission({
+    formCode: "PFF",
+    formVersion: "test",
+    taskId: task.id,
+    taskContext: task,
+    payload: {
+      pff_visit_date: task.target_date,
+      pff_visit_type: selectedMode,
+      pff_pregnancy_status: 1,
+      pff_vital_migration_status_woman: 1,
+    },
+    deviceId: "device-1",
+  });
+  assert.equal(pffSubmission.answers_json.pff_visit_type, selectedMode);
+  const state = JSON.parse(window.localStorage.getItem("dynamic_web_sqlite_v2") || "{}");
+  const storedResponse = state.form_responses.find((row) => row.id === pffSubmission.id);
+  assert.equal(JSON.parse(storedResponse.answers_json).pff_visit_type, selectedMode);
+  for (const [roundIndex, round] of scheduledPffRounds.entries()) {
+    const storedTask = state.follow_up_tasks.find((row) => row.task_key === round.task_key);
+    assert.equal(storedTask.default_expected_mode, plannedModes[roundIndex]);
+    assert.equal(storedTask.target_date, round.target_date);
+  }
+}
+assert.equal(fetchCalls, 0);
+
 const negativePefTaskContext = {
   ...pefTaskContext,
   id: "local-task-pef-negative-1",

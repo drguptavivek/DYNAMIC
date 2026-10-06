@@ -1,6 +1,8 @@
 /** Verifies raw networking exceptions become actionable field-worker messages. */
 import assert from "node:assert/strict";
 
+globalThis.__DEV__ = false;
+
 const { describeNetworkError, describeHttpFailure, isNetworkError } = await import(
   "../lib/networkErrors.js"
 );

@@ -4,6 +4,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Model } from "survey-core";
+import { createFakeSqliteDb } from "./helpers/createFakeSqliteDb.mjs";
+import { stubOfflineDatabase } from "./helpers/stubOfflineDatabase.mjs";
+
+const require = stubOfflineDatabase(createFakeSqliteDb(), import.meta.url);
 
 const { prepareQuestionnaireSurveyJson } = await import(
   "../modules/questionnaires/questionnaireSurveyJsonTransforms.js"
@@ -11,7 +15,7 @@ const { prepareQuestionnaireSurveyJson } = await import(
 const { getNativeRendererKind } = await import("../components/forms/nativeSurveyModel.js");
 const { applyPregnancySurveillanceCalculations, calculatePsfTrackingDisposition } =
   await import("../lib/pregnancySurveillanceBehaviors.js");
-const { buildPsfPrefill } = await import("../lib/prefillMapper.js");
+const { buildPsfPrefill } = require("../lib/prefillMapper.js");
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const formPath = path.resolve(root, "../data/forms/pregnancy_surveillance_form_v2026.07.19.json");

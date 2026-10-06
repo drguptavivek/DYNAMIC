@@ -285,6 +285,7 @@ function toLocalTask(descriptor, { submittedAt, subjectName, localityCode, sourc
     task_type: descriptor.task_type,
     form_code: descriptor.form_code,
     protocol_visit_label: descriptor.protocol_visit_label,
+    default_expected_mode: descriptor.default_expected_mode,
     target_date: descriptor.target_date,
     window_start: descriptor.window_start,
     window_end: descriptor.deadline_date,
