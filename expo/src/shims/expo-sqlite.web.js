@@ -7,6 +7,7 @@ function defaultState() {
     task_attempts: [],
     form_responses: [],
     eligible_women: [],
+    pregnancies: [],
     domain_events_outbox: [],
   };
 }
@@ -94,6 +95,16 @@ class WebDatabase {
         row,
         ...this.state.eligible_women.filter((woman) => woman.woman_id !== row.woman_id),
       ];
+      this.persist();
+      return { changes: 1 };
+    }
+
+    if (/INSERT OR REPLACE INTO pregnancies/i.test(normalized)) {
+      const columns = normalized.match(/pregnancies\s*\(([^)]+)\)/i)[1]
+        .split(",").map((column) => column.trim());
+      const row = rowFromColumns(columns, params);
+      this.state.pregnancies = [row, ...this.state.pregnancies.filter(
+        (pregnancy) => pregnancy.pregnancy_id !== row.pregnancy_id)];
       this.persist();
       return { changes: 1 };
     }
@@ -283,6 +294,9 @@ class WebDatabase {
 
   getFirstSync(sql, params = []) {
     const normalized = sql.trim().replace(/\s+/g, " ");
+    if (/SELECT \* FROM (eligible_women|pregnancies) WHERE (woman_id|pregnancy_id) = \?/i.test(normalized)) {
+      return this.getAllSync(sql, params)[0] || null;
+    }
 
     if (/SELECT COUNT\(\*\) AS total FROM form_responses WHERE sync_status = 'pending'/i.test(normalized)) {
       return {
@@ -306,6 +320,11 @@ class WebDatabase {
 
   getAllSync(sql, params = []) {
     const normalized = sql.trim().replace(/\s+/g, " ");
+    const cohortQuery = normalized.match(/^SELECT \* FROM (eligible_women|pregnancies) WHERE (woman_id|pregnancy_id) = \?/i);
+    if (cohortQuery) return this.state[cohortQuery[1]].filter((row) => row[cohortQuery[2]] === params[0]);
+    if (/^SELECT \* FROM follow_up_tasks WHERE household_id = \?/i.test(normalized)) {
+      return this.state.follow_up_tasks.filter((row) => row.household_id === params[0]);
+    }
 
     if (
       /SELECT id, task_key, status, lifecycle_status, sync_status FROM follow_up_tasks WHERE household_id = \?/i.test(

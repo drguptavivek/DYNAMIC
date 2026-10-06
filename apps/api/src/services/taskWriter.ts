@@ -1,3 +1,4 @@
+import { eq, sql } from "drizzle-orm";
 import { schema } from "../db";
 import { getDb } from "../lib/dbContext";
 import { TaskDescriptor } from "@dynamic/shared-workflow";
@@ -36,11 +37,40 @@ function parseHouseholdId(householdId: string): { site_id: number; locality_code
   };
 }
 
+// Child and household work belongs to independent tracks, even when a mother ID is present.
+export async function resolveTaskWomanId(task: {
+  subject_type?: string | null; subject_id?: string | null;
+  woman_id?: string | null; pregnancy_id?: string | null; child_id?: string | null;
+}): Promise<string | null> {
+  if (task.subject_type === "child" || task.child_id || task.subject_type === "household") return null;
+  if (task.woman_id) return task.woman_id;
+  const pregnancyId = task.pregnancy_id || (task.subject_type === "pregnancy" ? task.subject_id : null);
+  if (pregnancyId) {
+    const [pregnancy] = await getDb().select({ woman_id: schema.pregnancies.woman_id })
+      .from(schema.pregnancies).where(eq(schema.pregnancies.pregnancy_id, pregnancyId)).limit(1);
+    return pregnancy?.woman_id ?? null;
+  }
+  return task.subject_id ?? null;
+}
+
+export async function isWomanTerminated(womanId: string | null): Promise<boolean> {
+  if (!womanId) return false;
+  const [woman] = await getDb().select({ tracking_status: schema.eligibleWomen.tracking_status,
+    current_eligibility_status: schema.eligibleWomen.current_eligibility_status })
+    .from(schema.eligibleWomen).where(eq(schema.eligibleWomen.woman_id, womanId)).limit(1);
+  return woman?.tracking_status === "terminated" || woman?.current_eligibility_status === "deceased";
+}
+
 export async function writeTasksFromDescriptors(descriptors: TaskDescriptor[]): Promise<void> {
   if (descriptors.length === 0) return;
 
   for (const descriptor of descriptors) {
     checkGeneratedTaskKey(descriptor.task_key);
+    const womanId = await resolveTaskWomanId(descriptor);
+    if (womanId) {
+      await getDb().execute(sql`select pg_advisory_xact_lock(hashtextextended(${`woman-pathway|${descriptor.household_id}|${womanId}`}, 0))`);
+      if (await isWomanTerminated(womanId)) continue;
+    }
     const { site_id, locality_code } = parseHouseholdId(descriptor.household_id);
 
     await getDb()

@@ -237,7 +237,7 @@ describe("field event modules", () => {
       context: { pregnancy_id: "preg-1", woman_id: "woman-1" },
     });
 
-    expect(promotion?.event.payload).toMatchObject({ pregnancy_status: null });
+    expect(promotion?.event.payload).toMatchObject({ pregnancy_status: null, vital_status: "deceased" });
     expect(promotion?.task_descriptors).toEqual([]);
   });
 

@@ -4,6 +4,7 @@ import {
   listFormResponses,
   listTasksForSubject,
   saveTask,
+  isLocalWomanTerminated,
 } from "../tasks/taskRepository.js";
 
 const TERMINAL_TASK_STATUSES = new Set([
@@ -55,6 +56,7 @@ export async function getDirectPefEligibility({ member, householdId } = {}) {
   if (!womanId || !normalizedHouseholdId || Number(member?.woman_questionnaire_eligible) !== 1) {
     return { eligible: false, reason: "woman_not_eligible" };
   }
+  if (isLocalWomanTerminated(womanId)) return { eligible: false, reason: "woman_terminated" };
 
   // WQ is the persisted code; BWQ is its display code. Accept both so
   // responses restored from older app versions still unlock direct PEF.

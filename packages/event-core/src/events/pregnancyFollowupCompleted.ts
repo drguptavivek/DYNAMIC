@@ -11,6 +11,7 @@ export interface PregnancyFollowupCompletedEventInput extends BaseEventInput {
   woman_id: string;
   visit_date: string;
   pregnancy_status?: string | null;
+  vital_status?: "alive" | "deceased";
 }
 
 export function buildEvent(
@@ -44,6 +45,7 @@ export function buildEvent(
       household_id: input.household_id,
       visit_date: input.visit_date,
       pregnancy_status: input.pregnancy_status,
+      vital_status: input.vital_status,
     },
     apply_status: input.apply_status ?? "applied",
   };
@@ -59,7 +61,7 @@ export function planWorkflow(input: {
 }): TaskDescriptor[] {
   if (noWorkflowForHeldEvent(input.event)) return [];
   const payload = input.event.payload;
-  if (Number(payload.pregnancy_status) !== 2) return [];
+  if (payload.vital_status === "deceased" || Number(payload.pregnancy_status) !== 2) return [];
   return generatePregnancyFollowupOutcomeTaskDescriptors({
     household_id: payload.household_id,
     pregnancy_id: payload.pregnancy_id,

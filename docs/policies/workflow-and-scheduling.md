@@ -174,4 +174,13 @@ Certain events end active tracks and cancel future uncompleted tasks:
 - Child death ends NFF and starts CDF/VA as applicable.
 - Stillbirth starts SBF/VA as applicable.
 - Woman death, permanent outmigration, hysterectomy, permanent ineligibility, or withdrawal ends woman pregnancy tracking.
+- Finalized PFF evidence reporting woman death terminates her tracking regardless
+  of the selected interview mode. Mark her `tracking_status` as `terminated` and
+  `current_eligibility_status` as `deceased`, close her active pregnancies, and
+  cancel her uncompleted woman/pregnancy tasks so they disappear from the device
+  worklist immediately. Household tasks, other women, and independent child
+  follow-up remain unaffected.
+- Accepted death evidence prevents further woman/pregnancy task generation.
+  Offline reconciliation, stale submissions, household refresh, and replay must
+  not reopen this track. Reopening requires an approved correction.
 - Completed history is preserved.

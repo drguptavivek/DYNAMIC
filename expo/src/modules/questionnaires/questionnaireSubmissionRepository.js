@@ -12,6 +12,7 @@ import {
   normalizeIdPart,
 } from "../households/householdIds.js";
 import { normalizeTaskAttemptLimits } from "../worklist/taskWorklist.js";
+import { isDeceasedWoman, terminateWomanState } from "../tasks/womanTermination.js";
 import { getLocalCalendarDate } from "../../lib/localDate.js";
 import { buildPffPefSnapshot, parsePffTaskSnapshot } from "../../lib/pffPrefillHelpers.js";
 import {
@@ -410,16 +411,23 @@ function buildHhqDerivedWorkflow(record, response) {
   });
 }
 
+function protectWebTerminatedWomen(state, previousWomen = state.eligible_women || []) {
+  return previousWomen.filter(isDeceasedWoman).reduce((protectedState, woman) =>
+    terminateWomanState(protectedState, { womanId: woman.woman_id,
+      householdId: woman.household_id, timestamp: woman.updated_at }), state);
+}
+
 function saveWebHhqDerivedWorkflow(derivedRows) {
   const storage = getStorage();
   if (!storage) return;
   const state = readWebSqliteState(storage);
   const eligibleWomen = derivedRows.map((row) => row.eligibleWoman);
   const wqTasks = derivedRows.map((row) => row.wqTask);
+  const previousWomen = state.eligible_women || [];
 
   state.eligible_women = mergeById(eligibleWomen, state.eligible_women || [], "woman_id");
   state.follow_up_tasks = mergeById(wqTasks, state.follow_up_tasks || [], "task_key");
-  storage.setItem(WEB_SQLITE_STORAGE_KEY, JSON.stringify(state));
+  storage.setItem(WEB_SQLITE_STORAGE_KEY, JSON.stringify(protectWebTerminatedWomen(state, previousWomen)));
 }
 
 async function saveHhqDerivedWorkflow(record, response) {
@@ -446,7 +454,7 @@ function saveWebPefDerivedWorkflow(pregnancy, tasks) {
   const state = readWebSqliteState(storage);
   state.pregnancies = mergeById([pregnancy], state.pregnancies || [], "pregnancy_id");
   state.follow_up_tasks = mergeById(tasks, state.follow_up_tasks || [], "task_key");
-  storage.setItem(WEB_SQLITE_STORAGE_KEY, JSON.stringify(state));
+  storage.setItem(WEB_SQLITE_STORAGE_KEY, JSON.stringify(protectWebTerminatedWomen(state)));
 }
 
 function saveWebTasks(tasks) {
@@ -454,7 +462,7 @@ function saveWebTasks(tasks) {
   if (!storage || tasks.length === 0) return;
   const state = readWebSqliteState(storage);
   state.follow_up_tasks = mergeById(tasks, state.follow_up_tasks || [], "task_key");
-  storage.setItem(WEB_SQLITE_STORAGE_KEY, JSON.stringify(state));
+  storage.setItem(WEB_SQLITE_STORAGE_KEY, JSON.stringify(protectWebTerminatedWomen(state)));
 }
 
 async function saveTasks(tasks) {
@@ -517,6 +525,9 @@ async function applyLocalNegativePefState(response, taskContext, { restoreAfterE
   if (!storage) return { restoredPsfTasks: 0, hasPsfTasks: false, hasActionablePsfTasks: false, detectedDate: null };
   const state = readWebSqliteState(storage);
   const now = response.submitted_at;
+  if ((state.eligible_women || []).some((woman) => woman.woman_id === womanId && isDeceasedWoman(woman))) {
+    return { restoredPsfTasks: 0, hasPsfTasks: false, hasActionablePsfTasks: false, detectedDate: null };
+  }
   const activePregnancy = (state.pregnancies || []).find(
     (pregnancy) => pregnancy.woman_id === womanId && pregnancy.pregnancy_status === "active",
   );
@@ -712,8 +723,19 @@ async function promotePefLocally(response, taskContext) {
 
 async function promotePffLocally(response, taskContext) {
   if (response.form_code !== "PFF" || !response.household_id || !response.subject_id) return;
-  const womanId = taskContext?.woman_id || taskContext?.household_member_id
+  let womanId = taskContext?.woman_id || taskContext?.household_member_id
     || parsePffTaskSnapshot(taskContext).pef_woman_hh_member_id;
+  if (!womanId) {
+    let repository;
+    try { repository = await import("../tasks/taskRepository.js"); } catch { /* Node/browser fallback. */ }
+    const pregnancyId = taskContext?.pregnancy_id || response.subject_id;
+    const storage = getStorage();
+    womanId = repository?.getLocalPregnancyWomanId?.(pregnancyId) ||
+      (storage && readWebSqliteState(storage).pregnancies.find((row) => row.pregnancy_id === pregnancyId)?.woman_id);
+  }
+  if (!womanId && Number(response.answers_json?.pff_vital_migration_status_woman) === 2) {
+    throw new Error("Cannot terminate study tracking: PFF woman identity is missing");
+  }
   if (!womanId) return;
   const promotion = promoteFormSubmission({
     form_code: "PFF",
@@ -735,6 +757,25 @@ async function promotePffLocally(response, taskContext) {
   });
   if (!promotion) return;
   await saveDomainEvent(promotion.event, response.submitted_at);
+  if (promotion.event.payload?.vital_status === "deceased") {
+    let taskRepository;
+    try {
+      taskRepository = await import("../tasks/taskRepository.js");
+    } catch {
+      // Plain Node tests use the same persisted browser state without native SQLite.
+    }
+    const context = { womanId, pregnancyId: taskContext?.pregnancy_id || response.subject_id,
+      householdId: response.household_id, timestamp: response.submitted_at };
+    if (typeof taskRepository?.terminateLocalWoman === "function") {
+      taskRepository.terminateLocalWoman(context);
+    } else {
+      const storage = getStorage();
+      if (!storage) throw new Error("Cannot persist woman termination without local storage");
+      storage.setItem(WEB_SQLITE_STORAGE_KEY,
+        JSON.stringify(terminateWomanState(readWebSqliteState(storage), context)));
+    }
+    return;
+  }
   const visitDate = String(response.answers_json?.pff_visit_date || "");
   await saveTasks(promotion.task_descriptors.map((descriptor) => {
     const task = toLocalTask(descriptor, {

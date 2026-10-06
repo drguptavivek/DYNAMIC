@@ -145,6 +145,10 @@ function preserveFinalizedLocalTask(existingTask, incomingTask) {
     pff_last_visit_date: incomingTask.pff_last_visit_date || existingTask?.pff_last_visit_date,
   };
   const existingStatus = String(existingTask?.status || existingTask?.lifecycle_status || "").toLowerCase();
+  if (existingTask?.closed_reason === "woman_reported_dead") {
+    return { ...taskWithSnapshot, status: "cancelled", lifecycle_status: "cancelled",
+      closed_reason: existingTask.closed_reason, closed_at: existingTask.closed_at };
+  }
   if (existingStatus !== "completed" || isTerminalTask(taskWithSnapshot)) return taskWithSnapshot;
 
   // A pulled open copy must not resurrect work that this device has already

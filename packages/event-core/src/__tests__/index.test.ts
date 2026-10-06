@@ -652,6 +652,15 @@ describe("event-core task lifecycle rules", () => {
 });
 
 describe("event-core pregnancy projection reducer", () => {
+  test("accepted death evidence closes replay even when enrollment is replayed afterward", () => {
+    const death = { ...pregnancyEnrolledEvent, event_id: "death-event",
+      event_type: "pregnancy_followup_completed", event_date: "2020-01-01",
+      payload: { woman_id: pregnancyWorkflowProjection.woman_id, vital_status: "deceased" } };
+    expect(reducePregnancyProjectionEvents([pregnancyEnrolledEvent, death])?.pregnancy_status).toBe("closed");
+    expect(reducePregnancyProjectionEvents([pregnancyEnrolledEvent,
+      { ...death, apply_status: "held_duplicate" }])?.pregnancy_status).toBe(pregnancyWorkflowProjection.pregnancy_status);
+  });
+
   test("PEF pregnancy enrollment creates a projection with source provenance", () => {
     const projection = reducePregnancyProjection(null, pregnancyEnrolledEvent);
 

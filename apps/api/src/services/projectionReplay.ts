@@ -4,7 +4,8 @@ import {
   reducePregnancyProjectionEvents,
   type DomainEventEnvelope,
 } from "@dynamic/event-core";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
+import { isWomanTerminated } from "./taskWriter";
 import { schema } from "../db";
 import { getDb } from "../lib/dbContext";
 import {
@@ -83,7 +84,7 @@ export async function rebuildPregnancyProjection(
       and(
         eq(schema.domainEvents.subject_type, "pregnancy"),
         eq(schema.domainEvents.subject_id, pregnancyId),
-        eq(schema.domainEvents.event_type, "pregnancy_enrolled"),
+        inArray(schema.domainEvents.event_type, ["pregnancy_enrolled", "pregnancy_followup_completed"]),
       ),
     );
 
@@ -117,7 +118,7 @@ export async function rebuildPregnancyProjection(
     .update(schema.pregnancies)
     .set({
       enrollment_date: projection.enrollment_date || undefined,
-      pregnancy_status: projection.pregnancy_status,
+      pregnancy_status: await isWomanTerminated(pregnancy.woman_id) ? "closed" : projection.pregnancy_status,
       source_event_id: projection.source_event_id,
       updated_at: new Date(),
     })

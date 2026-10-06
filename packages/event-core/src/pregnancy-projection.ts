@@ -3,6 +3,7 @@ import type {
   DomainEventEnvelope,
   PregnancyEnrolledPayload,
   PregnancyProjection,
+  PregnancyFollowupCompletedPayload,
 } from "./types";
 
 function isApplied(event: DomainEventEnvelope): boolean {
@@ -59,10 +60,16 @@ export function reducePregnancyProjectionEvents(
   events: DomainEventEnvelope[],
   initial: PregnancyProjection | null = null,
 ): PregnancyProjection | null {
-  return [...events]
+  const projection = [...events]
     .sort(compareEventOrder)
     .reduce<PregnancyProjection | null>(
       (current, event) => reducePregnancyProjection(current, event),
       initial,
     );
+  if (!projection) return null;
+  const death = events.find((event) => event.apply_status === "applied" &&
+    event.event_type === "pregnancy_followup_completed" &&
+    (event.payload as Partial<PregnancyFollowupCompletedPayload>).vital_status === "deceased" &&
+    (event.payload as Partial<PregnancyFollowupCompletedPayload>).woman_id === projection.woman_id);
+  return death ? { ...projection, pregnancy_status: "closed" } : projection;
 }

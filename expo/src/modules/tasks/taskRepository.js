@@ -1,5 +1,54 @@
 import { getDb } from "./taskSchema.js";
 import { getLocalCalendarDate } from "../../lib/localDate.js";
+import { cancelWomanTask, isDeceasedWoman, terminateWomanState } from "./womanTermination.js";
+
+function getDeceasedWoman(db, womanId) {
+  if (!womanId) return null;
+  const woman = db.getFirstSync("SELECT * FROM eligible_women WHERE woman_id = ?", [womanId]);
+  return isDeceasedWoman(woman) ? woman : null;
+}
+
+export function isLocalWomanTerminated(womanId) {
+  const woman = getDb().getFirstSync("SELECT * FROM eligible_women WHERE woman_id = ?", [womanId]);
+  return isDeceasedWoman(woman) || woman?.tracking_status === "terminated";
+}
+
+export function getLocalPregnancyWomanId(pregnancyId) {
+  return getDb().getFirstSync("SELECT * FROM pregnancies WHERE pregnancy_id = ?", [pregnancyId])?.woman_id;
+}
+
+function protectWomanTask(db, task, now) {
+  if (task.child_id || ["child", "household"].includes(task.subject_type) || task.task_type === "HHQ") return task;
+  const pregnancy = db.getFirstSync("SELECT * FROM pregnancies WHERE pregnancy_id = ?",
+    [task.pregnancy_id || task.subject_id]);
+  const womanId = task.woman_id || pregnancy?.woman_id || task.subject_id;
+  return getDeceasedWoman(db, womanId) ? cancelWomanTask(task, now) : task;
+}
+
+export function terminateLocalWoman({ womanId, pregnancyId, householdId, timestamp = new Date().toISOString() }) {
+  if (!womanId) throw new Error("Woman identity is required to terminate tracking");
+  const db = getDb();
+  const state = {
+    eligible_women: db.getAllSync("SELECT * FROM eligible_women WHERE woman_id = ?", [womanId]) || [],
+    pregnancies: db.getAllSync("SELECT * FROM pregnancies WHERE woman_id = ?", [womanId]) || [],
+    follow_up_tasks: db.getAllSync("SELECT * FROM follow_up_tasks WHERE 1=1", []) || [],
+  };
+  const terminated = terminateWomanState(state, { womanId, pregnancyId, householdId, timestamp });
+  try {
+    db.runSync("BEGIN TRANSACTION");
+    saveEligibleWoman(terminated.eligible_women[0]);
+    terminated.pregnancies.forEach((row, index) => {
+      if (row !== state.pregnancies[index]) savePregnancy(row);
+    });
+    terminated.follow_up_tasks.forEach((row, index) => {
+      if (row !== state.follow_up_tasks[index]) saveTask(row);
+    });
+    db.runSync("COMMIT");
+  } catch (error) {
+    db.runSync("ROLLBACK");
+    throw error;
+  }
+}
 
 export function listTasks(filters = {}) {
   const db = getDb();
@@ -473,6 +522,7 @@ export function clearSyncedTaskCache() {
 export function saveTask(task) {
   const db = getDb();
   const now = new Date().toISOString();
+  task = protectWomanTask(db, task, now);
 
   const {
     id,
@@ -576,7 +626,8 @@ export function saveTaskBatch(tasks) {
 
   try {
     db.runSync("BEGIN TRANSACTION");
-    for (const task of tasks) {
+    for (let task of tasks) {
+      task = protectWomanTask(db, task, now);
       const {
         id,
         task_key,
@@ -677,6 +728,8 @@ export function saveTaskBatch(tasks) {
 export function saveEligibleWoman(woman) {
   const db = getDb();
   const now = new Date().toISOString();
+  const deceased = getDeceasedWoman(db, woman.woman_id);
+  if (deceased) woman = { ...woman, tracking_status: "terminated", current_eligibility_status: "deceased" };
   const row = {
     woman_id: woman.woman_id,
     household_member_id: woman.household_member_id,
@@ -726,6 +779,7 @@ export function saveEligibleWoman(woman) {
 export function applyLocalNegativePefOutcome({ womanId, restoreAfterEnrollment = false, resumeDate = null } = {}) {
   if (!womanId) return { restoredPsfTasks: 0, hasPsfTasks: false, hasActionablePsfTasks: false, detectedDate: null };
   const db = getDb();
+  if (getDeceasedWoman(db, womanId)) return { restoredPsfTasks: 0, hasPsfTasks: false, hasActionablePsfTasks: false, detectedDate: null };
   const now = new Date().toISOString();
   try {
     const pregnancy = db.getFirstSync(
@@ -808,6 +862,9 @@ export function saveEligibleWomenBatch(women = []) {
 export function savePregnancy(pregnancy) {
   const db = getDb();
   const now = new Date().toISOString();
+  if (getDeceasedWoman(db, pregnancy.woman_id) && (!pregnancy.pregnancy_status || ["active", "enrolled", "detected"].includes(pregnancy.pregnancy_status))) {
+    pregnancy = { ...pregnancy, pregnancy_status: "closed" };
+  }
   const row = {
     pregnancy_id: pregnancy.pregnancy_id,
     woman_id: pregnancy.woman_id,

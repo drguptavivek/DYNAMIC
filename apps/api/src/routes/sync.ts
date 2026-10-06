@@ -7,7 +7,7 @@ import { db, schema } from "../db";
 import { JwtPayload, optionalAuth, requireAuth } from "../middleware/auth";
 import { sendError, sendSuccess } from "../lib/errors";
 import { processFormResponse } from "../services/eventProcessor";
-import { withGeneratedTaskKeys } from "../services/taskWriter";
+import { resolveTaskWomanId, isWomanTerminated, withGeneratedTaskKeys } from "../services/taskWriter";
 import { getEffectiveFormVersionManifest } from "../lib/formLanguage";
 import { buildSyncClockMetadata } from "../lib/syncClock";
 import { appendAreaScopeCondition, canAccessLocation } from "../lib/areaScope";
@@ -1232,6 +1232,20 @@ router.post(
               // PostgreSQL transaction advisory locks make the first valid
               // server commit authoritative even when two devices sync the
               // same woman at the same instant.
+              // Pregnancy follow-ups share the woman's pathway lock so death cannot
+              // race a stale WQ/PEF/PSF or a different pregnancy task.
+              let maternalWomanId: string | null = null;
+              const incomingFormCode = String(form_code || "").toUpperCase();
+              if (["WQ", "PSF", "PEF", "PFF", "UF", "POF", "BAF", "SBF"].includes(incomingFormCode)) {
+                const [knownTask] = (task_id || task_key) ? await tx.select().from(schema.followUpTasks)
+                  .where(task_id ? eq(schema.followUpTasks.task_id, task_id) : eq(schema.followUpTasks.task_key, task_key))
+                  .limit(1) : [];
+                maternalWomanId = await resolveTaskWomanId(knownTask ?? {
+                  subject_type: data.subject_type || (["PFF", "UF", "POF", "BAF", "SBF"].includes(incomingFormCode) ? "pregnancy" : "woman"),
+                  subject_id: data.subject_id,
+                });
+                if (maternalWomanId) await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`woman-pathway|${knownTask?.household_id || data.household_id}|${maternalWomanId}`}, 0))`);
+              }
               const submissionLockKey = buildSubmissionLockKey(data);
               await tx.execute(
                 sql`select pg_advisory_xact_lock(hashtextextended(${submissionLockKey}, 0))`,
@@ -1354,7 +1368,13 @@ router.post(
               let primaryConflictResponse = primaryTaskResponse || null;
               const taskStatus = String(canonicalTask?.status || "").toLowerCase();
 
-              if (acceptedPef && formCode === "PEF") {
+              if (await isWomanTerminated(maternalWomanId)) {
+                responseClassification = {
+                  id, status: "invalid_rejected",
+                  error: "Woman is terminated from the study; this task is no longer active",
+                  household_id: householdId, subject_id: subjectId,
+                };
+              } else if (acceptedPef && formCode === "PEF") {
                 primaryConflictResponse = acceptedPef;
                 responseClassification = {
                   id,

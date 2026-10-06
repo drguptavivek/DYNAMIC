@@ -1,5 +1,5 @@
 import { eligibleWomanIdentified, promoteFormSubmission } from "@dynamic/event-core";
-import { and, eq, inArray, ne } from "drizzle-orm";
+import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { schema } from "../db";
 import { getDb } from "../lib/dbContext";
@@ -324,7 +324,7 @@ export async function promoteHhq(response: FormResponseRow, answers: FormAnswers
             site_id: household.site_id,
             locality_code: household.locality_code,
             eligibility_start_date: interviewDate,
-            current_eligibility_status: "eligible",
+            current_eligibility_status: sql`case when ${schema.eligibleWomen.tracking_status} = 'terminated' or ${schema.eligibleWomen.current_eligibility_status} = 'deceased' then 'deceased' else 'eligible' end`,
             eligibility_basis: "baseline_hhq",
             sync_status: "synced",
             updated_at: now,

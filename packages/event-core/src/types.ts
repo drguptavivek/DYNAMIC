@@ -103,6 +103,7 @@ export interface PregnancyProjection {
 }
 
 export interface PregnancyFollowupCompletedPayload {
+  vital_status?: "alive" | "deceased";
   pregnancy_id: string;
   woman_id: string;
   household_id: string;

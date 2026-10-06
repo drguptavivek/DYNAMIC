@@ -1,12 +1,12 @@
 import { schema } from "../db";
 import { getDb } from "../lib/dbContext";
-import { eq, and, inArray, ne, or } from "drizzle-orm";
+import { eq, and, inArray, ne, or, isNull } from "drizzle-orm";
 import {
   childDeathRecorded,
   promoteFormSubmission,
   wqCompleted,
 } from "@dynamic/event-core";
-import { checkGeneratedTaskKey, writeTasksFromDescriptors } from "./taskWriter";
+import { checkGeneratedTaskKey, writeTasksFromDescriptors, resolveTaskWomanId, isWomanTerminated } from "./taskWriter";
 import { randomUUID } from "crypto";
 import { buildChildId, buildDetectedPregnancyId } from "@dynamic/shared-domain";
 import {
@@ -94,6 +94,12 @@ export async function processFormResponse(formResponseId: string): Promise<void>
 
     if (!handler) {
       throw new Error(`Unknown form code, cannot promote: ${response.form_code}`);
+    }
+    if (["WQ", "PSF", "PEF", "PFF", "UF", "POF", "BAF", "SBF"].includes(response.form_code)) {
+      const task = await getTaskForResponse(response);
+      if (await isWomanTerminated(await resolveTaskWomanId(task ?? response))) {
+        throw new Error("Woman is terminated from the study; this task cannot be promoted");
+      }
     }
     await handler(response, answers);
   } catch (err) {
@@ -718,7 +724,7 @@ async function promotePff(
       if (promotion) await writeTasksFromDescriptors(promotion.task_descriptors);
     }
 
-    if (pregnancyStatus === 2 || pregnancyStatus === 3 || vitalStatus === 2) {
+    if (vitalStatus !== 2 && (pregnancyStatus === 2 || pregnancyStatus === 3)) {
       await getDb()
         .update(schema.followUpTasks)
         .set({
@@ -748,18 +754,29 @@ async function promotePff(
     }
 
     if (vitalStatus === 2) {
-      await getDb()
-        .update(schema.followUpTasks)
-        .set({
-          status: "cancelled",
-          closed_at: now,
-          closed_reason: "woman_reported_dead",
-          updated_at: now,
-        })
+      await getDb().update(schema.eligibleWomen)
+        .set({ tracking_status: "terminated", current_eligibility_status: "deceased", updated_at: now })
+        .where(eq(schema.eligibleWomen.woman_id, pregnancy.woman_id));
+      const womanPregnancies = await getDb().select({ pregnancy_id: schema.pregnancies.pregnancy_id })
+        .from(schema.pregnancies).where(eq(schema.pregnancies.woman_id, pregnancy.woman_id));
+      const pregnancyIds = womanPregnancies.map((row) => row.pregnancy_id);
+      await getDb().update(schema.pregnancies)
+        .set({ pregnancy_status: "closed", updated_at: now })
+        .where(and(eq(schema.pregnancies.woman_id, pregnancy.woman_id),
+          inArray(schema.pregnancies.pregnancy_status, ["active", "enrolled", "detected"])));
+      await getDb().update(schema.followUpTasks)
+        .set({ status: "cancelled", closed_at: now, closed_reason: "woman_reported_dead",
+          superseded_by_event_id: eventId, updated_at: now })
         .where(and(
-          eq(schema.followUpTasks.woman_id, pregnancy.woman_id),
+          ne(schema.followUpTasks.subject_type, "child"),
+          ne(schema.followUpTasks.subject_type, "household"),
+          isNull(schema.followUpTasks.child_id),
+          or(eq(schema.followUpTasks.woman_id, pregnancy.woman_id),
+            eq(schema.followUpTasks.subject_id, pregnancy.woman_id),
+            inArray(schema.followUpTasks.pregnancy_id, pregnancyIds),
+            inArray(schema.followUpTasks.subject_id, pregnancyIds)),
           response.task_id ? ne(schema.followUpTasks.task_id, response.task_id) : undefined,
-          inArray(schema.followUpTasks.status, ["open", "planned", "pending", "due", "overdue", "in_progress"]),
+          inArray(schema.followUpTasks.status, ["open", "planned", "pending", "due", "overdue", "in_progress", "disabled"]),
         ));
     }
     if (pregnancyStatus === 3 && vitalStatus !== 2) {
