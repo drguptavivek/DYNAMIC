@@ -34,7 +34,7 @@ Do question-by-question PDF comparison before questionnaire JSON changes.
 - Renderer selection comes from question type/input metadata and explicit rendering hints. Unsupported capabilities fail visibly in development.
 - Regex validators display the definition-owned localized error message at the affected control.
 - Repeated sections show the entry count and allow a specific entry to be selected, edited, or deleted subject to the definition's minimum-row rule.
-- The renderer language switch changes the Survey Core locale in place so labels, choices, descriptions, and validation messages refresh together.
+- Every new interview requires a language declaration before questionnaire inputs appear. Apply it to the Survey Core locale and language answer, then lock it through filling and preview. Drafts preserve and restore the declared locale; device preferences cannot change an ongoing interview.
 - Keep database checks, section state, roster confirmation, generated-ID display, and preview as named app capabilities around generic field renderers.
 
 ## Form Flow

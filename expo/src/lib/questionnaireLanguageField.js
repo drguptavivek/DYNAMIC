@@ -1,6 +1,6 @@
 /**
  * Derives the "Language of questionnaire" answer from the language the
- * interviewer selected in the renderer's language switcher, instead of asking
+ * interviewer declared before starting the form, instead of asking
  * it as a separate question. Works for any questionnaire: the question is
  * detected by its choice set (1 Hindi ... 7 English), so forms that gain the
  * question later, or server-delivered form versions, are covered without a

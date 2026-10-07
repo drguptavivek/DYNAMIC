@@ -16,6 +16,19 @@ import {
   QUESTIONNAIRE_LANGUAGES,
   questionnaireLanguageCodeForLocale,
 } from "../components/forms/questionnaireLanguages.js";
+import { getDraftFormLocale } from "../lib/formLanguage.js";
+import {
+  getActiveQuestionnaireDraft,
+  saveQuestionnaireDraft,
+} from "../modules/questionnaires/questionnaireDraftRepository.js";
+
+// Browser storage keeps this check isolated from the native database.
+const draftStorage = new Map();
+globalThis.window = { localStorage: {
+  getItem: (key) => draftStorage.get(key) || null,
+  setItem: (key, value) => draftStorage.set(key, value),
+  removeItem: (key) => draftStorage.delete(key),
+} };
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const formsDir = path.join(here, "..", "data", "forms");
@@ -36,6 +49,12 @@ const seen = {};
 for (const file of formFiles) {
   const form = loadForm(file);
   const model = new Model(prepareQuestionnaireSurveyJson(form));
+  for (const language of QUESTIONNAIRE_LANGUAGES) {
+    const context = { formCode: form.form_code, formVersion: form.version, taskId: `language-${form.form_code}-${language.code}`, userId: "language-test" };
+    await saveQuestionnaireDraft({ ...context, payload: {}, completionState: { locale: language.code } });
+    const restored = await getActiveQuestionnaireDraft(context);
+    assert.equal(getDraftFormLocale(restored, model, "te"), language.code, `${form.form_code} resume must preserve its declared locale, regardless of device preference`);
+  }
   const fieldName = findQuestionnaireLanguageFieldName(model);
   seen[form.form_code] = fieldName;
 
@@ -44,6 +63,9 @@ for (const file of formFiles) {
     assert.equal(applyQuestionnaireLanguageFromLocale(model, "hi"), false);
     continue;
   }
+
+  assert.equal(getDraftFormLocale({ json_payload: { [fieldName]: 4 } }, model, "hi"), "ta", `${form.form_code} legacy draft language is retained`);
+  assert.equal(getDraftFormLocale({ completion_state: { locale: "kn" }, json_payload: { [fieldName]: 4 } }, model, "hi"), "kn", "declared draft locale takes precedence over old answer");
 
   const question = model.getQuestionByName(fieldName);
   assert.equal(question.choices.length, 7, `${form.form_code} language question has 7 choices`);
@@ -96,4 +118,13 @@ assert.equal(generic.getValue("some_other_language_field"), 3);
 
 assert.equal(applyQuestionnaireLanguageFromLocale(null, "hi"), false);
 
-console.log("Questionnaire language field validation passed");
+// Both interview hosts must gate inputs and expose no in-form locale control.
+for (const relative of ["modules/households/BaselineHouseholdForm.js", "modules/questionnaires/QuestionnaireDashboard.js"]) {
+  const source = fs.readFileSync(path.join(here, "..", relative), "utf8");
+  assert.ok(source.includes('<FormLanguageSelection'), `${relative} requires language before interview`);
+  assert.ok(!source.includes("RendererLanguageSwitcher"), `${relative} cannot switch during the interview`);
+  assert.ok(source.includes('locale: formLocaleRef.current'), `${relative} records locked language with every draft save`);
+}
+assert.equal(getDraftFormLocale({ completion_state: { locale: "invalid" } }, generic, "mr"), "mr");
+delete globalThis.window;
+console.log("Questionnaire language selection, draft resume, and language field validation passed");

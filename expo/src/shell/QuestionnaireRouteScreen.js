@@ -120,6 +120,7 @@ export function QuestionnaireRouteScreen({ correctionResponseId, draftId, formCo
   return (
     <FieldAppShell route={route} title={title} topBarCollapsed={isEntryRoute}>
       <QuestionnaireDashboard
+        key={`${normalizedFormCode}-${mode}-${normalizeSearchParam(openKey) || ""}-${normalizedTaskId || ""}-${normalizeSearchParam(draftId) || ""}-${normalizedCorrectionResponseId || ""}`}
         formCode={normalizedFormCode}
         locale={app.locale}
         mode={mode}

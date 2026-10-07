@@ -1277,6 +1277,7 @@ export async function saveQuestionnaireSubmission({
       questionName: PFF_FIRST_ULTRASOUND_IMAGE_FIELD,
       value: { reports: [finalizedPffFirstUltrasoundImage] },
       womanId: taskContext?.woman_id || taskContext?.household_member_id,
+      taskContext,
     });
   }
   if (finalizedPffAdditionalUltrasoundReports) {
@@ -1286,6 +1287,7 @@ export async function saveQuestionnaireSubmission({
       questionName: PFF_ADDITIONAL_ULTRASOUND_REPORTS_FIELD,
       value: finalizedPffAdditionalUltrasoundReports,
       womanId: taskContext?.woman_id || taskContext?.household_member_id,
+      taskContext,
     });
   }
   if (finalizedPffAncCardImage) {
@@ -1295,6 +1297,7 @@ export async function saveQuestionnaireSubmission({
       questionName: PFF_ANC_CARD_IMAGE_FIELD,
       value: { reports: [finalizedPffAncCardImage] },
       womanId: taskContext?.woman_id || taskContext?.household_member_id,
+      taskContext,
     });
   }
 

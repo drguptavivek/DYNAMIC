@@ -56,7 +56,7 @@ Rules:
 - Finalized `answers_json` stores attachment metadata only; device-local file paths stay in the local attachment outbox.
 - Required attachment sets must be complete before final confirmation.
 - Attachment upload is authenticated, device-bound, area-scoped, image-only, size-limited, and idempotent.
-- Attachments required by a response upload before that response can be marked synced. A failed upload retains local data for retry.
+- Attachments required by a response upload before that response can be marked synced. A failed upload retains local data and the next sync retries attachment-specific upload errors. Server duplicate/rejection classifications remain held. PEF/PFF attachment ownership uses the woman identity recorded in the form, not its pregnancy subject ID. A successful upload requires the server storage-path acknowledgment.
 - Server file names are system-generated. Interviewer-entered report names are metadata and never become filesystem paths.
 - Server attachment paths are persisted in typed database rows and point into durable storage outside release directories.
 

@@ -1,11 +1,12 @@
 import { getFormDisplayCode } from "../../lib/formDisplayCodes.js";
 import { shouldShowPffOutcomeReminder } from "../../lib/pffOutcomeReminder.js";
 import { startTiming } from "../../lib/perfLog.js";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { NativeSurveyRenderer } from "../../components/forms/NativeSurveyRenderer.js";
-import { RendererLanguageSwitcher } from "../../components/forms/RendererLanguageSwitcher.js";
+import { FormLanguageSelection } from "../../components/forms/FormLanguageSelection.js";
+import { getDraftFormLocale } from "../../lib/formLanguage.js";
 import { PreviewRenderer } from "../../components/forms/renderers/PreviewRenderer.js";
 import { getRuntimeFormByCode } from "../../data/runtimeFormCatalog";
 import { ROUTES, navigateTo } from "../../navigation/routes";
@@ -366,6 +367,9 @@ export function QuestionnaireDashboard({
   const [submissions, setSubmissions] = useState([]);
   const [saveMessage, setSaveMessage] = useState("");
   const [activeLocale, setActiveLocale] = useState(locale || "default");
+  const [languageState, setLanguageState] = useState("loading");
+  const [languageError, setLanguageError] = useState("");
+  const formLocaleRef = useRef(null);
   const [sections, setSections] = useState([]);
   const [progress, setProgress] = useState({ answered: 0, total: 0, percent: 0 });
   const [rendererAnswerData, setRendererAnswerData] = useState({});
@@ -402,17 +406,6 @@ export function QuestionnaireDashboard({
       setActiveLocale(locale || "default");
     }
   }, [locale, showForm]);
-
-  const changeFormLocale = useCallback(
-    (nextLocale) => {
-      const normalizedLocale = nextLocale || "default";
-      setActiveLocale(normalizedLocale);
-      requestAnimationFrame(() => {
-        onLocaleChange?.(normalizedLocale);
-      });
-    },
-    [onLocaleChange],
-  );
 
   const refreshSubmissions = async () => {
     setSubmissions(await listQuestionnaireSubmissions(formCode));
@@ -457,7 +450,7 @@ export function QuestionnaireDashboard({
   }
 
   async function saveDraftFromModel(model, { silent = false, manual = false } = {}) {
-    if (!model || !draftContext) return null;
+    if (!model || !draftContext || !formLocaleRef.current) return null;
     const payload = {
       ...(answerSnapshotRef.current || {}),
       ...(model.data || {}),
@@ -472,6 +465,7 @@ export function QuestionnaireDashboard({
       completionState: {
         currentPageName: model.currentPage?.name || null,
         correctionResponseId: correctionContext?.responseId || null,
+        locale: formLocaleRef.current,
       },
     });
     if (correctionContext) {
@@ -1205,6 +1199,10 @@ export function QuestionnaireDashboard({
       if (cancelled) return;
 
       if (draft) {
+        const restoredLocale = getDraftFormLocale(draft, survey, locale);
+        formLocaleRef.current = restoredLocale;
+        survey.locale = restoredLocale;
+        setActiveLocale(restoredLocale);
         draftIdRef.current = draft.draft_id;
         setDraftId(draft.draft_id);
         const restoredData = {
@@ -1256,37 +1254,33 @@ export function QuestionnaireDashboard({
         dirtyRef.current = false;
         setDirty(false);
       } else {
-        if (!correctionContext) {
-          await saveDraftFromModel(survey, { silent: true });
-        }
         answerSnapshotRef.current = { ...(survey.data || {}) };
         setRendererAnswerData(answerSnapshotRef.current);
       }
 
-      // The restored draft may carry an older language answer; the active
-      // switcher language always wins.
-      applyQuestionnaireLanguageFromLocale(survey, activeLocaleRef.current);
+      if (draft) applyQuestionnaireLanguageFromLocale(survey, formLocaleRef.current);
       updateSurveyStatus(survey);
+      setLanguageState(draft ? "locked" : "select");
       endRestore({ found: Boolean(draft) });
     }
 
-    restoreDraft();
+    restoreDraft().catch((error) => {
+      if (!cancelled) setLanguageError(`Could not restore draft: ${error.message}`);
+    });
     return () => {
       cancelled = true;
     };
   }, [showForm, survey, draftContext, correctionContext]);
 
-  // "Language of questionnaire" (where a form has it) is recorded from the
-  // language switcher rather than asked; keep it in step with the selection.
-  const activeLocaleRef = useRef(activeLocale);
-  activeLocaleRef.current = activeLocale;
+  // Record the declared language without allowing global preferences to change it.
   useEffect(() => {
-    if (!showForm || !survey) return;
+    if (!showForm || !survey || languageState !== "locked") return;
+    survey.locale = activeLocale;
     if (applyQuestionnaireLanguageFromLocale(survey, activeLocale)) {
       markDirty();
       updateSurveyStatus(survey);
     }
-  }, [showForm, survey, activeLocale]);
+  }, [showForm, survey, activeLocale, languageState]);
 
   useEffect(() => {
     if (!showForm || !survey) return undefined;
@@ -1360,6 +1354,27 @@ export function QuestionnaireDashboard({
     );
   }
 
+  if (showForm && languageState === "loading") {
+    return <View style={styles.wrap}><Text>{languageError || "Loading saved draft from this device..."}</Text></View>;
+  }
+  if (showForm && languageState === "select") {
+    return <FormLanguageSelection initialLocale={locale} onClose={() => navigateTo(ROUTES.worklist, { replace: true })} onStart={async (selectedLocale) => {
+      formLocaleRef.current = selectedLocale;
+      survey.locale = selectedLocale;
+      applyQuestionnaireLanguageFromLocale(survey, selectedLocale);
+      try {
+        const draft = await saveDraftFromModel(survey, { silent: true });
+        if (!draft) throw new Error("The questionnaire language could not be saved. Please try again.");
+      } catch (error) {
+        formLocaleRef.current = null;
+        throw error;
+      }
+      setActiveLocale(selectedLocale);
+      setLanguageState("locked");
+      onLocaleChange?.(selectedLocale);
+    }} />;
+  }
+
   return (
     <View style={styles.wrap}>
       {showForm && (
@@ -1410,7 +1425,6 @@ export function QuestionnaireDashboard({
               >
                 <Text style={styles.secondaryButtonText}>Preview</Text>
               </Pressable>
-              {!compact ? <RendererLanguageSwitcher locale={activeLocale} onChange={changeFormLocale} /> : null}
               <Pressable
                 onPress={() => handleCloseForm(survey)}
                 style={styles.secondaryButton}
@@ -1420,11 +1434,6 @@ export function QuestionnaireDashboard({
             </View>
           </View>
           <View pointerEvents="box-none" style={[styles.formWindowBody, compact && styles.formWindowBodyCompact]}>
-            {compact && !previewOpen && !memberSummaryOpen ? (
-              <View pointerEvents="box-none" style={styles.languageOverlay}>
-                <RendererLanguageSwitcher iconOnly locale={activeLocale} onChange={changeFormLocale} />
-              </View>
-            ) : null}
             {!compact ? <View style={styles.progressHeader}>
               <View style={styles.progressTextRow}>
                 <Text style={styles.panelTitle}>Progress</Text>
@@ -1833,13 +1842,6 @@ const styles = StyleSheet.create({
     position: "relative",
     margin: 0,
     padding: 12,
-  },
-  languageOverlay: {
-    position: "absolute",
-    top: 2,
-    right: 12,
-    zIndex: 5,
-    elevation: 5,
   },
   progressHeader: {
     padding: 12,

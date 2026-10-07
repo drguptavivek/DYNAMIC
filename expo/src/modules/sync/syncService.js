@@ -28,7 +28,7 @@ import {
   markAttachmentSynced,
   markAttachmentUploadError,
 } from "../attachments/attachmentRepository.js";
-import { uploadAttachment } from "../attachments/attachmentUploadClient.js";
+import { resolveAttachmentWomanId, uploadAttachment } from "../attachments/attachmentUploadClient.js";
 
 function unwrapApiData(payload) {
   return payload && Object.prototype.hasOwnProperty.call(payload, "data") ? payload.data : payload;
@@ -665,21 +665,14 @@ async function pushAttachmentsForResponses({ token, deviceId, formResponses }) {
   let uploaded = 0;
   for (const attachment of attachments) {
     try {
-      // Older PEF submissions could store the pregnancy/household subject as
-      // the attachment woman ID. Recover the woman ID from the finalized form
-      // so previously failed uploads can succeed on retry without refilling.
-      let uploadRow = attachment;
-      if (attachment.form_code === "PEF") {
-        const response = responseById.get(attachment.form_response_id);
-        let answers = response?.answers_json || {};
-        if (typeof answers === "string") {
-          try { answers = JSON.parse(answers); } catch { answers = {}; }
-        }
-        const formWomanId = answers?.pef_woman_hh_member_id;
-        if (typeof formWomanId === "string" && formWomanId.startsWith(`${attachment.household_id}-`)) {
-          uploadRow = { ...attachment, woman_id: formWomanId };
-        }
-      }
+      // Repair older PEF/PFF outbox rows that used a pregnancy subject ID.
+      const response = responseById.get(attachment.form_response_id);
+      const task = response?.task_id ? taskRepository.getTask(response.task_id) : null;
+      const pregnancyWomanId = response?.form_code === "PFF"
+        ? taskRepository.getLocalPregnancyWomanId(task?.pregnancy_id || response.subject_id) : null;
+      const uploadRow = { ...attachment, woman_id: resolveAttachmentWomanId(
+        response, pregnancyWomanId || attachment.woman_id, task,
+      ) };
       const payload = await uploadAttachment({
         apiBaseUrl: API_BASE_URL,
         token,
@@ -905,6 +898,9 @@ export async function pushSync() {
     throw new Error("Not authenticated");
   }
 
+  // Requeue once per sync, so a failed image remains retryable without a
+  // tight retry loop or re-submitting duplicate/held evidence.
+  taskRepository.retryAttachmentUploadErrors();
   const pendingResponseCount = await taskRepository.countPendingResponses();
   const { getPendingEvents } = await import("../events/eventOutbox.js");
   const pendingEvents = getPendingEvents();

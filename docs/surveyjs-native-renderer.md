@@ -69,7 +69,7 @@ Survey Core is the authoritative validation runtime on Android and web.
 
 ## Localization
 
-`RendererLanguageSwitcher` changes the Survey Core model locale in place. The renderer then refreshes:
+`FormLanguageSelection` requires a language before a new interview starts. Both interview hosts lock the Survey Core locale through filling and preview, persist it in draft completion metadata, and restore it on resume. The renderer uses that locale for:
 
 - page and section titles;
 - question labels and descriptions;
@@ -109,7 +109,7 @@ The section icon in the questionnaire title row opens a left-side overlay with f
 
 ## Mobile Form Shell
 
-The native HHQ title row is `Sections icon — form title — red Close icon`. On compact screens the language menu is an icon overlay at the upper-right of the form body. The global locality switcher belongs in the main DYNAMIC drawer. The DYNAMIC app header is visible at form entry and collapses after the interviewer scrolls into the questionnaire; the questionnaire title row remains available.
+The native HHQ title row is `Sections icon — form title — red Close icon`. Language selection appears before interview inputs; the title row and body have no language-changing control. The global locality switcher belongs in the main DYNAMIC drawer. The DYNAMIC app header is visible at form entry and collapses after the interviewer scrolls into the questionnaire; the questionnaire title row remains available.
 
 The fixed bottom row uses compact icon controls. Previous and Next sit at the outer edges; Preview and Save draft remain grouped in the middle. Their visible button height is compact while hit slop preserves a usable touch target.
 

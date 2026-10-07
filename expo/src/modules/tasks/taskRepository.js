@@ -1600,6 +1600,15 @@ export function markResponseSynced(id) {
   }
 }
 
+export function retryAttachmentUploadErrors() {
+  // This prefix is emitted only by attachment upload failures. Server
+  // duplicate/rejection classifications must remain in Upload Errors.
+  return getDb().runSync(
+    `UPDATE form_responses SET sync_status = 'pending', sync_error = NULL, sync_error_at = NULL
+      WHERE sync_status = 'upload_error' AND sync_error LIKE 'Could not upload %'`,
+  );
+}
+
 export function markResponseUploadError(id, message) {
   const db = getDb();
   const now = new Date().toISOString();

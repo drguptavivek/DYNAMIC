@@ -233,6 +233,17 @@ class WebDatabase {
       return { changes };
     }
 
+    if (/UPDATE form_responses SET sync_status = 'pending', sync_error = NULL, sync_error_at = NULL WHERE sync_status = 'upload_error' AND sync_error LIKE 'Could not upload %'/i.test(normalized)) {
+      let changes = 0;
+      this.state.form_responses = this.state.form_responses.map((response) => {
+        if (response.sync_status !== "upload_error" || !String(response.sync_error || "").startsWith("Could not upload ")) return response;
+        changes += 1;
+        return { ...response, sync_status: "pending", sync_error: null, sync_error_at: null };
+      });
+      this.persist();
+      return { changes };
+    }
+
     if (/UPDATE form_responses SET sync_status = 'synced' WHERE id = \?/i.test(normalized)) {
       const [id] = params;
       let changes = 0;

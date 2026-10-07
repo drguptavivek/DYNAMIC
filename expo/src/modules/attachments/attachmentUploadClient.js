@@ -1,4 +1,17 @@
-/** Uploads one app-owned attachment through Expo FileSystem's native multipart transport. */
+/** Uploads one app-owned attachment through native multipart transport. */
+import { parsePffTaskSnapshot } from "../../lib/pffPrefillHelpers.js";
+
+export function resolveAttachmentWomanId(response, fallbackWomanId, task = null) {
+  let answers = response?.answers_json || {};
+  if (typeof answers === "string") {
+    try { answers = JSON.parse(answers); } catch { answers = {}; }
+  }
+  const candidates = String(response?.form_code || "").toUpperCase() === "PFF"
+    ? [task?.woman_id, task?.household_member_id, parsePffTaskSnapshot(task).pef_woman_hh_member_id]
+    : [answers.pef_woman_hh_member_id];
+  return candidates.find((id) => typeof id === "string" && id.startsWith(`${response.household_id}-`))
+    || fallbackWomanId || response?.subject_id;
+}
 
 export function buildAttachmentUploadParameters({ attachment, deviceId }) {
   const parameters = {
@@ -67,6 +80,10 @@ export async function uploadAttachment({
   if (!result || result.status < 200 || result.status >= 300) {
     const message = payload?.error?.message || `Attachment upload failed (${result?.status || "network error"})`;
     throw new Error(message);
+  }
+  const data = payload?.data || payload;
+  if (typeof data?.relative_path !== "string" || !data.relative_path.trim()) {
+    throw new Error("Attachment upload was not confirmed by the server");
   }
   return payload;
 }

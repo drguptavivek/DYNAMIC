@@ -2,9 +2,19 @@ import assert from "node:assert/strict";
 
 const {
   buildAttachmentUploadParameters,
+  resolveAttachmentWomanId,
   nativeUploadAttachmentFile,
   uploadAttachment,
 } = await import("../modules/attachments/attachmentUploadClient.js");
+
+for (const formCode of ["PEF", "PFF"]) {
+  const response = { form_code: formCode, household_id: "1-01-0001-01", subject_id: "pregnancy-1",
+    answers_json: formCode === "PEF" ? JSON.stringify({ pef_woman_hh_member_id: "1-01-0001-01-02" }) : {} };
+  const task = formCode === "PFF" ? { pff_pef_snapshot_json: JSON.stringify({ pef_woman_hh_member_id: "1-01-0001-01-02" }) } : null;
+  assert.equal(resolveAttachmentWomanId(response, "pregnancy-1", task), "1-01-0001-01-02");
+  assert.equal(resolveAttachmentWomanId({ ...response, answers_json: { pef_woman_hh_member_id: "other-household-02" } }, "valid-woman"), "valid-woman");
+  if (task) assert.equal(resolveAttachmentWomanId(response, "pregnancy-1", { woman_id: "1-01-0001-01-02" }), "1-01-0001-01-02");
+}
 
 const attachment = {
   attachment_id: "attachment-1",
@@ -139,5 +149,10 @@ await assert.rejects(
   }),
   /Invalid image/,
 );
+
+await assert.rejects(uploadAttachment({
+  apiBaseUrl: "https://example.test/api/v1", token: "token-1", deviceId: "device-1", attachment,
+  uploadFile: async () => ({ status: 200, body: "<html>Proxy response</html>" }),
+}), /not confirmed by the server/);
 
 console.log("Validated native multipart attachment upload client.");

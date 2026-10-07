@@ -6,7 +6,8 @@ import { Alert, AppState, Pressable, StyleSheet, Text, View, useWindowDimensions
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
 import { NativeSurveyRenderer } from "../../components/forms/NativeSurveyRenderer.js";
-import { RendererLanguageSwitcher } from "../../components/forms/RendererLanguageSwitcher.js";
+import { FormLanguageSelection } from "../../components/forms/FormLanguageSelection.js";
+import { getDraftFormLocale } from "../../lib/formLanguage.js";
 import { SectionNavigator } from "../../components/forms/SectionNavigator.js";
 import { DisplayRenderer } from "../../components/forms/renderers/DisplayRenderer.js";
 import { PreviewRenderer } from "../../components/forms/renderers/PreviewRenderer.js";
@@ -216,7 +217,7 @@ function showHhqAvailabilityStopPopup(message) {
 
 export function BaselineHouseholdForm({
   form,
-  locale,
+  locale: initialLocale,
   onLocaleChange,
   user,
   localities,
@@ -231,6 +232,10 @@ export function BaselineHouseholdForm({
 }) {
   const { width } = useWindowDimensions();
   const compact = width < 700;
+  const [locale, setFormLocale] = useState(initialLocale || "default");
+  const [languageState, setLanguageState] = useState("loading");
+  const formLocaleRef = useRef(null);
+  const languageInitializedKeyRef = useRef(null);
   const [view, setView] = useState("form");
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
@@ -466,14 +471,29 @@ export function BaselineHouseholdForm({
   }, [draftLookup, draftLookupKey, form, user, localities, selectedLocalityCode, taskContext]);
 
   useEffect(() => {
-    model.locale = locale;
-    // "Language of questionnaire" is recorded from the switcher, not asked.
-    if (applyQuestionnaireLanguageFromLocale(model, locale)) {
+    if (draftLookup.key !== draftLookupKey || draftLookup.loading) return;
+    if (languageInitializedKeyRef.current === draftLookupKey) return;
+    languageInitializedKeyRef.current = draftLookupKey;
+    if (draftLookup.draft) {
+      const restoredLocale = getDraftFormLocale(draftLookup.draft, model, initialLocale);
+      formLocaleRef.current = restoredLocale;
+      setFormLocale(restoredLocale);
+      setLanguageState("locked");
+    } else {
+      formLocaleRef.current = null;
+      setLanguageState("select");
+    }
+  }, [draftLookup, draftLookupKey, model]);
+
+  useEffect(() => {
+    if (!formLocaleRef.current) return;
+    model.locale = formLocaleRef.current;
+    if (applyQuestionnaireLanguageFromLocale(model, formLocaleRef.current)) {
       answerSnapshotRef.current = cloneSurveyData(model.data || {});
     }
     setRenderAnswerData(cloneSurveyData(answerSnapshotRef.current || model.data || {}) || {});
     setRevision((value) => value + 1);
-  }, [model, locale]);
+  }, [model, locale, languageState]);
 
   useEffect(() => {
     if (draftLookup.key !== draftLookupKey || draftLookup.loading || !draftLookup.draft) return;
@@ -482,11 +502,6 @@ export function BaselineHouseholdForm({
 
     if (firstRestorePass) {
       postRestoreDraftKeyRef.current = restoreKey;
-      const draftLocale = draftLookup.draft.completion_state?.locale;
-      if (draftLocale && draftLocale !== locale) {
-        onLocaleChange?.(draftLocale);
-      }
-
       const consentDeclined = hasDeclinedHouseholdConsent(model);
       if (consentDeclined) {
         const firstVisiblePageName = model.firstVisiblePage?.name;
@@ -509,11 +524,12 @@ export function BaselineHouseholdForm({
     dirtyRef.current = false;
     setRenderAnswerData(cloneSurveyData(answerSnapshotRef.current || model.data || {}) || {});
     setRevision((value) => value + 1);
-  }, [draftLookup, draftLookupKey, model, onLocaleChange, showTransientMessage]);
+  }, [draftLookup, draftLookupKey, model, showTransientMessage]);
 
   const saveDraft = useCallback(async ({ silent = false, manual = false, reason = "" } = {}) => {
     try {
       if (isRestoringDraftRef.current) return null;
+      if (!formLocaleRef.current) return { skipped: true };
       const shouldPersist = shouldPersistHhqDraft({
         currentPageName: model.currentPage?.name,
         hasPersistedDraft: draftPersistenceEnabledRef.current || Boolean(draftIdRef.current),
@@ -545,7 +561,7 @@ export function BaselineHouseholdForm({
         completionState: {
           currentPageName: model.currentPage?.name || null,
           memberSummaryConfirmed: memberSummaryConfirmedRef.current,
-          locale,
+          locale: formLocaleRef.current,
         },
       });
       endSave({ answers: savedAnswerCount });
@@ -596,7 +612,7 @@ export function BaselineHouseholdForm({
     };
   }, [saveDraft]);
 
-  if (draftLookup.key !== draftLookupKey || draftLookup.loading) {
+  if (draftLookup.key !== draftLookupKey || draftLookup.loading || languageState === "loading") {
     return (
       <View style={styles.window}>
         <View style={[styles.header, compact && styles.headerCompact]}>
@@ -791,6 +807,17 @@ export function BaselineHouseholdForm({
     }
   }
 
+  if (languageState === "select") {
+    return <FormLanguageSelection initialLocale={initialLocale} onClose={onClose} onStart={(selectedLocale) => {
+      formLocaleRef.current = selectedLocale;
+      model.locale = selectedLocale;
+      applyQuestionnaireLanguageFromLocale(model, selectedLocale);
+      setFormLocale(selectedLocale);
+      setLanguageState("locked");
+      onLocaleChange?.(selectedLocale);
+    }} />;
+  }
+
   function confirmFinalSubmission() {
     if (saving) return;
     requestFinalSubmissionConfirmation({
@@ -817,21 +844,11 @@ export function BaselineHouseholdForm({
         <Text numberOfLines={1} style={[styles.title, compact && styles.titleCompact]}>
           Baseline Household Questionnaire
         </Text>
-        {!compact ? (
-          <View style={styles.wideLanguage}>
-            <RendererLanguageSwitcher locale={locale} onChange={onLocaleChange} />
-          </View>
-        ) : null}
         <Pressable accessibilityLabel="Close questionnaire" onPress={closeForm} style={styles.headerIconButton}>
           <MaterialCommunityIcons color="#d92d20" name="close-circle" size={25} />
         </Pressable>
       </View>
       <View style={styles.body}>
-        {compact ? (
-          <View pointerEvents="box-none" style={styles.languageOverlay}>
-            <RendererLanguageSwitcher iconOnly locale={locale} onChange={onLocaleChange} />
-          </View>
-        ) : null}
         {view === "form" ? (
           <NativeSurveyRenderer
             answerData={rendererAnswerData}
@@ -975,9 +992,7 @@ const styles = StyleSheet.create({
   headerIconButton: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 8, backgroundColor: "#ffffff" },
   title: { flex: 1, color: "#18202a", fontSize: 18, fontWeight: "800", textAlign: "center" },
   titleCompact: { fontSize: 15 },
-  wideLanguage: { width: 260 },
   body: { flex: 1, position: "relative", gap: 10, padding: 12 },
-  languageOverlay: { position: "absolute", top: 2, right: 12, zIndex: 5, elevation: 5 },
   message: { padding: 9, borderRadius: 7, color: "#1f4d7a", backgroundColor: "#eef6ff", fontSize: 13, fontWeight: "700" },
   specialView: { flex: 1, gap: 10, minHeight: 0 },
   reviewHouseholdBanner: { gap: 2, padding: 12, borderWidth: 1, borderColor: "#b9d6f2", borderRadius: 8, backgroundColor: "#f4f9ff" },
