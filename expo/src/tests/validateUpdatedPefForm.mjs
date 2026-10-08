@@ -594,6 +594,29 @@ assert.match(
   /CHECK \(image_sequence BETWEEN 1 AND 2\)[\s\S]*UNIQUE \(form_response_id, question_name, report_sequence, image_sequence\)/,
   "the production migration must enforce two image slots per ultrasound report",
 );
+// Visibility must match the same Survey Core model used by native controls,
+// including restored drafts retaining previously attached image metadata.
+for (const [ultrasoundDone, reportAvailable, q11Visible, uploadVisible] of [
+  [2, 2, false, false],
+  [2, 1, false, false],
+  [1, 2, true, false],
+  [1, 1, true, true],
+]) {
+  const branchModel = createSurveyModel(preparedPef);
+  const savedReports = structuredClone(completeReports);
+  branchModel.data = {
+    pef_any_time_during_pregnancy_ultrasound: ultrasoundDone,
+    pef_first_ultrasound_report: reportAvailable,
+    [PEF_ULTRASOUND_REPORTS_FIELD]: savedReports,
+  };
+  const names = getVisiblePageQuestions(branchModel.currentPage).map((question) => question.name);
+  assert.equal(names.includes("pef_first_ultrasound_report"), q11Visible);
+  assert.equal(names.includes(PEF_ULTRASOUND_REPORTS_FIELD), uploadVisible);
+  assert.deepEqual(savedReports, completeReports, "visibility must not mutate saved attachment metadata");
+  setNativeQuestionValue(branchModel.getQuestionByName("pef_any_time_during_pregnancy_ultrasound"), 2);
+  assert.equal(branchModel.getQuestionByName("pef_first_ultrasound_report").isVisible, false);
+  assert.equal(branchModel.getQuestionByName(PEF_ULTRASOUND_REPORTS_FIELD).isVisible, false);
+}
 const restoredPefModel = createSurveyModel(preparedPef);
 restoredPefModel.onValidateQuestion.add((sender, options) => {
   if (
