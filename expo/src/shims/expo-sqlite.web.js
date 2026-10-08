@@ -110,7 +110,8 @@ class WebDatabase {
     }
 
     if (/INSERT INTO form_responses/i.test(normalized)) {
-      const columns = /household_id/i.test(normalized)
+      const columns = normalized.match(/form_responses\s*\(([^)]+)\)/i)?.[1]
+        .split(",").map((column) => column.trim()) || (/household_id/i.test(normalized)
         ? [
             "id",
             "task_id",
@@ -137,10 +138,43 @@ class WebDatabase {
             "sync_status",
             "device_id",
             "created_at",
-          ];
-      this.state.form_responses.push(rowFromColumns(columns, params));
+          ]);
+      const row = rowFromColumns(columns, params);
+      if (/ON CONFLICT\(id\) DO UPDATE/i.test(normalized)) {
+        const existing = this.state.form_responses.find((item) => item.id === row.id);
+        const merged = { ...existing, ...row, task_key: existing?.task_key || row.task_key };
+        this.state.form_responses = [merged, ...this.state.form_responses.filter((item) => item.id !== row.id)];
+      } else {
+        this.state.form_responses.push(row);
+      }
       this.persist();
       return { changes: 1 };
+    }
+
+    if (/UPDATE form_responses SET sync_status = 'pending', sync_error = NULL, sync_error_at = NULL, server_response_status = NULL, updated_at = \? WHERE form_code = 'HHQ' AND sync_status = 'upload_error' AND sync_error = 'Generated task keys do not match server workflow'/i.test(normalized)) {
+      let changes = 0;
+      this.state.form_responses = this.state.form_responses.map((row) => {
+        if (row.form_code !== "HHQ" || row.sync_status !== "upload_error" ||
+            row.sync_error !== "Generated task keys do not match server workflow") return row;
+        changes += 1;
+        return { ...row, sync_status: "pending", sync_error: null, sync_error_at: null,
+          server_response_status: null, updated_at: params[0] };
+      });
+      this.persist();
+      return { changes };
+    }
+
+    if (/UPDATE form_responses SET sync_status = 'pending', sync_error = NULL, sync_error_at = NULL, server_response_status = NULL, updated_at = \? WHERE form_code = 'WQ' AND sync_status = 'upload_error' AND sync_error = 'BWQ is waiting for its household baseline to sync; sync the BHQ first and retry'/i.test(normalized)) {
+      let changes = 0;
+      this.state.form_responses = this.state.form_responses.map((row) => {
+        if (row.form_code !== "WQ" || row.sync_status !== "upload_error" ||
+            row.sync_error !== "BWQ is waiting for its household baseline to sync; sync the BHQ first and retry") return row;
+        changes += 1;
+        return { ...row, sync_status: "pending", sync_error: null, sync_error_at: null,
+          server_response_status: null, updated_at: params[0] };
+      });
+      this.persist();
+      return { changes };
     }
 
     if (/INSERT INTO task_attempts/i.test(normalized)) {
@@ -155,6 +189,18 @@ class WebDatabase {
       this.state.domain_events_outbox.push(rowFromColumns(columns, params));
       this.persist();
       return { changes: 1 };
+    }
+
+    if (/UPDATE follow_up_tasks SET status = 'completed', lifecycle_status = 'completed', updated_at = \? WHERE id = \? OR task_key = \?/i.test(normalized)) {
+      const [updated_at, id, task_key] = params;
+      let changes = 0;
+      this.state.follow_up_tasks = this.state.follow_up_tasks.map((task) => {
+        if (task.id !== id && task.task_key !== task_key) return task;
+        changes += 1;
+        return { ...task, status: "completed", lifecycle_status: "completed", updated_at };
+      });
+      this.persist();
+      return { changes };
     }
 
     if (/UPDATE follow_up_tasks SET status = \?, updated_at = \? WHERE id = \?/i.test(normalized)) {
@@ -319,6 +365,10 @@ class WebDatabase {
       return { value: this.state.sync_meta[params[0]] ?? null };
     }
 
+    if (/SELECT \* FROM form_responses WHERE id = \?/i.test(normalized)) {
+      return this.state.form_responses.find((row) => row.id === params[0]) || null;
+    }
+
     if (/SELECT \* FROM follow_up_tasks WHERE id = \?/i.test(normalized)) {
       return this.state.follow_up_tasks.find((task) => task.id === params[0]) || null;
     }
@@ -331,6 +381,16 @@ class WebDatabase {
 
   getAllSync(sql, params = []) {
     const normalized = sql.trim().replace(/\s+/g, " ");
+    if (/SELECT payload FROM domain_events_outbox WHERE payload LIKE \?/i.test(normalized)) {
+      const needle = params[0].slice(1, -1);
+      return this.state.domain_events_outbox.filter((row) => row.payload.includes(needle))
+        .map(({ payload }) => ({ payload }));
+    }
+    if (/SELECT id, task_key FROM follow_up_tasks WHERE source_form_response_id = \?/i.test(normalized)) {
+      return sortBy(this.state.follow_up_tasks.filter((task) =>
+        task.source_form_response_id === params[0] && task.task_key != null), "task_key")
+        .map(({ id, task_key }) => ({ id, task_key }));
+    }
     const cohortQuery = normalized.match(/^SELECT \* FROM (eligible_women|pregnancies) WHERE (woman_id|pregnancy_id) = \?/i);
     if (cohortQuery) return this.state[cohortQuery[1]].filter((row) => row[cohortQuery[2]] === params[0]);
     if (/^SELECT \* FROM follow_up_tasks WHERE household_id = \?/i.test(normalized)) {

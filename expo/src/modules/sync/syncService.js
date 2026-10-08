@@ -29,6 +29,7 @@ import {
   markAttachmentUploadError,
 } from "../attachments/attachmentRepository.js";
 import { resolveAttachmentWomanId, uploadAttachment } from "../attachments/attachmentUploadClient.js";
+import { getHhqGeneratedTaskKeys } from "../questionnaires/questionnaireSubmissionRepository.js";
 
 function unwrapApiData(payload) {
   return payload && Object.prototype.hasOwnProperty.call(payload, "data") ? payload.data : payload;
@@ -720,15 +721,16 @@ async function pushRecordBatch({ token, deviceId, formResponses = [], domainEven
   }
 
   const responsesWithTaskKeys = uploadableFormResponses.map((response) => {
-    const task = !response?.task_key && response?.task_id
+    const originalTaskKey = taskRepository.recoverFormResponseTaskKey(response);
+    const task = !originalTaskKey && response?.task_id
       ? taskRepository.getTask?.(response.task_id)
       : null;
-    const generatedTaskKeys = taskRepository.getGeneratedTaskKeys(
-      response.id, response.task_id, response.task_key || task?.task_key,
+    const generatedTaskKeys = response.form_code === "HHQ" ? getHhqGeneratedTaskKeys(response) : taskRepository.getGeneratedTaskKeys(
+      response.id, response.task_id, originalTaskKey || task?.task_key,
     );
     return {
       ...response,
-      ...(task?.task_key ? { task_key: task.task_key } : {}),
+      ...((originalTaskKey || task?.task_key) ? { task_key: originalTaskKey || task.task_key } : {}),
       ...(generatedTaskKeys.length ? { generated_task_keys: generatedTaskKeys } : {}),
     };
   });
@@ -901,6 +903,8 @@ export async function pushSync() {
   // Requeue once per sync, so a failed image remains retryable without a
   // tight retry loop or re-submitting duplicate/held evidence.
   taskRepository.retryAttachmentUploadErrors();
+  taskRepository.retryHhqTaskPlanErrors();
+  taskRepository.retryMissingHhqResponses();
   const pendingResponseCount = await taskRepository.countPendingResponses();
   const { getPendingEvents } = await import("../events/eventOutbox.js");
   const pendingEvents = getPendingEvents();

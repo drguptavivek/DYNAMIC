@@ -16,6 +16,7 @@ import { getDataAccessProfile, requireDataAccess } from "../lib/dataAccess";
 import { buildFormAttachmentLocation, isSupportedImageBuffer } from "../lib/formAttachmentStorage";
 import { ensureAssignedPendingHhqTasks } from "../lib/assignedHhqTasks";
 import { canResumePsfAfterNeverPregnantPff } from "../lib/psfResumeEligibility";
+import { requireSyncedHouseholdBaseline } from "../lib/syncDependencies";
 
 const router = Router();
 const attachmentUpload = multer({
@@ -1412,6 +1413,9 @@ router.post(
                   subject_id: subjectId,
                 };
               } else if ((task_key || task_id) && !canonicalTask) {
+                if (formCode === "WQ" && householdId) {
+                  await requireSyncedHouseholdBaseline(householdId);
+                }
                 let validDirectPef = false;
                 if (isDirectContextualPef(data) && acceptedWq) {
                   validDirectPef = !isPregnantWqAnswer(acceptedWq.answers_json);

@@ -192,12 +192,11 @@ function saveWebFormResponse(response) {
   state.form_responses = [row, ...(state.form_responses || []).filter((item) => item.id !== row.id)];
   if (response.task_id) {
     state.follow_up_tasks = (state.follow_up_tasks || []).map((task) =>
-      task.id === response.task_id
+      task.id === response.task_id || task.task_key === (response.task_key || response.task_id)
         ? {
             ...task,
             status: "completed",
             lifecycle_status: "completed",
-            source_form_response_id: response.id,
             updated_at: response.submitted_at,
           }
         : task,
@@ -579,6 +578,38 @@ async function applyLocalNegativePefState(response, taskContext, { restoreAfterE
   };
 }
 
+export function getHhqGeneratedTaskKeys(response) {
+  if (typeof response.answers_json === "string") {
+    response = { ...response, answers_json: JSON.parse(response.answers_json) };
+  }
+  if (response.form_code !== "HHQ" || !response.household_id || isHhqEarlyStopResponse(response)) return [];
+  const record = extractHouseholdRegistryFields(response.answers_json || {});
+  const promotion = buildHhqPromotion(response, record);
+  return [...new Set([
+    ...(promotion?.task_descriptors || []).map((task) => task.task_key),
+    ...buildHhqDerivedWorkflow(record, response).map(({ wqTask }) => wqTask.task_key),
+  ])].sort();
+}
+
+function buildHhqPromotion(response, record) {
+  return promoteFormSubmission({
+    form_code: response.form_code,
+    event_id: `local-hhq-baseline:${record.household_id}:${response.id}`,
+    site_id: Number(record.site_id),
+    locality_code: normalizeIdPart(record.locality_code, "00", 2),
+    household_id: record.household_id,
+    answers_json: response.answers_json,
+    recorded_at: response.submitted_at,
+    task_id: response.task_id,
+    form_response_id: response.id,
+    device_id: response.device_id,
+    context: {
+      household_number: String(record.household_number || ""),
+      structure_map_id: String(record.structure_map_id || record.structure_number || ""),
+    },
+  });
+}
+
 async function promoteHhqLocally(response) {
   if (response.form_code !== "HHQ" || !response.household_id) return;
   if (isHhqEarlyStopResponse(response)) return;
@@ -599,22 +630,7 @@ async function promoteHhqLocally(response) {
       ...sourceFields,
     })),
   };
-  const promotion = promoteFormSubmission({
-    form_code: response.form_code,
-    event_id: `local-hhq-baseline:${promotedRecord.household_id}:${response.id}`,
-    site_id: Number(promotedRecord.site_id),
-    locality_code: normalizeIdPart(promotedRecord.locality_code, "00", 2),
-    household_id: promotedRecord.household_id,
-    answers_json: response.answers_json,
-    recorded_at: response.submitted_at,
-    task_id: response.task_id,
-    form_response_id: response.id,
-    device_id: response.device_id,
-    context: {
-      household_number: String(promotedRecord.household_number || ""),
-      structure_map_id: String(promotedRecord.structure_map_id || promotedRecord.structure_number || ""),
-    },
-  });
+  const promotion = buildHhqPromotion(response, promotedRecord);
   if (!promotion) return;
   const hrfTasks = promotion.task_descriptors.map((descriptor) =>
     toLocalTask(descriptor, {

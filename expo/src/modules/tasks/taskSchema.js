@@ -65,6 +65,7 @@ export function initTaskDb() {
     CREATE TABLE IF NOT EXISTS form_responses (
       id TEXT PRIMARY KEY,
       task_id TEXT REFERENCES follow_up_tasks(id),
+      task_key TEXT,
       form_code TEXT NOT NULL,
       form_version TEXT,
       household_id TEXT,
@@ -217,6 +218,7 @@ export function initTaskDb() {
   `);
 
   for (const statement of [
+    "ALTER TABLE form_responses ADD COLUMN task_key TEXT",
     "ALTER TABLE form_responses ADD COLUMN household_id TEXT",
     "ALTER TABLE form_responses ADD COLUMN site_id INTEGER",
     "ALTER TABLE form_responses ADD COLUMN locality_code TEXT",

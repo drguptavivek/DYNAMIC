@@ -132,7 +132,8 @@ db.runSync = (sql, params = []) => {
   return runSync(sql, params);
 };
 const require = stubOfflineDatabase(db, import.meta.url);
-const { saveTask, saveTaskBatch, getTask } = require("../modules/tasks/taskRepository.js");
+const { saveTask, saveTaskBatch, getTask, saveFormResponse, getGeneratedTaskKeys,
+  retryHhqTaskPlanErrors } = require("../modules/tasks/taskRepository.js");
 const plannedPff = {
   id: "pff-round-1",
   task_key: "pregnancy-1|PFF|M1",
@@ -166,5 +167,33 @@ for (const [id, mode] of [["pff-round-1", "face_to_face"], ["pff-round-2", "tele
 const reloadedDb = openDatabaseSync();
 assert.equal(reloadedDb.getFirstSync("SELECT * FROM follow_up_tasks WHERE id = ?", ["pff-round-2"])
   .default_expected_mode, "telephonic");
+
+saveTask({ ...plannedPff, id: "generated-wq", task_key: "hhq-generated-wq", task_type: "WQ",
+  source_form_response_id: "finalized-hhq" });
+saveFormResponse({ id: "finalized-wq", task_id: "generated-wq", form_code: "WQ", form_version: "test",
+  answers_json: { wq_pregnant: 2 } });
+assert.equal(getTask("generated-wq").status, "completed");
+assert.equal(getTask("generated-wq").source_form_response_id, "finalized-hhq");
+assert.deepEqual(getGeneratedTaskKeys("finalized-hhq"), ["hhq-generated-wq"]);
+assert.deepEqual(getGeneratedTaskKeys("finalized-wq", "generated-wq", "hhq-generated-wq"), []);
+
+for (const [id, form_code, sync_status, sync_error] of [
+  ["retry-hhq", "HHQ", "upload_error", "Generated task keys do not match server workflow"],
+  ["invalid-wq", "WQ", "upload_error", "Server classified this form as invalid_rejected"],
+  ["other-hhq", "HHQ", "upload_error", "Invalid answers"],
+  ["synced-hhq", "HHQ", "synced", "Generated task keys do not match server workflow"],
+]) {
+  saveFormResponse({ id, form_code, form_version: "test", sync_status, sync_error,
+    answers_json: { retained: id }, server_response_status: "invalid_rejected" });
+}
+assert.equal(retryHhqTaskPlanErrors(), 1);
+assert.equal(retryHhqTaskPlanErrors(), 0, "a recovered form is queued only once");
+assert.equal(db.getFirstSync("SELECT * FROM form_responses WHERE id = ?", ["retry-hhq"]).sync_status, "pending");
+assert.equal(db.getFirstSync("SELECT * FROM form_responses WHERE id = ?", ["retry-hhq"]).answers_json,
+  JSON.stringify({ retained: "retry-hhq" }));
+for (const id of ["invalid-wq", "other-hhq"]) {
+  assert.equal(db.getFirstSync("SELECT * FROM form_responses WHERE id = ?", [id]).sync_status, "upload_error");
+}
+assert.equal(db.getFirstSync("SELECT * FROM form_responses WHERE id = ?", ["synced-hhq"]).sync_status, "synced");
 
 console.log("Web SQLite task storage validation passed");

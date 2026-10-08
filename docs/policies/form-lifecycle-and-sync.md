@@ -133,6 +133,8 @@ Rules:
 - If backend has newer accepted evidence or approved correction, backend projection can replace local projection.
 - If local has newer unsynced finalized evidence, keep it active for offline routing until sync resolves.
 - Reconcile by stable response IDs, task keys, event IDs, server commit sequence, and provenance.
+- Finalized responses preserve their original deterministic task key independently of replaceable local task IDs. Task completion must retain the response that generated the task, rather than replacing generation provenance with the completion response.
+- BHQ generated-key declarations come from its immutable finalized evidence, not the mutable task cache. Exact task-plan upload failures retry on the next sync. A BWQ whose BHQ has not synced remains a retryable dependency error; already rejected evidence stays preserved for admin review.
 - After sync, local Task Worklists collapse to the authoritative current Tasks. Superseded or withdrawn provisional work remains visible through Form Submission, Issue, and event history rather than as actionable current work.
 
 ## Time

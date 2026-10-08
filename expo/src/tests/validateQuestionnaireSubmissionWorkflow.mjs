@@ -20,7 +20,7 @@ globalThis.fetch = async () => {
   throw new Error("questionnaire submit must be offline-first");
 };
 
-const { saveQuestionnaireSubmission } = await import(
+const { saveQuestionnaireSubmission, getHhqGeneratedTaskKeys } = await import(
   "../modules/questionnaires/questionnaireSubmissionRepository.js"
 );
 const { buildPushRecords } = await import("../modules/sync/syncWorkflow.js");
@@ -125,6 +125,10 @@ assert.equal(webSqliteState.eligible_women[0].wq_status, "pending");
 assert.equal(webSqliteState.eligible_women[0].tracking_status, "not_tracked");
 
 const wqTasks = webSqliteState.follow_up_tasks.filter((task) => task.task_type === "WQ");
+const originalHhqKeys = webSqliteState.follow_up_tasks.filter((task) =>
+  task.source_form_response_id === submission.submission_id).map((task) => task.task_key).sort();
+assert.equal(originalHhqKeys.length, 8, "this HHQ creates seven HRF rounds and one baseline WQ");
+assert.deepEqual(getHhqGeneratedTaskKeys(webSqliteState.form_responses[0]), originalHhqKeys);
 assert.equal(wqTasks.length, 1);
 assert.equal(
   wqTasks.some((task) => task.subject_id === "1-02-0042-03-03"),
@@ -554,7 +558,24 @@ const offlinePefTask = stateAfterOfflineWq.follow_up_tasks.find(
 );
 assert.equal(completedOfflineWqTask.status, "completed");
 assert.equal(completedOfflineWqTask.lifecycle_status, "completed");
-assert.equal(completedOfflineWqTask.source_form_response_id, offlineWqSubmission.submission_id);
+assert.equal(completedOfflineWqTask.source_form_response_id, submission.submission_id,
+  "completing WQ must preserve the HHQ that generated its task");
+const hhqBeforeSync = stateAfterOfflineWq.form_responses.find((row) => row.id === submission.submission_id);
+const immutableHhq = { ...hhqBeforeSync, answers_json: JSON.parse(hhqBeforeSync.answers_json) };
+const immutableHhqJson = JSON.stringify(immutableHhq);
+assert.deepEqual(getHhqGeneratedTaskKeys(immutableHhq), originalHhqKeys,
+  "HHQ generated keys remain complete after its WQ is submitted before the first sync");
+const overwrittenCache = structuredClone(stateAfterOfflineWq);
+overwrittenCache.follow_up_tasks.forEach((task) => { task.source_form_response_id = "legacy-overwritten"; });
+window.localStorage.setItem("dynamic_web_sqlite_v2", JSON.stringify(overwrittenCache));
+assert.deepEqual(getHhqGeneratedTaskKeys(immutableHhq), originalHhqKeys,
+  "legacy queues reconstruct HHQ task keys from the finalized form, not overwritten task provenance");
+overwrittenCache.follow_up_tasks = [];
+window.localStorage.setItem("dynamic_web_sqlite_v2", JSON.stringify(overwrittenCache));
+assert.deepEqual(getHhqGeneratedTaskKeys(immutableHhq), originalHhqKeys,
+  "a refreshed or missing task cache cannot change the finalized HHQ task plan");
+assert.equal(JSON.stringify(immutableHhq), immutableHhqJson, "task planning cannot alter finalized answers");
+window.localStorage.setItem("dynamic_web_sqlite_v2", JSON.stringify(stateAfterOfflineWq));
 assert.ok(offlinePefTask, "pregnant WQ final-submit must create PEF locally without network access");
 assert.equal(offlinePefTask.subject_name, "Member Two");
 const offlineWqPushRecord = buildPushRecords({

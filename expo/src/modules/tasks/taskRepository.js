@@ -502,6 +502,55 @@ export function getGeneratedTaskKeys(responseId, completedTaskId, completedTaskK
     .map((task) => task.task_key);
 }
 
+export function retryHhqTaskPlanErrors() {
+  return getDb().runSync(
+    `UPDATE form_responses
+        SET sync_status = 'pending', sync_error = NULL, sync_error_at = NULL,
+            server_response_status = NULL, updated_at = ?
+      WHERE form_code = 'HHQ' AND sync_status = 'upload_error'
+        AND sync_error = 'Generated task keys do not match server workflow'`,
+    [new Date().toISOString()],
+  ).changes;
+}
+
+export function recoverFormResponseTaskKey(response) {
+  if (response.task_key) return response.task_key;
+  const events = getDb().getAllSync(
+    "SELECT payload FROM domain_events_outbox WHERE payload LIKE ?",
+    [`%${response.id}%`],
+  );
+  for (const row of events || []) {
+    try {
+      const event = JSON.parse(row.payload);
+      if ((event.form_response_id === response.id || event.source_response_id === response.id) && event.task_key) {
+        return event.task_key;
+      }
+    } catch {
+      // Older outbox entries may not contain a valid event envelope.
+    }
+  }
+  if (typeof window !== "undefined" && window.localStorage) {
+    try {
+      const submissions = JSON.parse(window.localStorage.getItem("dynamic_questionnaire_submissions_v1") || "[]");
+      return submissions.find((row) => row.id === response.id || row.submission_id === response.id)?.task_key || null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+export function retryMissingHhqResponses() {
+  return getDb().runSync(
+    `UPDATE form_responses
+        SET sync_status = 'pending', sync_error = NULL, sync_error_at = NULL,
+            server_response_status = NULL, updated_at = ?
+      WHERE form_code = 'WQ' AND sync_status = 'upload_error'
+        AND sync_error = 'BWQ is waiting for its household baseline to sync; sync the BHQ first and retry'`,
+    [new Date().toISOString()],
+  ).changes;
+}
+
 export function clearSyncedTaskCache() {
   const db = getDb();
   try {
@@ -965,13 +1014,14 @@ export function saveFormResponse(response) {
 
     db.runSync(
       `INSERT INTO form_responses
-       (id, task_id, form_code, form_version, household_id, site_id, locality_code,
+       (id, task_id, task_key, form_code, form_version, household_id, site_id, locality_code,
         subject_type, subject_id, answers_json, submitted_at, sync_status, sync_error,
         sync_error_at, server_response_status, device_id, user_id, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         responseId,
         response.task_id || null,
+        response.task_key || null,
         response.form_code,
         response.form_version,
         response.household_id || null,
@@ -996,9 +1046,9 @@ export function saveFormResponse(response) {
       db.runSync(
         `UPDATE follow_up_tasks
             SET status = 'completed', lifecycle_status = 'completed',
-                source_form_response_id = ?, updated_at = ?
+                updated_at = ?
           WHERE id = ? OR task_key = ?`,
-        [responseId, now, response.task_id, response.task_key || response.task_id],
+        [now, response.task_id, response.task_key || response.task_id],
       );
     }
 
@@ -1214,6 +1264,7 @@ function normalizePulledFormResponse(response) {
   return {
     id: responseId,
     task_id: response.task_id || null,
+    task_key: response.task_key || null,
     form_code: response.form_code,
     form_version: response.form_version || "",
     household_id: response.household_id || null,
@@ -1247,12 +1298,13 @@ export function saveSyncedFormResponsesBatch(responses = []) {
 
       db.runSync(
         `INSERT INTO form_responses
-         (id, task_id, form_code, form_version, household_id, site_id, locality_code,
+         (id, task_id, task_key, form_code, form_version, household_id, site_id, locality_code,
           subject_type, subject_id, answers_json, submitted_at, sync_status, sync_error,
           sync_error_at, server_response_status, device_id, user_id, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
           task_id = excluded.task_id,
+          task_key = COALESCE(form_responses.task_key, excluded.task_key),
           form_code = excluded.form_code,
           form_version = excluded.form_version,
           household_id = excluded.household_id,
@@ -1272,6 +1324,7 @@ export function saveSyncedFormResponsesBatch(responses = []) {
         [
           row.id,
           row.task_id,
+          row.task_key,
           row.form_code,
           row.form_version,
           row.household_id,
