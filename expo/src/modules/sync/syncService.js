@@ -1,3 +1,4 @@
+import { saveAssignedHouseholdIds } from "./householdAssignmentScope.js";
 import { recordServerTime } from "./trustedClock.js";
 import { startTiming } from "../../lib/perfLog.js";
 import { getDb } from "../tasks/taskSchema.js";
@@ -598,6 +599,11 @@ export async function pullSync(options = {}) {
         });
       }
     } while (nextPageToken);
+
+    // Commit assignment visibility only after every pull page succeeds.
+    if (lastData && Object.prototype.hasOwnProperty.call(lastData, "assigned_household_ids")) {
+      saveAssignedHouseholdIds(currentUser, lastData.assigned_household_ids);
+    }
 
     let supersededLocalTasks = 0;
     if (authoritativeTaskKeysByHousehold.size > 0) {

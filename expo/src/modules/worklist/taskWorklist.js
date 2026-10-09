@@ -320,6 +320,7 @@ export function listTaskWorklist(filters = {}, repository) {
     throw new Error("Task Worklist repository adapter must provide listTasks");
   }
   const tasks = repository.listTasks({
+    assignmentScope: true,
     status: filters.status || "open",
     locality_code: filters.locality_code,
     task_type: filters.task_type,
@@ -336,6 +337,7 @@ export function listTaskWorklistCandidates(filters = {}, repository) {
   }
   const candidates = repository
     .listTasks({
+      assignmentScope: true,
       status: filters.status,
       locality_code: filters.locality_code,
       locality_codes: filters.locality_codes,

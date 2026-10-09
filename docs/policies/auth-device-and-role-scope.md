@@ -133,6 +133,7 @@ Area scope is enforced server-side.
 Rules:
 
 - Pull scope is the intersection of request filters and active server-side assignments.
+- Field-worker household reads require explicit household assignments: zero assignments means zero household work, even with a locality assignment. A completed pull refreshes device worklist visibility without deleting local submission evidence or drafts.
 - Push scope is resolved from server-known tasks/subjects when possible.
 - Client-provided `site_id`, `locality_code`, and `answers_json` are validation inputs, not the only source of truth.
 - Household/member/task routes must enforce role and assignment scope, not only authentication.

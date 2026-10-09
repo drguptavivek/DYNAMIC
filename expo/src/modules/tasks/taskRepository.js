@@ -1,3 +1,4 @@
+import { getAssignedHouseholdIds, householdScopePredicate } from "../sync/householdAssignmentScope.js";
 import { getDb } from "./taskSchema.js";
 import { getLocalCalendarDate } from "../../lib/localDate.js";
 import { cancelWomanTask, isDeceasedWoman, terminateWomanState } from "./womanTermination.js";
@@ -78,11 +79,19 @@ export function listTasks(filters = {}) {
     params.push(today);
   }
 
+  const assignedIds = filters.assignmentScope ? getAssignedHouseholdIds(db) : null;
+  if (assignedIds !== null && typeof db.getAllAsync === "function") {
+    const scope = householdScopePredicate("household_id", assignedIds);
+    sql += ` AND ${scope.sql}`;
+    params.push(...scope.params);
+  }
+
   sql += " ORDER BY target_date ASC";
 
   try {
     const tasks = db.getAllSync(sql, params);
-    return tasks || [];
+    return assignedIds === null ? (tasks || [])
+      : (tasks || []).filter((task) => assignedIds.includes(String(task.household_id)));
   } catch (error) {
     console.error("Error listing tasks:", error);
     return [];
@@ -197,7 +206,10 @@ function filterWorklistRowsForSyncFallback(rows, filters) {
   const isFuture = (task) =>
     String(task?.lifecycle_status || task?.status || "").toLowerCase() === "planned" &&
     !isBaseline(task) && Boolean(opensOn(task) && opensOn(task) > today);
+  const assignedIds = getAssignedHouseholdIds();
+  const allowedHouseholds = assignedIds === null ? null : new Set(assignedIds);
   const matches = (task) => {
+    if (allowedHouseholds && !allowedHouseholds.has(String(task?.household_id || ""))) return false;
     if (isTerminalWorklistRow(task)) return false;
     if (filters.status && task?.status !== filters.status) return false;
     if (filters.task_type && task?.task_type !== filters.task_type) return false;
@@ -290,6 +302,9 @@ function buildWorklistWhere(filters = {}) {
     `COALESCE(t.lifecycle_status, t.status, 'open') NOT IN (${TERMINAL_TASK_STATUSES.map(() => "?").join(",")})`,
   ];
   params.push(...TERMINAL_TASK_STATUSES, ...TERMINAL_TASK_STATUSES);
+  const scope = householdScopePredicate("t.household_id", getAssignedHouseholdIds());
+  conditions.push(scope.sql);
+  params.push(...scope.params);
 
   if (status) {
     conditions.push("t.status = ?");
@@ -429,19 +444,21 @@ export async function listOpenHhqHouseholdIds() {
   try {
     if (typeof db.getAllAsync !== "function") {
       return [...new Set(
-        listTasks({ status: "open", task_type: "HHQ" })
+        listTasks({ status: "open", task_type: "HHQ", assignmentScope: true })
           .map((row) => String(row.household_id || "").trim())
           .filter(Boolean),
       )];
     }
+    const scope = householdScopePredicate("household_id", getAssignedHouseholdIds(db));
     const rows = await db.getAllAsync(
       `SELECT DISTINCT household_id
          FROM follow_up_tasks
         WHERE status = ?
           AND task_type = ?
           AND household_id IS NOT NULL
+          AND ${scope.sql}
         ORDER BY household_id ASC`,
-      ["open", "HHQ"],
+      ["open", "HHQ", ...scope.params],
     );
     return [...new Set((rows || []).map((row) => String(row.household_id || "")).filter(Boolean))];
   } catch (error) {

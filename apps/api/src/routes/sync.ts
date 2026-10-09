@@ -884,7 +884,15 @@ router.get(
         })
       : undefined;
 
+    const assignedHouseholdIds = req.user!.role === "field_worker"
+      ? (await db.select({ household_id: schema.fieldWorkerHouseholdAssignments.household_id })
+          .from(schema.fieldWorkerHouseholdAssignments)
+          .where(eq(schema.fieldWorkerHouseholdAssignments.user_id, req.user!.sub)))
+          .map((assignment) => assignment.household_id)
+      : null;
+
     sendSuccess(res, {
+      assigned_household_ids: assignedHouseholdIds,
       clock: buildSyncClockMetadata(typeof clientTimeUtc === "string" ? clientTimeUtc : undefined),
       sync_cursor: syncCursor,
       next_page_token: nextPageToken,
@@ -941,10 +949,12 @@ router.post(
       );
     }
 
+    const memberConditions = [inArray(schema.householdMembers.household_id, householdIds)];
+    await appendAreaScopeCondition(req.user!, schema.householdMembers, memberConditions);
     const householdMembers = await db
       .select()
       .from(schema.householdMembers)
-      .where(inArray(schema.householdMembers.household_id, householdIds));
+      .where(and(...memberConditions));
 
     sendSuccess(res, { household_members: householdMembers });
   } catch (error) {

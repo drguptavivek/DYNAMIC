@@ -1,3 +1,4 @@
+import { getAssignedHouseholdIds } from "../sync/householdAssignmentScope.js";
 /**
  * Persists household registry and member cache records in shared offline storage.
  */
@@ -583,7 +584,7 @@ export async function listHouseholds(filters = {}) {
     localityCodes,
     search,
     localitySearch,
-    householdIds,
+    householdIds: requestedHouseholdIds,
     requireOpenHhqTask = false,
     householdNumber,
     address,
@@ -599,6 +600,11 @@ export async function listHouseholds(filters = {}) {
   const normalizedLocalityCodes = Array.isArray(localityCodes)
     ? localityCodes.map((code) => String(code)).filter(Boolean)
     : [];
+  const assignedIds = getAssignedHouseholdIds();
+  const householdIds = assignedIds === null ? requestedHouseholdIds
+    : Array.isArray(requestedHouseholdIds)
+      ? requestedHouseholdIds.filter((id) => assignedIds.includes(String(id)))
+      : assignedIds;
   const hasHouseholdIdFilter = Array.isArray(householdIds);
   const normalizedHouseholdIds = hasHouseholdIdFilter
     ? householdIds.map((id) => String(id)).filter(Boolean)
@@ -758,7 +764,8 @@ export async function getHousehold(householdId) {
     );
   }
 
-  const households = await listHouseholds();
+  const storage = getStorage();
+  const households = storage ? readStorageArray(storage, HOUSEHOLD_STORAGE_KEY) : [];
   return households.find((row) => row.household_id === householdId) || null;
 }
 
@@ -797,7 +804,7 @@ export async function searchHouseholdMembers(filters = {}) {
   const {
     localityCode,
     localityCodes,
-    householdIds,
+    householdIds: requestedHouseholdIds,
     requireOpenHhqTask = false,
     name,
     householdNumber,
@@ -815,6 +822,11 @@ export async function searchHouseholdMembers(filters = {}) {
   const normalizedLocalityCodes = Array.isArray(localityCodes)
     ? localityCodes.map((code) => String(code)).filter(Boolean)
     : [];
+  const assignedIds = getAssignedHouseholdIds();
+  const householdIds = assignedIds === null ? requestedHouseholdIds
+    : Array.isArray(requestedHouseholdIds)
+      ? requestedHouseholdIds.filter((id) => assignedIds.includes(String(id)))
+      : assignedIds;
   const hasHouseholdIdFilter = Array.isArray(householdIds);
   const normalizedHouseholdIds = hasHouseholdIdFilter
     ? householdIds.map((id) => String(id)).filter(Boolean)
@@ -1204,7 +1216,7 @@ export async function saveHousehold(record) {
   const storage = getStorage();
   if (!storage) return record;
   cleanupObsoleteWebStorage(storage);
-  const rows = await listHouseholds();
+  const rows = readStorageArray(storage, HOUSEHOLD_STORAGE_KEY);
   const { raw_hhq_json: _raw, members: _members, ...householdOnly } = record;
   setStorageArray(
     storage,

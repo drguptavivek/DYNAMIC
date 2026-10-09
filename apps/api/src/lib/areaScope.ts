@@ -38,11 +38,11 @@ export async function buildAreaScopeCondition(
       .where(eq(schema.fieldWorkerHouseholdAssignments.user_id, user.sub));
     // Explicit household assignments are narrower than a locality assignment
     // and must be authoritative for every household-scoped resource.
-    if (table.household_id && householdAssignments.length > 0) {
-      return inArray(
+    if (table.household_id) {
+      return householdAssignments.length > 0 ? inArray(
         table.household_id,
         householdAssignments.map((assignment) => assignment.household_id),
-      );
+      ) : sql`false`;
     }
     const localityAssignments = (
       await db
@@ -60,21 +60,6 @@ export async function buildAreaScopeCondition(
         ),
       );
     }
-  }
-
-  if (user.role === "field_worker" && table.household_id) {
-    const householdAssignments = await db
-      .select({ household_id: schema.fieldWorkerHouseholdAssignments.household_id })
-      .from(schema.fieldWorkerHouseholdAssignments)
-      .where(eq(schema.fieldWorkerHouseholdAssignments.user_id, user.sub));
-
-    if (householdAssignments.length > 0) {
-      return inArray(
-        table.household_id,
-        householdAssignments.map((assignment) => assignment.household_id),
-      );
-    }
-    return sql`false`;
   }
 
   const assignments = (
