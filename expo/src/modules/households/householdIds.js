@@ -86,6 +86,9 @@ export function extractMemberRows(householdId, hhqData, updatedAt) {
       birth_registration_status: member.member_birth_registration_status || "",
       ever_attended_school: member.member_ever_attended_school || "",
       highest_grade_completed: member.member_highest_grade_completed || "",
+      registry_individual_id: member.member_registry_individual_id || "",
+      registry_uid: member.member_registry_uid || "",
+      registry_status: member.member_registry_status || "",
       sync_status: "local",
       updated_at: updatedAt
     };

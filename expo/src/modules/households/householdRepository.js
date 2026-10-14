@@ -425,10 +425,35 @@ async function initializeSqlite(db) {
       birth_registration_status INTEGER,
       ever_attended_school INTEGER,
       highest_grade_completed INTEGER,
+      registry_individual_id TEXT,
+      registry_uid TEXT,
+      registry_status TEXT,
       sync_status TEXT,
       updated_at TEXT,
       UNIQUE(household_id, line_number)
     );
+    CREATE TABLE IF NOT EXISTS blb_registry_households (
+      hh_list_no TEXT NOT NULL,
+      family_no TEXT NOT NULL,
+      head_name TEXT,
+      address TEXT,
+      updated_at TEXT,
+      PRIMARY KEY(hh_list_no, family_no)
+    );
+    CREATE TABLE IF NOT EXISTS blb_registry_individuals (
+      uid TEXT PRIMARY KEY NOT NULL,
+      hh_list_no TEXT NOT NULL,
+      family_no TEXT NOT NULL,
+      ind_no TEXT NOT NULL,
+      name TEXT NOT NULL,
+      age_years INTEGER,
+      sex TEXT,
+      status TEXT NOT NULL DEFAULT 'alive',
+      updated_at TEXT,
+      UNIQUE(hh_list_no, family_no, ind_no)
+    );
+    CREATE INDEX IF NOT EXISTS idx_blb_registry_individuals_lookup
+      ON blb_registry_individuals(hh_list_no, family_no, ind_no);
     CREATE TABLE IF NOT EXISTS form_submissions (
       submission_id TEXT PRIMARY KEY NOT NULL,
       form_code TEXT NOT NULL,
@@ -510,6 +535,21 @@ async function initializeSqlite(db) {
       await db.runAsync(
         "INSERT INTO local_schema_migrations (name, applied_at) VALUES (?, ?)",
         ["household_members.woman_questionnaire_eligible.v1", new Date().toISOString()]
+      );
+    }
+
+    if (!applied.has("household_members.registry.v1")) {
+      // Older installs may already have the columns but no migration ledger.
+      const columns = await db.getAllAsync("PRAGMA table_info(household_members)");
+      const names = new Set((columns || []).map((column) => column.name));
+      for (const columnName of ["registry_individual_id", "registry_uid", "registry_status"]) {
+        if (!names.has(columnName)) {
+          await db.execAsync(`ALTER TABLE household_members ADD COLUMN ${columnName} TEXT`);
+        }
+      }
+      await db.runAsync(
+        "INSERT INTO local_schema_migrations (name, applied_at) VALUES (?, ?)",
+        ["household_members.registry.v1", new Date().toISOString()]
       );
     }
 
@@ -1033,8 +1073,10 @@ async function saveHouseholdsAndMembersInTransaction(db, mappedHouseholds, mappe
            relationship_to_head, sex, last_residence_place,
            residence_months, residence_years, age_years, marital_status,
            woman_questionnaire_eligible, birth_registration_status,
-           ever_attended_school, highest_grade_completed, sync_status, updated_at
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ever_attended_school, highest_grade_completed,
+           registry_individual_id, registry_uid, registry_status,
+           sync_status, updated_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(individual_id) DO UPDATE SET
            household_id = excluded.household_id,
            line_number = excluded.line_number,
@@ -1050,6 +1092,9 @@ async function saveHouseholdsAndMembersInTransaction(db, mappedHouseholds, mappe
            birth_registration_status = excluded.birth_registration_status,
            ever_attended_school = excluded.ever_attended_school,
            highest_grade_completed = excluded.highest_grade_completed,
+           registry_individual_id = excluded.registry_individual_id,
+           registry_uid = excluded.registry_uid,
+           registry_status = excluded.registry_status,
            sync_status = excluded.sync_status,
            updated_at = excluded.updated_at`,
         [
@@ -1068,6 +1113,9 @@ async function saveHouseholdsAndMembersInTransaction(db, mappedHouseholds, mappe
           member.birth_registration_status,
           member.ever_attended_school,
           member.highest_grade_completed,
+          member.registry_individual_id,
+          member.registry_uid,
+          member.registry_status,
           member.sync_status,
           member.updated_at
         ]
@@ -1131,8 +1179,10 @@ export async function saveHousehold(record) {
            relationship_to_head, sex, last_residence_place,
            residence_months, residence_years, age_years, marital_status,
            woman_questionnaire_eligible, birth_registration_status,
-           ever_attended_school, highest_grade_completed, sync_status, updated_at
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           ever_attended_school, highest_grade_completed,
+           registry_individual_id, registry_uid, registry_status,
+           sync_status, updated_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           member.individual_id,
           member.household_id,
@@ -1149,6 +1199,9 @@ export async function saveHousehold(record) {
           member.birth_registration_status,
           member.ever_attended_school,
           member.highest_grade_completed,
+          member.registry_individual_id,
+          member.registry_uid,
+          member.registry_status,
           member.sync_status,
           member.updated_at
         ]

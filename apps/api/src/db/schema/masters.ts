@@ -1,4 +1,4 @@
-import { pgTable, text, integer, primaryKey } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, primaryKey, unique, timestamp } from "drizzle-orm/pg-core";
 
 export const studySites = pgTable("study_sites", {
   site_id: integer("site_id").primaryKey(),
@@ -29,3 +29,38 @@ export const mappingFrame = pgTable("mapping_frame", {
   mapping_status: text("mapping_status").default("listed"),
   baseline_enrollment_status: text("baseline_enrollment_status").default("pending"),
 });
+
+// Pre-existing Ballabgarh household/individual master list. Field workers look
+// members up from this list during BHQ individual listing; the uid is the
+// hidden fixed identity, hh/fam/ind form the interviewer-facing ID.
+export const blbRegistryHouseholds = pgTable(
+  "blb_registry_households",
+  {
+    hh_list_no: text("hh_list_no").notNull(),
+    family_no: text("family_no").notNull(),
+    head_name: text("head_name"),
+    address: text("address"),
+    updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.hh_list_no, t.family_no] }),
+  }),
+);
+
+export const blbRegistryIndividuals = pgTable(
+  "blb_registry_individuals",
+  {
+    uid: text("uid").primaryKey(),
+    hh_list_no: text("hh_list_no").notNull(),
+    family_no: text("family_no").notNull(),
+    ind_no: text("ind_no").notNull(),
+    name: text("name").notNull(),
+    age_years: integer("age_years"),
+    sex: text("sex"),
+    status: text("status").notNull().default("alive"),
+    updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+  },
+  (t) => ({
+    uk: unique().on(t.hh_list_no, t.family_no, t.ind_no),
+  }),
+);

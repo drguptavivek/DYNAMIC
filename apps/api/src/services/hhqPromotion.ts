@@ -176,6 +176,11 @@ export function buildHhqMemberPromotionValues(
     birth_registration_status: member.member_birth_registration_status,
     ever_attended_school: member.member_ever_attended_school,
     highest_grade_completed: member.member_highest_grade_completed,
+    registry_individual_id: member.member_registry_individual_id || undefined,
+    registry_uid: member.member_registry_uid || undefined,
+    registry_status: member.member_registry_status
+      ? String(member.member_registry_status)
+      : undefined,
     member_status: "active",
     usual_resident: true,
     member_source: "baseline",

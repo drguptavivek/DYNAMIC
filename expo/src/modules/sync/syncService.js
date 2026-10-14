@@ -924,6 +924,33 @@ export async function syncAll(options = {}) {
       clearHouseholdCacheForSync();
     }
     const pullResult = await pullSync({ onProgress });
+    emitProgress(onProgress, {
+      stage: "pull-blb-registry",
+      message: "Fetching Ballabgarh master registry",
+    });
+    // Non-fatal: BHQ registry lookup degrades gracefully when missing.
+    let blbRegistryCounts = null;
+    try {
+      const { replaceBlbRegistry, getBlbRegistryCounts } = await import(
+        "../households/blbRegistryRepository.js"
+      );
+      const token = authStore.getToken();
+      const registryResponse = await fetch(`${API_BASE_URL}/masters/blb-registry`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (registryResponse.ok) {
+        const registryData = unwrapApiData(await registryResponse.json());
+        await replaceBlbRegistry({
+          households: registryData.households || [],
+          individuals: registryData.individuals || [],
+        });
+        blbRegistryCounts = await getBlbRegistryCounts();
+      } else {
+        console.warn("BLB registry pull failed:", registryResponse.status);
+      }
+    } catch (error) {
+      console.warn("BLB registry sync skipped:", error);
+    }
     const draftParams = new URLSearchParams({
       device_id: getMeta("device_id") || "unregistered-device",
     });

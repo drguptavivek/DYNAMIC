@@ -1540,4 +1540,202 @@ router.patch(
   },
 );
 
+// ============= BALLABGARH REGISTRY =============
+
+function parseCsvToObjects(csvContent: string): Record<string, string>[] {
+  const rows = parseCsvRows(csvContent).filter((row) => row.some((cell) => cell !== ""));
+  if (rows.length < 1) return [];
+  const headers = rows[0].map(normalizeCsvHeader);
+  return rows.slice(1).map((row) => {
+    const record: Record<string, string> = {};
+    headers.forEach((header, index) => {
+      record[header] = row[index] ?? "";
+    });
+    return record;
+  });
+}
+
+function generateRegistryUid(
+  record: Pick<BlbRegistryIndividualRow, "hh_list_no" | "family_no" | "ind_no">,
+): string {
+  const random = Math.random().toString(36).slice(2, 10);
+  return `BLB-${record.hh_list_no}-${record.family_no}-${record.ind_no}-${random}`;
+}
+
+interface BlbRegistryIndividualRow {
+  uid: string;
+  hh_list_no: string;
+  family_no: string;
+  ind_no: string;
+  name: string;
+  age_years: number | null;
+  sex: string | null;
+  status: string;
+}
+
+/**
+ * POST /api/v1/masters/blb-registry/households/upload
+ * Upsert Ballabgarh registry households from CSV: hh_list_no,family_no,head_name,address
+ */
+router.post(
+  "/blb-registry/households/upload",
+  upload.single("file"),
+  requireRole("central_admin"),
+  async (req: Request, res: Response) => {
+    try {
+      if (!req.file) {
+        sendError(res, 400, "MISSING_FILE", "No file uploaded");
+        return;
+      }
+      if (!isCsvUpload(req.file)) {
+        sendError(res, 400, "INVALID_FILE_TYPE", "Only CSV files are allowed");
+        return;
+      }
+      const records = parseCsvToObjects(req.file.buffer.toString("utf-8"));
+      const errors: string[] = [];
+      const valid: { hh_list_no: string; family_no: string; head_name: string | null; address: string | null }[] = [];
+      records.forEach((record, index) => {
+        const hh = record["hh list no"].trim();
+        const fam = record["family no"].trim();
+        if (!hh || !fam) {
+          errors.push(`Line ${index + 2}: hh_list_no and family_no are required`);
+          return;
+        }
+        valid.push({
+          hh_list_no: hh,
+          family_no: fam,
+          head_name: record["head name"]?.trim() || null,
+          address: record["address"]?.trim() || null,
+        });
+      });
+      if (valid.length) {
+        await db
+          .insert(schema.blbRegistryHouseholds)
+          .values(valid)
+          .onConflictDoUpdate({
+            target: [schema.blbRegistryHouseholds.hh_list_no, schema.blbRegistryHouseholds.family_no],
+            set: {
+              head_name: sql`excluded.head_name`,
+              address: sql`excluded.address`,
+              updated_at: sql`now()`,
+            },
+          });
+      }
+      sendSuccess(res, { imported: valid.length, invalid: errors.length, errors }, 201);
+    } catch (error) {
+      console.error("BLB registry households upload error:", error);
+      sendError(res, 500, "INTERNAL_ERROR", "An error occurred");
+    }
+  },
+);
+
+/**
+ * POST /api/v1/masters/blb-registry/individuals/upload
+ * Upsert Ballabgarh registry individuals from CSV:
+ * hh_list_no,family_no,ind_no,name,age_years,sex,status[,uid]
+ * uid is stable: existing rows keep their uid across re-imports.
+ */
+router.post(
+  "/blb-registry/individuals/upload",
+  upload.single("file"),
+  requireRole("central_admin"),
+  async (req: Request, res: Response) => {
+    try {
+      if (!req.file) {
+        sendError(res, 400, "MISSING_FILE", "No file uploaded");
+        return;
+      }
+      if (!isCsvUpload(req.file)) {
+        sendError(res, 400, "INVALID_FILE_TYPE", "Only CSV files are allowed");
+        return;
+      }
+      const records = parseCsvToObjects(req.file.buffer.toString("utf-8"));
+      const errors: string[] = [];
+      const valid: BlbRegistryIndividualRow[] = [];
+      records.forEach((record, index) => {
+        const hh = record["hh list no"]?.trim() ?? "";
+        const fam = record["family no"]?.trim() ?? "";
+        const ind = record["ind no"]?.trim() ?? "";
+        const name = record["name"]?.trim() ?? "";
+        if (!hh || !fam || !ind || !name) {
+          errors.push(`Line ${index + 2}: hh_list_no, family_no, ind_no, name are required`);
+          return;
+        }
+        const ageText = record["age years"]?.trim() ?? "";
+        const ageYears = ageText === "" ? null : Number(ageText);
+        if (ageYears !== null && !Number.isInteger(ageYears)) {
+          errors.push(`Line ${index + 2}: age_years must be an integer`);
+          return;
+        }
+        const status = record["status"]?.trim().toLowerCase() || "alive";
+        valid.push({
+          uid: record["uid"]?.trim() || generateRegistryUid({ hh_list_no: hh, family_no: fam, ind_no: ind }),
+          hh_list_no: hh,
+          family_no: fam,
+          ind_no: ind,
+          name,
+          age_years: ageYears,
+          sex: record["sex"]?.trim() || null,
+          status,
+        });
+      });
+      if (valid.length) {
+        await db
+          .insert(schema.blbRegistryIndividuals)
+          .values(valid)
+          .onConflictDoUpdate({
+            target: [
+              schema.blbRegistryIndividuals.hh_list_no,
+              schema.blbRegistryIndividuals.family_no,
+              schema.blbRegistryIndividuals.ind_no,
+            ],
+            set: {
+              name: sql`excluded.name`,
+              age_years: sql`excluded.age_years`,
+              sex: sql`excluded.sex`,
+              status: sql`excluded.status`,
+              updated_at: sql`now()`,
+            },
+          });
+      }
+      sendSuccess(res, { imported: valid.length, invalid: errors.length, errors }, 201);
+    } catch (error) {
+      console.error("BLB registry individuals upload error:", error);
+      sendError(res, 500, "INTERNAL_ERROR", "An error occurred");
+    }
+  },
+);
+
+/**
+ * GET /api/v1/masters/blb-registry
+ * Full Ballabgarh registry for offline device caching (field workers).
+ */
+router.get(
+  "/blb-registry",
+  requireRole("central_admin", "field_worker"),
+  async (_req: Request, res: Response) => {
+    try {
+      const households = await db
+        .select()
+        .from(schema.blbRegistryHouseholds)
+        .orderBy(schema.blbRegistryHouseholds.hh_list_no, schema.blbRegistryHouseholds.family_no);
+      const individuals = await db
+        .select()
+        .from(schema.blbRegistryIndividuals)
+        .orderBy(
+          schema.blbRegistryIndividuals.hh_list_no,
+          schema.blbRegistryIndividuals.family_no,
+          schema.blbRegistryIndividuals.ind_no,
+        );
+      sendSuccess(res, { households, individuals }, 200, {
+        households: households.length,
+        individuals: individuals.length,
+      });
+    } catch (error) {
+      console.error("BLB registry list error:", error);
+      sendError(res, 500, "INTERNAL_ERROR", "An error occurred");
+    }
+  },
+);
+
 export default router;

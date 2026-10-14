@@ -1,3 +1,17 @@
+## 2026-10-13 (BHQ Ballabgarh master-list individual lookup) [working]
+Goal: Capture the existing Ballabgarh household list and individual numbers in BHQ individual listing, with a user-facing ID and a hidden fixed unique ID per member.
+Decisions:
+- New master tables `blb_registry_households` / `blb_registry_individuals` (uid primary key; unique hh/fam/ind; status alive/dead/emigrated/other), fed by admin CSV upload that upserts and keeps existing uids stable across re-imports.
+- `GET /masters/blb-registry` syncs the full registry to devices during Sync Now; devices cache it in offline SQLite (`blb_registry_*` tables, web localStorage fallback) so lookup works fully offline.
+- BHQ roster gains `member_registry_individual_id` (facing `hh-fam-ind`, readonly display), `member_registry_uid` (background, never rendered), `member_registry_status` (radio, prefilled from master). Lookup runs only for the Ballabgarh site (`hhq_site_id = 2`).
+- Lookup confirm dialog shows master name/age/sex/status; non-alive status adds an explicit warning so a wrong membership cannot be recorded silently. Members not found stay blank and keep the existing local ID generation.
+- Registry fields carried through `extractMemberRows`, local `household_members` (migration `household_members.registry.v1`), server `household_members` columns, and HHQ promotion upsert.
+Verification:
+- `validateBhqRegistryLookup.mjs` added to the expo test chain and passing; API tests, API typecheck, and event-core tests pass.
+- CSV upload round-trip smoke-tested against the dev API: upserts import, re-upload keeps uids unchanged, registry GET returns both lists.
+Open:
+- Full roster-lookup interaction still needs on-device (Android) verification; expo `validateQuestionnaireReadOnlyFields`, `validateFormDefinitionCache`, `validateNetworkErrors`, and `validateDraftPendingFormsPaging` fail identically on the base commit (pre-existing Node 24/react-native transform issues).
+
 ## 2026-09-19 (PEF ultrasound attachment sync transport) [verified]
 Goal: Allow finalized PEF ultrasound images to upload during Sync Now on Expo SDK 57.
 Decisions:

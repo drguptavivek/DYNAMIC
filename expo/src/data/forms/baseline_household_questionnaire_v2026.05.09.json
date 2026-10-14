@@ -900,6 +900,119 @@
             },
             {
               "type": "text",
+              "name": "member_registry_individual_id",
+              "title": {
+                "default": "",
+                "hi": "",
+                "kn": "",
+                "mr": "",
+                "ta": "",
+                "te": "",
+                "ur": ""
+              },
+              "order": 2,
+              "section_order": 2,
+              "sourceCode": "APP_CALC",
+              "sourceType": "app_calculated",
+              "renderingHint": {
+                "render_as": "readonly_summary"
+              },
+              "rawText": "Ballabgarh master-list individual ID captured via registry lookup (hh-fam-ind)."
+            },
+            {
+              "type": "text",
+              "name": "member_registry_uid",
+              "title": {
+                "default": "",
+                "hi": "",
+                "kn": "",
+                "mr": "",
+                "ta": "",
+                "te": "",
+                "ur": ""
+              },
+              "order": 2,
+              "section_order": 2,
+              "sourceCode": "APP_CALC",
+              "sourceType": "app_calculated",
+              "renderingHint": {
+                "render_as": "background"
+              },
+              "rawText": "Hidden fixed unique ID from the Ballabgarh master registry; never shown to interviewers."
+            },
+            {
+              "type": "radiogroup",
+              "name": "member_registry_status",
+              "title": {
+                "default": "",
+                "hi": "",
+                "kn": "",
+                "mr": "",
+                "ta": "",
+                "te": "",
+                "ur": ""
+              },
+              "order": 2,
+              "section_order": 2,
+              "sourceCode": "APP_CALC",
+              "sourceType": "app_calculated",
+              "renderingHint": {
+                "render_as": "radio"
+              },
+              "choices": [
+                {
+                  "value": 1,
+                  "text": {
+                    "default": "",
+                    "hi": "",
+                    "kn": "",
+                    "mr": "",
+                    "ta": "",
+                    "te": "",
+                    "ur": ""
+                  }
+                },
+                {
+                  "value": 2,
+                  "text": {
+                    "default": "",
+                    "hi": "",
+                    "kn": "",
+                    "mr": "",
+                    "ta": "",
+                    "te": "",
+                    "ur": ""
+                  }
+                },
+                {
+                  "value": 3,
+                  "text": {
+                    "default": "",
+                    "hi": "",
+                    "kn": "",
+                    "mr": "",
+                    "ta": "",
+                    "te": "",
+                    "ur": ""
+                  }
+                },
+                {
+                  "value": 4,
+                  "text": {
+                    "default": "",
+                    "hi": "",
+                    "kn": "",
+                    "mr": "",
+                    "ta": "",
+                    "te": "",
+                    "ur": ""
+                  }
+                }
+              ],
+              "rawText": "Status of individual i: alive/dead/emigrated/other; prefilled from Ballabgarh master registry lookup."
+            },
+            {
+              "type": "text",
               "name": "member_name",
               "title": {
                 "default": "Name of the individual",

@@ -2,7 +2,7 @@
  * Renders repeat entries with a count, explicit row selection, editing, addition, and deletion.
  */
 import React, { useEffect, useRef, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
 import {
@@ -34,9 +34,131 @@ import {
   BHQ_VISITOR_CONFIRMATION_MESSAGE,
   clearBhqResidenceMonths,
 } from "./bhqVisitorConfirmation.js";
+import {
+  applyRegistryIndividualToPanel,
+  BHQ_REGISTRY_ID_FIELD,
+  BHQ_REGISTRY_STATUS_CHOICES,
+  BHQ_REGISTRY_STATUS_FIELD,
+  buildRegistryConfirmationMessage,
+  clearRegistryIndividualFromPanel,
+  isBhqRegistrySite,
+} from "./bhqRegistryLookup.js";
 
 const MOBILE_CONFIRMATION_MESSAGE =
   "Read this mobile number to the Respondent and confirm whether the number is correct or not.";
+
+function BhqRegistryLookupSection({ activePanel, onChange }) {
+  const [hhListNo, setHhListNo] = useState("");
+  const [familyNo, setFamilyNo] = useState("");
+  const [indNo, setIndNo] = useState("");
+  const [busy, setBusy] = useState(false);
+  const matchedId = activePanel.getQuestionByName?.(BHQ_REGISTRY_ID_FIELD)?.value || "";
+  const matchedStatus = activePanel.getQuestionByName?.(BHQ_REGISTRY_STATUS_FIELD)?.value;
+  const statusLabel =
+    BHQ_REGISTRY_STATUS_CHOICES.find((choice) => choice.value === Number(matchedStatus))?.text ||
+    "";
+
+  async function runLookup() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const { findBlbRegistryIndividual } = await import(
+        "../../../modules/households/blbRegistryRepository.js"
+      );
+      const individual = await findBlbRegistryIndividual(hhListNo, familyNo, indNo);
+      if (!individual) {
+        Alert.alert(
+          "Not found in master list",
+          "No individual matches this household/family/individual number. " +
+            "Leave the master list fields empty to record the member without a registry ID.",
+        );
+        return;
+      }
+      Alert.alert(
+        "Confirm individual from master list",
+        buildRegistryConfirmationMessage(individual),
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Confirm",
+            onPress: () => {
+              applyRegistryIndividualToPanel(activePanel, individual);
+              onChange?.();
+            },
+          },
+        ],
+        { cancelable: false },
+      );
+    } catch (error) {
+      console.warn("BLB registry lookup failed:", error);
+      Alert.alert("Lookup failed", "Could not search the master list. Try again after sync.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function clearMatch() {
+    clearRegistryIndividualFromPanel(activePanel);
+    onChange?.();
+  }
+
+  return (
+    <View style={styles.registryLookupWrap}>
+      <Text style={styles.registryLookupTitle}>Master list lookup (Ballabgarh)</Text>
+      {matchedId ? (
+        <View style={styles.registryMatchedRow}>
+          <Text style={styles.registryMatchedText}>
+            {`Matched: ${matchedId}${statusLabel ? ` · ${statusLabel}` : ""}`}
+          </Text>
+          <Pressable accessibilityLabel="Clear master list match" hitSlop={6} onPress={clearMatch}>
+            <Text style={styles.registryClearText}>Clear</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <Text style={styles.registryHintText}>
+          Enter the household, family, and individual number from the existing master list.
+        </Text>
+      )}
+      <View style={styles.registryInputRow}>
+        <TextInput
+          accessibilityLabel="Master list household number"
+          keyboardType="number-pad"
+          onChangeText={setHhListNo}
+          placeholder="HH No"
+          style={styles.registryInput}
+          value={hhListNo}
+        />
+        <TextInput
+          accessibilityLabel="Master list family number"
+          keyboardType="number-pad"
+          onChangeText={setFamilyNo}
+          placeholder="Fam No"
+          style={styles.registryInput}
+          value={familyNo}
+        />
+        <TextInput
+          accessibilityLabel="Master list individual number"
+          keyboardType="number-pad"
+          onChangeText={setIndNo}
+          placeholder="Ind No"
+          style={styles.registryInput}
+          value={indNo}
+        />
+        <Pressable
+          disabled={busy || !hhListNo.trim() || !familyNo.trim() || !indNo.trim()}
+          onPress={runLookup}
+          style={[
+            styles.registryLookupButton,
+            (!hhListNo.trim() || !familyNo.trim() || !indNo.trim() || busy) &&
+              styles.registryLookupButtonDisabled,
+          ]}
+        >
+          <Text style={controlStyles.buttonText}>{busy ? "…" : "Look up"}</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
 
 function isRenderablePanelQuestion(child, multipleBirth) {
   if (child?.visible === false || child?.isVisible === false) return false;
@@ -486,6 +608,12 @@ export function DynamicPanelRenderer({
               <MaterialCommunityIcons color="#475467" name="close-circle-outline" size={22} />
             </Pressable>
           </View>
+          {question.name === "hhq_household_members" && isBhqRegistrySite(question.survey) ? (
+            <BhqRegistryLookupSection
+              activePanel={panels[editingIndex]}
+              onChange={onChange}
+            />
+          ) : null}
           {(panels[editingIndex].questions || [])
             .filter((child) => isRenderablePanelQuestion(
               child,
@@ -527,6 +655,61 @@ export function DynamicPanelRenderer({
 }
 
 const styles = StyleSheet.create({
+  registryLookupWrap: {
+    borderWidth: 1,
+    borderColor: "#d0d5dd",
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 10,
+    backgroundColor: "#f9fafb",
+  },
+  registryLookupTitle: {
+    fontWeight: "600",
+    marginBottom: 6,
+  },
+  registryHintText: {
+    color: "#475467",
+    marginBottom: 6,
+  },
+  registryMatchedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 6,
+  },
+  registryMatchedText: {
+    fontWeight: "600",
+    color: "#067647",
+    flexShrink: 1,
+  },
+  registryClearText: {
+    color: "#b42318",
+    fontWeight: "600",
+  },
+  registryInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  registryInput: {
+    flex: 1,
+    minWidth: 60,
+    borderWidth: 1,
+    borderColor: "#d0d5dd",
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    backgroundColor: "#ffffff",
+  },
+  registryLookupButton: {
+    backgroundColor: "#1f6feb",
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  registryLookupButtonDisabled: {
+    backgroundColor: "#98a2b3",
+  },
   wrap: { gap: 8 },
   dedicatedEditor: { paddingBottom: 8 },
   dedicatedEditorHeader: { minHeight: 58, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, paddingHorizontal: 2, paddingBottom: 4, borderBottomWidth: 1, borderBottomColor: "#d0d5dd" },
