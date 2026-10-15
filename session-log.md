@@ -1,3 +1,35 @@
+## 2026-10-15 (Admin authenticator setup loading) [verified]
+Goal: Fix indefinite Preparing secure setup on the admin page.
+Decisions:
+- Share the setup promise across React Strict Mode effect replay; each effect retains its own cancellation guard.
+Verification:
+- Real-component effect regression covers successful and failed requests after cleanup/replay; admin typecheck/build and focused independent review pass.
+- Restarted stale admin dev server and local edge; browser now displays the authenticator QR and code field with no loading message. Enrollment remains for the user to complete.
+
+## 2026-10-14 (BHQ HDSS source export) [code verified; dev schema applied]
+Goal: Adapt BHQ registry import and offline identity lookup to the HMIS all-person export without exposing participant data or reconciling conflicting source statuses.
+Decisions:
+- Updated user flow: per-member Lookup opens a right drawer with current village and mapped house prefilled; direct Select links one HDSS person and shows an unlinkable source-details chip. No lookup warnings or confirmation dialogs.
+- Linked snapshots store source name/age/sex/domicile alongside original ID and exact exported `hdss_unique_id` (`member_registry_uid`) in BHQ answers. Replacement overwrites one link; unlink clears its fields and server projection values without changing interview answers.
+- User clarified the HDSS original ID as `VillageCode-HouseNumber-FamilyNumber-IndividualNumber`; confirmation and selected roster ID now include the village prefix. The export UID remains separate.
+- `backup/` is ignored. Source CSV remains local, uncommitted, and is not uploaded; validation emits aggregates only.
+- Verified 164,529 rows and unique HDSS IDs: 94,917 IDs have 16 characters and 69,612 have 17. There are 12,094 ambiguous village/house/family/individual groups (16,641 excess rows); HDSS ID is the identity, never the address tuple.
+- Preserve source text identifiers, raw domicile/current status and event dates. Domicile alone defines HDSS current membership (106,992); historical records remain selectable without warnings. This does not change DYNAMIC visitor eligibility.
+- Central Admin has Masters → Ballabgarh HDSS CSV upload, with file-size/type checks, import count, and safe validation issue summaries. Mobile downloads are restricted server-side to active assigned Ballabgarh villages, with the same scope for offline lookup.
+- Import uses the actual 16-column export, transactional UID upserts, and a fixed 2026-10-14 age snapshot. Offline lookup uses village/house/family/individual keys; ambiguous and incomplete keys support exact HDSS-ID lookup.
+- User requested skipping beads and further logout/area-assignment investigation; focus remains CSV import and BHQ lookup.
+Verification:
+- Local parser accepts all 164,529 rows with zero issues. All source fields round-trip through the actual cache code and an in-memory SQLite database; no source rows are printed or uploaded.
+- API: 31 unit tests and typecheck pass. Focused Expo lookup/cache/migration/sync tests, source syntax, and renderer imports pass. Web export passes; full Expo suite remains blocked by the existing Node 24 React Native parser error.
+- Independent final review found no remaining material CSV/BHQ defects within the user-confirmed scope.
+- Drawer update: focused tests cover Survey Core save/resume, exact UID and source snapshots in the sync push payload, actual SQLite house/name/original-ID search, and server unlink nulls. Synthetic browser checks verified right drawer/prefill/filter/direct Select/chip/per-row unlink and preventing reuse across rows; latest web export passes. Actual source upload remains prohibited by the user's repeated instruction.
+- Fixed server-pull member mapping to retain original ID, exact UID, and status in native SQLite and web cache; production-mapper round-trip tests pass. Source snapshots remain as submitted rather than being reconciled against later registry imports. Final focused review is ready; live import/device checks remain open.
+Open:
+- Read-only dev DB check found zero configured Ballabgarh localities, so all 29 source villages currently have no exact mapping. Do not infer a crosswalk.
+- Non-destructive `make db-push` applied the dev schema and preserved existing registry rows; `make db-smoke` passes. Admin formatter tests, typecheck and build pass. Browser verification reached mandatory TOTP setup; no authentication settings changed.
+- After the loading fix, the user completed authenticator enrollment and reported the upload result: Imported 164529 people. The agent did not upload the source file; it remains excluded from Git.
+- Database HTTP integration tests were added but not run. Physical-device offline/sync verification remains unperformed; no DB reset was run.
+
 ## 2026-10-13 (BHQ Ballabgarh master-list individual lookup) [working]
 Goal: Capture the existing Ballabgarh household list and individual numbers in BHQ individual listing, with a user-facing ID and a hidden fixed unique ID per member.
 Decisions:

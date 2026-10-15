@@ -1,15 +1,44 @@
-import { Router, Request, Response } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import { z } from "zod";
-import { eq, and, ilike, sql } from "drizzle-orm";
-import multer, { Multer } from "multer";
+import { eq, and, gt, ilike, sql } from "drizzle-orm";
+import { PgDialect } from "drizzle-orm/pg-core";
+import multer from "multer";
+import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { db, schema } from "../db";
 import { requireRole } from "../middleware/auth";
 import { sendError, sendSuccess } from "../lib/errors";
+import { requireDataAccess } from "../lib/dataAccess";
+import { buildAreaScopeCondition } from "../lib/areaScope";
+import {
+  DEFAULT_HDSS_SOURCE_AGE_AS_OF,
+  decodeHdssRegistryCursor,
+  encodeHdssRegistryCursor,
+  hdssRegistryRequiredColumns,
+  parseHdssRegistryCsv,
+} from "../lib/blbRegistry";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
+const hdssUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 25 * 1024 * 1024, files: 1 },
+});
+
+function boundedHdssCsvUpload(req: Request, res: Response, next: NextFunction): void {
+  hdssUpload.single("file")(req, res, (error: unknown) => {
+    if (!error) {
+      next();
+      return;
+    }
+    if (error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE") {
+      sendError(res, 413, "FILE_TOO_LARGE", "CSV file exceeds the 25 MB limit");
+      return;
+    }
+    sendError(res, 400, "INVALID_UPLOAD", "Could not read the CSV upload");
+  });
+}
 
 // ============= STUDY SITES =============
 
@@ -1542,7 +1571,7 @@ router.patch(
 
 // ============= BALLABGARH REGISTRY =============
 
-function parseCsvToObjects(csvContent: string): Record<string, string>[] {
+function parseLegacyRegistryCsv(csvContent: string): Record<string, string>[] {
   const rows = parseCsvRows(csvContent).filter((row) => row.some((cell) => cell !== ""));
   if (rows.length < 1) return [];
   const headers = rows[0].map(normalizeCsvHeader);
@@ -1555,32 +1584,14 @@ function parseCsvToObjects(csvContent: string): Record<string, string>[] {
   });
 }
 
-function generateRegistryUid(
-  record: Pick<BlbRegistryIndividualRow, "hh_list_no" | "family_no" | "ind_no">,
-): string {
-  const random = Math.random().toString(36).slice(2, 10);
-  return `BLB-${record.hh_list_no}-${record.family_no}-${record.ind_no}-${random}`;
-}
-
-interface BlbRegistryIndividualRow {
-  uid: string;
-  hh_list_no: string;
-  family_no: string;
-  ind_no: string;
-  name: string;
-  age_years: number | null;
-  sex: string | null;
-  status: string;
-}
-
 /**
  * POST /api/v1/masters/blb-registry/households/upload
  * Upsert Ballabgarh registry households from CSV: hh_list_no,family_no,head_name,address
  */
 router.post(
   "/blb-registry/households/upload",
-  upload.single("file"),
   requireRole("central_admin"),
+  upload.single("file"),
   async (req: Request, res: Response) => {
     try {
       if (!req.file) {
@@ -1591,7 +1602,7 @@ router.post(
         sendError(res, 400, "INVALID_FILE_TYPE", "Only CSV files are allowed");
         return;
       }
-      const records = parseCsvToObjects(req.file.buffer.toString("utf-8"));
+      const records = parseLegacyRegistryCsv(req.file.buffer.toString("utf-8"));
       const errors: string[] = [];
       const valid: { hh_list_no: string; family_no: string; head_name: string | null; address: string | null }[] = [];
       records.forEach((record, index) => {
@@ -1629,110 +1640,209 @@ router.post(
   },
 );
 
-/**
- * POST /api/v1/masters/blb-registry/individuals/upload
- * Upsert Ballabgarh registry individuals from CSV:
- * hh_list_no,family_no,ind_no,name,age_years,sex,status[,uid]
- * uid is stable: existing rows keep their uid across re-imports.
- */
-router.post(
-  "/blb-registry/individuals/upload",
-  upload.single("file"),
-  requireRole("central_admin"),
-  async (req: Request, res: Response) => {
-    try {
-      if (!req.file) {
-        sendError(res, 400, "MISSING_FILE", "No file uploaded");
-        return;
-      }
-      if (!isCsvUpload(req.file)) {
-        sendError(res, 400, "INVALID_FILE_TYPE", "Only CSV files are allowed");
-        return;
-      }
-      const records = parseCsvToObjects(req.file.buffer.toString("utf-8"));
-      const errors: string[] = [];
-      const valid: BlbRegistryIndividualRow[] = [];
-      records.forEach((record, index) => {
-        const hh = record["hh list no"]?.trim() ?? "";
-        const fam = record["family no"]?.trim() ?? "";
-        const ind = record["ind no"]?.trim() ?? "";
-        const name = record["name"]?.trim() ?? "";
-        if (!hh || !fam || !ind || !name) {
-          errors.push(`Line ${index + 2}: hh_list_no, family_no, ind_no, name are required`);
-          return;
-        }
-        const ageText = record["age years"]?.trim() ?? "";
-        const ageYears = ageText === "" ? null : Number(ageText);
-        if (ageYears !== null && !Number.isInteger(ageYears)) {
-          errors.push(`Line ${index + 2}: age_years must be an integer`);
-          return;
-        }
-        const status = record["status"]?.trim().toLowerCase() || "alive";
-        valid.push({
-          uid: record["uid"]?.trim() || generateRegistryUid({ hh_list_no: hh, family_no: fam, ind_no: ind }),
-          hh_list_no: hh,
-          family_no: fam,
-          ind_no: ind,
-          name,
-          age_years: ageYears,
-          sex: record["sex"]?.trim() || null,
-          status,
-        });
+type HdssImportRequest = Request & { file?: Express.Multer.File };
+
+async function importHdssRegistry(req: HdssImportRequest, res: Response): Promise<void> {
+  try {
+    if (!req.file) {
+      sendError(res, 400, "MISSING_FILE", "No file uploaded");
+      return;
+    }
+    if (!isCsvUpload(req.file)) {
+      sendError(res, 400, "INVALID_FILE_TYPE", "Only CSV files are allowed");
+      return;
+    }
+    const requestedSnapshot = req.body?.source_age_as_of;
+    if (requestedSnapshot !== undefined && requestedSnapshot !== DEFAULT_HDSS_SOURCE_AGE_AS_OF) {
+      sendError(res, 400, "INVALID_SOURCE_AGE_AS_OF", "Only the 2026-10-14 source snapshot is accepted");
+      return;
+    }
+    const sourceAgeAsOf = DEFAULT_HDSS_SOURCE_AGE_AS_OF;
+    const parsed = parseHdssRegistryCsv(req.file.buffer.toString("utf-8"), sourceAgeAsOf);
+    if (parsed.issues.length > 0) {
+      sendError(res, 400, "INVALID_HDSS_CSV", "CSV validation failed", {
+        issues: parsed.issues,
+        required_columns: hdssRegistryRequiredColumns,
       });
-      if (valid.length) {
-        await db
+      return;
+    }
+
+    const importRows = parsed.rows.map((row) => ({
+      uid: row.uid,
+      village_code: row.village_code,
+      village_name: row.village_name,
+      phc_code: row.phc_code,
+      phc_name: row.phc_name,
+      hh_list_no: row.hh_list_no,
+      family_no: row.family_no,
+      ind_no: row.ind_no,
+      name: row.name,
+      age_years: row.age_years,
+      sex: row.sex,
+      status: row.status,
+      domicile: row.domicile,
+      curr_status: row.curr_status,
+      death_date: row.death_date,
+      migrated_out_date: row.migrated_out_date,
+      migration_reason: row.migration_reason,
+      source_age_as_of: row.source_age_as_of,
+    }));
+
+    // Validate the complete file before opening the transaction. The advisory
+    // lock serializes imports so every page cursor generation is monotonic.
+    await db.transaction(async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext('dynamic.blb_registry'))`);
+      const importedAt = new Date();
+      const batchSize = 1000;
+      for (let offset = 0; offset < importRows.length; offset += batchSize) {
+        const batch = importRows
+          .slice(offset, offset + batchSize)
+          .map((row) => ({ ...row, updated_at: importedAt }));
+        await tx
           .insert(schema.blbRegistryIndividuals)
-          .values(valid)
+          .values(batch)
           .onConflictDoUpdate({
-            target: [
-              schema.blbRegistryIndividuals.hh_list_no,
-              schema.blbRegistryIndividuals.family_no,
-              schema.blbRegistryIndividuals.ind_no,
-            ],
+            target: schema.blbRegistryIndividuals.uid,
             set: {
+              village_code: sql`excluded.village_code`,
+              village_name: sql`excluded.village_name`,
+              phc_code: sql`excluded.phc_code`,
+              phc_name: sql`excluded.phc_name`,
+              hh_list_no: sql`excluded.hh_list_no`,
+              family_no: sql`excluded.family_no`,
+              ind_no: sql`excluded.ind_no`,
               name: sql`excluded.name`,
               age_years: sql`excluded.age_years`,
               sex: sql`excluded.sex`,
               status: sql`excluded.status`,
-              updated_at: sql`now()`,
+              domicile: sql`excluded.domicile`,
+              curr_status: sql`excluded.curr_status`,
+              death_date: sql`excluded.death_date`,
+              migrated_out_date: sql`excluded.migrated_out_date`,
+              migration_reason: sql`excluded.migration_reason`,
+              source_age_as_of: sql`excluded.source_age_as_of`,
+              updated_at: importedAt,
             },
           });
       }
-      sendSuccess(res, { imported: valid.length, invalid: errors.length, errors }, 201);
-    } catch (error) {
-      console.error("BLB registry individuals upload error:", error);
-      sendError(res, 500, "INTERNAL_ERROR", "An error occurred");
-    }
-  },
+      await tx
+        .insert(schema.blbRegistrySnapshot)
+        .values({
+          snapshot_key: "default",
+          generation: randomUUID(),
+          updated_at: importedAt,
+        })
+        .onConflictDoUpdate({
+          target: schema.blbRegistrySnapshot.snapshot_key,
+          set: {
+            generation: sql`excluded.generation`,
+            updated_at: importedAt,
+          },
+        });
+    });
+    sendSuccess(res, { imported: importRows.length }, 201);
+  } catch {
+    // Do not include database or CSV values in logs or error responses.
+    sendError(res, 500, "INTERNAL_ERROR", "An error occurred while importing the registry");
+  }
+}
+
+// Authorization deliberately precedes multer so unauthorized callers cannot
+// make the server buffer a large upload.
+router.post("/blb-registry/upload", requireRole("central_admin"), boundedHdssCsvUpload, importHdssRegistry);
+router.post(
+  "/blb-registry/individuals/upload",
+  requireRole("central_admin"),
+  boundedHdssCsvUpload,
+  importHdssRegistry,
 );
 
 /**
  * GET /api/v1/masters/blb-registry
- * Full Ballabgarh registry for offline device caching (field workers).
+ * Cursor-paged Ballabgarh registry for offline device caching.
  */
 router.get(
   "/blb-registry",
   requireRole("central_admin", "field_worker"),
-  async (_req: Request, res: Response) => {
+  requireDataAccess("can_access_pii"),
+  async (req: Request, res: Response) => {
     try {
-      const households = await db
-        .select()
-        .from(schema.blbRegistryHouseholds)
-        .orderBy(schema.blbRegistryHouseholds.hh_list_no, schema.blbRegistryHouseholds.family_no);
-      const individuals = await db
-        .select()
-        .from(schema.blbRegistryIndividuals)
-        .orderBy(
-          schema.blbRegistryIndividuals.hh_list_no,
-          schema.blbRegistryIndividuals.family_no,
-          schema.blbRegistryIndividuals.ind_no,
-        );
-      sendSuccess(res, { households, individuals }, 200, {
-        households: households.length,
-        individuals: individuals.length,
+      const requestedLimit = req.query.limit === undefined ? 1000 : Number(req.query.limit);
+      if (!Number.isInteger(requestedLimit) || requestedLimit < 1 || requestedLimit > 2000) {
+        sendError(res, 400, "INVALID_LIMIT", "limit must be an integer between 1 and 2000");
+        return;
+      }
+      const encodedCursor = typeof req.query.cursor === "string" ? req.query.cursor : undefined;
+      const cursor = encodedCursor ? decodeHdssRegistryCursor(encodedCursor) : null;
+      if (req.query.cursor !== undefined && !cursor) {
+        sendError(res, 400, "INVALID_CURSOR", "cursor is invalid");
+        return;
+      }
+
+      const scope = await buildAreaScopeCondition(req.user!, {
+        site_id: sql`2`,
+        locality_code: schema.blbRegistryIndividuals.village_code,
       });
-    } catch (error) {
-      console.error("BLB registry list error:", error);
+      const scopeQuery = scope ? new PgDialect().sqlToQuery(scope) : { sql: "", params: [] };
+      const scopeHash = createHash("sha256")
+        .update(
+          JSON.stringify({
+            user_id: req.user!.sub,
+            role: req.user!.role,
+            sql: scopeQuery.sql,
+            params: scopeQuery.params,
+          }),
+        )
+        .digest("hex");
+      const result = await db.transaction(async (tx) => {
+        const [snapshot] = await tx
+          .select({
+            generation: schema.blbRegistrySnapshot.generation,
+          })
+          .from(schema.blbRegistrySnapshot)
+          .where(eq(schema.blbRegistrySnapshot.snapshot_key, "default"))
+          .limit(1);
+        const generation = snapshot?.generation ?? "legacy";
+        if (cursor && (cursor.generation !== generation || cursor.scope_hash !== scopeHash)) {
+          return { changed: true as const };
+        }
+        const conditions = [];
+        if (scope) conditions.push(scope);
+        if (cursor) conditions.push(gt(schema.blbRegistryIndividuals.uid, cursor.uid));
+        const page = await tx
+          .select()
+          .from(schema.blbRegistryIndividuals)
+          .where(conditions.length > 0 ? and(...conditions) : undefined)
+          .orderBy(schema.blbRegistryIndividuals.uid)
+          .limit(requestedLimit + 1);
+        const hasMore = page.length > requestedLimit;
+        const individuals = hasMore ? page.slice(0, requestedLimit) : page;
+        return { changed: false as const, generation, individuals, hasMore };
+      }, { isolationLevel: "repeatable read" });
+      if (result.changed) {
+        sendError(res, 409, "REGISTRY_CHANGED", "Registry changed; restart the lookup");
+        return;
+      }
+      const { individuals, hasMore, generation } = result;
+      sendSuccess(
+        res,
+        {
+          // The HDSS export is person-granular. Household projection rows
+          // are intentionally not fabricated from partial cursor pages.
+          households: [],
+          individuals,
+          next_cursor: hasMore
+            ? encodeHdssRegistryCursor({
+                uid: individuals[individuals.length - 1]?.uid ?? "",
+                generation,
+                scope_hash: scopeHash,
+              })
+            : null,
+        },
+        200,
+        { individuals: individuals.length, households: 0 },
+      );
+    } catch {
       sendError(res, 500, "INTERNAL_ERROR", "An error occurred");
     }
   },

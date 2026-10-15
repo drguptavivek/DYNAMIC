@@ -292,7 +292,10 @@ export function HouseholdModule({
       }
       if (isFieldWorker(user)) setOpenHhqIdsReloadKey((key) => key + 1);
       const cacheInfo = getHouseholdCacheInfo();
-      const pulledMessage = `Synced ${result.pulledHouseholds || 0} households and ${result.pulledMembers || 0} members`;
+      const registryWarning = result.blbRegistrySync?.success === false
+        ? ". HDSS lookup was not refreshed; sync again before using it"
+        : "";
+      const pulledMessage = `Synced ${result.pulledHouseholds || 0} households and ${result.pulledMembers || 0} members${registryWarning}`;
       setSaveMessage(
         cacheInfo.isWebStorage
           ? `${pulledMessage}. Browser cache keeps up to ${cacheInfo.householdLimit} households and ${cacheInfo.memberLimit} members; Android keeps the full sync in SQLite.`

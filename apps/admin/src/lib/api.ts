@@ -1,3 +1,5 @@
+import { formatApiError } from "./apiErrors";
+
 const BASE = import.meta.env.VITE_API_BASE_URL ?? "/api/v1";
 
 function getToken(): string | null {
@@ -16,37 +18,6 @@ function handleRejectedSession(path: string, res: Response) {
   if (window.location.pathname !== "/login") {
     window.location.assign("/login");
   }
-}
-
-type ApiErrorIssue = {
-  path?: Array<string | number>;
-  message?: string;
-};
-
-function formatApiError(json: unknown, fallback: string): string {
-  if (!json || typeof json !== "object") return fallback;
-
-  const error = (json as { error?: unknown }).error;
-  if (!error || typeof error !== "object") return fallback;
-
-  const message = (error as { message?: unknown }).message;
-  const details = (error as { details?: unknown }).details;
-  const errors = details && typeof details === "object"
-    ? (details as { errors?: unknown }).errors
-    : undefined;
-
-  if (Array.isArray(errors) && errors.length > 0) {
-    const formatted = errors
-      .map((issue: ApiErrorIssue) => {
-        const path = Array.isArray(issue.path) ? issue.path.join(".") : "";
-        return path && issue.message ? `${path}: ${issue.message}` : issue.message;
-      })
-      .filter(Boolean);
-
-    if (formatted.length > 0) return formatted.slice(0, 3).join("; ");
-  }
-
-  return typeof message === "string" && message ? message : fallback;
 }
 
 export async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {

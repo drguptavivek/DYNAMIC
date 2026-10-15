@@ -1,6 +1,9 @@
 # macOS
 .DS_Store
 
+# Local source exports containing participant identifiers
+/backup/
+
 # Dependencies
 node_modules/
 .turbo/

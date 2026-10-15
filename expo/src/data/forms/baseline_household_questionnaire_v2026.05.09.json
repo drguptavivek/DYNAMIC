@@ -915,7 +915,7 @@
               "sourceCode": "APP_CALC",
               "sourceType": "app_calculated",
               "renderingHint": {
-                "render_as": "readonly_summary"
+                "render_as": "background"
               },
               "rawText": "Ballabgarh master-list individual ID captured via registry lookup (hh-fam-ind)."
             },
@@ -957,7 +957,7 @@
               "sourceCode": "APP_CALC",
               "sourceType": "app_calculated",
               "renderingHint": {
-                "render_as": "radio"
+                "render_as": "background"
               },
               "choices": [
                 {
@@ -1010,6 +1010,50 @@
                 }
               ],
               "rawText": "Status of individual i: alive/dead/emigrated/other; prefilled from Ballabgarh master registry lookup."
+            },
+            {
+              "type": "text",
+              "name": "member_registry_name",
+              "title": { "default": "", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
+              "order": 2,
+              "section_order": 2,
+              "sourceCode": "APP_CALC",
+              "sourceType": "app_calculated",
+              "renderingHint": { "render_as": "background" },
+              "rawText": "Hidden name snapshot from the linked Ballabgarh HDSS registry person."
+            },
+            {
+              "type": "text",
+              "name": "member_registry_age_years",
+              "title": { "default": "", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
+              "order": 2,
+              "section_order": 2,
+              "sourceCode": "APP_CALC",
+              "sourceType": "app_calculated",
+              "renderingHint": { "render_as": "background" },
+              "rawText": "Hidden age snapshot from the linked Ballabgarh HDSS registry person."
+            },
+            {
+              "type": "text",
+              "name": "member_registry_sex",
+              "title": { "default": "", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
+              "order": 2,
+              "section_order": 2,
+              "sourceCode": "APP_CALC",
+              "sourceType": "app_calculated",
+              "renderingHint": { "render_as": "background" },
+              "rawText": "Hidden sex snapshot from the linked Ballabgarh HDSS registry person."
+            },
+            {
+              "type": "text",
+              "name": "member_registry_domicile",
+              "title": { "default": "", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
+              "order": 2,
+              "section_order": 2,
+              "sourceCode": "APP_CALC",
+              "sourceType": "app_calculated",
+              "renderingHint": { "render_as": "background" },
+              "rawText": "Hidden domicile snapshot from the linked Ballabgarh HDSS registry person."
             },
             {
               "type": "text",

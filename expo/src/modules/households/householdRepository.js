@@ -442,18 +442,24 @@ async function initializeSqlite(db) {
     );
     CREATE TABLE IF NOT EXISTS blb_registry_individuals (
       uid TEXT PRIMARY KEY NOT NULL,
-      hh_list_no TEXT NOT NULL,
-      family_no TEXT NOT NULL,
-      ind_no TEXT NOT NULL,
-      name TEXT NOT NULL,
+      village_code TEXT,
+      village_name TEXT,
+      phc_code TEXT,
+      phc_name TEXT,
+      hh_list_no TEXT,
+      family_no TEXT,
+      ind_no TEXT,
+      name TEXT NOT NULL DEFAULT '',
       age_years INTEGER,
       sex TEXT,
-      status TEXT NOT NULL DEFAULT 'alive',
-      updated_at TEXT,
-      UNIQUE(hh_list_no, family_no, ind_no)
+      status TEXT,
+      domicile TEXT,
+      curr_status TEXT,
+      death_date TEXT,
+      migrated_out_date TEXT,
+      migration_reason TEXT,
+      source_age_as_of TEXT
     );
-    CREATE INDEX IF NOT EXISTS idx_blb_registry_individuals_lookup
-      ON blb_registry_individuals(hh_list_no, family_no, ind_no);
     CREATE TABLE IF NOT EXISTS form_submissions (
       submission_id TEXT PRIMARY KEY NOT NULL,
       form_code TEXT NOT NULL,
@@ -550,6 +556,70 @@ async function initializeSqlite(db) {
       await db.runAsync(
         "INSERT INTO local_schema_migrations (name, applied_at) VALUES (?, ?)",
         ["household_members.registry.v1", new Date().toISOString()]
+      );
+    }
+
+    if (!applied.has("blb_registry.individuals.v2")) {
+      // Older devices have a legacy unique household/family/individual tuple constraint
+      // and only the reduced first-pass columns. Rebuild the table so the
+      // source UID is the sole identity and tuple duplicates are preserved.
+      const table = await db.getFirstAsync(
+        "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'blb_registry_individuals'",
+      );
+      const columns = await db.getAllAsync("PRAGMA table_info(blb_registry_individuals)");
+      const names = new Set((columns || []).map((column) => column.name));
+      const needsRebuild = !names.has("village_code")
+        || !names.has("domicile")
+        || !names.has("curr_status")
+        || /UNIQUE\s*\(\s*hh_list_no\s*,\s*family_no\s*,\s*ind_no\s*\)/i.test(table?.sql || "");
+      if (needsRebuild) {
+        await db.execAsync("ALTER TABLE blb_registry_individuals RENAME TO blb_registry_individuals_legacy");
+        await db.execAsync(`
+          CREATE TABLE blb_registry_individuals (
+            uid TEXT PRIMARY KEY NOT NULL,
+            village_code TEXT,
+            village_name TEXT,
+            phc_code TEXT,
+            phc_name TEXT,
+            hh_list_no TEXT,
+            family_no TEXT,
+            ind_no TEXT,
+            name TEXT NOT NULL DEFAULT '',
+            age_years INTEGER,
+            sex TEXT,
+            status TEXT,
+            domicile TEXT,
+            curr_status TEXT,
+            death_date TEXT,
+            migrated_out_date TEXT,
+            migration_reason TEXT,
+            source_age_as_of TEXT
+          )
+        `);
+        const legacyNames = new Set((await db.getAllAsync("PRAGMA table_info(blb_registry_individuals_legacy)") || []).map((column) => column.name));
+        const old = (name, fallback = "NULL") => legacyNames.has(name) ? name : fallback;
+        await db.execAsync(`
+          INSERT INTO blb_registry_individuals
+            (uid, village_code, village_name, phc_code, phc_name,
+             hh_list_no, family_no, ind_no, name, age_years, sex, status,
+             domicile, curr_status, death_date, migrated_out_date,
+             migration_reason, source_age_as_of)
+          SELECT ${old("uid")}, ${old("village_code")}, ${old("village_name")},
+             ${old("phc_code")}, ${old("phc_name")}, ${old("hh_list_no")},
+             ${old("family_no")}, ${old("ind_no")}, COALESCE(${old("name", "''")}, ''),
+             ${old("age_years")}, ${old("sex")}, ${old("status")}, ${old("domicile")},
+             ${old("curr_status")}, ${old("death_date")}, ${old("migrated_out_date")},
+             ${old("migration_reason")}, ${old("source_age_as_of")}
+          FROM blb_registry_individuals_legacy
+        `);
+        await db.execAsync("DROP TABLE blb_registry_individuals_legacy");
+      }
+      await db.execAsync(
+        "CREATE INDEX IF NOT EXISTS idx_blb_registry_individuals_lookup ON blb_registry_individuals(village_code, hh_list_no, family_no, ind_no)",
+      );
+      await db.runAsync(
+        "INSERT INTO local_schema_migrations (name, applied_at) VALUES (?, ?)",
+        ["blb_registry.individuals.v2", new Date().toISOString()],
       );
     }
 
@@ -972,6 +1042,9 @@ export async function saveSyncedHouseholdsAndMembers(households = [], members = 
     birth_registration_status: member.birth_registration_status,
     ever_attended_school: member.ever_attended_school,
     highest_grade_completed: member.highest_grade_completed,
+    registry_individual_id: member.registry_individual_id || "",
+    registry_uid: member.registry_uid || "",
+    registry_status: member.registry_status ?? "",
     sync_status: member.sync_status || "synced",
     updated_at: member.updated_at
   }));

@@ -1,97 +1,102 @@
-/** Verifies Ballabgarh registry lookup logic and BHQ roster field wiring. */
+/** Verifies the BHQ registry-link data contract without rendering a screen. */
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import { Model } from "survey-core";
+import { prepareQuestionnaireSurveyJson } from "../modules/questionnaires/questionnaireSurveyJsonTransforms.js";
+import { buildPushRecords } from "../modules/sync/syncWorkflow.js";
 
-const lookup = await import(
-  "../components/forms/renderers/bhqRegistryLookup.js"
-);
+const lookup = await import("../components/forms/renderers/bhqRegistryLookup.js");
 const {
+  BHQ_REGISTRY_AGE_FIELD,
+  BHQ_REGISTRY_DOMICILE_FIELD,
   BHQ_REGISTRY_ID_FIELD,
+  BHQ_REGISTRY_NAME_FIELD,
+  BHQ_REGISTRY_SEX_FIELD,
   BHQ_REGISTRY_STATUS_FIELD,
   BHQ_REGISTRY_UID_FIELD,
   applyRegistryIndividualToPanel,
-  buildRegistryConfirmationMessage,
   buildRegistryFacingId,
   clearRegistryIndividualFromPanel,
-  isBhqRegistrySite,
+  decodeRegistrySex,
+  getPanelRegistryDetails,
+  getRegistryLookupPrefill,
   masterStatusToChoice,
 } = lookup;
 
-// Facing ID format: hh-fam-ind.
-assert.equal(buildRegistryFacingId("105", "01", "2"), "105-01-2");
-assert.equal(buildRegistryFacingId("", "01", "2"), "");
-assert.equal(buildRegistryFacingId("105", null, "2"), "");
-
-// Master status -> roster status choice.
-assert.equal(masterStatusToChoice("alive"), 1);
+assert.equal(buildRegistryFacingId("001", "0105", "01", "02"), "001-0105-01-02");
+assert.equal(buildRegistryFacingId("001", "", "01", "02"), "");
+assert.equal(decodeRegistrySex("1"), "Male");
+assert.equal(decodeRegistrySex("2"), "Female");
+assert.equal(masterStatusToChoice("Resident"), 1);
 assert.equal(masterStatusToChoice("Dead"), 2);
-assert.equal(masterStatusToChoice("EMIGRATED"), 3);
-assert.equal(masterStatusToChoice("unknown-status"), 4);
-assert.equal(masterStatusToChoice(""), 4);
+assert.equal(masterStatusToChoice("E"), 3);
 
-// Confirmation shows name/age/sex and warns on non-alive status.
-const alive = {
-  uid: "BLB-105-01-1-abc",
-  hh_list_no: "105",
-  family_no: "01",
-  ind_no: "1",
-  name: "Ram Kumar",
-  age_years: 45,
-  sex: "M",
-  status: "alive",
-};
-const aliveMessage = buildRegistryConfirmationMessage(alive);
-assert.match(aliveMessage, /105-01-1/);
-assert.match(aliveMessage, /Ram Kumar/);
-assert.match(aliveMessage, /45/);
-assert.match(aliveMessage, /\bM\b/);
-assert.match(aliveMessage, /alive/);
-assert.doesNotMatch(aliveMessage, /WARNING/);
-
-const dead = { ...alive, status: "dead" };
-assert.match(buildRegistryConfirmationMessage(dead), /WARNING/);
-assert.match(buildRegistryConfirmationMessage(dead), /dead/);
-
-// Panel application populates facing ID, hidden uid, and status default.
-const values = new Map();
+const values = new Map([
+  ["member_name", "Interview name"],
+  ["member_age_years", 34],
+]);
 const panel = {
   getQuestionByName: (name) => ({
-    set value(v) {
-      values.set(name, v);
-    },
-    get value() {
-      return values.get(name);
-    },
+    set value(value) { values.set(name, value); },
+    get value() { return values.get(name); },
   }),
 };
-assert.equal(applyRegistryIndividualToPanel(panel, alive), true);
-assert.equal(values.get(BHQ_REGISTRY_ID_FIELD), "105-01-1");
-assert.equal(values.get(BHQ_REGISTRY_UID_FIELD), "BLB-105-01-1-abc");
+const person = {
+  uid: "HDSS-001-0105-01-02",
+  village_code: "001",
+  hh_list_no: "0105",
+  family_no: "01",
+  ind_no: "02",
+  name: "Registry Name",
+  age_years: 42,
+  sex: "1",
+  domicile: "Resident",
+  status: "alive",
+};
+assert.equal(applyRegistryIndividualToPanel(panel, person), true);
+assert.equal(values.get(BHQ_REGISTRY_ID_FIELD), "001-0105-01-02");
+assert.equal(values.get(BHQ_REGISTRY_UID_FIELD), person.uid);
 assert.equal(values.get(BHQ_REGISTRY_STATUS_FIELD), 1);
+assert.equal(values.get(BHQ_REGISTRY_NAME_FIELD), "Registry Name");
+assert.equal(values.get(BHQ_REGISTRY_AGE_FIELD), 42);
+assert.equal(values.get(BHQ_REGISTRY_SEX_FIELD), "1");
+assert.equal(values.get(BHQ_REGISTRY_DOMICILE_FIELD), "Resident");
+assert.deepEqual(getPanelRegistryDetails(panel), {
+  uid: person.uid,
+  originalId: "001-0105-01-02",
+  name: "Registry Name",
+  age: 42,
+  sex: "Male",
+  status: "Resident",
+});
 
-values.clear();
-applyRegistryIndividualToPanel(panel, dead);
+// A replacement overwrites the one stored UID; it does not append another link.
+applyRegistryIndividualToPanel(panel, { ...person, uid: "HDSS-REPLACEMENT", ind_no: "03", sex: "2", domicile: "Dead" });
+assert.equal(values.get(BHQ_REGISTRY_UID_FIELD), "HDSS-REPLACEMENT");
+assert.equal(values.get(BHQ_REGISTRY_ID_FIELD), "001-0105-01-03");
 assert.equal(values.get(BHQ_REGISTRY_STATUS_FIELD), 2);
+assert.equal(getPanelRegistryDetails(panel).sex, "Female");
 
-// Clear removes identity fields but keeps status editable.
-applyRegistryIndividualToPanel(panel, alive);
 clearRegistryIndividualFromPanel(panel);
-assert.equal(values.get(BHQ_REGISTRY_ID_FIELD), undefined);
-assert.equal(values.get(BHQ_REGISTRY_UID_FIELD), undefined);
-assert.equal(values.get(BHQ_REGISTRY_STATUS_FIELD), 1);
+for (const field of [
+  BHQ_REGISTRY_ID_FIELD,
+  BHQ_REGISTRY_UID_FIELD,
+  BHQ_REGISTRY_STATUS_FIELD,
+  BHQ_REGISTRY_NAME_FIELD,
+  BHQ_REGISTRY_AGE_FIELD,
+  BHQ_REGISTRY_SEX_FIELD,
+  BHQ_REGISTRY_DOMICILE_FIELD,
+]) assert.equal(values.get(field), undefined, field);
+assert.equal(values.get("member_name"), "Interview name");
+assert.equal(values.get("member_age_years"), 34);
+assert.equal(getPanelRegistryDetails(panel), null);
 
-// Registry lookup only activates for the BHQ roster on the Ballabgarh site.
-assert.equal(isBhqRegistrySite({ getValue: (name) => (name === "hhq_site_id" ? 2 : null) }), true);
-assert.equal(isBhqRegistrySite({ getValue: () => 1 }), false);
-assert.equal(isBhqRegistrySite({ getValue: () => null }), false);
+assert.deepEqual(getRegistryLookupPrefill({
+  getValue: (name) => ({ hhq_locality_code: "001", hhq_structure_map_id: "0007" }[name]),
+}), { villageCode: "001", houseNo: "0007" });
+assert.deepEqual(getRegistryLookupPrefill({ getValue: () => undefined }), { villageCode: "", houseNo: "" });
 
-// Form JSON carries the three roster fields with the uid hidden.
-const fs = await import("node:fs");
-const form = JSON.parse(
-  fs.readFileSync(
-    new URL("../data/forms/baseline_household_questionnaire_v2026.05.09.json", import.meta.url),
-    "utf8",
-  ),
-);
+const form = JSON.parse(fs.readFileSync(new URL("../data/forms/baseline_household_questionnaire_v2026.05.09.json", import.meta.url), "utf8"));
 function findPanel(element) {
   if (element?.name === "hhq_household_members") return element;
   for (const child of element?.elements || []) {
@@ -100,26 +105,64 @@ function findPanel(element) {
   }
   return null;
 }
-let roster;
-for (const page of form.pages) {
-  for (const element of page.elements || []) {
-    roster = roster || findPanel(element);
-  }
-}
+const roster = form.pages.flatMap((page) => page.elements || []).map(findPanel).find(Boolean);
 assert.ok(roster, "roster panel found");
-const names = roster.templateElements.map((element) => element.name);
-assert.ok(names.includes(BHQ_REGISTRY_ID_FIELD), "facing ID field present");
-assert.ok(names.includes(BHQ_REGISTRY_UID_FIELD), "hidden uid field present");
-assert.ok(names.includes(BHQ_REGISTRY_STATUS_FIELD), "status field present");
-const uidElement = roster.templateElements.find((element) => element.name === BHQ_REGISTRY_UID_FIELD);
-assert.equal(uidElement.renderingHint.render_as, "background");
-const statusElement = roster.templateElements.find(
-  (element) => element.name === BHQ_REGISTRY_STATUS_FIELD,
-);
-assert.equal(statusElement.choices.length, 4);
+const names = new Set(roster.templateElements.map((element) => element.name));
+for (const field of [
+  BHQ_REGISTRY_ID_FIELD,
+  BHQ_REGISTRY_UID_FIELD,
+  BHQ_REGISTRY_STATUS_FIELD,
+  BHQ_REGISTRY_NAME_FIELD,
+  BHQ_REGISTRY_AGE_FIELD,
+  BHQ_REGISTRY_SEX_FIELD,
+  BHQ_REGISTRY_DOMICILE_FIELD,
+]) assert.ok(names.has(field), `${field} present`);
+for (const field of [
+  BHQ_REGISTRY_ID_FIELD,
+  BHQ_REGISTRY_UID_FIELD,
+  BHQ_REGISTRY_STATUS_FIELD,
+  BHQ_REGISTRY_NAME_FIELD,
+  BHQ_REGISTRY_AGE_FIELD,
+  BHQ_REGISTRY_SEX_FIELD,
+  BHQ_REGISTRY_DOMICILE_FIELD,
+]) {
+  const element = roster.templateElements.find((item) => item.name === field);
+  assert.equal(element.renderingHint.render_as, "background", `${field} hidden`);
+}
 assert.deepEqual(
-  statusElement.choices.map((choice) => choice.value),
+  roster.templateElements.find((item) => item.name === BHQ_REGISTRY_STATUS_FIELD).choices.map((choice) => choice.value),
   [1, 2, 3, 4],
 );
 
-console.log("Validated BHQ registry lookup wiring.");
+// Confirm the link fields survive a real Survey Core panel round-trip.
+const survey = new Model(prepareQuestionnaireSurveyJson(form));
+const surveyRoster = survey.getQuestionByName("hhq_household_members");
+surveyRoster.value = [{ member_name: "Interview name", member_age_years: 34 }];
+const surveyPanel = surveyRoster.panels[0];
+applyRegistryIndividualToPanel(surveyPanel, person);
+const resumed = new Model(prepareQuestionnaireSurveyJson(form));
+resumed.data = JSON.parse(JSON.stringify(survey.data));
+assert.deepEqual(getPanelRegistryDetails(resumed.getQuestionByName("hhq_household_members").panels[0]), {
+  uid: person.uid,
+  originalId: "001-0105-01-02",
+  name: "Registry Name",
+  age: 42,
+  sex: "Male",
+  status: "Resident",
+});
+
+const [pushRecord] = buildPushRecords({ formResponses: [{
+  id: "synthetic-linked-bhq",
+  form_code: "HHQ",
+  household_id: "2-001-0105-01",
+  answers_json: JSON.stringify(resumed.data),
+}] });
+const uploadedPerson = pushRecord.data.answers_json.hhq_household_members[0];
+assert.equal(uploadedPerson.member_registry_uid, person.uid, "the exact exported hdss_unique_id must survive mobile sync");
+assert.equal(uploadedPerson.member_registry_individual_id, "001-0105-01-02");
+assert.equal(uploadedPerson.member_registry_name, person.name);
+assert.equal(uploadedPerson.member_registry_age_years, person.age_years);
+assert.equal(uploadedPerson.member_registry_sex, person.sex);
+assert.equal(uploadedPerson.member_registry_domicile, person.domicile);
+
+console.log("Validated BHQ registry link snapshots, replacement, unlink, prefill, form wiring, and sync payload.");

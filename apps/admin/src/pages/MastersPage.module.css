@@ -9,6 +9,7 @@
 
 .tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
   border-bottom: 2px solid #ddd;
   margin-bottom: 2rem;
@@ -150,6 +151,43 @@
   padding: 1rem;
   border-radius: 4px;
   margin-bottom: 1rem;
+}
+
+.success {
+  background-color: #dcfce7;
+  color: #166534;
+  padding: 1rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+}
+
+.uploadForm {
+  display: flex;
+  align-items: end;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 1.25rem;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+.fileLabel {
+  display: grid;
+  gap: 0.5rem;
+  min-width: min(100%, 360px);
+  color: #333;
+  font-weight: 600;
+}
+
+.fileLabel input {
+  font-weight: 400;
+}
+
+.uploadHelp {
+  margin: 0.5rem 0 1.25rem;
+  color: #59677d;
+  line-height: 1.5;
 }
 
 .tableContainer {

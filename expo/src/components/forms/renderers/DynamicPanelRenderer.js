@@ -2,7 +2,7 @@
  * Renders repeat entries with a count, explicit row selection, editing, addition, and deletion.
  */
 import React, { useEffect, useRef, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
 import {
@@ -36,129 +36,14 @@ import {
 } from "./bhqVisitorConfirmation.js";
 import {
   applyRegistryIndividualToPanel,
-  BHQ_REGISTRY_ID_FIELD,
-  BHQ_REGISTRY_STATUS_CHOICES,
-  BHQ_REGISTRY_STATUS_FIELD,
-  buildRegistryConfirmationMessage,
   clearRegistryIndividualFromPanel,
+  getPanelRegistryDetails,
   isBhqRegistrySite,
 } from "./bhqRegistryLookup.js";
+import { BhqRegistryLookupDrawer } from "./BhqRegistryLookupDrawer.js";
 
 const MOBILE_CONFIRMATION_MESSAGE =
   "Read this mobile number to the Respondent and confirm whether the number is correct or not.";
-
-function BhqRegistryLookupSection({ activePanel, onChange }) {
-  const [hhListNo, setHhListNo] = useState("");
-  const [familyNo, setFamilyNo] = useState("");
-  const [indNo, setIndNo] = useState("");
-  const [busy, setBusy] = useState(false);
-  const matchedId = activePanel.getQuestionByName?.(BHQ_REGISTRY_ID_FIELD)?.value || "";
-  const matchedStatus = activePanel.getQuestionByName?.(BHQ_REGISTRY_STATUS_FIELD)?.value;
-  const statusLabel =
-    BHQ_REGISTRY_STATUS_CHOICES.find((choice) => choice.value === Number(matchedStatus))?.text ||
-    "";
-
-  async function runLookup() {
-    if (busy) return;
-    setBusy(true);
-    try {
-      const { findBlbRegistryIndividual } = await import(
-        "../../../modules/households/blbRegistryRepository.js"
-      );
-      const individual = await findBlbRegistryIndividual(hhListNo, familyNo, indNo);
-      if (!individual) {
-        Alert.alert(
-          "Not found in master list",
-          "No individual matches this household/family/individual number. " +
-            "Leave the master list fields empty to record the member without a registry ID.",
-        );
-        return;
-      }
-      Alert.alert(
-        "Confirm individual from master list",
-        buildRegistryConfirmationMessage(individual),
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Confirm",
-            onPress: () => {
-              applyRegistryIndividualToPanel(activePanel, individual);
-              onChange?.();
-            },
-          },
-        ],
-        { cancelable: false },
-      );
-    } catch (error) {
-      console.warn("BLB registry lookup failed:", error);
-      Alert.alert("Lookup failed", "Could not search the master list. Try again after sync.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  function clearMatch() {
-    clearRegistryIndividualFromPanel(activePanel);
-    onChange?.();
-  }
-
-  return (
-    <View style={styles.registryLookupWrap}>
-      <Text style={styles.registryLookupTitle}>Master list lookup (Ballabgarh)</Text>
-      {matchedId ? (
-        <View style={styles.registryMatchedRow}>
-          <Text style={styles.registryMatchedText}>
-            {`Matched: ${matchedId}${statusLabel ? ` · ${statusLabel}` : ""}`}
-          </Text>
-          <Pressable accessibilityLabel="Clear master list match" hitSlop={6} onPress={clearMatch}>
-            <Text style={styles.registryClearText}>Clear</Text>
-          </Pressable>
-        </View>
-      ) : (
-        <Text style={styles.registryHintText}>
-          Enter the household, family, and individual number from the existing master list.
-        </Text>
-      )}
-      <View style={styles.registryInputRow}>
-        <TextInput
-          accessibilityLabel="Master list household number"
-          keyboardType="number-pad"
-          onChangeText={setHhListNo}
-          placeholder="HH No"
-          style={styles.registryInput}
-          value={hhListNo}
-        />
-        <TextInput
-          accessibilityLabel="Master list family number"
-          keyboardType="number-pad"
-          onChangeText={setFamilyNo}
-          placeholder="Fam No"
-          style={styles.registryInput}
-          value={familyNo}
-        />
-        <TextInput
-          accessibilityLabel="Master list individual number"
-          keyboardType="number-pad"
-          onChangeText={setIndNo}
-          placeholder="Ind No"
-          style={styles.registryInput}
-          value={indNo}
-        />
-        <Pressable
-          disabled={busy || !hhListNo.trim() || !familyNo.trim() || !indNo.trim()}
-          onPress={runLookup}
-          style={[
-            styles.registryLookupButton,
-            (!hhListNo.trim() || !familyNo.trim() || !indNo.trim() || busy) &&
-              styles.registryLookupButtonDisabled,
-          ]}
-        >
-          <Text style={controlStyles.buttonText}>{busy ? "…" : "Look up"}</Text>
-        </Pressable>
-      </View>
-    </View>
-  );
-}
 
 function isRenderablePanelQuestion(child, multipleBirth) {
   if (child?.visible === false || child?.isVisible === false) return false;
@@ -200,6 +85,7 @@ export function DynamicPanelRenderer({
   const [editingIndex, setEditingIndex] = useState(null);
   const [editorMode, setEditorMode] = useState(null);
   const [initialAddOpened, setInitialAddOpened] = useState(false);
+  const [registryPanel, setRegistryPanel] = useState(null);
   const visitorPromptOpenRef = useRef(false);
   const topLevelFocusRef = useRef(onRequestTopLevelFocus);
   topLevelFocusRef.current = onRequestTopLevelFocus;
@@ -210,7 +96,11 @@ export function DynamicPanelRenderer({
     .filter(({ panel, index }) =>
       panelHasAnswer(panel) && (editorMode !== "add" || index !== editingIndex)
     );
+  const linkedRegistryUids = new Set(
+    panels.map((panel) => getPanelRegistryDetails(panel)?.uid).filter(Boolean)
+  );
   const isWqPregnancyHistory = question.name === WQ_PREGNANCY_HISTORY_PANEL_FIELD;
+  const registryEnabled = question.name === "hhq_household_members" && isBhqRegistrySite(question.survey);
   const pregnancyGroups = isWqPregnancyHistory
     ? groupWqPregnancyHistoryPanels(panels)
         .map((group) => ({
@@ -228,6 +118,10 @@ export function DynamicPanelRenderer({
       setEditorMode(null);
     }
   }, [editingIndex, panels.length]);
+
+  useEffect(() => {
+    if (registryPanel && !findPanelByIdentity(panels, registryPanel)) setRegistryPanel(null);
+  }, [panels, registryPanel]);
 
   useEffect(() => {
     if (question.dynamicAddRequestToken === undefined) return;
@@ -286,6 +180,28 @@ export function DynamicPanelRenderer({
       setEditingIndex(index);
     }
     setEditorMode("add");
+    onChange?.();
+  }
+
+  function openRegistryLookup(panel) {
+    if (!registryEnabled || !isWritableRegistryPanel(panel)) return;
+    setRegistryPanel(panel);
+  }
+
+  function selectRegistryPerson(person) {
+    const target = findPanelByIdentity(panels, registryPanel);
+    if (!target || !isWritableRegistryPanel(target)) {
+      setRegistryPanel(null);
+      return;
+    }
+    applyRegistryIndividualToPanel(target, person);
+    setRegistryPanel(null);
+    onChange?.();
+  }
+
+  function unlinkRegistryPerson(panel) {
+    if (!isWritableRegistryPanel(panel)) return;
+    clearRegistryIndividualFromPanel(panel);
     onChange?.();
   }
 
@@ -588,7 +504,10 @@ export function DynamicPanelRenderer({
             number={index + 1}
             onDelete={removeEntry}
             onEdit={startEditing}
+            onRegistryClear={() => unlinkRegistryPerson(panel)}
+            onRegistryLookup={() => openRegistryLookup(panel)}
             question={question}
+            registryEnabled={registryEnabled}
             selected={editorMode === "edit" && index === editingIndex}
           />
         ))}
@@ -608,10 +527,11 @@ export function DynamicPanelRenderer({
               <MaterialCommunityIcons color="#475467" name="close-circle-outline" size={22} />
             </Pressable>
           </View>
-          {question.name === "hhq_household_members" && isBhqRegistrySite(question.survey) ? (
-            <BhqRegistryLookupSection
-              activePanel={panels[editingIndex]}
-              onChange={onChange}
+          {registryEnabled ? (
+            <RegistryLinkControl
+              onClear={() => unlinkRegistryPerson(panels[editingIndex])}
+              onOpen={() => openRegistryLookup(panels[editingIndex])}
+              panel={panels[editingIndex]}
             />
           ) : null}
           {(panels[editingIndex].questions || [])
@@ -650,66 +570,31 @@ export function DynamicPanelRenderer({
           <Text style={controlStyles.buttonText}>{question.addPanelText || "Add row"}</Text>
         </Pressable>
       ) : null}
+      {registryPanel ? (
+        <BhqRegistryLookupDrawer
+          key={registryPanel.id || panels.indexOf(registryPanel)}
+          linkedUids={new Set([...linkedRegistryUids].filter((uid) => uid !== getPanelRegistryDetails(findPanelByIdentity(panels, registryPanel) || registryPanel)?.uid))}
+          onClose={() => setRegistryPanel(null)}
+          onSelect={selectRegistryPerson}
+          survey={question.survey}
+        />
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  registryLookupWrap: {
-    borderWidth: 1,
-    borderColor: "#d0d5dd",
-    borderRadius: 8,
-    padding: 10,
-    marginBottom: 10,
-    backgroundColor: "#f9fafb",
-  },
-  registryLookupTitle: {
-    fontWeight: "600",
-    marginBottom: 6,
-  },
-  registryHintText: {
-    color: "#475467",
-    marginBottom: 6,
-  },
-  registryMatchedRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 6,
-  },
-  registryMatchedText: {
-    fontWeight: "600",
-    color: "#067647",
-    flexShrink: 1,
-  },
-  registryClearText: {
-    color: "#b42318",
-    fontWeight: "600",
-  },
-  registryInputRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  registryInput: {
-    flex: 1,
-    minWidth: 60,
-    borderWidth: 1,
-    borderColor: "#d0d5dd",
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    backgroundColor: "#ffffff",
-  },
-  registryLookupButton: {
-    backgroundColor: "#1f6feb",
-    borderRadius: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  registryLookupButtonDisabled: {
-    backgroundColor: "#98a2b3",
-  },
+  registryControl: { gap: 6, padding: 9, borderWidth: 1, borderColor: "#b9cbe3", borderRadius: 8, backgroundColor: "#ffffff" },
+  registryControlHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  registryControlTitle: { color: "#1f4d7a", fontSize: 12, fontWeight: "900" },
+  registryChip: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 9, paddingVertical: 7, borderWidth: 1, borderColor: "#a6f4c5", borderRadius: 8, backgroundColor: "#ecfdf3" },
+  registryChipCompact: { maxWidth: 185, minWidth: 115, flexShrink: 1 },
+  registryChipBody: { minWidth: 0, flex: 1, gap: 1 },
+  registryChipId: { color: "#027a48", fontSize: 12, fontWeight: "900" },
+  registryChipDetails: { color: "#344054", fontSize: 11 },
+  registryChipButton: { alignSelf: "flex-start", minHeight: 36, minWidth: 36, alignItems: "center", justifyContent: "center" },
+  registryLookupPressable: { minHeight: 38, alignItems: "center", justifyContent: "center", paddingHorizontal: 12, borderRadius: 7, backgroundColor: "#eef6ff" },
+  registryLookupText: { color: "#1f6feb", fontSize: 12, fontWeight: "900" },
   wrap: { gap: 8 },
   dedicatedEditor: { paddingBottom: 8 },
   dedicatedEditorHeader: { minHeight: 58, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, paddingHorizontal: 2, paddingBottom: 4, borderBottomWidth: 1, borderBottomColor: "#d0d5dd" },
@@ -767,6 +652,16 @@ function panelHasAnswer(panel) {
   });
 }
 
+function isWritableRegistryPanel(panel) {
+  if (!panel || panel.isReadOnly || panel.readOnly) return false;
+  return (panel.questions || []).some((child) => !child?.isReadOnly && !child?.readOnly);
+}
+
+function findPanelByIdentity(panels, target) {
+  if (!target) return null;
+  return panels.find((panel) => panel === target || (target.id && panel.id === target.id)) || null;
+}
+
 function clearPanelValues(panel) {
   (panel?.questions || []).forEach((child) => {
     if (typeof child.clearValue === "function") child.clearValue();
@@ -811,7 +706,43 @@ function getPanelEditorTitle(panels, editingIndex, editorMode, isWqPregnancyHist
   return editorMode === "add" ? "New entry" : `Edit entry ${editingIndex + 1}`;
 }
 
-function EntryRow({ entryLabel, index, number, onDelete, onEdit, prefixLabel, question, selected }) {
+function RegistryLinkControl({ onClear, onOpen, panel, compact = false }) {
+  const details = getPanelRegistryDetails(panel);
+  if (!details) {
+    return (
+      <Pressable
+        accessibilityLabel="Find HDSS person"
+        accessibilityRole="button"
+        onPress={onOpen}
+        style={styles.registryLookupPressable}
+      >
+        <Text style={styles.registryLookupText}>Lookup</Text>
+      </Pressable>
+    );
+  }
+  const summary = [details.name, details.age === null || details.age === undefined ? null : `${details.age} years`, details.sex, details.status]
+    .filter(Boolean)
+    .join(" · ");
+  return (
+    <View style={[styles.registryChip, compact && styles.registryChipCompact]}>
+      <Pressable accessibilityLabel="Replace linked HDSS person" onPress={onOpen} style={styles.registryChipBody}>
+        <Text selectable style={styles.registryChipId}>{details.originalId}</Text>
+        <Text selectable style={styles.registryChipDetails}>{summary || "HDSS record linked"}</Text>
+      </Pressable>
+      <Pressable
+        accessibilityLabel="Unlink HDSS person"
+        accessibilityRole="button"
+        hitSlop={6}
+        onPress={onClear}
+        style={styles.registryChipButton}
+      >
+        <MaterialCommunityIcons color="#b42318" name="close" size={19} />
+      </Pressable>
+    </View>
+  );
+}
+
+function EntryRow({ entryLabel, index, number, onDelete, onEdit, onRegistryClear, onRegistryLookup, prefixLabel, question, registryEnabled, selected }) {
   return (
     <View style={[styles.entryRow, selected && styles.entryRowActive]}>
       <Pressable
@@ -826,6 +757,14 @@ function EntryRow({ entryLabel, index, number, onDelete, onEdit, prefixLabel, qu
         </View>
         <MaterialCommunityIcons color="#475467" name="pencil-outline" size={19} />
       </Pressable>
+      {registryEnabled ? (
+        <RegistryLinkControl
+          compact
+          onClear={onRegistryClear}
+          onOpen={onRegistryLookup}
+          panel={question.panels?.[index]}
+        />
+      ) : null}
       {question.allowRemovePanel !== false ? (
         <Pressable
           accessibilityLabel={`Delete entry ${index + 1}`}

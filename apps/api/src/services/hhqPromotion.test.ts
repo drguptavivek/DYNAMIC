@@ -30,6 +30,9 @@ test("builds household and member values from finalized HHQ answers", () => {
         member_age_years: 35,
         member_marital_status: 1,
         member_woman_questionnaire_eligible: 1,
+        member_registry_uid: "TEST-HDSS-00000!",
+        member_registry_individual_id: "001-0004-03-01",
+        member_registry_status: 2,
       },
     ],
   };
@@ -64,4 +67,17 @@ test("builds household and member values from finalized HHQ answers", () => {
   assert.equal(member.date_of_birth, "1991-01-01");
   assert.equal(member.date_of_birth_precision, "inferred_from_age");
   assert.equal(member.woman_questionnaire_eligible, true);
+  assert.equal(member.registry_uid, "TEST-HDSS-00000!");
+  assert.equal(member.registry_individual_id, "001-0004-03-01");
+  assert.equal(String(member.registry_status), "2");
+  const unlinked = buildHhqMemberPromotionValues(household, {
+    ...answers.hhq_household_members[0],
+    member_registry_uid: undefined,
+    member_registry_individual_id: undefined,
+    member_registry_status: undefined,
+  }, 0, "2026-09-01", now);
+  assert.equal(unlinked.registry_uid, null, "unlink must clear an existing server projection");
+  assert.equal(unlinked.registry_individual_id, null);
+  assert.equal(unlinked.registry_status, null);
+  assert.equal(unlinked.name, "Member Two");
 });
