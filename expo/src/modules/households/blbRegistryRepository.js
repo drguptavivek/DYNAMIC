@@ -1,9 +1,8 @@
 /**
  * Offline cache for the Ballabgarh household/individual master registry.
  *
- * Registry replacement is intentionally all-or-nothing. The sync service
- * fetches every page before calling replaceBlbRegistry, and this module only
- * swaps the old cache after the complete replacement transaction succeeds.
+ * Download pages are saved to isolated staging tables. Readers retain the
+ * previous complete cache until the final replacement transaction succeeds.
  */
 import { Platform } from "react-native";
 
@@ -257,6 +256,111 @@ export async function replaceBlbRegistry({
     getCurrentScopeFingerprint,
     onProgress,
   }));
+}
+
+/** Save each downloaded page without exposing an incomplete registry to readers. */
+export async function withBlbRegistryDownload({
+  download,
+  expectedGeneration = getRegistrySessionGeneration(),
+  expectedScopeFingerprint = null,
+  getCurrentScopeFingerprint = null,
+  beforeCommit = null,
+}) {
+  return withRegistryCacheLock(async () => {
+    const guard = () => {
+      if (expectedGeneration !== getRegistrySessionGeneration()) {
+        throw new Error("BLB registry session changed during download");
+      }
+      if (expectedScopeFingerprint !== null && typeof getCurrentScopeFingerprint === "function"
+        && getCurrentScopeFingerprint() !== expectedScopeFingerprint) {
+        throw new Error("BLB registry assignment scope changed during download");
+      }
+    };
+    guard();
+    if (Platform.OS === "web") {
+      // Browser localStorage has no staging transaction; retain its atomic single-value replacement.
+      let next = null;
+      const result = await download(async (page) => {
+        guard();
+        next ||= emptyRegistry();
+        next.households.push(...(Array.isArray(page?.households) ? page.households : []));
+        next.individuals.push(...(Array.isArray(page?.individuals) ? page.individuals : []));
+      });
+      guard();
+      if (!next) return result;
+      if (typeof beforeCommit === "function") beforeCommit();
+      guard();
+      const counts = await replaceBlbRegistryLocked({ ...next, expectedGeneration,
+        expectedScopeFingerprint, getCurrentScopeFingerprint });
+      return { ...result, ...counts };
+    }
+
+    const db = getOfflineDatabase();
+    const tables = ["blb_registry_households", "blb_registry_individuals"];
+    const dropStages = tables.map((table) => `DROP TABLE IF EXISTS ${table}_download;`).join("\n");
+    let started = false;
+    let households = 0;
+    let individuals = 0;
+    const now = new Date().toISOString();
+    const writeRows = async (table, columns, rows, normalizeRow, valuesForRow) => {
+      for (let offset = 0; offset < rows.length; offset += 1000) {
+        guard();
+        const batch = rows.slice(offset, offset + 1000).map(normalizeRow).map(valuesForRow);
+        // Each statement autocommits without enclosing concurrent form writes in our transaction.
+        await db.runAsync(
+          `INSERT INTO ${table}_download (${columns.join(", ")})
+           SELECT ${columns.map((_, index) => `json_extract(value, '$[${index}]')`).join(", ")}
+           FROM json_each(?)`,
+          [JSON.stringify(batch)],
+        );
+        guard();
+      }
+    };
+    try {
+      const result = await download(async (page) => {
+        guard();
+        if (!started) {
+          started = true;
+          await db.execAsync(dropStages + tables.map((table) =>
+            `CREATE TABLE ${table}_download AS SELECT * FROM ${table} WHERE 0;`).join("\n"));
+          guard();
+        }
+        const pageHouseholds = Array.isArray(page?.households) ? page.households : [];
+        const pageIndividuals = Array.isArray(page?.individuals) ? page.individuals : [];
+        await writeRows(tables[0], ["hh_list_no", "family_no", "head_name", "address", "updated_at"],
+          pageHouseholds, normalizeHousehold, (row) => [row.hh_list_no, row.family_no,
+            row.head_name || null, row.address || null, row.updated_at || now]);
+        const columns = ["uid", "village_code", "village_name", "phc_code", "phc_name", "hh_list_no",
+          "family_no", "ind_no", "name", "age_years", "sex", "status", "domicile", "curr_status",
+          "death_date", "migrated_out_date", "migration_reason", "source_age_as_of"];
+        await writeRows(tables[1], columns, pageIndividuals, normalizeIndividual,
+          (row) => columns.map((column) => row[column]));
+        households += pageHouseholds.length;
+        individuals += pageIndividuals.length;
+      });
+      guard();
+      if (!started) return result;
+      if (typeof beforeCommit === "function") beforeCommit();
+      guard();
+      // Keep the complete promotion in one native call without blocking the JavaScript thread.
+      try {
+        await db.execAsync(`BEGIN TRANSACTION;
+          ${tables.map((table) => `DELETE FROM ${table}; INSERT INTO ${table} SELECT * FROM ${table}_download;`).join("\n")}
+          ${dropStages}
+          COMMIT;`);
+      } catch (error) {
+        try { await db.execAsync("ROLLBACK"); } catch { /* retain original error */ }
+        throw error;
+      }
+      guard();
+      return { ...result, households, individuals };
+    } catch (error) {
+      if (started) {
+        try { await db.execAsync(dropStages); } catch { /* retain original error; logout also clears staging */ }
+      }
+      throw error;
+    }
+  });
 }
 
 export async function getBlbRegistryCounts() {

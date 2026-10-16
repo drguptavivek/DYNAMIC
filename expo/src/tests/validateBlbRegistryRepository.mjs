@@ -13,6 +13,7 @@ import {
 } from "../modules/households/blbRegistryScope.js";
 import {
   invalidateRegistrySession,
+  getRegistrySessionSignal,
   withRegistryCacheLock,
 } from "../modules/storage/registryCacheLifecycle.js";
 
@@ -60,7 +61,10 @@ const firstLock = withRegistryCacheLock(async () => {
 const secondLock = withRegistryCacheLock(async () => { lockOrder.push("second"); });
 await Promise.resolve();
 assert.deepEqual(lockOrder, ["first"]);
+const previousSignal = getRegistrySessionSignal();
 invalidateRegistrySession();
+assert.equal(previousSignal.aborted, true, "logout cancels a pending network request holding the download lock");
+assert.equal(getRegistrySessionSignal().aborted, false, "the next account receives a fresh signal");
 releaseFirst();
 await Promise.all([firstLock, secondLock]);
 assert.deepEqual(lockOrder, ["first", "first-done", "second"]);
@@ -166,7 +170,7 @@ await assert.rejects(() => scopeApi.replaceBlbRegistry({
 assert.ok(scopeLog.includes("ROLLBACK"));
 
 // The pull loop requests bounded pages, follows opaque cursors, validates
-// every page, and only calls the atomic cache replacement after all pages pass.
+// every page, saves each page before continuing, and activates only a complete cache.
 assert.match(sync, /BLB_REGISTRY_PAGE_SIZE = 1000/);
 assert.match(sync, /params\.set\("cursor", cursor\)/);
 assert.match(sync, /session changed during pull/);
@@ -179,32 +183,52 @@ async function runPull(responses, options = {}) {
   let counts = options.counts || { households: 0, individuals: 0 };
   const progress = [];
   const urls = [];
+  const events = [];
   const context = {
     API_BASE_URL: "https://example.test/api",
     URLSearchParams,
     getRegistrySessionGeneration: () => options.generation ?? 0,
+    getRegistrySessionSignal: () => options.signal,
     getBlbRegistryScopeFingerprint,
     authStore: { getToken: () => null, getUser: () => options.user ?? null },
     getMeta: () => marker,
     setMeta: (_key, value) => { marker = value; },
     getBlbRegistryCounts: async () => counts,
-    emitProgress: (callback, value) => callback?.(value),
+    emitProgress: (callback, value) => { events.push("progress"); callback?.(value); },
     unwrapApiData: (payload) => payload?.data ?? payload,
-    replaceBlbRegistry: async (args) => {
-      replaceArgs = args;
+    withBlbRegistryDownload: async (args) => {
+      const households = [];
+      const individuals = [];
+      const metadata = await args.download(async (page) => {
+        households.push(...page.households);
+        individuals.push(...page.individuals);
+        events.push("saved-page");
+      });
+      if (metadata.unchanged) return metadata;
+      args.beforeCommit?.();
+      replaceArgs = { ...args, households, individuals };
       if (options.replaceError) throw new Error(options.replaceError);
-      counts = { households: args.households.length, individuals: args.individuals.length };
-      args.onProgress?.({ processed: counts.individuals, total: counts.individuals });
+      counts = { households: households.length, individuals: individuals.length };
+      events.push("activated");
       options.afterReplace?.(options);
-      return counts;
+      return { ...metadata, ...counts };
     },
   };
   vm.runInNewContext(`const BLB_REGISTRY_PAGE_SIZE = 1000; ${pullSource}\nthis.run = pullBlbRegistry;`, context);
   let index = 0;
-  const fetchImpl = async (url) => { urls.push(url); options.beforeResponse?.(options, index); return responses[index++]; };
+  const fetchImpl = async (url, request) => {
+    events.push("fetch");
+    urls.push(url);
+    assert.equal(request.signal, options.signal);
+    options.beforeResponse?.(options, index);
+    if (options.awaitAbort) {
+      return new Promise((_resolve, reject) => request.signal.addEventListener("abort", () => reject(new Error("request aborted")), { once: true }));
+    }
+    return responses[index++];
+  };
   try {
     const result = await context.run({ fetchImpl, token: "synthetic-token", onProgress: (value) => progress.push(value) });
-    return { result, replaceArgs, lastUrl: urls.at(-1), calls: index, marker, progress, urls };
+    return { result, replaceArgs, lastUrl: urls.at(-1), calls: index, marker, progress, urls, events };
   } catch (error) {
     error.marker = marker;
     error.replaceArgs = replaceArgs;
@@ -225,11 +249,37 @@ const failed = await runPull([
   { ok: false, status: 503 },
 ]).catch((error) => error);
 assert.match(failed.message, /BLB registry pull failed: 503/);
+const pendingController = new AbortController();
+const aborted = await runPull([], { signal: pendingController.signal, awaitAbort: true,
+  beforeResponse: () => queueMicrotask(() => pendingController.abort()),
+}).catch((error) => error);
+assert.match(aborted.message, /request aborted/);
+assert.equal(aborted.replaceArgs, null, "cancelled requests cannot activate a cache");
 
 const versionA = "a".repeat(64);
 const versionB = "b".repeat(64);
 const cacheMarker = JSON.stringify({ version: versionA, userId: null, scope: "", households: 0, individuals: 1 });
 const pageResponse = (data) => ({ ok: true, json: async () => ({ data }) });
+const countedPull = await runPull([
+  pageResponse({ households: [], individuals: [{ uid: "one" }, { uid: "two" }], total_individuals: 3, next_cursor: "last" }),
+  pageResponse({ households: [], individuals: [{ uid: "three" }], next_cursor: null }),
+]);
+assert.equal(countedPull.calls, 2, "the count arrives with page one, without a counting/download pass");
+const downloadProgress = countedPull.progress.filter((item) => item.stage === "pull-blb-registry");
+assert.equal(downloadProgress[0].message, "2 downloaded out of 3");
+assert.equal(downloadProgress[1].message, "3 downloaded out of 3");
+assert.equal(downloadProgress[1].total, 3, "retain first-page total when later pages omit it");
+assert.deepEqual(countedPull.events, ["fetch", "saved-page", "progress", "fetch", "saved-page", "activated", "progress"],
+  "advance only after saving each page; report final count only after the complete cache is activated");
+assert.ok(!countedPull.progress.some((item) => item.stage === "save-blb-registry"));
+assert.equal(countedPull.replaceArgs.individuals.length, 3);
+for (const total of [undefined, null, -1, 1.5, "3", 0]) {
+  const fallback = await runPull([pageResponse({ households: [], individuals: [{ uid: "valid" }], total_individuals: total })]);
+  assert.equal(fallback.progress[0].message, "1 HDSS people downloaded");
+  assert.equal(fallback.replaceArgs.individuals.length, 1, "optional totals never reject or truncate valid records");
+}
+const emptyCountedPull = await runPull([pageResponse({ households: [], individuals: [], total_individuals: 0 })]);
+assert.equal(emptyCountedPull.progress[0].message, "0 downloaded out of 0");
 const unchangedResponse = pageResponse({ households: [], individuals: [], next_cursor: null, registry_version: versionA, not_modified: true });
 const cachedPull = await runPull([unchangedResponse], { marker: cacheMarker, counts: { households: 0, individuals: 1 } });
 assert.equal(cachedPull.calls, 1);
@@ -267,7 +317,7 @@ const refreshedPull = await runPull([
 ], { marker: cacheMarker, counts: { households: 0, individuals: 1 } });
 assert.equal(JSON.parse(refreshedPull.marker).version, versionB);
 assert.equal(refreshedPull.result.individuals, 1);
-assert.ok(refreshedPull.progress.some((item) => item.stage === "save-blb-registry"));
+assert.ok(refreshedPull.progress.every((item) => item.stage === "pull-blb-registry"));
 const changedMidPull = await runPull([
   pageResponse({ households: [], individuals: [], next_cursor: "next", registry_version: versionA }),
   pageResponse({ households: [], individuals: [], next_cursor: null, registry_version: versionB }),

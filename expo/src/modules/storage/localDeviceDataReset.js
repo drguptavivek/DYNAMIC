@@ -31,6 +31,8 @@ const NATIVE_TABLES_TO_CLEAR = [
   "households",
   "blb_registry_households",
   "blb_registry_individuals",
+  "blb_registry_households_download",
+  "blb_registry_individuals_download",
   "study_sites",
   "study_villages",
   "sync_meta",
@@ -68,7 +70,8 @@ async function clearNativeSqlite() {
       }
     }
   }
-  for (const table of ["blb_registry_households", "blb_registry_individuals"]) {
+  for (const table of ["blb_registry_households", "blb_registry_individuals",
+    "blb_registry_households_download", "blb_registry_individuals_download"]) {
     try {
       const row = await db.getFirstAsync(`SELECT COUNT(*) AS count FROM ${table}`);
       if (Number(row?.count || 0) !== 0) registryClearFailed = true;

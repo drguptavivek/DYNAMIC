@@ -1834,6 +1834,12 @@ router.get(
         if (!cursor && knownVersion === registryVersion) {
           return { changed: false as const, generation, registryVersion, notModified: true, individuals: [], hasMore: false };
         }
+        const totalIndividuals = !cursor
+          ? (await tx
+            .select({ count: sql<number>`cast(count(*) as integer)` })
+            .from(schema.blbRegistryIndividuals)
+            .where(scope))[0].count
+          : undefined;
         const conditions = [];
         if (scope) conditions.push(scope);
         if (cursor) conditions.push(gt(schema.blbRegistryIndividuals.uid, cursor.uid));
@@ -1845,7 +1851,7 @@ router.get(
           .limit(requestedLimit + 1);
         const hasMore = page.length > requestedLimit;
         const individuals = hasMore ? page.slice(0, requestedLimit) : page;
-        return { changed: false as const, generation, registryVersion, notModified: false, individuals, hasMore };
+        return { changed: false as const, generation, registryVersion, notModified: false, individuals, hasMore, totalIndividuals };
       }, { isolationLevel: "repeatable read" });
       if (result.changed) {
         sendError(res, 409, "REGISTRY_CHANGED", "Registry changed; restart the lookup");
@@ -1861,6 +1867,7 @@ router.get(
           individuals,
           registry_version: registryVersion,
           not_modified: notModified,
+          ...("totalIndividuals" in result ? { total_individuals: result.totalIndividuals } : {}),
           next_cursor: hasMore
             ? encodeHdssRegistryCursor({
                 uid: individuals[individuals.length - 1]?.uid ?? "",
