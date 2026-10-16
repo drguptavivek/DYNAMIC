@@ -77,6 +77,9 @@ const user = {
   ],
 };
 
+assert.match(formatSyncCompletionMessage({ blbRegistrySync: { success: true, counts: { individuals: 164529 } } }), /164529 HDSS people available offline/);
+assert.match(formatSyncCompletionMessage({ blbRegistrySync: { success: true, counts: { individuals: 0 } } }), /No HDSS people match your assigned villages/);
+
 assert.deepEqual(collectAssignedLocalityCodes(user, "2026-06-04"), ["01", "02"]);
 
 const records = buildPushRecords({

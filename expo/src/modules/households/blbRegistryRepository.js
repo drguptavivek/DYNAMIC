@@ -8,6 +8,7 @@
 import { Platform } from "react-native";
 
 import { getOfflineDatabase } from "../storage/offlineDatabase";
+import { getBlbRegistryVillageSearchScope } from "./blbRegistryScope.js";
 import {
   getRegistrySessionGeneration,
   withRegistryCacheLock,
@@ -298,17 +299,17 @@ export async function searchBlbRegistryPeople({
   offset = 0,
   limit = 50,
 } = {}, allowedVillageCodes = []) {
-  const village = String(villageCode ?? "").trim();
-  if (!village || !isAllowedVillage(village, allowedVillageCodes)) return [];
+  const villages = getBlbRegistryVillageSearchScope(villageCode, allowedVillageCodes);
+  if (!villages.length) return [];
   const house = String(houseNo ?? "").trim();
   const normalizedSearch = normalizeSearchValue(search);
   const pageOffset = normalizePage(offset, 0);
   const pageLimit = normalizePage(limit, 50, 50) || 50;
 
   if (Platform.OS !== "web") {
-    const values = [village];
+    const values = [...villages];
     let sql = `SELECT * FROM blb_registry_individuals
-      WHERE village_code = ?`;
+      WHERE trim(village_code) IN (${villages.map(() => "?").join(",")})`;
     if (house) {
       sql += " AND trim(hh_list_no) = ?";
       values.push(house);
@@ -328,7 +329,7 @@ export async function searchBlbRegistryPeople({
   }
 
   const rows = readWebRegistry().individuals
-    .filter((individual) => String(individual.village_code ?? "").trim() === village)
+    .filter((individual) => villages.includes(String(individual.village_code ?? "").trim()))
     .filter((individual) => !house || String(individual.hh_list_no ?? "").trim() === house)
     .filter((individual) => {
       if (!normalizedSearch) return true;

@@ -244,6 +244,11 @@ export function formatSyncCompletionMessage(result = {}) {
   const parts = [];
   if (result.blbRegistrySync?.success === false) {
     parts.push("HDSS lookup was not refreshed; sync again before using it");
+  } else if (result.blbRegistrySync?.success === true) {
+    const people = result.blbRegistrySync.counts?.individuals ?? result.blbRegistrySync.individuals;
+    if (typeof people === "number") {
+      parts.push(people > 0 ? `${people} HDSS people available offline` : "No HDSS people match your assigned villages");
+    }
   }
   const pluralize = (count, singular, plural = `${singular}s`) =>
     `${count} ${count === 1 ? singular : plural}`;

@@ -4,11 +4,18 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const { areClockGuardValuesEqual, stabilizeClockGuard } = await import(
+const { areClockGuardValuesEqual, refreshSameSessionUser, stabilizeClockGuard } = await import(
   "../shell/fieldAppProviderStability.js"
 );
 
 const previous = { status: "warning", message: "Clock is ahead", skewMs: 120000 };
+const oldUser = { user_id: "worker-1", area_assignments: [] };
+const refreshedUser = { user_id: "worker-1", area_assignments: [{ site_id: 2, locality_code: "02" }] };
+assert.equal(refreshSameSessionUser(oldUser, refreshedUser), refreshedUser);
+assert.equal(refreshSameSessionUser(null, refreshedUser), null, "sync cannot reopen a logged-out session");
+assert.equal(refreshSameSessionUser(oldUser, { user_id: "worker-2" }), oldUser);
+assert.equal(refreshSameSessionUser(oldUser, null), oldUser);
+assert.equal(refreshSameSessionUser({ id: "worker-1" }, refreshedUser), refreshedUser);
 const equivalent = { status: "warning", message: "Clock is ahead", skewMs: 120000 };
 const changedStatus = { status: "blocked", message: "Clock is behind", skewMs: -120000 };
 

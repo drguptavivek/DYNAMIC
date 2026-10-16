@@ -23,7 +23,7 @@ import { loadLocalePreference, saveLocalePreference } from "../modules/preferenc
 import { evaluateDeviceClock } from "../modules/sync/trustedClock.js";
 import { configurePerfLog, startTiming } from "../lib/perfLog.js";
 import * as Application from "expo-application";
-import { stabilizeClockGuard } from "./fieldAppProviderStability.js";
+import { refreshSameSessionUser, stabilizeClockGuard } from "./fieldAppProviderStability.js";
 
 const FieldAppContext = createContext(null);
 const APP_LOCK_MEDIA_PICKER_GRACE_MS = 60 * 1000;
@@ -101,6 +101,8 @@ export function FieldAppProvider({ children }) {
   const refreshLocalities = useCallback(async () => {
     await initializeHouseholdRepository();
     setLocalities(await listLocalities());
+    const storedUser = authStore.getUser();
+    setUser((previous) => refreshSameSessionUser(previous, storedUser));
   }, []);
 
   const login = useCallback(async (username, password) => {

@@ -11,6 +11,7 @@ import { requireRole } from "../middleware/auth";
 import { sendError, sendSuccess } from "../lib/errors";
 import { requireDataAccess } from "../lib/dataAccess";
 import { buildAreaScopeCondition } from "../lib/areaScope";
+import { buildHdssRegistryScopeCondition } from "../lib/hdssRegistryScope";
 import {
   DEFAULT_HDSS_SOURCE_AGE_AS_OF,
   decodeHdssRegistryCursor,
@@ -1799,10 +1800,7 @@ router.get(
         return;
       }
 
-      const scope = await buildAreaScopeCondition(req.user!, {
-        site_id: sql`2`,
-        locality_code: schema.blbRegistryIndividuals.village_code,
-      });
+      const scope = await buildHdssRegistryScopeCondition(req.user!);
       const scopeQuery = scope ? new PgDialect().sqlToQuery(scope) : { sql: "", params: [] };
       const scopeHash = createHash("sha256")
         .update(

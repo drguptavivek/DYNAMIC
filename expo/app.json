@@ -2,7 +2,7 @@
   "expo": {
     "name": "DYNAMIC Field App",
     "slug": "dynamic-field-app",
-    "version": "0.2.1",
+    "version": "0.2.2",
     "icon": "./assets/images/icon.png",
     "orientation": "portrait",
     "platforms": [
@@ -33,7 +33,7 @@
     ],
     "android": {
       "package": "com.drguptavivek.dynamicfieldapp",
-      "versionCode": 2
+      "versionCode": 3
     }
   }
 }

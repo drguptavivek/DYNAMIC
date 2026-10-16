@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { decodeRegistrySex } from "../../components/forms/renderers/bhqRegistryLookup.js";
-import { getAssignedBlbRegistryVillages } from "./blbRegistryScope.js";
+import { getSelectedBlbRegistryVillages } from "./blbRegistryScope.js";
 import { listBlbRegistryHouseholds, listBlbRegistryHouseholdMembers } from "./blbRegistryRepository.js";
 
 const PAGE_SIZE = 50;
@@ -37,11 +37,7 @@ function LoadState({ loading, error, onRetry, emptyMessage }) {
 }
 
 export function HdssListModule({ user, selectedLocalityCode }) {
-  const assignedVillages = getAssignedBlbRegistryVillages(user);
-  const selectedVillage = String(selectedLocalityCode || "").trim();
-  const villages = selectedVillage
-    ? assignedVillages.filter((village) => village === selectedVillage)
-    : assignedVillages;
+  const villages = getSelectedBlbRegistryVillages(user, selectedLocalityCode);
   // Remount before rendering records after an account or locality-scope change.
   const scopeKey = JSON.stringify([user?.id || user?.user_id || user?.username, user?.role, villages]);
   return <HdssBrowser key={scopeKey} villages={villages} />;

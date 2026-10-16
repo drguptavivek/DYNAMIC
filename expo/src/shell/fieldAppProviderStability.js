@@ -18,3 +18,8 @@ export function areClockGuardValuesEqual(previous, next) {
 export function stabilizeClockGuard(previous, next) {
   return areClockGuardValuesEqual(previous, next) ? previous : next;
 }
+
+export function refreshSameSessionUser(previous, stored) {
+  const userId = previous?.user_id ?? previous?.id;
+  return userId && userId === (stored?.user_id ?? stored?.id) ? stored : previous;
+}

@@ -8,6 +8,8 @@ import { fileURLToPath } from "node:url";
 import {
   getAssignedBlbRegistryVillages,
   getBlbRegistryScopeFingerprint,
+  getSelectedBlbRegistryVillages,
+  getBlbRegistryVillageSearchScope,
 } from "../modules/households/blbRegistryScope.js";
 import {
   invalidateRegistrySession,
@@ -34,8 +36,19 @@ const scopedUser = {
     { site_id: 2, locality_code: "04", active_from: null, active_to: "2026-09-30" },
   ],
 };
-assert.deepEqual(getAssignedBlbRegistryVillages(scopedUser, "2026-10-14"), ["02"]);
-assert.equal(getBlbRegistryScopeFingerprint(scopedUser, "2026-10-14"), "02");
+const mappedVillages = ["02", "10", "11", "12", "13", "14", "15", "20", "21", "22", "30", "31", "32", "33", "34", "39", "40", "41", "42", "43", "50", "51", "52", "60", "61", "62", "63", "64", "70", "71"];
+assert.deepEqual(getAssignedBlbRegistryVillages(scopedUser, "2026-10-14"), mappedVillages);
+assert.equal(getBlbRegistryScopeFingerprint(scopedUser, "2026-10-14"), mappedVillages.join(","));
+assert.deepEqual(getSelectedBlbRegistryVillages(scopedUser, " 02 ", "2026-10-14"), mappedVillages);
+assert.deepEqual(getSelectedBlbRegistryVillages(scopedUser, "", "2026-10-14"), mappedVillages);
+assert.deepEqual(getSelectedBlbRegistryVillages(scopedUser, "10", "2026-10-14"), [], "selection must be an assigned study locality, not just an accessible source village");
+assert.deepEqual(getSelectedBlbRegistryVillages(scopedUser, "04", "2026-10-14"), [], "expired assignments do not permit browsing");
+assert.deepEqual(getAssignedBlbRegistryVillages({ area_assignments: [{ site_id: 2, locality_code: "10" }] }, "2026-10-14"), ["10"]);
+assert.deepEqual(getSelectedBlbRegistryVillages({ area_assignments: [{ site_id: 2, locality_code: "10" }] }, "10", "2026-10-14"), ["10"]);
+assert.deepEqual(getAssignedBlbRegistryVillages({ area_assignments: [{ site_id: 1, locality_code: "02" }] }, "2026-10-14"), []);
+assert.deepEqual(getAssignedBlbRegistryVillages({ area_assignments: [{ site_id: 2, locality_code: "02", active_to: "2026-10-13" }] }, "2026-10-14"), []);
+assert.deepEqual(getAssignedBlbRegistryVillages({ area_assignments: [{ site_id: 2, locality_code: "02", active_from: "2026-10-15" }] }, "2026-10-14"), []);
+assert.deepEqual(getAssignedBlbRegistryVillages({}, "2026-10-14"), []);
 
 let releaseFirst;
 const lockOrder = [];
@@ -56,11 +69,13 @@ function loadRepository({ platform, storage, db }) {
   const transformed = repository
     .replace('import { Platform } from "react-native";', "const Platform = globalThis.Platform;")
     .replace('import { getOfflineDatabase } from "../storage/offlineDatabase";', "const getOfflineDatabase = globalThis.getOfflineDatabase;")
+    .replace('import { getBlbRegistryVillageSearchScope } from "./blbRegistryScope.js";', "const getBlbRegistryVillageSearchScope = globalThis.getBlbRegistryVillageSearchScope;")
     .replace('import {\n  getRegistrySessionGeneration,\n  withRegistryCacheLock,\n} from "../storage/registryCacheLifecycle.js";', "const getRegistrySessionGeneration = globalThis.getRegistrySessionGeneration; const withRegistryCacheLock = globalThis.withRegistryCacheLock;")
     .replace(/^export /gm, "")
     + "\nthis.registryApi = { replaceBlbRegistry, findBlbRegistryIndividuals, findBlbRegistryIndividual, findBlbRegistryIndividualByUid, searchBlbRegistryPeople, listBlbRegistryHouseholds, listBlbRegistryHouseholdMembers, bumpGeneration: () => { this.generation += 1; } };";
   const context = {
     Platform: platform,
+    getBlbRegistryVillageSearchScope,
     getOfflineDatabase: () => db,
     window: { localStorage: storage },
     generation: 0,
@@ -121,7 +136,7 @@ assert.ok(nativeLog.includes("BEGIN TRANSACTION"));
 assert.ok(nativeLog.includes("ROLLBACK"));
 await nativeApi.searchBlbRegistryPeople({ villageCode: "01", houseNo: "001", search: "A%", offset: 2, limit: 500 }, ["01"]);
 const searchQuery = nativeLog.find((entry) => typeof entry === "object" && entry.sql.includes("FROM blb_registry_individuals"));
-assert.match(searchQuery.sql, /village_code = \?/);
+assert.match(searchQuery.sql, /trim\(village_code\) IN \(\?\)/);
 assert.match(searchQuery.sql, /trim\(hh_list_no\) = \?/);
 assert.match(searchQuery.sql, /ORDER BY family_no[\s\S]*ind_no[\s\S]*uid/);
 assert.match(searchQuery.params[2], /a\\%/);
@@ -271,6 +286,40 @@ for (const api of [webApi, realSqlApi]) {
   assert.equal((await api.listBlbRegistryHouseholdMembers({ villageCode: "02", houseNo: "099", familyNo: "02" }, ["01"])).length, 0);
   assert.equal((await api.listBlbRegistryHouseholdMembers({ villageCode: "01", houseNo: "099", familyNo: "02" }, [])).length, 0);
   assert.equal((await api.listBlbRegistryHouseholdMembers({ villageCode: "01", houseNo: "", familyNo: "02" }, ["01"])).length, 0);
+}
+
+const selectedMappedVillages = getSelectedBlbRegistryVillages(scopedUser, "02", "2026-10-14");
+const mappedBrowseRows = browseRows.map((row) => ({ ...row, village_code: "10" }));
+mappedBrowseRows.push({ uid: "outside-approved-villages", village_code: "99", hh_list_no: "099", family_no: "02", ind_no: "01", name: "Rajat" });
+mappedBrowseRows.push({ uid: "last-approved-village", village_code: "71", hh_list_no: "099", family_no: "02", ind_no: "01", name: "Ankit" });
+for (const api of [webApi, realSqlApi]) {
+  await api.replaceBlbRegistry({ households: [], individuals: mappedBrowseRows });
+  const page = await api.listBlbRegistryHouseholds({}, selectedMappedVillages);
+  assert.equal(page.households.length, 50, "selected study locality 02 browses source village 10");
+  assert.equal(page.hasMore, true);
+  const matches = await api.listBlbRegistryHouseholds({ search: "  rAjAt, ANKIT  " }, selectedMappedVillages);
+  assert.equal(matches.households.length, 1, "mapped-locality search covers records beyond the displayed page");
+  assert.equal(matches.households[0].village_code, "10");
+  assert.equal((await api.listBlbRegistryHouseholdMembers({ villageCode: "10", houseNo: "100", familyNo: "01" }, selectedMappedVillages)).length, 51);
+  assert.equal((await api.listBlbRegistryHouseholds({ villageCode: "99" }, selectedMappedVillages)).households.length, 0, "mapping does not allow other source villages");
+  const firstPeople = await api.searchBlbRegistryPeople({ villageCode: "02", limit: 10 }, selectedMappedVillages);
+  const nextPeople = await api.searchBlbRegistryPeople({ villageCode: "02", limit: 10, offset: 10 }, selectedMappedVillages);
+  assert.equal(firstPeople.length, 10, "BHQ starts with ten people across mapped villages");
+  assert.equal(nextPeople.length, 10);
+  assert.equal(new Set([...firstPeople, ...nextPeople].map((row) => row.uid)).size, 20, "load-more pages do not overlap");
+  assert.ok(!firstPeople.some((row) => row.uid === "late-ankit"));
+  const filteredPeople = await api.searchBlbRegistryPeople({ villageCode: "02", houseNo: " 099 ", search: "  aNkIt  ", limit: 10 }, selectedMappedVillages);
+  assert.deepEqual(Array.from(filteredPeople, (row) => row.uid).sort(), ["last-approved-village", "late-ankit"], "name and house filters apply across all mapped records before limiting");
+  const narrowedPeople = await api.searchBlbRegistryPeople({ villageCode: "10", houseNo: "099", search: "Ankit", limit: 10 }, selectedMappedVillages);
+  assert.deepEqual(Array.from(narrowedPeople, (row) => row.uid), ["late-ankit"], "source village selection narrows the full-data search");
+  const byOriginalId = await api.searchBlbRegistryPeople({ villageCode: "02", houseNo: "099", search: " 10-099-02-03 ", limit: 10 }, selectedMappedVillages);
+  assert.deepEqual(Array.from(byOriginalId, (row) => row.uid), ["literal"], "original ID search finds a row beyond the initial ten");
+  assert.equal((await api.searchBlbRegistryPeople({ villageCode: "02", houseNo: "0099", search: "Ankit", limit: 10 }, selectedMappedVillages)).length, 0, "house filter preserves significant leading zeros");
+  assert.equal((await api.searchBlbRegistryPeople({ villageCode: "02", limit: 10 }, ["02"])).length, 0, "mapped villages must also be permitted by the cache scope");
+  assert.equal((await api.searchBlbRegistryPeople({ villageCode: "02", limit: 10 }, ["10"])).length, 0, "locality expansion requires an explicit permitted locality");
+  assert.equal((await api.searchBlbRegistryPeople({ villageCode: "02", limit: 10 }, [])).length, 0);
+  assert.equal((await api.searchBlbRegistryPeople({ villageCode: "", limit: 10 }, selectedMappedVillages)).length, 0);
+  assert.equal((await api.searchBlbRegistryPeople({ villageCode: "99", limit: 10 }, selectedMappedVillages)).length, 0);
 }
 
 // Exercise the production server-pull mapper and native upsert. A fresh sync
