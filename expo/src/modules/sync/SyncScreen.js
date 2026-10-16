@@ -15,6 +15,7 @@ export function SyncScreen({ onClockStatusChange, onSyncComplete } = {}) {
   });
   const [localities, setLocalities] = useState([]);
   const [syncing, setSyncing] = useState(false);
+  const [syncProgress, setSyncProgress] = useState("");
   const [syncMessage, setSyncMessage] = useState(null);
   const [syncError, setSyncError] = useState(null);
   const [clockStatus, setClockStatus] = useState(null);
@@ -51,11 +52,14 @@ export function SyncScreen({ onClockStatusChange, onSyncComplete } = {}) {
 
   async function handleSyncNow() {
     setSyncing(true);
+    setSyncProgress("Starting sync...");
     setSyncMessage(null);
     setSyncError(null);
 
     try {
-      const result = await syncService.syncAll();
+      const result = await syncService.syncAll({
+        onProgress: (progress) => setSyncProgress(progress.message || "Syncing..."),
+      });
       if (typeof onSyncComplete === "function") {
         try {
           await onSyncComplete(result);
@@ -195,6 +199,12 @@ export function SyncScreen({ onClockStatusChange, onSyncComplete } = {}) {
       {syncMessage && (
         <View style={styles.successBox}>
           <Text style={styles.successText}>✓ {syncMessage}</Text>
+        </View>
+      )}
+
+      {syncing && (
+        <View style={styles.infoBox} accessibilityLiveRegion="polite">
+          <Text style={styles.infoValue}>{syncProgress}</Text>
         </View>
       )}
 

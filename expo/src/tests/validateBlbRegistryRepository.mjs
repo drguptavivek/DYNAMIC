@@ -173,22 +173,43 @@ assert.match(sync, /session changed during pull/);
 const pullStart = sync.indexOf("export async function pullBlbRegistry");
 const pullEnd = sync.indexOf("\n}\n\nexport function getLastSyncAt", pullStart) + 2;
 const pullSource = sync.slice(pullStart, pullEnd).replace("export async function", "async function");
-async function runPull(responses) {
+async function runPull(responses, options = {}) {
   let replaceArgs = null;
+  let marker = options.marker ?? null;
+  let counts = options.counts || { households: 0, individuals: 0 };
+  const progress = [];
+  const urls = [];
   const context = {
     API_BASE_URL: "https://example.test/api",
     URLSearchParams,
-    getRegistrySessionGeneration: () => 0,
+    getRegistrySessionGeneration: () => options.generation ?? 0,
     getBlbRegistryScopeFingerprint,
-    authStore: { getToken: () => null, getUser: () => null },
+    authStore: { getToken: () => null, getUser: () => options.user ?? null },
+    getMeta: () => marker,
+    setMeta: (_key, value) => { marker = value; },
+    getBlbRegistryCounts: async () => counts,
+    emitProgress: (callback, value) => callback?.(value),
     unwrapApiData: (payload) => payload?.data ?? payload,
-    replaceBlbRegistry: async (args) => { replaceArgs = args; return { households: args.households.length, individuals: args.individuals.length }; },
+    replaceBlbRegistry: async (args) => {
+      replaceArgs = args;
+      if (options.replaceError) throw new Error(options.replaceError);
+      counts = { households: args.households.length, individuals: args.individuals.length };
+      args.onProgress?.({ processed: counts.individuals, total: counts.individuals });
+      options.afterReplace?.(options);
+      return counts;
+    },
   };
   vm.runInNewContext(`const BLB_REGISTRY_PAGE_SIZE = 1000; ${pullSource}\nthis.run = pullBlbRegistry;`, context);
   let index = 0;
-  const fetchImpl = async (url) => { context.lastUrl = url; return responses[index++]; };
-  const result = await context.run({ fetchImpl, token: "synthetic-token" });
-  return { result, replaceArgs, lastUrl: context.lastUrl, calls: index };
+  const fetchImpl = async (url) => { urls.push(url); options.beforeResponse?.(options, index); return responses[index++]; };
+  try {
+    const result = await context.run({ fetchImpl, token: "synthetic-token", onProgress: (value) => progress.push(value) });
+    return { result, replaceArgs, lastUrl: urls.at(-1), calls: index, marker, progress, urls };
+  } catch (error) {
+    error.marker = marker;
+    error.replaceArgs = replaceArgs;
+    throw error;
+  }
 }
 const paged = await runPull([
   { ok: true, json: async () => ({ data: { households: [{ hh_list_no: "1", family_no: "1" }], individuals: [], next_cursor: "opaque-cursor" } }) },
@@ -204,6 +225,68 @@ const failed = await runPull([
   { ok: false, status: 503 },
 ]).catch((error) => error);
 assert.match(failed.message, /BLB registry pull failed: 503/);
+
+const versionA = "a".repeat(64);
+const versionB = "b".repeat(64);
+const cacheMarker = JSON.stringify({ version: versionA, userId: null, scope: "", households: 0, individuals: 1 });
+const pageResponse = (data) => ({ ok: true, json: async () => ({ data }) });
+const unchangedResponse = pageResponse({ households: [], individuals: [], next_cursor: null, registry_version: versionA, not_modified: true });
+const cachedPull = await runPull([unchangedResponse], { marker: cacheMarker, counts: { households: 0, individuals: 1 } });
+assert.equal(cachedPull.calls, 1);
+assert.equal(cachedPull.replaceArgs, null);
+assert.equal(cachedPull.result.unchanged, true);
+assert.match(cachedPull.lastUrl, /known_registry_version=aaaa/);
+assert.ok(cachedPull.progress.some((item) => /up to date/.test(item.message)));
+for (const options of [
+  { marker: cacheMarker, counts: { households: 0, individuals: 0 } },
+  { marker: cacheMarker, counts: { households: 0, individuals: 1 }, user: { id: "different-user" } },
+  { marker: JSON.stringify({ ...JSON.parse(cacheMarker), scope: "different-village" }), counts: { households: 0, individuals: 1 } },
+]) {
+  const invalidReuse = await runPull([unchangedResponse], options).catch((error) => error);
+  assert.match(invalidReuse.message, /invalid unchanged response/);
+  assert.equal(invalidReuse.replaceArgs, null);
+}
+const lateUnchanged = await runPull([unchangedResponse], {
+  marker: cacheMarker, counts: { households: 0, individuals: 1 },
+  beforeResponse: (options) => { options.generation = 1; },
+}).catch((error) => error);
+assert.match(lateUnchanged.message, /session changed/);
+assert.equal(lateUnchanged.replaceArgs, null);
+const clearedCache = await runPull([unchangedResponse], {
+  marker: cacheMarker, counts: { households: 0, individuals: 1 },
+  beforeResponse: (options) => { options.counts.individuals = 0; },
+}).catch((error) => error);
+assert.match(clearedCache.message, /invalid unchanged response/);
+const markerAfterFailedPage = await runPull([
+  pageResponse({ households: [], individuals: [], next_cursor: "next", registry_version: versionA }),
+  { ok: false, status: 503 },
+], { marker: cacheMarker }).catch((error) => error);
+assert.equal(markerAfterFailedPage.marker, cacheMarker);
+const refreshedPull = await runPull([
+  pageResponse({ households: [], individuals: [{ uid: "new" }], next_cursor: null, registry_version: versionB }),
+], { marker: cacheMarker, counts: { households: 0, individuals: 1 } });
+assert.equal(JSON.parse(refreshedPull.marker).version, versionB);
+assert.equal(refreshedPull.result.individuals, 1);
+assert.ok(refreshedPull.progress.some((item) => item.stage === "save-blb-registry"));
+const changedMidPull = await runPull([
+  pageResponse({ households: [], individuals: [], next_cursor: "next", registry_version: versionA }),
+  pageResponse({ households: [], individuals: [], next_cursor: null, registry_version: versionB }),
+], { marker: cacheMarker }).catch((error) => error);
+assert.match(changedMidPull.message, /changed during download/);
+assert.equal(changedMidPull.replaceArgs, null);
+assert.equal(changedMidPull.marker, cacheMarker);
+const failedReplace = await runPull([
+  pageResponse({ households: [], individuals: [{ uid: "new" }], registry_version: versionB }),
+], { marker: cacheMarker, replaceError: "synthetic cache write failed" }).catch((error) => error);
+assert.match(failedReplace.message, /cache write failed/);
+assert.equal(failedReplace.marker, "");
+const lateSession = await runPull([
+  pageResponse({ households: [], individuals: [{ uid: "new" }], registry_version: versionB }),
+], { marker: cacheMarker, afterReplace: (options) => { options.generation = 1; } }).catch((error) => error);
+assert.match(lateSession.message, /session changed/);
+assert.equal(lateSession.marker, "");
+assert.equal(paged.marker, ""); // Old APIs do not create a version marker.
+assert.ok(!paged.urls.some((url) => url.includes("known_registry_version")));
 
 // Run the real initialization SQL against a legacy SQLite table, rather than
 // relying on a fake database that accepts references to missing columns.

@@ -1,4 +1,5 @@
 /** Parser and row contract for the one-row-per-person Ballabgarh HDSS export. */
+import { createHash } from "node:crypto";
 
 /** Validates HDSS source CSV locally without exposing participant values in errors. */
 export const DEFAULT_HDSS_SOURCE_AGE_AS_OF = "2026-10-14";
@@ -72,6 +73,11 @@ export type HdssRegistryCursor = {
   generation: string;
   scope_hash: string;
 };
+
+/** A snapshot marker is valid only for the same registry revision and access scope. */
+export function createHdssRegistryVersion(generation: string, scopeHash: string): string {
+  return createHash("sha256").update(JSON.stringify([generation, scopeHash])).digest("hex");
+}
 
 /** Encode a cursor without exposing its revision fields in a URL. */
 export function encodeHdssRegistryCursor(cursor: HdssRegistryCursor): string {

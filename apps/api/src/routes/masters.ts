@@ -14,6 +14,7 @@ import { buildAreaScopeCondition } from "../lib/areaScope";
 import { buildHdssRegistryScopeCondition } from "../lib/hdssRegistryScope";
 import {
   DEFAULT_HDSS_SOURCE_AGE_AS_OF,
+  createHdssRegistryVersion,
   decodeHdssRegistryCursor,
   encodeHdssRegistryCursor,
   hdssRegistryRequiredColumns,
@@ -1799,6 +1800,11 @@ router.get(
         sendError(res, 400, "INVALID_CURSOR", "cursor is invalid");
         return;
       }
+      const knownVersion = req.query.known_registry_version;
+      if (knownVersion !== undefined && (typeof knownVersion !== "string" || !/^[a-f0-9]{64}$/.test(knownVersion))) {
+        sendError(res, 400, "INVALID_REGISTRY_VERSION", "known_registry_version is invalid");
+        return;
+      }
 
       const scope = await buildHdssRegistryScopeCondition(req.user!);
       const scopeQuery = scope ? new PgDialect().sqlToQuery(scope) : { sql: "", params: [] };
@@ -1824,6 +1830,10 @@ router.get(
         if (cursor && (cursor.generation !== generation || cursor.scope_hash !== scopeHash)) {
           return { changed: true as const };
         }
+        const registryVersion = createHdssRegistryVersion(generation, scopeHash);
+        if (!cursor && knownVersion === registryVersion) {
+          return { changed: false as const, generation, registryVersion, notModified: true, individuals: [], hasMore: false };
+        }
         const conditions = [];
         if (scope) conditions.push(scope);
         if (cursor) conditions.push(gt(schema.blbRegistryIndividuals.uid, cursor.uid));
@@ -1835,13 +1845,13 @@ router.get(
           .limit(requestedLimit + 1);
         const hasMore = page.length > requestedLimit;
         const individuals = hasMore ? page.slice(0, requestedLimit) : page;
-        return { changed: false as const, generation, individuals, hasMore };
+        return { changed: false as const, generation, registryVersion, notModified: false, individuals, hasMore };
       }, { isolationLevel: "repeatable read" });
       if (result.changed) {
         sendError(res, 409, "REGISTRY_CHANGED", "Registry changed; restart the lookup");
         return;
       }
-      const { individuals, hasMore, generation } = result;
+      const { individuals, hasMore, generation, registryVersion, notModified } = result;
       sendSuccess(
         res,
         {
@@ -1849,6 +1859,8 @@ router.get(
           // are intentionally not fabricated from partial cursor pages.
           households: [],
           individuals,
+          registry_version: registryVersion,
+          not_modified: notModified,
           next_cursor: hasMore
             ? encodeHdssRegistryCursor({
                 uid: individuals[individuals.length - 1]?.uid ?? "",

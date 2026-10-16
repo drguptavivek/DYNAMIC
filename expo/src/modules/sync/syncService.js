@@ -156,7 +156,7 @@ function shouldShowBatchProgress(batch, totalBatches, hasNextBatch = true) {
 const BLB_REGISTRY_PAGE_SIZE = 1000;
 
 /** Fetch and atomically replace the complete scoped Ballabgarh registry. */
-export async function pullBlbRegistry({ fetchImpl = fetch, token = authStore.getToken() } = {}) {
+export async function pullBlbRegistry({ fetchImpl = fetch, token = authStore.getToken(), onProgress } = {}) {
   const households = [];
   const individuals = [];
   const expectedGeneration = getRegistrySessionGeneration();
@@ -164,12 +164,38 @@ export async function pullBlbRegistry({ fetchImpl = fetch, token = authStore.get
   const sessionToken = authStore.getToken();
   const sessionUser = authStore.getUser();
   const sessionUserId = sessionUser?.user_id ?? sessionUser?.id ?? null;
+  const assertCurrentSession = () => {
+    if (authStore.getToken() !== sessionToken
+      || (authStore.getUser()?.user_id ?? authStore.getUser()?.id ?? null) !== sessionUserId
+      || getRegistrySessionGeneration() !== expectedGeneration) {
+      throw new Error("BLB registry session changed during pull");
+    }
+    if (getBlbRegistryScopeFingerprint(authStore.getUser()) !== expectedScopeFingerprint) {
+      throw new Error("BLB registry assignment scope changed during pull");
+    }
+  };
+  let cached = null;
+  try {
+    cached = JSON.parse(getMeta("blb_registry_cache_version"));
+  } catch {
+    // An absent or old marker requires a complete download.
+  }
+  const matchesCache = async () => {
+    if (!cached || !/^[a-f0-9]{64}$/.test(cached.version)
+      || cached.userId !== sessionUserId || cached.scope !== expectedScopeFingerprint) return false;
+    const counts = await getBlbRegistryCounts();
+    return cached.households === counts.households && cached.individuals === counts.individuals;
+  };
+  const canReuseCache = await matchesCache();
+  assertCurrentSession();
   let cursor = null;
+  let registryVersion;
   const seenCursors = new Set();
   let pages = 0;
   while (true) {
     const params = new URLSearchParams({ limit: String(BLB_REGISTRY_PAGE_SIZE) });
     if (cursor) params.set("cursor", cursor);
+    else if (canReuseCache) params.set("known_registry_version", cached.version);
     const response = await fetchImpl(`${API_BASE_URL}/masters/blb-registry?${params.toString()}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -178,9 +204,31 @@ export async function pullBlbRegistry({ fetchImpl = fetch, token = authStore.get
     if (!payload || !Array.isArray(payload.households) || !Array.isArray(payload.individuals)) {
       throw new Error("BLB registry pull returned an invalid page");
     }
+    assertCurrentSession();
+    if (payload.not_modified === true) {
+      if (pages !== 0 || !canReuseCache || payload.registry_version !== cached.version
+        || payload.households.length || payload.individuals.length || payload.next_cursor
+        || !await matchesCache()) {
+        throw new Error("BLB registry returned an invalid unchanged response");
+      }
+      assertCurrentSession();
+      emitProgress(onProgress, { stage: "pull-blb-registry", message: "HDSS data is already up to date" });
+      return { households: cached.households, individuals: cached.individuals, pages: 1, unchanged: true };
+    }
+    const pageVersion = typeof payload.registry_version === "string" && /^[a-f0-9]{64}$/.test(payload.registry_version)
+      ? payload.registry_version : null;
+    if (payload.registry_version != null && !pageVersion) throw new Error("BLB registry returned an invalid version");
+    if (pages === 0) registryVersion = pageVersion;
+    else if (registryVersion !== pageVersion) throw new Error("BLB registry changed during download; sync again");
     households.push(...payload.households);
     individuals.push(...payload.individuals);
     pages += 1;
+    emitProgress(onProgress, {
+      stage: "pull-blb-registry",
+      message: `Downloading HDSS data: ${individuals.length.toLocaleString()} people received`,
+      processed: individuals.length,
+      pages,
+    });
     const nextCursor = payload.next_cursor === null || payload.next_cursor === undefined
       ? null
       : String(payload.next_cursor);
@@ -191,22 +239,25 @@ export async function pullBlbRegistry({ fetchImpl = fetch, token = authStore.get
     seenCursors.add(nextCursor);
     cursor = nextCursor;
   }
-  // Do not let a late response from a previous account/session replace the
-  // current user's scoped cache after logout or account switching.
-  if ((sessionToken && authStore.getToken() !== sessionToken)
-    || (sessionUserId && (authStore.getUser()?.user_id ?? authStore.getUser()?.id ?? null) !== sessionUserId)) {
-    throw new Error("BLB registry session changed during pull");
-  }
-  if (getBlbRegistryScopeFingerprint(authStore.getUser()) !== expectedScopeFingerprint) {
-    throw new Error("BLB registry assignment scope changed during pull");
-  }
+  assertCurrentSession();
+  setMeta("blb_registry_cache_version", "");
   const counts = await replaceBlbRegistry({
     households,
     individuals,
     expectedGeneration,
     expectedScopeFingerprint,
     getCurrentScopeFingerprint: () => getBlbRegistryScopeFingerprint(authStore.getUser()),
+    onProgress: ({ processed, total }) => emitProgress(onProgress, {
+      stage: "save-blb-registry",
+      message: `Saving HDSS data offline: ${processed.toLocaleString()} of ${total.toLocaleString()} records`,
+      processed,
+      total,
+    }),
   });
+  assertCurrentSession();
+  setMeta("blb_registry_cache_version", registryVersion ? JSON.stringify({
+    version: registryVersion, userId: sessionUserId, scope: expectedScopeFingerprint, ...counts,
+  }) : "");
   return { ...counts, pages };
 }
 
@@ -1169,7 +1220,7 @@ export async function syncAll(options = {}) {
     // failed page or cache write must never be reported as a registry success.
     let blbRegistrySync = null;
     try {
-      const pulledRegistry = await pullBlbRegistry({ token: authStore.getToken() });
+      const pulledRegistry = await pullBlbRegistry({ token: authStore.getToken(), onProgress });
       blbRegistrySync = { success: true, ...pulledRegistry, counts: await getBlbRegistryCounts() };
     } catch (error) {
       blbRegistrySync = { success: false, warning: error?.message || "BLB registry sync failed" };

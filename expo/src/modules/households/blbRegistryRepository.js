@@ -145,10 +145,20 @@ async function replaceBlbRegistryLocked({
   expectedGeneration,
   expectedScopeFingerprint = null,
   getCurrentScopeFingerprint = null,
+  onProgress = null,
 }) {
   const nextHouseholds = (Array.isArray(households) ? households : []).map(normalizeHousehold);
   const nextIndividuals = (Array.isArray(individuals) ? individuals : []).map(normalizeIndividual);
   const now = new Date().toISOString();
+  const total = nextHouseholds.length + nextIndividuals.length;
+  let processed = 0;
+  let lastReported = 0;
+  const reportProgress = () => {
+    if (typeof onProgress === "function" && (processed === total || processed - lastReported >= 1000)) {
+      onProgress({ processed, total });
+      lastReported = processed;
+    }
+  };
 
   if (expectedGeneration !== getRegistrySessionGeneration()) {
     throw new Error("BLB registry session changed before cache replacement");
@@ -171,29 +181,36 @@ async function replaceBlbRegistryLocked({
       }
       await db.runAsync("DELETE FROM blb_registry_households");
       await db.runAsync("DELETE FROM blb_registry_individuals");
-      for (const household of nextHouseholds) {
-        await db.runAsync(
-          `INSERT INTO blb_registry_households
-             (hh_list_no, family_no, head_name, address, updated_at)
-           VALUES (?, ?, ?, ?, ?)`,
-          [household.hh_list_no, household.family_no, household.head_name || null, household.address || null, household.updated_at || now],
-        );
-      }
-      for (const individual of nextIndividuals) {
-        await db.runAsync(
-          `INSERT INTO blb_registry_individuals
-             (uid, village_code, village_name, phc_code, phc_name,
-              hh_list_no, family_no, ind_no, name, age_years, sex, status,
-              domicile, curr_status, death_date, migrated_out_date,
-              migration_reason, source_age_as_of)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [individual.uid, individual.village_code, individual.village_name, individual.phc_code,
-            individual.phc_name, individual.hh_list_no, individual.family_no, individual.ind_no,
-            individual.name, individual.age_years, individual.sex, individual.status,
-            individual.domicile, individual.curr_status, individual.death_date,
-            individual.migrated_out_date, individual.migration_reason, individual.source_age_as_of],
-        );
-      }
+      // Bound each bridge call below SQLite's legacy 999-variable limit.
+      const writeBatches = async (table, columns, rows, valuesForRow) => {
+        const batchSize = Math.floor(900 / columns.length);
+        const placeholders = `(${columns.map(() => "?").join(", ")})`;
+        for (let offset = 0; offset < rows.length; offset += batchSize) {
+          if (expectedGeneration !== getRegistrySessionGeneration()) {
+            throw new Error("BLB registry session changed during cache replacement");
+          }
+          if (expectedScopeFingerprint !== null && typeof getCurrentScopeFingerprint === "function"
+            && getCurrentScopeFingerprint() !== expectedScopeFingerprint) {
+            throw new Error("BLB registry assignment scope changed during cache replacement");
+          }
+          const batch = rows.slice(offset, offset + batchSize);
+          await db.runAsync(
+            `INSERT INTO ${table} (${columns.join(", ")}) VALUES ${batch.map(() => placeholders).join(", ")}`,
+            batch.flatMap(valuesForRow),
+          );
+          processed += batch.length;
+          reportProgress();
+        }
+      };
+      await writeBatches("blb_registry_households",
+        ["hh_list_no", "family_no", "head_name", "address", "updated_at"], nextHouseholds,
+        (household) => [household.hh_list_no, household.family_no, household.head_name || null, household.address || null, household.updated_at || now]);
+      const individualColumns = ["uid", "village_code", "village_name", "phc_code", "phc_name",
+        "hh_list_no", "family_no", "ind_no", "name", "age_years", "sex", "status",
+        "domicile", "curr_status", "death_date", "migrated_out_date", "migration_reason", "source_age_as_of"];
+      await writeBatches("blb_registry_individuals", individualColumns, nextIndividuals,
+        (individual) => individualColumns.map((column) => individual[column]));
+      if (total === 0) reportProgress();
       if (expectedGeneration !== getRegistrySessionGeneration()) {
         throw new Error("BLB registry session changed before cache commit");
       }
@@ -218,6 +235,8 @@ async function replaceBlbRegistryLocked({
   if (expectedGeneration !== getRegistrySessionGeneration()) {
     throw new Error("BLB registry session changed after cache replacement");
   }
+  processed = total;
+  reportProgress();
   return { households: nextHouseholds.length, individuals: nextIndividuals.length };
 }
 
@@ -227,6 +246,7 @@ export async function replaceBlbRegistry({
   expectedGeneration = getRegistrySessionGeneration(),
   expectedScopeFingerprint = null,
   getCurrentScopeFingerprint = null,
+  onProgress = null,
 }) {
   return withRegistryCacheLock(() => replaceBlbRegistryLocked({
     households,
@@ -234,6 +254,7 @@ export async function replaceBlbRegistry({
     expectedGeneration,
     expectedScopeFingerprint,
     getCurrentScopeFingerprint,
+    onProgress,
   }));
 }
 

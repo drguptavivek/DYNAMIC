@@ -2,10 +2,20 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  createHdssRegistryVersion,
   decodeHdssRegistryCursor,
   encodeHdssRegistryCursor,
   parseHdssRegistryCsv,
 } from "./blbRegistry";
+
+test("registry versions bind the snapshot revision to the user's access scope", () => {
+  const version = createHdssRegistryVersion("generation-1", "a".repeat(64));
+  assert.match(version, /^[a-f0-9]{64}$/);
+  assert.equal(version, createHdssRegistryVersion("generation-1", "a".repeat(64)));
+  assert.notEqual(version, createHdssRegistryVersion("generation-2", "a".repeat(64)));
+  assert.notEqual(version, createHdssRegistryVersion("generation-1", "b".repeat(64)));
+  assert.notEqual(createHdssRegistryVersion("ab", "c"), createHdssRegistryVersion("a", "bc"));
+});
 
 const header = [
   "hdss_unique_id",
