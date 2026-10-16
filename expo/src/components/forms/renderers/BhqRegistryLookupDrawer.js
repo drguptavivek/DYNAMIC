@@ -43,12 +43,12 @@ function personFacingId(person) {
     || "HDSS ID unavailable";
 }
 
-export function BhqRegistryLookupDrawer({ linkedUids = new Set(), survey, onSelect, onClose }) {
+export function BhqRegistryLookupDrawer({ linkedUids = new Set(), survey, panel, onSelect, onClose }) {
   const { width } = useWindowDimensions();
-  const initialPrefill = getRegistryLookupPrefill(survey);
+  const initialPrefill = getRegistryLookupPrefill(survey, panel);
   const [villageCode, setVillageCode] = useState(initialPrefill.villageCode || "");
   const [houseNo, setHouseNo] = useState(initialPrefill.houseNo || "");
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(initialPrefill.name || "");
   const [rows, setRows] = useState([]);
   const [busy, setBusy] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -63,15 +63,15 @@ export function BhqRegistryLookupDrawer({ linkedUids = new Set(), survey, onSele
 
   useEffect(() => {
     queryToken.current += 1;
-    const nextPrefill = getRegistryLookupPrefill(survey);
+    const nextPrefill = getRegistryLookupPrefill(survey, panel);
     setVillageCode(nextPrefill.villageCode || "");
     setHouseNo(nextPrefill.houseNo || "");
-    setSearch("");
+    setSearch(nextPrefill.name || "");
     setRows([]);
     setOffset(0);
     setHasMore(false);
     setError("");
-  }, [survey]);
+  }, [survey, panel]);
 
   useEffect(() => {
     if (Platform.OS !== "web" || typeof window === "undefined") return undefined;
@@ -243,7 +243,7 @@ export function BhqRegistryLookupDrawer({ linkedUids = new Set(), survey, onSele
               />
             </View>
             <View style={styles.filterFieldFull}>
-              <Text style={styles.filterLabel}>Name(s) or HDSS original ID</Text>
+              <Text style={styles.filterLabel}>Name of individual or HDSS original ID</Text>
               <TextInput
                 ref={nameInput}
                 accessibilityLabel="Search HDSS name or original ID"

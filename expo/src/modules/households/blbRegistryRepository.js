@@ -578,6 +578,41 @@ export async function listBlbRegistryHouseholds({ search = "", offset = 0, limit
   return { households: households.slice(0, pageLimit), hasMore: households.length > pageLimit };
 }
 
+/** Count matching address groups without transferring the full registry to JavaScript. */
+export async function countBlbRegistryHouseholds({ search = "", villageCode = "" } = {}, allowedVillageCodes = []) {
+  const villages = Array.isArray(allowedVillageCodes)
+    ? [...new Set(allowedVillageCodes.map((value) => String(value ?? "").trim()).filter(Boolean))]
+    : [];
+  const village = String(villageCode ?? "").trim();
+  if (!villages.length || (village && !villages.includes(village))) return 0;
+  const scope = village ? [village] : villages;
+  const terms = String(search ?? "").split(",").map(normalizeSearchValue).filter(Boolean);
+  if (Platform.OS !== "web") {
+    const values = [...scope];
+    let sql = `SELECT COUNT(*) AS total FROM (
+      SELECT 1 FROM blb_registry_individuals
+      WHERE trim(village_code) IN (${scope.map(() => "?").join(",")})
+        AND trim(COALESCE(hh_list_no, '')) <> '' AND trim(COALESCE(family_no, '')) <> ''
+      GROUP BY trim(village_code), trim(hh_list_no), trim(family_no)`;
+    if (terms.length) {
+      sql += " HAVING " + terms.map(() => "MAX(lower(COALESCE(name, '')) LIKE ? ESCAPE '\\') = 1").join(" AND ");
+      values.push(...terms.map((term) => `%${escapeLikePattern(term)}%`));
+    }
+    const row = await getOfflineDatabase().getFirstAsync(sql + ")", values);
+    return Number(row?.total || 0);
+  }
+  const groups = new Map();
+  for (const person of readWebRegistry().individuals) {
+    const address = [person.village_code, person.hh_list_no, person.family_no].map((value) => String(value ?? "").trim());
+    if (!scope.includes(address[0]) || !address[1] || !address[2]) continue;
+    const key = JSON.stringify(address);
+    if (!groups.has(key)) groups.set(key, new Set());
+    const matched = groups.get(key);
+    terms.forEach((term, index) => { if (normalizeSearchValue(person.name).includes(term)) matched.add(index); });
+  }
+  return [...groups.values()].filter((matched) => matched.size === terms.length).length;
+}
+
 /** Keep all UID rows, including people sharing an address tuple. */
 export async function listBlbRegistryHouseholdMembers({ villageCode, houseNo, familyNo } = {}, allowedVillageCodes = []) {
   const values = [villageCode, houseNo, familyNo].map((value) => String(value ?? "").trim());

@@ -118,10 +118,11 @@ export function getPanelRegistryDetails(panel) {
   };
 }
 
-export function getRegistryLookupPrefill(survey) {
+export function getRegistryLookupPrefill(survey, panel) {
   return {
     villageCode: String(survey?.getValue?.("hhq_locality_code") ?? ""),
     houseNo: String(survey?.getValue?.("hhq_structure_map_id") ?? ""),
+    name: String(panel?.getQuestionByName?.("member_name")?.value ?? ""),
   };
 }
 

@@ -333,6 +333,8 @@ export function BaselineHouseholdForm({
   }, [draftContext, draftLookupKey]);
 
   const model = useMemo(() => {
+    // Resolve recovery data before constructing the expensive Survey Core model.
+    if (draftLookup.key !== draftLookupKey || draftLookup.loading) return null;
     const endOpen = startTiming("form.open", { form: "HHQ" });
     const surveyJson = applyHouseholdMasterChoices(getPreparedSurveyJson(form), {
       user,
@@ -486,7 +488,7 @@ export function BaselineHouseholdForm({
   }, [draftLookup, draftLookupKey, model]);
 
   useEffect(() => {
-    if (!formLocaleRef.current) return;
+    if (!model || !formLocaleRef.current) return;
     model.locale = formLocaleRef.current;
     if (applyQuestionnaireLanguageFromLocale(model, formLocaleRef.current)) {
       answerSnapshotRef.current = cloneSurveyData(model.data || {});
@@ -528,6 +530,7 @@ export function BaselineHouseholdForm({
 
   const saveDraft = useCallback(async ({ silent = false, manual = false, reason = "" } = {}) => {
     try {
+      if (!model) return { skipped: true };
       if (isRestoringDraftRef.current) return null;
       if (!formLocaleRef.current) return { skipped: true };
       const shouldPersist = shouldPersistHhqDraft({
@@ -612,7 +615,7 @@ export function BaselineHouseholdForm({
     };
   }, [saveDraft]);
 
-  if (draftLookup.key !== draftLookupKey || draftLookup.loading || languageState === "loading") {
+  if (!model || languageState === "loading") {
     return (
       <View style={styles.window}>
         <View style={[styles.header, compact && styles.headerCompact]}>

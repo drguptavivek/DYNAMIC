@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { ActivityIndicator, BackHandler, FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { useFocusEffect } from "expo-router";
 
 import { decodeRegistrySex } from "../../components/forms/renderers/bhqRegistryLookup.js";
 import { getSelectedBlbRegistryVillages } from "./blbRegistryScope.js";
-import { listBlbRegistryHouseholds, listBlbRegistryHouseholdMembers } from "./blbRegistryRepository.js";
+import { countBlbRegistryHouseholds, listBlbRegistryHouseholds, listBlbRegistryHouseholdMembers } from "./blbRegistryRepository.js";
 
 const PAGE_SIZE = 50;
 
@@ -50,7 +51,29 @@ function HdssBrowser({ villages }) {
   const [retry, setRetry] = useState(0);
   const [result, setResult] = useState(null);
   const [selected, setSelected] = useState(null);
+  const [count, setCount] = useState(null);
+  const scrollOffset = useRef(0);
   const queryKey = JSON.stringify([search, page, retry]);
+  const countKey = JSON.stringify([search, retry]);
+
+  useFocusEffect(useCallback(() => {
+    if (!selected) return undefined;
+    const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+      setSelected(null);
+      return true;
+    });
+    return () => subscription.remove();
+  }, [selected]));
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.resolve().then(() => countBlbRegistryHouseholds({ search }, villages)).then((total) => {
+      if (!cancelled) setCount({ key: countKey, total });
+    }).catch(() => {
+      if (!cancelled) setCount({ key: countKey, error: "Could not count HDSS pages. Please refresh." });
+    });
+    return () => { cancelled = true; };
+  }, [countKey]);
 
   useEffect(() => {
     let cancelled = false;
@@ -78,10 +101,13 @@ function HdssBrowser({ villages }) {
   const current = result?.key === queryKey ? result : null;
   const loading = !current;
   const households = current?.households || [];
+  const currentCount = count?.key === countKey ? count : null;
+  const totalPages = currentCount && !currentCount.error ? Math.max(1, Math.ceil(currentCount.total / PAGE_SIZE)) : null;
   function submitSearch() {
     const trimmed = input.trim();
     setInput(trimmed);
     setSearch(trimmed);
+    scrollOffset.current = 0;
     setPage(0);
     setRetry((value) => value + 1);
   }
@@ -101,6 +127,8 @@ function HdssBrowser({ villages }) {
         <Button onPress={submitSearch}>Search</Button>
       </View>
       <FlatList style={styles.list} data={households} keyExtractor={householdKey}
+        contentOffset={{ x: 0, y: scrollOffset.current }}
+        onScroll={(event) => { scrollOffset.current = event.nativeEvent.contentOffset.y; }} scrollEventThrottle={100}
         keyboardShouldPersistTaps="handled" contentContainerStyle={styles.listContent}
         ListEmptyComponent={<LoadState loading={loading} error={current?.error}
           onRetry={() => setRetry((value) => value + 1)}
@@ -115,10 +143,11 @@ function HdssBrowser({ villages }) {
           </Pressable>
         )} />
       <View style={styles.paging}>
-        <Button disabled={page === 0 || loading} onPress={() => setPage((value) => value - 1)}>Previous</Button>
-        <Text style={styles.secondary}>Page {page + 1} · {households.length} households</Text>
-        <Button disabled={loading || !current?.hasMore} onPress={() => setPage((value) => value + 1)}>Next</Button>
+        <Button disabled={page === 0 || loading} onPress={() => { scrollOffset.current = 0; setPage((value) => value - 1); }}>Previous</Button>
+        <Text style={styles.secondary}>Page {page + 1} / {totalPages ?? "…"}</Text>
+        <Button disabled={loading || !current?.hasMore} onPress={() => { scrollOffset.current = 0; setPage((value) => value + 1); }}>Next</Button>
       </View>
+      {currentCount?.error ? <Text accessibilityRole="alert" style={styles.error}>{currentCount.error}</Text> : null}
     </View>
   );
 }
@@ -152,7 +181,7 @@ function HouseholdMembers({ household, villages, onBack }) {
         renderItem={({ item }) => (
           <View style={styles.card}>
             <Text style={styles.cardTitle}>{item.name || "Name unavailable"}</Text>
-            <Text style={styles.secondary}>Individual {item.ind_no || "—"} · HDSS UID: {item.uid}</Text>
+            <Text style={styles.secondary}>Individual {item.ind_no || "—"}</Text>
             <Text style={styles.memberNames}>{item.age_years == null ? "Age unavailable" : `Source age: ${item.age_years} years`}
               {` · ${decodeRegistrySex(item.sex)}`}</Text>
             <Text style={styles.secondary}>Status: {item.domicile || item.status || item.curr_status || "Unavailable"}</Text>

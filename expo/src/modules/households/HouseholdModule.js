@@ -134,8 +134,10 @@ export function HouseholdModule({
   };
 
   useEffect(() => {
+    if (showForm) return undefined;
     refreshHouseholds();
-  }, [userKey, selectedLocalityCode, selectedLocalityCodes, householdNumber, addressSearch, householdPage]);
+    return () => { householdRequestRef.current += 1; };
+  }, [showForm, userKey, selectedLocalityCode, selectedLocalityCodes, householdNumber, addressSearch, householdPage]);
 
   useEffect(() => {
     setHouseholdPage(0);
@@ -151,6 +153,7 @@ export function HouseholdModule({
   }, [assignedLocalities]);
 
   useEffect(() => {
+    if (showForm) return undefined;
     let active = true;
     const hasMemberSearch =
       memberName || memberSex;
@@ -182,7 +185,7 @@ export function HouseholdModule({
     return () => {
       active = false;
     };
-  }, [userKey, selectedLocalityCode, selectedLocalityCodes, householdNumber, addressSearch, memberName, memberSex, memberPage]);
+  }, [showForm, userKey, selectedLocalityCode, selectedLocalityCodes, householdNumber, addressSearch, memberName, memberSex, memberPage]);
 
   function toggleLocalityFilter(localityCode) {
     setSelectedLocalityCodes((current) => {
