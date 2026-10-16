@@ -29,7 +29,7 @@ export function getBlbRegistryVillageSearchScope(villageCode, allowedVillageCode
   const allowed = Array.isArray(allowedVillageCodes)
     ? allowedVillageCodes.map((code) => String(code ?? "").trim()) : [];
   if (!village || !allowed.includes(village)) return [];
-  return expandVillages([village]).filter((code) => allowed.includes(code));
+  return [village];
 }
 
 export function getSelectedBlbRegistryVillages(user, selectedLocalityCode, today = new Date().toISOString().slice(0, 10)) {

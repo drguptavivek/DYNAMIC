@@ -90,7 +90,7 @@ export function BhqRegistryLookupDrawer({ linkedUids = new Set(), survey, onSele
 
   useEffect(() => {
     const normalizedVillage = String(villageCode || "").trim();
-    if (!normalizedVillage) {
+    if (!normalizedVillage || !String(houseNo || "").trim()) {
       queryToken.current += 1;
       setRows([]);
       setBusy(false);
@@ -113,9 +113,21 @@ export function BhqRegistryLookupDrawer({ linkedUids = new Set(), survey, onSele
     };
   }, [villageCode, houseNo, search]);
 
+  function updateFilter(setValue, value, currentValue) {
+    if (value === currentValue) return;
+    queryToken.current += 1;
+    setRows([]);
+    setHasMore(false);
+    setOffset(0);
+    setLoadingMore(false);
+    setError("");
+    setBusy(true);
+    setValue(value);
+  }
+
   async function loadResults({ reset = false } = {}) {
     const normalizedVillage = String(villageCode || "").trim();
-    if (!normalizedVillage) return;
+    if (!normalizedVillage || !String(houseNo || "").trim()) return;
     const nextOffset = reset ? 0 : offset;
     const token = ++queryToken.current;
     if (reset) setBusy(true);
@@ -148,6 +160,7 @@ export function BhqRegistryLookupDrawer({ linkedUids = new Set(), survey, onSele
   }
 
   function renderPerson({ item }) {
+    const resultToken = queryToken.current;
     const displayName = String(item?.name || "Unnamed person").trim() || "Unnamed person";
     const id = personFacingId(item);
     const alreadyLinked = linkedUids.has(String(item?.uid || "").trim());
@@ -164,7 +177,9 @@ export function BhqRegistryLookupDrawer({ linkedUids = new Set(), survey, onSele
           accessibilityLabel={`Select HDSS person ${displayName}`}
           accessibilityRole="button"
           disabled={alreadyLinked || busy || loadingMore}
-          onPress={() => onSelect?.(item)}
+          onPress={() => {
+            if (resultToken === queryToken.current) onSelect?.(item);
+          }}
           style={[styles.selectButton, alreadyLinked && styles.selectButtonDisabled]}
         >
           <Text style={styles.selectButtonText}>{alreadyLinked ? "Linked" : "Select"}</Text>
@@ -202,12 +217,12 @@ export function BhqRegistryLookupDrawer({ linkedUids = new Set(), survey, onSele
 
           <View style={styles.filters}>
             <View style={styles.filterField}>
-              <Text style={styles.filterLabel}>Village / locality code</Text>
+              <Text style={styles.filterLabel}>Village code</Text>
               <TextInput
                 accessibilityLabel="HDSS village code"
                 autoCapitalize="none"
                 autoCorrect={false}
-                onChangeText={setVillageCode}
+                onChangeText={(value) => updateFilter(setVillageCode, value, villageCode)}
                 placeholder="Required"
                 style={styles.input}
                 value={villageCode}
@@ -219,17 +234,11 @@ export function BhqRegistryLookupDrawer({ linkedUids = new Set(), survey, onSele
                 accessibilityLabel="HDSS house number"
                 autoCapitalize="none"
                 autoCorrect={false}
-                onChangeText={setHouseNo}
-                placeholder="Optional"
+                onChangeText={(value) => updateFilter(setHouseNo, value, houseNo)}
+                placeholder="Required"
                 style={styles.input}
                 value={houseNo}
               />
-              {houseNo.trim() ? (
-                <Pressable accessibilityRole="button" accessibilityLabel="Search all houses"
-                  onPress={() => setHouseNo("")} style={styles.clearHouseButton}>
-                  <Text style={styles.resultHint}>All houses</Text>
-                </Pressable>
-              ) : null}
             </View>
             <View style={styles.filterFieldFull}>
               <Text style={styles.filterLabel}>Name or HDSS original ID</Text>
@@ -237,13 +246,13 @@ export function BhqRegistryLookupDrawer({ linkedUids = new Set(), survey, onSele
                 accessibilityLabel="Search HDSS name or original ID"
                 autoCapitalize="none"
                 autoCorrect={false}
-                onChangeText={setSearch}
+                onChangeText={(value) => updateFilter(setSearch, value, search)}
                 placeholder="Type to filter results"
                 style={styles.input}
                 value={search}
               />
             </View>
-            <Text style={styles.scopeHint}>Locality 02 searches the mapped HDSS villages; enter a source village code to narrow.</Text>
+            <Text style={styles.scopeHint}>Results match the village code and house number entered above.</Text>
           </View>
 
           <View style={styles.resultHeader}>
@@ -252,10 +261,10 @@ export function BhqRegistryLookupDrawer({ linkedUids = new Set(), survey, onSele
             {!busy && rows.length ? <Text style={styles.resultHint}>{`${rows.length} shown`}</Text> : null}
           </View>
           {error ? <Text style={styles.error}>{error}</Text> : null}
-          {!busy && !error && !rows.length && villageCode.trim() ? (
+          {!busy && !error && !rows.length && villageCode.trim() && houseNo.trim() ? (
             <Text style={styles.empty}>No HDSS people match these filters.</Text>
           ) : null}
-          {!villageCode.trim() ? <Text style={styles.empty}>Enter a village code to search.</Text> : null}
+          {!villageCode.trim() || !houseNo.trim() ? <Text style={styles.empty}>Enter a village code and house number to search.</Text> : null}
           <FlatList
             contentContainerStyle={styles.results}
             data={rows}
@@ -289,7 +298,6 @@ const styles = StyleSheet.create({
   filterField: { minWidth: 110, flex: 1, gap: 4 },
   filterFieldFull: { width: "100%", gap: 4 },
   scopeHint: { width: "100%", color: "#667085", fontSize: 12 },
-  clearHouseButton: { minHeight: 44, justifyContent: "center", alignItems: "flex-start" },
   filterLabel: { color: "#344054", fontSize: 11, fontWeight: "800" },
   input: { minHeight: 40, paddingHorizontal: 10, borderWidth: 1, borderColor: "#d0d5dd", borderRadius: 7, color: "#18202a", backgroundColor: "#ffffff" },
   resultHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, paddingVertical: 8, borderTopWidth: 1, borderTopColor: "#eaecf0" },

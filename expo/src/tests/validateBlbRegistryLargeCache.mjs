@@ -54,7 +54,7 @@ const oldHouseholdSql = `SELECT trim(village_code) AS village_code, MIN(village_
  GROUP BY trim(village_code),trim(hh_list_no),trim(family_no)
  ORDER BY village_code COLLATE BINARY,hh_list_no COLLATE BINARY,family_no COLLATE BINARY LIMIT 51`;
 const oldPickerSql = `SELECT * FROM blb_registry_individuals
- WHERE trim(village_code) IN (${allowed.map(() => "?").join(",")})
+ WHERE trim(village_code) = ? AND trim(hh_list_no) = ?
  ORDER BY family_no COLLATE BINARY,ind_no COLLATE BINARY,uid COLLATE BINARY LIMIT 10`;
 const plan = (sql, params) => sqlite.prepare(`EXPLAIN QUERY PLAN ${sql}`).all(...params).map((row) => row.detail);
 const measure = async (work) => {
@@ -66,7 +66,8 @@ sqlite.exec(`DROP INDEX idx_blb_registry_household_browse; DROP INDEX idx_blb_re
  DELETE FROM local_schema_migrations WHERE name='blb_registry.browse_indexes.v1'`);
 const oldPlan = plan(oldHouseholdSql, villages);
 const baselineHouseholds = await measure(() => sqlite.prepare(oldHouseholdSql).all(...villages));
-const baselinePicker = await measure(() => sqlite.prepare(oldPickerSql).all(...allowed));
+const pickerParams = ["10", "00000"];
+const baselinePicker = await measure(() => sqlite.prepare(oldPickerSql).all(...pickerParams));
 await init.initialize(db);
 queries.length = 0;
 const afterHouseholds = await measure(() => api.listBlbRegistryHouseholds({}, allowed));
@@ -93,17 +94,18 @@ assert.equal(found.households[0].member_count, 5);
 assert.equal(found.households[0].member_names.length, 5);
 assert.equal((await api.listBlbRegistryHouseholdMembers({ villageCode: found.households[0].village_code,
   houseNo: found.households[0].hh_list_no, familyNo: "01" }, allowed)).length, 5);
-const afterPicker = await measure(() => api.searchBlbRegistryPeople({ villageCode: "02", limit: 10 }, allowed));
+const afterPicker = await measure(() => api.searchBlbRegistryPeople({ villageCode: "10", houseNo: "00000", limit: 10 }, allowed));
 const pickerQuery = queries.at(-1);
 const pickerPlan = plan(pickerQuery.sql, pickerQuery.params);
 assert.ok(pickerPlan.some((detail) => /idx_blb_registry_people_browse/.test(detail)));
-assert.equal(pickerQuery.rows, 10);
-const oldPickerRows = sqlite.prepare(oldPickerSql).all(...allowed);
-const newPickerRows = await api.searchBlbRegistryPeople({ villageCode: "02", limit: 10 }, allowed);
-assert.deepEqual(Array.from(newPickerRows, (row) => row.uid), oldPickerRows.map((row) => row.uid), "merge retains established cross-village ordering");
-const lastPerson = await api.searchBlbRegistryPeople({ villageCode: "02", search: "  ZED LAST MARKER ", limit: 10 }, allowed);
+assert.equal(pickerQuery.rows, 5, "only exact household members cross into JavaScript");
+const oldPickerRows = sqlite.prepare(oldPickerSql).all(...pickerParams);
+const newPickerRows = await api.searchBlbRegistryPeople({ villageCode: "10", houseNo: "00000", limit: 10 }, allowed);
+assert.deepEqual(Array.from(newPickerRows, (row) => row.uid), oldPickerRows.map((row) => row.uid), "exact household lookup retains established family/individual/UID ordering");
+const lastPerson = await api.searchBlbRegistryPeople({ villageCode: found.households[0].village_code, houseNo: found.households[0].hh_list_no, search: "  ZED LAST MARKER ", limit: 10 }, allowed);
 assert.equal(lastPerson.length, 1);
 assert.equal(lastPerson[0].uid, "uid-0209999");
+assert.equal((await api.searchBlbRegistryPeople({ villageCode: "02", houseNo: "00000" }, allowed)).length, 0, "study locality is not expanded during BHQ lookup");
 assert.equal((await api.listBlbRegistryHouseholds({}, [])).households.length, 0);
 assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM blb_registry_individuals").get().n, count);
 console.log(JSON.stringify({ syntheticPeople: count, medianMs: {

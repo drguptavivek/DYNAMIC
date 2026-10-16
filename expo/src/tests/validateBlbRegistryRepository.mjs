@@ -41,6 +41,9 @@ const mappedVillages = ["02", "10", "11", "12", "13", "14", "15", "20", "21", "2
 assert.deepEqual(getAssignedBlbRegistryVillages(scopedUser, "2026-10-14"), mappedVillages);
 assert.equal(getBlbRegistryScopeFingerprint(scopedUser, "2026-10-14"), mappedVillages.join(","));
 assert.deepEqual(getSelectedBlbRegistryVillages(scopedUser, " 02 ", "2026-10-14"), mappedVillages);
+assert.deepEqual(getBlbRegistryVillageSearchScope(" 02 ", mappedVillages), ["02"], "BHQ entered village is exact while HDSS list locality retains its mapping");
+assert.deepEqual(getBlbRegistryVillageSearchScope(" 10 ", [" 10 "]), ["10"]);
+assert.deepEqual(getBlbRegistryVillageSearchScope("010", mappedVillages), [], "village leading zeros are significant");
 assert.deepEqual(getSelectedBlbRegistryVillages(scopedUser, "", "2026-10-14"), mappedVillages);
 assert.deepEqual(getSelectedBlbRegistryVillages(scopedUser, "10", "2026-10-14"), [], "selection must be an assigned study locality, not just an accessible source village");
 assert.deepEqual(getSelectedBlbRegistryVillages(scopedUser, "04", "2026-10-14"), [], "expired assignments do not permit browsing");
@@ -116,8 +119,8 @@ assert.equal(await webApi.findBlbRegistryIndividualByUid("UID-A!", ["03"]), null
 assert.equal((await webApi.findBlbRegistryIndividuals("01", "", "", "", ["01"])).length, 0);
 assert.equal((await webApi.searchBlbRegistryPeople({ villageCode: "01", houseNo: "001" }, ["01"])).length, 2);
 assert.equal((await webApi.searchBlbRegistryPeople({ villageCode: "01", houseNo: "002" }, ["01"]))[0].hh_list_no, "002");
-assert.equal((await webApi.searchBlbRegistryPeople({ villageCode: "01", search: "100%" }, ["01"])).length, 1);
-assert.equal((await webApi.searchBlbRegistryPeople({ villageCode: "01", search: "01-001-02-3", limit: 1, offset: 1 }, ["01"]))[0].uid, "UID-B");
+assert.equal((await webApi.searchBlbRegistryPeople({ villageCode: "01", houseNo: "002", search: "100%" }, ["01"])).length, 1);
+assert.equal((await webApi.searchBlbRegistryPeople({ villageCode: "01", houseNo: "001", search: "01-001-02-3", limit: 1, offset: 1 }, ["01"]))[0].uid, "UID-B");
 assert.equal((await webApi.searchBlbRegistryPeople({ villageCode: "01", limit: 500 }, ["03"])).length, 0);
 assert.equal((await webApi.searchBlbRegistryPeople({ villageCode: "", houseNo: "001" }, ["01"])).length, 0);
 browserStorage.fail = true;
@@ -140,7 +143,7 @@ assert.ok(nativeLog.includes("BEGIN TRANSACTION"));
 assert.ok(nativeLog.includes("ROLLBACK"));
 await nativeApi.searchBlbRegistryPeople({ villageCode: "01", houseNo: "001", search: "A%", offset: 2, limit: 500 }, ["01"]);
 const searchQuery = nativeLog.find((entry) => typeof entry === "object" && entry.sql.includes("FROM blb_registry_individuals"));
-assert.match(searchQuery.sql, /trim\(village_code\) IN \(\?\)/);
+assert.match(searchQuery.sql, /trim\(village_code\) = \?/);
 assert.match(searchQuery.sql, /trim\(hh_list_no\) = \?/);
 assert.match(searchQuery.sql, /ORDER BY family_no[\s\S]*ind_no[\s\S]*uid/);
 assert.match(searchQuery.params[2], /a\\%/);
@@ -434,6 +437,8 @@ for (const api of [webApi, realSqlApi]) {
 
 const selectedMappedVillages = getSelectedBlbRegistryVillages(scopedUser, "02", "2026-10-14");
 const mappedBrowseRows = browseRows.map((row) => ({ ...row, village_code: "10" }));
+mappedBrowseRows.push({ uid: "exact-house-10", village_code: " 10 ", hh_list_no: " 0011 ", family_no: "01", ind_no: "01", name: "Exact house" });
+mappedBrowseRows.push({ uid: "exact-house-71", village_code: "71", hh_list_no: "0011", family_no: "01", ind_no: "01", name: "Exact house" });
 mappedBrowseRows.push({ uid: "outside-approved-villages", village_code: "99", hh_list_no: "099", family_no: "02", ind_no: "01", name: "Rajat" });
 mappedBrowseRows.push({ uid: "last-approved-village", village_code: "71", hh_list_no: "099", family_no: "02", ind_no: "01", name: "Ankit" });
 for (const api of [webApi, realSqlApi]) {
@@ -446,24 +451,31 @@ for (const api of [webApi, realSqlApi]) {
   assert.equal(matches.households[0].village_code, "10");
   assert.equal((await api.listBlbRegistryHouseholdMembers({ villageCode: "10", houseNo: "100", familyNo: "01" }, selectedMappedVillages)).length, 51);
   assert.equal((await api.listBlbRegistryHouseholds({ villageCode: "99" }, selectedMappedVillages)).households.length, 0, "mapping does not allow other source villages");
-  const firstPeople = await api.searchBlbRegistryPeople({ villageCode: "02", limit: 10 }, selectedMappedVillages);
-  const nextPeople = await api.searchBlbRegistryPeople({ villageCode: "02", limit: 10, offset: 10 }, selectedMappedVillages);
-  assert.equal(firstPeople.length, 10, "BHQ starts with ten people across mapped villages");
+  assert.equal((await api.searchBlbRegistryPeople({ villageCode: "02", houseNo: "0011", limit: 10 }, selectedMappedVillages)).length, 0, "entered village 02 never expands to mapped source villages");
+  assert.deepEqual(Array.from(await api.searchBlbRegistryPeople({ villageCode: "10", houseNo: "0011" }, selectedMappedVillages), (row) => row.uid), ["exact-house-10"]);
+  const firstPeople = await api.searchBlbRegistryPeople({ villageCode: "10", houseNo: "100", limit: 10 }, selectedMappedVillages);
+  const nextPeople = await api.searchBlbRegistryPeople({ villageCode: "10", houseNo: "100", limit: 10, offset: 10 }, selectedMappedVillages);
+  assert.equal(firstPeople.length, 10, "BHQ starts with ten people from the exact village and house");
   assert.equal(nextPeople.length, 10);
   assert.equal(new Set([...firstPeople, ...nextPeople].map((row) => row.uid)).size, 20, "load-more pages do not overlap");
-  assert.ok(!firstPeople.some((row) => row.uid === "late-ankit"));
-  const filteredPeople = await api.searchBlbRegistryPeople({ villageCode: "02", houseNo: " 099 ", search: "  aNkIt  ", limit: 10 }, selectedMappedVillages);
-  assert.deepEqual(Array.from(filteredPeople, (row) => row.uid).sort(), ["last-approved-village", "late-ankit"], "name and house filters apply across all mapped records before limiting");
-  const narrowedPeople = await api.searchBlbRegistryPeople({ villageCode: "10", houseNo: "099", search: "Ankit", limit: 10 }, selectedMappedVillages);
-  assert.deepEqual(Array.from(narrowedPeople, (row) => row.uid), ["late-ankit"], "source village selection narrows the full-data search");
-  const byOriginalId = await api.searchBlbRegistryPeople({ villageCode: "02", houseNo: "099", search: " 10-099-02-03 ", limit: 10 }, selectedMappedVillages);
-  assert.deepEqual(Array.from(byOriginalId, (row) => row.uid), ["literal"], "original ID search finds a row beyond the initial ten");
-  assert.equal((await api.searchBlbRegistryPeople({ villageCode: "02", houseNo: "0099", search: "Ankit", limit: 10 }, selectedMappedVillages)).length, 0, "house filter preserves significant leading zeros");
-  assert.equal((await api.searchBlbRegistryPeople({ villageCode: "02", limit: 10 }, ["02"])).length, 0, "mapped villages must also be permitted by the cache scope");
-  assert.equal((await api.searchBlbRegistryPeople({ villageCode: "02", limit: 10 }, ["10"])).length, 0, "locality expansion requires an explicit permitted locality");
-  assert.equal((await api.searchBlbRegistryPeople({ villageCode: "02", limit: 10 }, [])).length, 0);
-  assert.equal((await api.searchBlbRegistryPeople({ villageCode: "", limit: 10 }, selectedMappedVillages)).length, 0);
-  assert.equal((await api.searchBlbRegistryPeople({ villageCode: "99", limit: 10 }, selectedMappedVillages)).length, 0);
+  assert.ok(firstPeople.every((row) => row.village_code.trim() === "10" && row.hh_list_no.trim() === "100"));
+  const filteredPeople = await api.searchBlbRegistryPeople({ villageCode: " 10 ", houseNo: " 099 ", search: "  aNkIt  ", limit: 10 }, selectedMappedVillages);
+  assert.deepEqual(Array.from(filteredPeople, (row) => row.uid), ["late-ankit"], "changed house and trimmed inputs search the whole cache before paging");
+  const otherVillagePeople = await api.searchBlbRegistryPeople({ villageCode: "71", houseNo: "099", search: "Ankit", limit: 10 }, selectedMappedVillages);
+  assert.deepEqual(Array.from(otherVillagePeople, (row) => row.uid), ["last-approved-village"], "changing village searches its exact household");
+  const byOriginalId = await api.searchBlbRegistryPeople({ villageCode: "10", houseNo: "099", search: " 10-099-02-03 ", limit: 10 }, selectedMappedVillages);
+  assert.deepEqual(Array.from(byOriginalId, (row) => row.uid), ["literal"], "original ID search applies inside the exact household");
+  assert.equal((await api.searchBlbRegistryPeople({ villageCode: "10", houseNo: "0099", search: "Ankit", limit: 10 }, selectedMappedVillages)).length, 0, "house filter preserves significant leading zeros");
+  for (const fields of [
+    { villageCode: "02", houseNo: "099" },
+    { villageCode: "10", houseNo: "" },
+    { villageCode: "10", houseNo: "  " },
+    { villageCode: "", houseNo: "099" },
+    { villageCode: "99", houseNo: "099" },
+    { villageCode: "010", houseNo: "099" },
+  ]) assert.equal((await api.searchBlbRegistryPeople(fields, selectedMappedVillages)).length, 0, "missing or unmatched exact filters return no people");
+  assert.equal((await api.searchBlbRegistryPeople({ villageCode: "10", houseNo: "099" }, ["02"])).length, 0, "an unauthorized source village is never searched");
+  assert.equal((await api.searchBlbRegistryPeople({ villageCode: "10", houseNo: "099" }, [])).length, 0);
 }
 
 // Exercise the production server-pull mapper and native upsert. A fresh sync

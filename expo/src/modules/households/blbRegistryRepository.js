@@ -415,8 +415,8 @@ export async function findBlbRegistryIndividualByUid(uid, allowedVillageCodes = 
 
 /**
  * Search the local HDSS cache for the BHQ member picker.
- * Village is mandatory; house is optional so a village-wide search can be
- * narrowed by name or the four-part original ID. Tuple duplicates remain rows.
+ * Village and house must match exactly; name or the four-part original ID
+ * can narrow that household's people. Tuple duplicates remain rows.
  */
 export async function searchBlbRegistryPeople({
   villageCode,
@@ -426,20 +426,16 @@ export async function searchBlbRegistryPeople({
   limit = 50,
 } = {}, allowedVillageCodes = []) {
   const villages = getBlbRegistryVillageSearchScope(villageCode, allowedVillageCodes);
-  if (!villages.length) return [];
   const house = String(houseNo ?? "").trim();
+  if (!villages.length || !house) return [];
   const normalizedSearch = normalizeSearchValue(search);
   const pageOffset = normalizePage(offset, 0);
   const pageLimit = normalizePage(limit, 50, 50) || 50;
 
   if (Platform.OS !== "web") {
-    const values = [...villages];
+    const values = [villages[0], house];
     let sql = `SELECT * FROM blb_registry_individuals
-      WHERE trim(village_code) IN (${villages.map(() => "?").join(",")})`;
-    if (house) {
-      sql += " AND trim(hh_list_no) = ?";
-      values.push(house);
-    }
+      WHERE trim(village_code) = ? AND trim(hh_list_no) = ?`;
     if (normalizedSearch) {
       const pattern = `%${escapeLikePattern(normalizedSearch)}%`;
       sql += ` AND (
@@ -450,15 +446,6 @@ export async function searchBlbRegistryPeople({
       values.push(pattern, pattern);
     }
     const order = " ORDER BY family_no COLLATE BINARY, ind_no COLLATE BINARY, uid COLLATE BINARY";
-    if (villages.length > 1) {
-      // Merge only each village's leading candidates instead of sorting its entire cache.
-      const perVillageSql = sql.replace(`IN (${villages.map(() => "?").join(",")})`, "= ?");
-      const filters = values.slice(villages.length);
-      return getOfflineDatabase().getAllAsync(
-        `SELECT * FROM (${villages.map(() => `SELECT * FROM (${perVillageSql}${order} LIMIT ?)`).join(" UNION ALL ")})${order} LIMIT ? OFFSET ?`,
-        [...villages.flatMap((code) => [code, ...filters, pageOffset + pageLimit]), pageLimit, pageOffset],
-      );
-    }
     sql += `${order} LIMIT ? OFFSET ?`;
     values.push(pageLimit, pageOffset);
     return getOfflineDatabase().getAllAsync(sql, values);
@@ -466,7 +453,7 @@ export async function searchBlbRegistryPeople({
 
   const rows = readWebRegistry().individuals
     .filter((individual) => villages.includes(String(individual.village_code ?? "").trim()))
-    .filter((individual) => !house || String(individual.hh_list_no ?? "").trim() === house)
+    .filter((individual) => String(individual.hh_list_no ?? "").trim() === house)
     .filter((individual) => {
       if (!normalizedSearch) return true;
       const originalId = buildOriginalId(
