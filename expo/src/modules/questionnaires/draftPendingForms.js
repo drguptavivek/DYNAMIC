@@ -120,7 +120,30 @@ export function draftMatchesTask(draft, task) {
 }
 
 export function filterDraftsForTaskCandidates(drafts = [], tasks = []) {
-  return drafts.filter((draft) => tasks.some((task) => draftMatchesTask(draft, task)));
+  if (!drafts.length || !tasks.length) return [];
+  const taskIdsByForm = new Map();
+  for (const task of tasks) {
+    if (!task) continue;
+    const formCode = String(task.task_type || "").toUpperCase();
+    let taskIds = taskIdsByForm.get(formCode);
+    if (!taskIds) {
+      taskIds = new Set();
+      taskIdsByForm.set(formCode, taskIds);
+    }
+    for (const value of [task.id, task.task_id, task.task_key, task.household_id, task.subject_id]) {
+      const id = normalizeId(value);
+      if (id) taskIds.add(id);
+    }
+  }
+  return drafts.filter((draft) => {
+    if (!draft) return false;
+    const taskIds = taskIdsByForm.get(String(draft.form_code || "").toUpperCase());
+    if (!taskIds) return false;
+    for (const id of getDraftComparableIds(draft)) {
+      if (taskIds.has(id)) return true;
+    }
+    return false;
+  });
 }
 
 export function filterDraftsForUserSite(drafts, user) {

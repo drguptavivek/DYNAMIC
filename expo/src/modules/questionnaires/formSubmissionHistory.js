@@ -1,3 +1,27 @@
+import {
+  canCorrectExcludedWqResponse,
+  getWqVisitorCorrectionDraftId,
+} from "./wqVisitorExclusion.js";
+
+export function getSubmissionCorrectionCandidates(responses, nowMs) {
+  return responses.filter((response) =>
+    canCorrectExcludedWqResponse(response, nowMs) || getWqVisitorCorrectionDraftId(response),
+  );
+}
+
+export function getSubmissionCorrectionClock(candidates, nowMs) {
+  let hasLiveCorrection = false;
+  const expiredDraftResponseIds = [];
+  for (const response of candidates) {
+    if (canCorrectExcludedWqResponse(response, nowMs)) {
+      hasLiveCorrection = true;
+    } else if (getWqVisitorCorrectionDraftId(response)) {
+      expiredDraftResponseIds.push(response.id);
+    }
+  }
+  return { hasLiveCorrection, expiredCorrectionKey: expiredDraftResponseIds.sort().join("|") };
+}
+
 export function normalizeFormResponse(row) {
   const normalized = {
     id: row.id || row.submission_id,

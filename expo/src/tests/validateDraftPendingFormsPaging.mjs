@@ -13,6 +13,9 @@ assert.match(source, /import\s*\{[^}]*FlatList/s);
 assert.match(source, /import\s*\{\s*useListPaging\s*\}/);
 assert.match(source, /useListPaging\(drafts\)/);
 assert.match(source, /data=\{pagedDrafts\}/);
+assert.match(source, /keyExtractor=\{\(draft\) => draft\.draft_id\}/);
+assert.match(source, /const draft = useMemo\(\(\) => normalizeDraft\(row\), \[row\]\)/);
+assert.doesNotMatch(source, /filterDraftsForTaskCandidates\([^;]+\.map\(normalizeDraft\)/);
 assert.match(source, /onEndReached=\{showMore\}/);
 assert.match(source, /`Show more \(\$\{shown\} of \$\{total\}\)`/);
 

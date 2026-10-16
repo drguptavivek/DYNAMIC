@@ -624,6 +624,18 @@ async function initializeSqlite(db) {
       );
     }
 
+    if (!applied.has("blb_registry.browse_indexes.v1")) {
+      // Expression indexes retain original identifiers while indexing their trimmed lookup form.
+      await db.execAsync(`CREATE INDEX IF NOT EXISTS idx_blb_registry_household_browse
+        ON blb_registry_individuals(trim(village_code), trim(hh_list_no), trim(family_no), ind_no, uid)`);
+      await db.execAsync(`CREATE INDEX IF NOT EXISTS idx_blb_registry_people_browse
+        ON blb_registry_individuals(trim(village_code), family_no COLLATE BINARY, ind_no COLLATE BINARY, uid COLLATE BINARY)`);
+      await db.runAsync(
+        "INSERT INTO local_schema_migrations (name, applied_at) VALUES (?, ?)",
+        ["blb_registry.browse_indexes.v1", new Date().toISOString()],
+      );
+    }
+
     await db.execAsync("COMMIT");
   } catch (error) {
     try {

@@ -147,8 +147,8 @@ async function replaceBlbRegistryLocked({
   getCurrentScopeFingerprint = null,
   onProgress = null,
 }) {
-  const nextHouseholds = (Array.isArray(households) ? households : []).map(normalizeHousehold);
-  const nextIndividuals = (Array.isArray(individuals) ? individuals : []).map(normalizeIndividual);
+  const nextHouseholds = Array.isArray(households) ? households : [];
+  const nextIndividuals = Array.isArray(individuals) ? individuals : [];
   const now = new Date().toISOString();
   const total = nextHouseholds.length + nextIndividuals.length;
   let processed = 0;
@@ -182,7 +182,7 @@ async function replaceBlbRegistryLocked({
       await db.runAsync("DELETE FROM blb_registry_households");
       await db.runAsync("DELETE FROM blb_registry_individuals");
       // Bound each bridge call below SQLite's legacy 999-variable limit.
-      const writeBatches = async (table, columns, rows, valuesForRow) => {
+      const writeBatches = async (table, columns, rows, normalizeRow, valuesForRow) => {
         const batchSize = Math.floor(900 / columns.length);
         const placeholders = `(${columns.map(() => "?").join(", ")})`;
         for (let offset = 0; offset < rows.length; offset += batchSize) {
@@ -193,7 +193,8 @@ async function replaceBlbRegistryLocked({
             && getCurrentScopeFingerprint() !== expectedScopeFingerprint) {
             throw new Error("BLB registry assignment scope changed during cache replacement");
           }
-          const batch = rows.slice(offset, offset + batchSize);
+          // Normalize only this batch so large caches do not create a second full object graph.
+          const batch = rows.slice(offset, offset + batchSize).map(normalizeRow);
           await db.runAsync(
             `INSERT INTO ${table} (${columns.join(", ")}) VALUES ${batch.map(() => placeholders).join(", ")}`,
             batch.flatMap(valuesForRow),
@@ -203,12 +204,12 @@ async function replaceBlbRegistryLocked({
         }
       };
       await writeBatches("blb_registry_households",
-        ["hh_list_no", "family_no", "head_name", "address", "updated_at"], nextHouseholds,
+        ["hh_list_no", "family_no", "head_name", "address", "updated_at"], nextHouseholds, normalizeHousehold,
         (household) => [household.hh_list_no, household.family_no, household.head_name || null, household.address || null, household.updated_at || now]);
       const individualColumns = ["uid", "village_code", "village_name", "phc_code", "phc_name",
         "hh_list_no", "family_no", "ind_no", "name", "age_years", "sex", "status",
         "domicile", "curr_status", "death_date", "migrated_out_date", "migration_reason", "source_age_as_of"];
-      await writeBatches("blb_registry_individuals", individualColumns, nextIndividuals,
+      await writeBatches("blb_registry_individuals", individualColumns, nextIndividuals, normalizeIndividual,
         (individual) => individualColumns.map((column) => individual[column]));
       if (total === 0) reportProgress();
       if (expectedGeneration !== getRegistrySessionGeneration()) {
@@ -231,7 +232,7 @@ async function replaceBlbRegistryLocked({
 
   // setItem is one atomic browser-cache replacement. A quota/security error
   // propagates and leaves the old JSON untouched.
-  writeWebRegistry({ households: nextHouseholds, individuals: nextIndividuals });
+  writeWebRegistry({ households: nextHouseholds.map(normalizeHousehold), individuals: nextIndividuals.map(normalizeIndividual) });
   if (expectedGeneration !== getRegistrySessionGeneration()) {
     throw new Error("BLB registry session changed after cache replacement");
   }
@@ -344,7 +345,17 @@ export async function searchBlbRegistryPeople({
       )`;
       values.push(pattern, pattern);
     }
-    sql += " ORDER BY family_no COLLATE BINARY, ind_no COLLATE BINARY, uid COLLATE BINARY LIMIT ? OFFSET ?";
+    const order = " ORDER BY family_no COLLATE BINARY, ind_no COLLATE BINARY, uid COLLATE BINARY";
+    if (villages.length > 1) {
+      // Merge only each village's leading candidates instead of sorting its entire cache.
+      const perVillageSql = sql.replace(`IN (${villages.map(() => "?").join(",")})`, "= ?");
+      const filters = values.slice(villages.length);
+      return getOfflineDatabase().getAllAsync(
+        `SELECT * FROM (${villages.map(() => `SELECT * FROM (${perVillageSql}${order} LIMIT ?)`).join(" UNION ALL ")})${order} LIMIT ? OFFSET ?`,
+        [...villages.flatMap((code) => [code, ...filters, pageOffset + pageLimit]), pageLimit, pageOffset],
+      );
+    }
+    sql += `${order} LIMIT ? OFFSET ?`;
     values.push(pageLimit, pageOffset);
     return getOfflineDatabase().getAllAsync(sql, values);
   }
@@ -390,19 +401,29 @@ export async function listBlbRegistryHouseholds({ search = "", offset = 0, limit
 
   if (Platform.OS !== "web") {
     const values = [...scope];
-    let sql = `SELECT trim(village_code) AS village_code, MIN(village_name) AS village_name,
-      trim(hh_list_no) AS hh_list_no, trim(family_no) AS family_no,
-      COUNT(*) AS member_count, json_group_array(name) AS member_names
+    // Page address keys first; aggregate names only for the displayed households and lookahead.
+    let sql = `WITH page AS (
+      SELECT trim(village_code) AS village_code, trim(hh_list_no) AS hh_list_no,
+        trim(family_no) AS family_no
       FROM blb_registry_individuals
       WHERE trim(village_code) IN (${scope.map(() => "?").join(",")})
         AND trim(COALESCE(hh_list_no, '')) <> '' AND trim(COALESCE(family_no, '')) <> ''
       GROUP BY trim(village_code), trim(hh_list_no), trim(family_no)`;
     if (searchTerms.length) {
-      // Each name may match a different member, so filter complete groups rather than person rows.
+      // Each name may match a different member; substring matching scans SQLite rows, not JS objects.
       sql += " HAVING " + searchTerms.map(() => "MAX(lower(COALESCE(name, '')) LIKE ? ESCAPE '\\') = 1").join(" AND ");
       values.push(...searchTerms.map((term) => `%${escapeLikePattern(term)}%`));
     }
-    sql += " ORDER BY village_code COLLATE BINARY, hh_list_no COLLATE BINARY, family_no COLLATE BINARY LIMIT ? OFFSET ?";
+    sql += ` ORDER BY trim(village_code), trim(hh_list_no),
+        trim(family_no) LIMIT ? OFFSET ?)
+      SELECT page.village_code, page.hh_list_no, page.family_no,
+        MIN(person.village_name) AS village_name, COUNT(*) AS member_count,
+        json_group_array(person.name) AS member_names
+      FROM page JOIN blb_registry_individuals AS person
+        ON trim(person.village_code) = page.village_code
+        AND trim(person.hh_list_no) = page.hh_list_no AND trim(person.family_no) = page.family_no
+      GROUP BY page.village_code, page.hh_list_no, page.family_no
+      ORDER BY page.village_code COLLATE BINARY, page.hh_list_no COLLATE BINARY, page.family_no COLLATE BINARY`;
     values.push(pageLimit + 1, pageOffset);
     households = (await getOfflineDatabase().getAllAsync(sql, values)).map((row) => ({
       ...row,

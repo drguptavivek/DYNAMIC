@@ -1,5 +1,5 @@
 import { getFormDisplayCode } from "../../lib/formDisplayCodes.js";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -78,7 +78,9 @@ function normalizeDraft(draft) {
   };
 }
 
-function DraftCard({ draft }) {
+function DraftCard({ draft: row }) {
+  // Resolve display names only for mounted cards, not the entire draft archive.
+  const draft = useMemo(() => normalizeDraft(row), [row]);
   return (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
@@ -114,7 +116,7 @@ export function DraftPendingFormsScreen({ user }) {
       (await listActiveQuestionnaireDraftSummaries()).filter(hasDraftAnswers),
       user,
     );
-    const rows = filterDraftsForTaskCandidates(siteDrafts, listTaskWorklistCandidates()).map(normalizeDraft);
+    const rows = filterDraftsForTaskCandidates(siteDrafts, listTaskWorklistCandidates());
     setDrafts(rows);
   }, [user]);
 
@@ -171,7 +173,7 @@ export function DraftPendingFormsScreen({ user }) {
       ) : (
         <FlatList
           data={pagedDrafts}
-          keyExtractor={(draft) => draft.id}
+          keyExtractor={(draft) => draft.draft_id}
           renderItem={({ item }) => <DraftCard draft={item} />}
           contentContainerStyle={styles.list}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}

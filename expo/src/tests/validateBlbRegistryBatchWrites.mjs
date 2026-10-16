@@ -78,6 +78,20 @@ for (const failure of ["write", "session", "scope", "commit-session", "commit-sc
   assert.deepEqual(allHouseholds(), previousHouseholds, `${failure} preserves the complete old household cache`);
   scope = "02";
 }
+// Validation late in the source must roll back batches already written.
+onInsert = null;
+inserts = 0;
+await assert.rejects(() => replace([...replacement.slice(0, 61), { uid: "  " }, ...replacement.slice(62)]), /missing uid/);
+assert.equal(inserts, 1, "the first batch writes before validation reaches the invalid second-batch UID");
+assert.deepEqual(allPeople(), previousPeople);
+assert.deepEqual(allHouseholds(), previousHouseholds);
+let normalized = 0;
+onInsert = (count) => {
+  if (count === 1) assert.equal(normalized, 50, "only the current batch is normalized before the first bridge write");
+};
+inserts = 0;
+await replace(Array.from({ length: 151 }, (_, i) => ({ get uid() { normalized += 1; return `bounded-${i}`; } })));
+assert.equal(normalized, 151, "every source row is normalized exactly once");
 onInsert = null;
 inserts = 0;
 const started = performance.now();

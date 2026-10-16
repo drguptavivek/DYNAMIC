@@ -22,6 +22,8 @@ import {
   buildSubmissionDisplayItems,
   filterResponses,
   getHhqVisitResultLabel,
+  getSubmissionCorrectionCandidates,
+  getSubmissionCorrectionClock,
   normalizeFormResponse,
   uniqueOptions,
 } from "./formSubmissionHistory.js";
@@ -190,11 +192,21 @@ export function FormSubmissionListScreen({ mode }) {
   const [localityCode, setLocalityCode] = useState("");
   const syncStatus = uploadErrors ? "upload_error" : uploaded ? "synced" : "pending";
 
-  useEffect(() => {
-    if (uploaded || uploadErrors) return undefined;
+  const correctionCandidates = useMemo(
+    () => uploaded || uploadErrors ? [] : getSubmissionCorrectionCandidates(responses, Date.now()),
+    [responses, uploaded, uploadErrors],
+  );
+  const { hasLiveCorrection, expiredCorrectionKey } = useMemo(
+    () => getSubmissionCorrectionClock(correctionCandidates, nowMs),
+    [correctionCandidates, nowMs],
+  );
+
+  useFocusEffect(useCallback(() => {
+    setNowMs(Date.now());
+    if (!hasLiveCorrection) return undefined;
     const interval = setInterval(() => setNowMs(Date.now()), 1000);
     return () => clearInterval(interval);
-  }, [uploaded, uploadErrors]);
+  }, [hasLiveCorrection]));
 
   const { siteOptions, formOptions, localityOptions } = useMemo(
     () => ({
@@ -241,27 +253,16 @@ export function FormSubmissionListScreen({ mode }) {
   const loadResponses = useCallback(async () => {
     const requestId = ++loadRequestRef.current;
     const rows = (await listFormResponseSummaries({ sync_status: syncStatus })).map(normalizeFormResponse);
-    if (requestId === loadRequestRef.current) setResponses(rows);
+    if (requestId === loadRequestRef.current) {
+      setNowMs(Date.now());
+      setResponses(rows);
+    }
   }, [syncStatus]);
-
-  const expiredCorrectionKey = useMemo(
-    () =>
-      responses
-        .filter(
-          (response) =>
-            getWqVisitorCorrectionDraftId(response) &&
-            !canCorrectExcludedWqResponse(response, nowMs),
-        )
-        .map((response) => response.id)
-        .sort()
-        .join("|"),
-    [responses, nowMs],
-  );
 
   useEffect(() => {
     if (!expiredCorrectionKey || uploaded || uploadErrors) return;
     try {
-      if (discardExpiredWqVisitorCorrectionDrafts(nowMs) > 0) {
+      if (discardExpiredWqVisitorCorrectionDrafts(Date.now()) > 0) {
         loadResponses().catch((error) =>
           console.error("Error refreshing expired WQ correction drafts:", error),
         );
@@ -269,7 +270,7 @@ export function FormSubmissionListScreen({ mode }) {
     } catch (error) {
       console.error("Error discarding expired WQ correction drafts:", error);
     }
-  }, [expiredCorrectionKey, loadResponses, nowMs, uploaded, uploadErrors]);
+  }, [expiredCorrectionKey, loadResponses, uploaded, uploadErrors]);
 
   const editExcludedWq = useCallback((response) => {
     if (!canCorrectExcludedWqResponse(response, Date.now())) {

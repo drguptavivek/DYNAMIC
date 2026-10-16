@@ -312,6 +312,17 @@ assert.equal(sqlite.prepare("SELECT hh_list_no FROM blb_registry_individuals WHE
 sqlite.prepare("INSERT INTO blb_registry_individuals (uid, hh_list_no, family_no, ind_no) VALUES (?, ?, ?, ?)").run("second-test", "001", "02", "03");
 await initContext.initialize(db);
 assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM blb_registry_individuals").get().n, 2);
+// An already-v2 phone still receives the independent browse indexes without rewriting IDs.
+const beforeIndexUpgrade = await db.getAllAsync("SELECT * FROM blb_registry_individuals ORDER BY uid");
+sqlite.exec(`DROP INDEX idx_blb_registry_household_browse;
+  DROP INDEX idx_blb_registry_people_browse;
+  DELETE FROM local_schema_migrations WHERE name='blb_registry.browse_indexes.v1'`);
+assert.ok(sqlite.prepare("SELECT name FROM local_schema_migrations WHERE name='blb_registry.individuals.v2'").get());
+await initContext.initialize(db);
+assert.deepEqual(await db.getAllAsync("SELECT * FROM blb_registry_individuals ORDER BY uid"), beforeIndexUpgrade);
+assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='index' AND name IN ('idx_blb_registry_household_browse','idx_blb_registry_people_browse')").get().n, 2);
+await initContext.initialize(db);
+assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM local_schema_migrations WHERE name='blb_registry.browse_indexes.v1'").get().n, 1);
 sqlite.exec("UPDATE blb_registry_individuals SET village_code='01'; UPDATE blb_registry_individuals SET name='A% Literal', hh_list_no=' 001 ' WHERE uid='legacy-test'");
 const realSqlApi = loadRepository({ platform: { OS: "android" }, storage: null, db });
 const literalMatch = await realSqlApi.searchBlbRegistryPeople({ villageCode: "01", houseNo: "001", search: "A%" }, ["01"]);

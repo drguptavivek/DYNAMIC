@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { performance } from "node:perf_hooks";
 
 const store = new Map();
 globalThis.window = {
@@ -236,6 +237,68 @@ assert.deepEqual(
   ),
   ["wq-draft"],
 );
+
+// Keep the indexed bulk matcher identical to the individual matcher, including
+// legacy payload fallbacks, untrimmed form codes and case-sensitive identities.
+const matchingDrafts = [
+  null,
+  undefined,
+  {},
+  wqDraft,
+  wqDraft,
+  orphanDraft,
+  { form_code: "wq", task_id: "  task-wq-1  " },
+  { form_code: " WQ ", task_id: "task-wq-1" },
+  { form_code: "WQ", task_id: "TASK-WQ-1" },
+  { form_code: "HHQ", draft_key: "legacy-key" },
+  { form_code: "PEF", woman_id: " woman-id ", subject_id: "fallback-subject" },
+  { form_code: "PFF", json_payload: { pff_pregnancy_id: "local-pregnancy:2-02-0003-01-01" } },
+  { form_code: "HHQ", json_payload: {
+    hhq_site_id: 2, hhq_locality_code: 2, hhq_structure_map_id: "3", hhq_household_number: 1,
+  } },
+  { form_code: "", draft_id: "blank-form" },
+  { form_code: "WQ", task_id: 0, subject_id: false },
+];
+const matchingTasks = [
+  null,
+  undefined,
+  {},
+  wqTaskCandidate,
+  { task_type: "wq", task_key: " task-wq-1 " },
+  { task_type: " WQ ", task_id: "task-wq-1" },
+  { task_type: "HHQ", task_key: " legacy-key " },
+  { task_type: "PEF", subject_id: "woman-id" },
+  { task_type: "PFF", household_id: "2-02-0003-01" },
+  { task_type: "HHQ", household_id: "2-02-0003-01" },
+  { id: "blank-form" },
+  { task_type: "WQ", id: 0, subject_id: false },
+];
+for (const candidates of [[], matchingTasks, ...matchingTasks.map((task) => [task])]) {
+  assert.deepEqual(
+    filterDraftsForTaskCandidates(matchingDrafts, candidates),
+    matchingDrafts.filter((draft) => candidates.some((task) => draftMatchesTask(draft, task))),
+  );
+}
+assert.deepEqual(filterDraftsForTaskCandidates(), []);
+
+const largeTaskCandidates = Array.from({ length: 120_000 }, (_, index) => ({
+  id: `large-task-${index}`,
+  task_type: index % 2 ? "WQ" : "HHQ",
+}));
+const largeDraftCandidates = Array.from({ length: 10_000 }, (_, index) => ({
+  draft_id: `large-draft-${index}`,
+  task_id: `large-task-${110_000 + index}`,
+  form_code: index % 2 ? "wq" : "hhq",
+}));
+const unmatchedLargeDraft = { draft_id: "unmatched", form_code: "HHQ" };
+const matchingStartedAt = performance.now();
+const largeMatches = filterDraftsForTaskCandidates(
+  [...largeDraftCandidates, unmatchedLargeDraft], largeTaskCandidates,
+);
+assert.equal(largeMatches.length, largeDraftCandidates.length);
+assert.equal(largeMatches[0], largeDraftCandidates[0]);
+assert.equal(largeMatches.at(-1), largeDraftCandidates.at(-1));
+console.log(`Draft matching host benchmark: 120000 tasks / 10001 drafts in ${(performance.now() - matchingStartedAt).toFixed(1)} ms.`);
 assert.deepEqual(
   filterDraftsForUserSite(mixedSiteDrafts, { site_id: 2 }).map((draft) => draft.draft_id),
   ["site-2-payload", "site-2-household"],

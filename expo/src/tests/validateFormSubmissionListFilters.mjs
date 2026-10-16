@@ -2,9 +2,54 @@ import assert from "node:assert/strict";
 
 import {
   filterResponses,
+  getSubmissionCorrectionCandidates,
+  getSubmissionCorrectionClock,
   normalizeFormResponse,
   uniqueOptions,
 } from "../modules/questionnaires/formSubmissionHistory.js";
+import {
+  WQ_VISITOR_CORRECTION_DRAFT_STATUS_PREFIX,
+  WQ_VISITOR_EXCLUDED_STATUS,
+} from "../modules/questionnaires/wqVisitorExclusion.js";
+
+// A large history is scanned only when loaded; clock work includes live corrections
+// and linked drafts needing expiry cleanup, not ordinary or old excluded forms.
+{
+  const submittedAt = Date.parse("2026-10-16T10:00:00.000Z");
+  const nowMs = submittedAt + 9 * 60 * 1000;
+  const live = {
+    id: "live", form_code: "WQ", sync_status: "pending",
+    submitted_at: new Date(submittedAt).toISOString(),
+    server_response_status: WQ_VISITOR_EXCLUDED_STATUS,
+  };
+  const liveDraft = {
+    ...live, id: "live-draft",
+    server_response_status: `${WQ_VISITOR_CORRECTION_DRAFT_STATUS_PREFIX}draft-1`,
+  };
+  const expiredDraft = {
+    ...liveDraft, id: "expired-draft", submitted_at: "2026-10-15T10:00:00.000Z",
+  };
+  const largeHistory = Array.from({ length: 100_001 }, (_, index) => ({
+    ...live, id: `old-${index}`, submitted_at: "2026-10-15T10:00:00.000Z",
+  }));
+  const rows = [...largeHistory, live, liveDraft, expiredDraft,
+    { ...live, id: "synced", sync_status: "synced" },
+    { ...live, id: "invalid-date", submitted_at: "bad date" }];
+  const candidates = getSubmissionCorrectionCandidates(rows, nowMs);
+  assert.deepEqual(candidates.map((row) => row.id), ["live", "live-draft", "expired-draft"]);
+  assert.deepEqual(getSubmissionCorrectionClock(candidates, nowMs), {
+    hasLiveCorrection: true, expiredCorrectionKey: "expired-draft",
+  });
+  assert.deepEqual(getSubmissionCorrectionClock(candidates, submittedAt + 10 * 60 * 1000), {
+    hasLiveCorrection: false, expiredCorrectionKey: "expired-draft|live-draft",
+  });
+  assert.deepEqual(getSubmissionCorrectionClock([], nowMs), {
+    hasLiveCorrection: false, expiredCorrectionKey: "",
+  });
+  assert.equal(getSubmissionCorrectionCandidates(rows, submittedAt + 10 * 60 * 1000).length, 2);
+  assert.equal(rows.length, 100_006);
+  assert.equal(liveDraft.server_response_status, `${WQ_VISITOR_CORRECTION_DRAFT_STATUS_PREFIX}draft-1`);
+}
 
 // normalizeFormResponse defaults
 {
