@@ -23,6 +23,7 @@ for (const key of [
   "dynamic_household_members_v4",
   "dynamic_questionnaire_drafts_v1",
   "dynamic_questionnaire_submissions_v1",
+  "dynamic_blb_registry_v1",
 ]) {
   assert.ok(webStorageKeys.includes(key), `logout should clear web storage key ${key}`);
 }
@@ -38,6 +39,8 @@ for (const table of [
   "form_submissions",
   "household_members",
   "households",
+  "blb_registry_households",
+  "blb_registry_individuals",
   "study_sites",
   "study_villages",
   "sync_meta",

@@ -31,6 +31,15 @@ import {
 } from "../attachments/attachmentRepository.js";
 import { resolveAttachmentWomanId, uploadAttachment } from "../attachments/attachmentUploadClient.js";
 import { getHhqGeneratedTaskKeys } from "../questionnaires/questionnaireSubmissionRepository.js";
+import {
+  getBlbRegistryCounts,
+  replaceBlbRegistry,
+} from "../households/blbRegistryRepository.js";
+import { getRegistrySessionGeneration } from "../storage/registryCacheLifecycle.js";
+import {
+  getAssignedBlbRegistryVillages as getAssignedBlbRegistryVillagesForUser,
+  getBlbRegistryScopeFingerprint,
+} from "../households/blbRegistryScope.js";
 
 function unwrapApiData(payload) {
   return payload && Object.prototype.hasOwnProperty.call(payload, "data") ? payload.data : payload;
@@ -75,6 +84,10 @@ export function setAssignedLocalities(codes) {
     console.error("Error setting assigned_localities:", error);
     throw error;
   }
+}
+
+export function getAssignedBlbRegistryVillages(user = authStore.getUser()) {
+  return getAssignedBlbRegistryVillagesForUser(user);
 }
 
 export async function refreshAssignments() {
@@ -138,6 +151,63 @@ function emitProgress(onProgress, progress) {
 
 function shouldShowBatchProgress(batch, totalBatches, hasNextBatch = true) {
   return batch === 1 || batch % 50 === 0 || !hasNextBatch || batch === totalBatches;
+}
+
+const BLB_REGISTRY_PAGE_SIZE = 1000;
+
+/** Fetch and atomically replace the complete scoped Ballabgarh registry. */
+export async function pullBlbRegistry({ fetchImpl = fetch, token = authStore.getToken() } = {}) {
+  const households = [];
+  const individuals = [];
+  const expectedGeneration = getRegistrySessionGeneration();
+  const expectedScopeFingerprint = getBlbRegistryScopeFingerprint(authStore.getUser());
+  const sessionToken = authStore.getToken();
+  const sessionUser = authStore.getUser();
+  const sessionUserId = sessionUser?.user_id ?? sessionUser?.id ?? null;
+  let cursor = null;
+  const seenCursors = new Set();
+  let pages = 0;
+  while (true) {
+    const params = new URLSearchParams({ limit: String(BLB_REGISTRY_PAGE_SIZE) });
+    if (cursor) params.set("cursor", cursor);
+    const response = await fetchImpl(`${API_BASE_URL}/masters/blb-registry?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) throw new Error(`BLB registry pull failed: ${response.status}`);
+    const payload = unwrapApiData(await response.json());
+    if (!payload || !Array.isArray(payload.households) || !Array.isArray(payload.individuals)) {
+      throw new Error("BLB registry pull returned an invalid page");
+    }
+    households.push(...payload.households);
+    individuals.push(...payload.individuals);
+    pages += 1;
+    const nextCursor = payload.next_cursor === null || payload.next_cursor === undefined
+      ? null
+      : String(payload.next_cursor);
+    if (!nextCursor) break;
+    if (seenCursors.has(nextCursor) || nextCursor === cursor) {
+      throw new Error("BLB registry pull returned a repeated cursor");
+    }
+    seenCursors.add(nextCursor);
+    cursor = nextCursor;
+  }
+  // Do not let a late response from a previous account/session replace the
+  // current user's scoped cache after logout or account switching.
+  if ((sessionToken && authStore.getToken() !== sessionToken)
+    || (sessionUserId && (authStore.getUser()?.user_id ?? authStore.getUser()?.id ?? null) !== sessionUserId)) {
+    throw new Error("BLB registry session changed during pull");
+  }
+  if (getBlbRegistryScopeFingerprint(authStore.getUser()) !== expectedScopeFingerprint) {
+    throw new Error("BLB registry assignment scope changed during pull");
+  }
+  const counts = await replaceBlbRegistry({
+    households,
+    individuals,
+    expectedGeneration,
+    expectedScopeFingerprint,
+    getCurrentScopeFingerprint: () => getBlbRegistryScopeFingerprint(authStore.getUser()),
+  });
+  return { ...counts, pages };
 }
 
 export function getLastSyncAt() {
@@ -1091,6 +1161,24 @@ export async function syncAll(options = {}) {
       onProgress,
       authoritativeHouseholdIds: pushResult.conflictHouseholdIds || [],
     });
+    emitProgress(onProgress, {
+      stage: "pull-blb-registry",
+      message: "Fetching Ballabgarh master registry",
+    });
+    // Non-fatal to the ordinary household sync, but expose a warning: a
+    // failed page or cache write must never be reported as a registry success.
+    let blbRegistrySync = null;
+    try {
+      const pulledRegistry = await pullBlbRegistry({ token: authStore.getToken() });
+      blbRegistrySync = { success: true, ...pulledRegistry, counts: await getBlbRegistryCounts() };
+    } catch (error) {
+      blbRegistrySync = { success: false, warning: error?.message || "BLB registry sync failed" };
+      emitProgress(onProgress, {
+        stage: "pull-blb-registry-warning",
+        message: blbRegistrySync.warning,
+      });
+      console.warn("BLB registry sync skipped:", error);
+    }
     const draftParams = new URLSearchParams({
       device_id: getMeta("device_id") || "unregistered-device",
     });
@@ -1129,6 +1217,7 @@ export async function syncAll(options = {}) {
       draftsPulled: pulledDrafts,
       staleDraftsRemoved: pushResult.staleDraftsRemoved || 0,
       draftSyncErrors: pushResult.draftSyncErrors || [],
+      blbRegistrySync,
       clockStatus: getClockStatus(),
     });
     const result = {
@@ -1151,6 +1240,7 @@ export async function syncAll(options = {}) {
       draftsPulled: pulledDrafts,
       staleDraftsRemoved: pushResult.staleDraftsRemoved || 0,
       draftSyncErrors: pushResult.draftSyncErrors || [],
+      blbRegistrySync,
     };
     endSync({
       ok: true,

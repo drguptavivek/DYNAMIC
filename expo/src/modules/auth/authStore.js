@@ -231,6 +231,7 @@ export async function logout() {
     } catch (fallbackError) {
       console.error("Logout fallback error:", fallbackError);
     }
+    throw error;
   }
 }
 

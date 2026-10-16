@@ -62,6 +62,11 @@ assert.deepEqual(
   },
 );
 
+assert.match(
+  formatSyncCompletionMessage({ blbRegistrySync: { success: false } }),
+  /HDSS lookup was not refreshed; sync again before using it/,
+);
+
 const user = {
   site_id: 2,
   area_assignments: [

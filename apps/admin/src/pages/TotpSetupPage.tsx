@@ -16,14 +16,14 @@ export default function TotpSetupPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const setupRequestStartedRef = useRef(false);
+  const setupRequestRef = useRef<Promise<TotpSetup> | null>(null);
   const enableRequestStartedRef = useRef(false);
 
   useEffect(() => {
-    if (setupRequestStartedRef.current) return;
-    setupRequestStartedRef.current = true;
     let cancelled = false;
-    api.post<TotpSetup>("/auth/totp/setup", {})
+    // Replayed effects subscribe to the same request with their own cleanup.
+    setupRequestRef.current ??= api.post<TotpSetup>("/auth/totp/setup", {});
+    setupRequestRef.current
       .then(async (value) => {
         if (cancelled) return;
         setSetup(value);

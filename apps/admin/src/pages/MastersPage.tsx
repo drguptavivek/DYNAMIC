@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
+import { useAuth } from "../lib/auth-context";
 import styles from "./MastersPage.module.css";
+import HdssRegistryUploadTab from "./HdssRegistryUploadTab";
 
 interface Site {
   site_id: number;
@@ -69,7 +71,9 @@ interface MappingImportUpload {
 }
 
 export default function MastersPage() {
-  const [activeTab, setActiveTab] = useState<"sites" | "localities" | "mapping">("sites");
+  const { user } = useAuth();
+  const isCentralAdmin = user?.role === "central_admin";
+  const [activeTab, setActiveTab] = useState<"sites" | "localities" | "mapping" | "hdss">("sites");
   const [sites, setSites] = useState<Site[]>([]);
   const [localities, setLocalities] = useState<Locality[]>([]);
   const [mappingFrames, setMappingFrames] = useState<MappingFrame[]>([]);
@@ -202,6 +206,14 @@ export default function MastersPage() {
         >
           Add Households
         </button>
+        {isCentralAdmin && (
+          <button
+            className={`${styles.tab} ${activeTab === "hdss" ? styles.active : ""}`}
+            onClick={() => setActiveTab("hdss")}
+          >
+            Ballabgarh HDSS
+          </button>
+        )}
       </div>
 
       <div className={styles.tabContent}>
@@ -230,6 +242,7 @@ export default function MastersPage() {
             onRefresh={loadMappingFrames}
           />
         )}
+        {isCentralAdmin && activeTab === "hdss" && <HdssRegistryUploadTab />}
       </div>
     </div>
   );

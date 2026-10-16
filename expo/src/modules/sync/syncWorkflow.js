@@ -242,6 +242,9 @@ export function buildClockDriftAlert(clockStatus = null) {
 
 export function formatSyncCompletionMessage(result = {}) {
   const parts = [];
+  if (result.blbRegistrySync?.success === false) {
+    parts.push("HDSS lookup was not refreshed; sync again before using it");
+  }
   const pluralize = (count, singular, plural = `${singular}s`) =>
     `${count} ${count === 1 ? singular : plural}`;
 

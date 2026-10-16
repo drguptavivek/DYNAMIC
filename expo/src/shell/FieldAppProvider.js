@@ -128,7 +128,11 @@ export function FieldAppProvider({ children }) {
     } catch (error) {
       console.warn("Could not clear app lock during logout:", error);
     }
-    await authStore.logout();
+    try {
+      await authStore.logout();
+    } catch {
+      Alert.alert("Device cleanup incomplete", "You have been signed out. HDSS data could not be cleared; retry signing in to complete device cleanup before using the app.");
+    }
     setUser(null);
     setAppLocked(false);
     setAppLockConfigured(false);

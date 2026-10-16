@@ -331,6 +331,7 @@ function applyMandatoryHhqSurveyJson(surveyJson) {
         next.name &&
         next.name !== "hhq_household_members" &&
         next.name !== HHQ_MEMBER_LIVING_SINCE_BIRTH_NAME &&
+        !next.name.startsWith("member_registry_") &&
         next.type !== "html" &&
         next.type !== "paneldynamic" &&
         !next.readOnly

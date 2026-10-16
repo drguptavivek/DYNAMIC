@@ -1,0 +1,268 @@
+/** Behavioral checks for the synthetic-only BLB registry cache and pull path. */
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import vm from "node:vm";
+import { DatabaseSync } from "node:sqlite";
+import { fileURLToPath } from "node:url";
+import {
+  getAssignedBlbRegistryVillages,
+  getBlbRegistryScopeFingerprint,
+} from "../modules/households/blbRegistryScope.js";
+import {
+  invalidateRegistrySession,
+  withRegistryCacheLock,
+} from "../modules/storage/registryCacheLifecycle.js";
+
+const root = path.dirname(fileURLToPath(import.meta.url));
+const repository = fs.readFileSync(path.resolve(root, "../modules/households/blbRegistryRepository.js"), "utf8").replace(/\r\n/g, "\n");
+const sync = fs.readFileSync(path.resolve(root, "../modules/sync/syncService.js"), "utf8").replace(/\r\n/g, "\n");
+const schema = fs.readFileSync(path.resolve(root, "../modules/households/householdRepository.js"), "utf8");
+
+assert.match(repository, /uid: requiredText\(individual\?\.uid/);
+assert.match(repository, /hh_list_no: text\(individual\?\.hh_list_no\) \|\| ""/);
+assert.match(schema, /uid TEXT PRIMARY KEY NOT NULL,[\s\S]*village_code TEXT,[\s\S]*source_age_as_of TEXT/);
+assert.doesNotMatch(schema, /UNIQUE\(hh_list_no, family_no, ind_no\)/);
+assert.match(schema, /ALTER TABLE blb_registry_individuals RENAME TO blb_registry_individuals_legacy/);
+assert.match(schema, /INSERT INTO blb_registry_individuals[\s\S]*FROM blb_registry_individuals_legacy/);
+
+const scopedUser = {
+  area_assignments: [
+    { site_id: 2, locality_code: "02", active_from: "2026-01-01", active_to: "2026-12-31" },
+    { site_id: 3, locality_code: "02", active_from: "2026-01-01", active_to: "2026-12-31" },
+    { site_id: 2, locality_code: "03", active_from: "2027-01-01", active_to: null },
+    { site_id: 2, locality_code: "04", active_from: null, active_to: "2026-09-30" },
+  ],
+};
+assert.deepEqual(getAssignedBlbRegistryVillages(scopedUser, "2026-10-14"), ["02"]);
+assert.equal(getBlbRegistryScopeFingerprint(scopedUser, "2026-10-14"), "02");
+
+let releaseFirst;
+const lockOrder = [];
+const firstLock = withRegistryCacheLock(async () => {
+  lockOrder.push("first");
+  await new Promise((resolve) => { releaseFirst = resolve; });
+  lockOrder.push("first-done");
+});
+const secondLock = withRegistryCacheLock(async () => { lockOrder.push("second"); });
+await Promise.resolve();
+assert.deepEqual(lockOrder, ["first"]);
+invalidateRegistrySession();
+releaseFirst();
+await Promise.all([firstLock, secondLock]);
+assert.deepEqual(lockOrder, ["first", "first-done", "second"]);
+
+function loadRepository({ platform, storage, db }) {
+  const transformed = repository
+    .replace('import { Platform } from "react-native";', "const Platform = globalThis.Platform;")
+    .replace('import { getOfflineDatabase } from "../storage/offlineDatabase";', "const getOfflineDatabase = globalThis.getOfflineDatabase;")
+    .replace('import {\n  getRegistrySessionGeneration,\n  withRegistryCacheLock,\n} from "../storage/registryCacheLifecycle.js";', "const getRegistrySessionGeneration = globalThis.getRegistrySessionGeneration; const withRegistryCacheLock = globalThis.withRegistryCacheLock;")
+    .replace(/^export /gm, "")
+    + "\nthis.registryApi = { replaceBlbRegistry, findBlbRegistryIndividuals, findBlbRegistryIndividual, findBlbRegistryIndividualByUid, searchBlbRegistryPeople, bumpGeneration: () => { this.generation += 1; } };";
+  const context = {
+    Platform: platform,
+    getOfflineDatabase: () => db,
+    window: { localStorage: storage },
+    generation: 0,
+    getRegistrySessionGeneration: () => context.generation,
+    withRegistryCacheLock: async (work) => work(),
+    console,
+  };
+  vm.runInNewContext(transformed, context);
+  return context.registryApi;
+}
+
+const browserStorage = {
+  value: JSON.stringify({ households: [], individuals: [{ uid: "old", village_code: "01" }] }),
+  fail: false,
+  getItem() { return this.value; },
+  setItem(_key, value) { if (this.fail) throw new Error("quota"); this.value = value; },
+};
+const webApi = loadRepository({ platform: { OS: "web" }, storage: browserStorage, db: null });
+await webApi.replaceBlbRegistry({ households: [], individuals: [
+  { uid: "UID-A!", village_code: "01", hh_list_no: "001", family_no: "02", ind_no: "3", name: "A", domicile: "R", curr_status: "L" },
+  { uid: "UID-B", village_code: "01", hh_list_no: "001", family_no: "02", ind_no: "3", name: "B", domicile: "Dead", curr_status: "L" },
+  { uid: "UID-PERCENT", village_code: "01", hh_list_no: "002", family_no: "01", ind_no: "01", name: "100% Person", domicile: "R", curr_status: "L" },
+  { uid: "UID-BLANK", village_code: "01", hh_list_no: "", family_no: "", ind_no: "", name: "Blank keys" },
+] });
+const storedRows = JSON.parse(browserStorage.value).individuals;
+assert.equal(storedRows[0].domicile, "R");
+assert.equal(storedRows[0].status, "alive");
+assert.equal(storedRows[0].curr_status, "L");
+assert.equal((await webApi.findBlbRegistryIndividuals("01", "001", "02", "3", ["01"])).length, 2);
+assert.equal(await webApi.findBlbRegistryIndividual("01", "001", "02", "3", ["01"]), null);
+assert.equal((await webApi.findBlbRegistryIndividualByUid("UID-A!", ["01"])).uid, "UID-A!");
+assert.equal((await webApi.findBlbRegistryIndividuals("01", "001", "02", "3", ["03"])).length, 0);
+assert.equal(await webApi.findBlbRegistryIndividualByUid("UID-A!", ["03"]), null);
+assert.equal((await webApi.findBlbRegistryIndividuals("01", "", "", "", ["01"])).length, 0);
+assert.equal((await webApi.searchBlbRegistryPeople({ villageCode: "01", houseNo: "001" }, ["01"])).length, 2);
+assert.equal((await webApi.searchBlbRegistryPeople({ villageCode: "01", houseNo: "002" }, ["01"]))[0].hh_list_no, "002");
+assert.equal((await webApi.searchBlbRegistryPeople({ villageCode: "01", search: "100%" }, ["01"])).length, 1);
+assert.equal((await webApi.searchBlbRegistryPeople({ villageCode: "01", search: "01-001-02-3", limit: 1, offset: 1 }, ["01"]))[0].uid, "UID-B");
+assert.equal((await webApi.searchBlbRegistryPeople({ villageCode: "01", limit: 500 }, ["03"])).length, 0);
+assert.equal((await webApi.searchBlbRegistryPeople({ villageCode: "", houseNo: "001" }, ["01"])).length, 0);
+browserStorage.fail = true;
+await assert.rejects(() => webApi.replaceBlbRegistry({ households: [], individuals: [{ uid: "new", village_code: "01" }] }), /quota/);
+assert.match(browserStorage.value, /UID-A!/);
+
+const nativeLog = [];
+let nativeApi;
+nativeApi = loadRepository({
+  platform: { OS: "android" },
+  storage: null,
+  db: {
+    async execAsync(sql) { nativeLog.push(sql); },
+    async runAsync(sql) { nativeLog.push(sql); if (sql.includes("DELETE FROM blb_registry_households")) nativeApi.bumpGeneration(); },
+    async getAllAsync(sql, params) { nativeLog.push({ sql, params }); return []; },
+  },
+});
+await assert.rejects(() => nativeApi.replaceBlbRegistry({ households: [], individuals: [{ uid: "native", village_code: "01" }] }), /session changed (during cache replacement|before cache commit)/);
+assert.ok(nativeLog.includes("BEGIN TRANSACTION"));
+assert.ok(nativeLog.includes("ROLLBACK"));
+await nativeApi.searchBlbRegistryPeople({ villageCode: "01", houseNo: "001", search: "A%", offset: 2, limit: 500 }, ["01"]);
+const searchQuery = nativeLog.find((entry) => typeof entry === "object" && entry.sql.includes("FROM blb_registry_individuals"));
+assert.match(searchQuery.sql, /village_code = \?/);
+assert.match(searchQuery.sql, /trim\(hh_list_no\) = \?/);
+assert.match(searchQuery.sql, /ORDER BY family_no[\s\S]*ind_no[\s\S]*uid/);
+assert.match(searchQuery.params[2], /a\\%/);
+assert.equal(searchQuery.params.at(-2), 50);
+assert.equal(searchQuery.params.at(-1), 2);
+
+let activeScope = "02";
+const scopeLog = [];
+let scopeApi;
+scopeApi = loadRepository({
+  platform: { OS: "android" },
+  storage: null,
+  db: {
+    async execAsync(sql) { scopeLog.push(sql); },
+    async runAsync(sql) {
+      scopeLog.push(sql);
+      if (sql.includes("DELETE FROM blb_registry_households")) activeScope = "03";
+    },
+  },
+});
+await assert.rejects(() => scopeApi.replaceBlbRegistry({
+  households: [],
+  individuals: [{ uid: "scope-race", village_code: "02" }],
+  expectedScopeFingerprint: "02",
+  getCurrentScopeFingerprint: () => activeScope,
+}), /assignment scope changed during cache replacement|assignment scope changed before cache commit/);
+assert.ok(scopeLog.includes("ROLLBACK"));
+
+// The pull loop requests bounded pages, follows opaque cursors, validates
+// every page, and only calls the atomic cache replacement after all pages pass.
+assert.match(sync, /BLB_REGISTRY_PAGE_SIZE = 1000/);
+assert.match(sync, /params\.set\("cursor", cursor\)/);
+assert.match(sync, /session changed during pull/);
+const pullStart = sync.indexOf("export async function pullBlbRegistry");
+const pullEnd = sync.indexOf("\n}\n\nexport function getLastSyncAt", pullStart) + 2;
+const pullSource = sync.slice(pullStart, pullEnd).replace("export async function", "async function");
+async function runPull(responses) {
+  let replaceArgs = null;
+  const context = {
+    API_BASE_URL: "https://example.test/api",
+    URLSearchParams,
+    getRegistrySessionGeneration: () => 0,
+    getBlbRegistryScopeFingerprint,
+    authStore: { getToken: () => null, getUser: () => null },
+    unwrapApiData: (payload) => payload?.data ?? payload,
+    replaceBlbRegistry: async (args) => { replaceArgs = args; return { households: args.households.length, individuals: args.individuals.length }; },
+  };
+  vm.runInNewContext(`const BLB_REGISTRY_PAGE_SIZE = 1000; ${pullSource}\nthis.run = pullBlbRegistry;`, context);
+  let index = 0;
+  const fetchImpl = async (url) => { context.lastUrl = url; return responses[index++]; };
+  const result = await context.run({ fetchImpl, token: "synthetic-token" });
+  return { result, replaceArgs, lastUrl: context.lastUrl, calls: index };
+}
+const paged = await runPull([
+  { ok: true, json: async () => ({ data: { households: [{ hh_list_no: "1", family_no: "1" }], individuals: [], next_cursor: "opaque-cursor" } }) },
+  { ok: true, json: async () => ({ data: { households: [], individuals: [{ uid: "p2", hh_list_no: "2", family_no: "1", ind_no: "1" }], next_cursor: null } }) },
+]);
+assert.equal(paged.calls, 2);
+assert.equal(paged.replaceArgs.individuals[0].uid, "p2");
+assert.equal(paged.replaceArgs.expectedGeneration, 0);
+assert.equal(paged.replaceArgs.expectedScopeFingerprint, "");
+assert.match(paged.lastUrl, /cursor=opaque-cursor/);
+const failed = await runPull([
+  { ok: true, json: async () => ({ households: [], individuals: [], next_cursor: "next" }) },
+  { ok: false, status: 503 },
+]).catch((error) => error);
+assert.match(failed.message, /BLB registry pull failed: 503/);
+
+// Run the real initialization SQL against a legacy SQLite table, rather than
+// relying on a fake database that accepts references to missing columns.
+const sqlite = new DatabaseSync(":memory:");
+sqlite.exec(`CREATE TABLE blb_registry_individuals (
+  uid TEXT PRIMARY KEY NOT NULL, hh_list_no TEXT NOT NULL,
+  family_no TEXT NOT NULL, ind_no TEXT NOT NULL, name TEXT NOT NULL,
+  age_years INTEGER, sex TEXT, status TEXT NOT NULL DEFAULT 'alive', updated_at TEXT,
+  UNIQUE(hh_list_no, family_no, ind_no)
+); INSERT INTO blb_registry_individuals VALUES ('legacy-test', '001', '02', '03', 'Synthetic', 12, '1', 'alive', NULL);`);
+const db = {
+  execAsync: async (sql) => sqlite.exec(sql),
+  runAsync: async (sql, params = []) => sqlite.prepare(sql).run(...params),
+  getAllAsync: async (sql, params = []) => sqlite.prepare(sql).all(...params),
+  getFirstAsync: async (sql, params = []) => sqlite.prepare(sql).get(...params),
+};
+const initStart = schema.indexOf("async function initializeSqlite(db)");
+const initEnd = schema.indexOf("async function ensureSqliteInitialized", initStart);
+const initContext = { STUDY_SITES: [], STUDY_VILLAGES: [] };
+vm.runInNewContext(`${schema.slice(initStart, initEnd)}\nthis.initialize = initializeSqlite;`, initContext);
+await initContext.initialize(db);
+assert.equal(sqlite.prepare("SELECT hh_list_no FROM blb_registry_individuals WHERE uid = ?").get("legacy-test").hh_list_no, "001");
+sqlite.prepare("INSERT INTO blb_registry_individuals (uid, hh_list_no, family_no, ind_no) VALUES (?, ?, ?, ?)").run("second-test", "001", "02", "03");
+await initContext.initialize(db);
+assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM blb_registry_individuals").get().n, 2);
+sqlite.exec("UPDATE blb_registry_individuals SET village_code='01'; UPDATE blb_registry_individuals SET name='A% Literal', hh_list_no=' 001 ' WHERE uid='legacy-test'");
+const realSqlApi = loadRepository({ platform: { OS: "android" }, storage: null, db });
+const literalMatch = await realSqlApi.searchBlbRegistryPeople({ villageCode: "01", houseNo: "001", search: "A%" }, ["01"]);
+assert.equal(literalMatch.length, 1, "native LIKE escapes literal wildcard input");
+assert.equal(literalMatch[0].uid, "legacy-test");
+const originalIdMatches = await realSqlApi.searchBlbRegistryPeople({ villageCode: "01", houseNo: "001", search: "01-001-02-03" }, ["01"]);
+assert.equal(originalIdMatches.length, 2, "native original-ID search retains both people and tolerates source padding");
+
+// Exercise the production server-pull mapper and native upsert. A fresh sync
+// must retain the exact UID instead of replacing it with an empty link.
+const pullMapperStart = schema.indexOf("export async function saveSyncedHouseholdsAndMembers");
+const pullMapperEnd = schema.indexOf("export async function saveHousehold(record)", pullMapperStart);
+const pullMapperSource = schema.slice(pullMapperStart, pullMapperEnd).replace(/^export /gm, "");
+const pulledMember = {
+  household_member_id: "2-01-0001-01-01", household_id: "2-01-0001-01", member_number: 1,
+  name: "Synthetic member", sex: "male", registry_uid: "SYNTHETIC-RAW-UID!",
+  registry_individual_id: "01-0001-01-02", registry_status: "2",
+  updated_at: "2026-10-14T12:00:00Z",
+};
+const mapperContext = {
+  getDatabase: async () => ({
+    ...db,
+    runAsync: async (sql, params = []) => sqlite.prepare(sql).run(...params.map((value) => value ?? null)),
+  }),
+  ensureSqliteInitialized: async () => {},
+  normalizeWomanQuestionnaireEligible: (value) => value === true || value === 1 || value === "1" ? 1 : 0,
+  console,
+};
+vm.runInNewContext(`${pullMapperSource}\nthis.savePull = saveSyncedHouseholdsAndMembers;`, mapperContext);
+await mapperContext.savePull([], [pulledMember]);
+const retainedLink = sqlite.prepare("SELECT registry_uid, registry_individual_id, registry_status FROM household_members WHERE individual_id=?").get(pulledMember.household_member_id);
+assert.equal(retainedLink.registry_uid, pulledMember.registry_uid);
+assert.equal(retainedLink.registry_individual_id, pulledMember.registry_individual_id);
+assert.equal(retainedLink.registry_status, pulledMember.registry_status);
+const webValues = new Map();
+const storage = { getItem: (key) => webValues.get(key) ?? null, setItem: (key, value) => webValues.set(key, value) };
+Object.assign(mapperContext, {
+  getDatabase: async () => null, getStorage: () => storage,
+  cleanupObsoleteWebStorage: () => {}, readStorageArray: (store, key) => JSON.parse(store.getItem(key) || "[]"),
+  setStorageArray: (store, key, rows) => store.setItem(key, JSON.stringify(rows)),
+  mergeRowsById: (rows) => rows,
+  HOUSEHOLD_STORAGE_KEY: "households", MEMBER_STORAGE_KEY: "members",
+  WEB_HOUSEHOLD_CACHE_LIMIT: 500, WEB_MEMBER_CACHE_LIMIT: 500,
+});
+await mapperContext.savePull([], [pulledMember]);
+const [webRetainedLink] = JSON.parse(storage.getItem("members"));
+assert.equal(webRetainedLink.registry_uid, pulledMember.registry_uid);
+assert.equal(webRetainedLink.registry_individual_id, pulledMember.registry_individual_id);
+assert.equal(webRetainedLink.registry_status, pulledMember.registry_status);
+sqlite.close();
+
+console.log("Validated BLB registry cache rollback, scoped lookup, schema migration, and paged pull behavior.");

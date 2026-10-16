@@ -1,3 +1,5 @@
+import { invalidateRegistrySession, withRegistryCacheLock } from "./registryCacheLifecycle.js";
+
 const WEB_STORAGE_KEYS = [
   "dynamic_web_sqlite_v1",
   "dynamic_web_sqlite_v2",
@@ -12,6 +14,7 @@ const WEB_STORAGE_KEYS = [
   "dynamic_questionnaire_drafts_v1",
   "dynamic_questionnaire_submissions_v1",
   "dynamic_form_attachments_v1",
+  "dynamic_blb_registry_v1",
 ];
 
 const NATIVE_TABLES_TO_CLEAR = [
@@ -26,6 +29,8 @@ const NATIVE_TABLES_TO_CLEAR = [
   "form_submissions",
   "household_members",
   "households",
+  "blb_registry_households",
+  "blb_registry_individuals",
   "study_sites",
   "study_villages",
   "sync_meta",
@@ -52,15 +57,26 @@ async function clearWebLocalStorage() {
 async function clearNativeSqlite() {
   const { getOfflineDatabase } = await import("./offlineDatabase.js");
   const db = getOfflineDatabase();
+  let registryClearFailed = false;
   for (const table of NATIVE_TABLES_TO_CLEAR) {
     try {
       await db.execAsync(`DELETE FROM ${table};`);
     } catch (error) {
       if (!String(error?.message || "").toLowerCase().includes("no such table")) {
+        if (table.startsWith("blb_registry_")) registryClearFailed = true;
         console.warn(`Could not clear local table ${table}:`, error);
       }
     }
   }
+  for (const table of ["blb_registry_households", "blb_registry_individuals"]) {
+    try {
+      const row = await db.getFirstAsync(`SELECT COUNT(*) AS count FROM ${table}`);
+      if (Number(row?.count || 0) !== 0) registryClearFailed = true;
+    } catch (error) {
+      if (!String(error?.message || "").toLowerCase().includes("no such table")) registryClearFailed = true;
+    }
+  }
+  if (registryClearFailed) throw new Error("HDSS cache could not be cleared; retry before signing in");
 }
 
 async function clearProtocolFormMemoryCaches() {
@@ -91,15 +107,16 @@ async function clearPersistedFormAttachments() {
 }
 
 export async function clearLocalDeviceData() {
+  invalidateRegistrySession();
   await clearProtocolFormMemoryCaches();
-
-  if (typeof window !== "undefined" && window.localStorage) {
-    await clearWebLocalStorage();
-    return;
-  }
-
-  await clearNativeSqlite();
-  await clearPersistedFormAttachments();
+  await withRegistryCacheLock(async () => {
+    if (typeof window !== "undefined" && window.localStorage) {
+      await clearWebLocalStorage();
+      return;
+    }
+    await clearNativeSqlite();
+    await clearPersistedFormAttachments();
+  });
 }
 
 export function getLocalDeviceDataResetKeysForTests() {
