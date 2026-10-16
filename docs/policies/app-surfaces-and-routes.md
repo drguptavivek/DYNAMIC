@@ -9,6 +9,7 @@ Required field routes:
 | Route | Purpose |
 | --- | --- |
 | `#/households` | Offline household list, search, member search, sync entry point, and household detail surface. |
+| `#/hdss-list` | Read-only offline HDSS households, 50 per page, with member-name search and full household member details. |
 | `#/households/new` | HHQ baseline household enrollment from the mapped frame. |
 | `#/household-members` | Offline member directory across selected/assigned localities. |
 | `#/household-members/:householdId` | Member directory filtered to one household. |
@@ -23,6 +24,7 @@ Rules:
 - Add Household opens HHQ; it does not call a direct admin create-household endpoint.
 - Duplicate household ID checks must run before final HHQ submission and again in the save path.
 - Household details should load after selecting a household/member, not by rendering all records at once.
+- HDSS list uses the assigned Ballabhgarh village cache and the selected locality. Search trims surrounding spaces and ignores case. Comma-separated names must all match members of the same household; search covers the full scoped cache before pagination. Household identity includes village, house number, and family number. This reference list does not enroll members or create forms/tasks.
 
 ## Runtime Site And Locality Choices
 

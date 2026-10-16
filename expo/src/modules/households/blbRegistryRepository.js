@@ -352,3 +352,91 @@ export async function searchBlbRegistryPeople({
     });
   return rows.slice(pageOffset, pageOffset + pageLimit);
 }
+
+/** Browse reference households without changing study enrollment or task assignments. */
+export async function listBlbRegistryHouseholds({ search = "", offset = 0, limit = 50, villageCode = "" } = {}, allowedVillageCodes = []) {
+  const villages = Array.isArray(allowedVillageCodes)
+    ? [...new Set(allowedVillageCodes.map((value) => String(value ?? "").trim()).filter(Boolean))]
+    : [];
+  const village = String(villageCode ?? "").trim();
+  if (!villages.length || (village && !villages.includes(village))) return { households: [], hasMore: false };
+  const scope = village ? [village] : villages;
+  const searchTerms = String(search ?? "").split(",").map(normalizeSearchValue).filter(Boolean);
+  const pageOffset = normalizePage(offset, 0);
+  const pageLimit = normalizePage(limit, 50, 50) || 50;
+  let households;
+
+  if (Platform.OS !== "web") {
+    const values = [...scope];
+    let sql = `SELECT trim(village_code) AS village_code, MIN(village_name) AS village_name,
+      trim(hh_list_no) AS hh_list_no, trim(family_no) AS family_no,
+      COUNT(*) AS member_count, json_group_array(name) AS member_names
+      FROM blb_registry_individuals
+      WHERE trim(village_code) IN (${scope.map(() => "?").join(",")})
+        AND trim(COALESCE(hh_list_no, '')) <> '' AND trim(COALESCE(family_no, '')) <> ''
+      GROUP BY trim(village_code), trim(hh_list_no), trim(family_no)`;
+    if (searchTerms.length) {
+      // Each name may match a different member, so filter complete groups rather than person rows.
+      sql += " HAVING " + searchTerms.map(() => "MAX(lower(COALESCE(name, '')) LIKE ? ESCAPE '\\') = 1").join(" AND ");
+      values.push(...searchTerms.map((term) => `%${escapeLikePattern(term)}%`));
+    }
+    sql += " ORDER BY village_code COLLATE BINARY, hh_list_no COLLATE BINARY, family_no COLLATE BINARY LIMIT ? OFFSET ?";
+    values.push(pageLimit + 1, pageOffset);
+    households = (await getOfflineDatabase().getAllAsync(sql, values)).map((row) => ({
+      ...row,
+      member_names: JSON.parse(row.member_names).map((name) => String(name ?? "").trim()).filter(Boolean).sort(),
+    }));
+  } else {
+    const groups = new Map();
+    for (const individual of readWebRegistry().individuals) {
+      const village_code = String(individual.village_code ?? "").trim();
+      const hh_list_no = String(individual.hh_list_no ?? "").trim();
+      const family_no = String(individual.family_no ?? "").trim();
+      if (!scope.includes(village_code) || !hh_list_no || !family_no) continue;
+      const key = JSON.stringify([village_code, hh_list_no, family_no]);
+      if (!groups.has(key)) groups.set(key, {
+        village_code, village_name: individual.village_name ?? null,
+        hh_list_no, family_no, member_count: 0, member_names: [],
+      });
+      const household = groups.get(key);
+      household.member_count += 1;
+      const name = String(individual.name ?? "").trim();
+      if (name) household.member_names.push(name);
+    }
+    households = [...groups.values()]
+      .filter((row) => searchTerms.every((term) => row.member_names.some((name) => normalizeSearchValue(name).includes(term))))
+      .sort((left, right) => {
+        for (const field of ["village_code", "hh_list_no", "family_no"]) {
+          if (left[field] !== right[field]) return left[field] < right[field] ? -1 : 1;
+        }
+        return 0;
+      })
+      .slice(pageOffset, pageOffset + pageLimit + 1);
+    households.forEach((household) => household.member_names.sort());
+  }
+  return { households: households.slice(0, pageLimit), hasMore: households.length > pageLimit };
+}
+
+/** Keep all UID rows, including people sharing an address tuple. */
+export async function listBlbRegistryHouseholdMembers({ villageCode, houseNo, familyNo } = {}, allowedVillageCodes = []) {
+  const values = [villageCode, houseNo, familyNo].map((value) => String(value ?? "").trim());
+  if (values.some((value) => !value) || !isAllowedVillage(values[0], allowedVillageCodes)) return [];
+  if (Platform.OS !== "web") {
+    return getOfflineDatabase().getAllAsync(
+      `SELECT * FROM blb_registry_individuals
+       WHERE trim(village_code) = ? AND trim(hh_list_no) = ? AND trim(family_no) = ?
+       ORDER BY ind_no COLLATE BINARY, uid COLLATE BINARY`, values,
+    );
+  }
+  return readWebRegistry().individuals
+    .filter((row) => [row.village_code, row.hh_list_no, row.family_no]
+      .every((value, index) => String(value ?? "").trim() === values[index]))
+    .sort((left, right) => {
+      for (const field of ["ind_no", "uid"]) {
+        const a = String(left[field] ?? "");
+        const b = String(right[field] ?? "");
+        if (a !== b) return a < b ? -1 : 1;
+      }
+      return 0;
+    });
+}

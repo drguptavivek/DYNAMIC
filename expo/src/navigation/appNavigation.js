@@ -7,6 +7,7 @@ export const FIELD_APP_ROUTES = {
   uploadedForms: "/uploaded-forms",
   uploadErrors: "/upload-errors",
   households: "/households",
+  hdssList: "/hdss-list",
   householdNew: "/households/new",
   householdMembers: "/household-members",
   householdMembersForHousehold: (householdId) =>
@@ -29,6 +30,7 @@ export const SHELL_NAV_ITEMS = [
   { id: "uploadedForms", label: "Uploaded Forms", route: FIELD_APP_ROUTES.uploadedForms },
   { id: "uploadErrors", label: "Upload Errors", route: FIELD_APP_ROUTES.uploadErrors },
   { id: "households", label: "Households", route: FIELD_APP_ROUTES.households },
+  { id: "hdssList", label: "HDSS list", route: FIELD_APP_ROUTES.hdssList },
   {
     id: "householdMembers",
     label: "Household Members",

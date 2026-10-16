@@ -22,6 +22,7 @@ assert.deepEqual(navRouteIds, [
   "uploadedForms",
   "uploadErrors",
   "households",
+  "hdssList",
   "householdMembers",
   "profile",
 ]);
@@ -33,6 +34,8 @@ assert.equal(
 );
 
 assert.equal(FIELD_APP_ROUTES.worklist, "/worklist");
+assert.equal(FIELD_APP_ROUTES.hdssList, "/hdss-list");
+assert.equal(SHELL_NAV_ITEMS.find((item) => item.id === "hdssList").label, "HDSS list");
 assert.equal(FIELD_APP_ROUTES.draftPendingForms, "/draft-pending-forms");
 assert.equal(FIELD_APP_ROUTES.completedForms, "/completed-forms");
 assert.equal(FIELD_APP_ROUTES.uploadedForms, "/uploaded-forms");

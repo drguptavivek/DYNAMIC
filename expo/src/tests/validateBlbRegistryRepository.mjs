@@ -58,7 +58,7 @@ function loadRepository({ platform, storage, db }) {
     .replace('import { getOfflineDatabase } from "../storage/offlineDatabase";', "const getOfflineDatabase = globalThis.getOfflineDatabase;")
     .replace('import {\n  getRegistrySessionGeneration,\n  withRegistryCacheLock,\n} from "../storage/registryCacheLifecycle.js";', "const getRegistrySessionGeneration = globalThis.getRegistrySessionGeneration; const withRegistryCacheLock = globalThis.withRegistryCacheLock;")
     .replace(/^export /gm, "")
-    + "\nthis.registryApi = { replaceBlbRegistry, findBlbRegistryIndividuals, findBlbRegistryIndividual, findBlbRegistryIndividualByUid, searchBlbRegistryPeople, bumpGeneration: () => { this.generation += 1; } };";
+    + "\nthis.registryApi = { replaceBlbRegistry, findBlbRegistryIndividuals, findBlbRegistryIndividual, findBlbRegistryIndividualByUid, searchBlbRegistryPeople, listBlbRegistryHouseholds, listBlbRegistryHouseholdMembers, bumpGeneration: () => { this.generation += 1; } };";
   const context = {
     Platform: platform,
     getOfflineDatabase: () => db,
@@ -222,6 +222,57 @@ assert.equal(literalMatch[0].uid, "legacy-test");
 const originalIdMatches = await realSqlApi.searchBlbRegistryPeople({ villageCode: "01", houseNo: "001", search: "01-001-02-03" }, ["01"]);
 assert.equal(originalIdMatches.length, 2, "native original-ID search retains both people and tolerates source padding");
 
+// Browsing groups reference people into scoped households before applying page limits.
+const browseRows = Array.from({ length: 55 }, (_, index) => ({
+  uid: `browse-${index}`, village_code: "01", village_name: "First village",
+  hh_list_no: String(index).padStart(3, "0"), family_no: "01", ind_no: "01", name: `Person ${index}`,
+}));
+browseRows.push(
+  { uid: "late-rajat", village_code: " 01 ", hh_list_no: " 099 ", family_no: " 02 ", ind_no: "01", name: "Rajat" },
+  { uid: "late-ankit", village_code: "01", hh_list_no: "099", family_no: "02", ind_no: "01", name: "Ankit" },
+  { uid: "literal", village_code: "01", hh_list_no: "099", family_no: "02", ind_no: "03", name: "100% A_B \\ person" },
+  { uid: "other-village", village_code: "02", hh_list_no: "099", family_no: "02", ind_no: "01", name: "Rajat" },
+  { uid: "blank-house", village_code: "01", hh_list_no: "", family_no: "02", ind_no: "01", name: "Rajat" },
+  { uid: "blank-family", village_code: "01", hh_list_no: "099", family_no: " ", ind_no: "01", name: "Rajat" },
+);
+for (let index = 0; index < 51; index += 1) browseRows.push({
+  uid: `large-${index}`, village_code: "01", hh_list_no: "100", family_no: "01", ind_no: "01", name: `Large family ${index}`,
+});
+browserStorage.fail = false;
+for (const api of [webApi, realSqlApi]) {
+  await api.replaceBlbRegistry({ households: [], individuals: browseRows });
+  const firstPage = await api.listBlbRegistryHouseholds({ limit: 500 }, ["01"]);
+  assert.equal(firstPage.households.length, 50, "household page cannot exceed 50");
+  assert.equal(firstPage.hasMore, true);
+  assert.equal(firstPage.households[0].hh_list_no, "000", "leading zeros are retained");
+  const secondPage = await api.listBlbRegistryHouseholds({ offset: 50 }, ["01"]);
+  assert.equal(secondPage.households.length, 7);
+  assert.equal(secondPage.hasMore, false);
+  assert.equal(secondPage.households[0].hh_list_no, "050");
+  const found = await api.listBlbRegistryHouseholds({ search: "  rAJat , ANKIT  " }, ["01", "02"]);
+  assert.equal(found.households.length, 1, "all comma-separated names must match the same household, across members");
+  assert.equal(found.households[0].hh_list_no, "099", "search covers households beyond the first page");
+  assert.equal(found.households[0].member_count, 3, "matching household retains all members including duplicate address tuples");
+  assert.deepEqual(Array.from(found.households[0].member_names), ["100% A_B \\ person", "Ankit", "Rajat"]);
+  for (const search of ["100%", "A_B", "\\"]) {
+    assert.equal((await api.listBlbRegistryHouseholds({ search }, ["01"])).households.length, 1, "wildcard characters are literal");
+  }
+  assert.equal((await api.listBlbRegistryHouseholds({ search: "Rajat, missing" }, ["01"])).households.length, 0);
+  assert.equal((await api.listBlbRegistryHouseholds({ search: "  , , " }, ["01"])).households.length, 50);
+  assert.equal((await api.listBlbRegistryHouseholds({}, [])).households.length, 0);
+  assert.equal((await api.listBlbRegistryHouseholds({ villageCode: "02" }, ["01"])).households.length, 0);
+  const otherVillage = await api.listBlbRegistryHouseholds({ villageCode: "02", search: "Rajat" }, ["01", "02"]);
+  assert.equal(otherVillage.households.length, 1);
+  assert.equal(otherVillage.households[0].member_count, 1, "same address in another village remains a different household");
+  const members = await api.listBlbRegistryHouseholdMembers({ villageCode: " 01 ", houseNo: "099", familyNo: "02" }, ["01"]);
+  assert.equal(members.length, 3);
+  assert.equal(new Set(members.map((member) => member.uid)).size, 3);
+  assert.equal((await api.listBlbRegistryHouseholdMembers({ villageCode: "01", houseNo: "100", familyNo: "01" }, ["01"])).length, 51, "detail is not capped at 50 members");
+  assert.equal((await api.listBlbRegistryHouseholdMembers({ villageCode: "02", houseNo: "099", familyNo: "02" }, ["01"])).length, 0);
+  assert.equal((await api.listBlbRegistryHouseholdMembers({ villageCode: "01", houseNo: "099", familyNo: "02" }, [])).length, 0);
+  assert.equal((await api.listBlbRegistryHouseholdMembers({ villageCode: "01", houseNo: "", familyNo: "02" }, ["01"])).length, 0);
+}
+
 // Exercise the production server-pull mapper and native upsert. A fresh sync
 // must retain the exact UID instead of replacing it with an empty link.
 const pullMapperStart = schema.indexOf("export async function saveSyncedHouseholdsAndMembers");
@@ -265,4 +316,4 @@ assert.equal(webRetainedLink.registry_individual_id, pulledMember.registry_indiv
 assert.equal(webRetainedLink.registry_status, pulledMember.registry_status);
 sqlite.close();
 
-console.log("Validated BLB registry cache rollback, scoped lookup, schema migration, and paged pull behavior.");
+console.log("Validated BLB registry cache rollback, scoped household browsing and name search, schema migration, and paged pull behavior.");
