@@ -413,11 +413,7 @@ export async function findBlbRegistryIndividualByUid(uid, allowedVillageCodes = 
   ) || null;
 }
 
-/**
- * Search the local HDSS cache for the BHQ member picker.
- * Village and house must match exactly; name or the four-part original ID
- * can narrow that household's people. Tuple duplicates remain rows.
- */
+/** Search within the exact permitted village, before applying result paging. */
 export async function searchBlbRegistryPeople({
   villageCode,
   houseNo = "",
@@ -427,54 +423,85 @@ export async function searchBlbRegistryPeople({
 } = {}, allowedVillageCodes = []) {
   const villages = getBlbRegistryVillageSearchScope(villageCode, allowedVillageCodes);
   const house = String(houseNo ?? "").trim();
-  if (!villages.length || !house) return [];
-  const normalizedSearch = normalizeSearchValue(search);
+  const searchTerms = String(search ?? "").split(",").map(normalizeSearchValue).filter(Boolean);
+  if (!villages.length || (!house && !searchTerms.length)) return [];
   const pageOffset = normalizePage(offset, 0);
   const pageLimit = normalizePage(limit, 50, 50) || 50;
 
   if (Platform.OS !== "web") {
-    const values = [villages[0], house];
-    let sql = `SELECT * FROM blb_registry_individuals
-      WHERE trim(village_code) = ? AND trim(hh_list_no) = ?`;
-    if (normalizedSearch) {
-      const pattern = `%${escapeLikePattern(normalizedSearch)}%`;
-      sql += ` AND (
-        lower(COALESCE(name, '')) LIKE ? ESCAPE '\\'
-        OR lower(trim(village_code) || '-' || trim(COALESCE(hh_list_no, '')) || '-' ||
-          trim(COALESCE(family_no, '')) || '-' || trim(COALESCE(ind_no, ''))) LIKE ? ESCAPE '\\'
-      )`;
-      values.push(pattern, pattern);
+    const values = [villages[0]];
+    let scope = "trim(village_code) = ?";
+    if (house) {
+      scope += " AND trim(hh_list_no) = ?";
+      values.push(house);
     }
-    const order = " ORDER BY family_no COLLATE BINARY, ind_no COLLATE BINARY, uid COLLATE BINARY";
-    sql += `${order} LIMIT ? OFFSET ?`;
+    let sql;
+    if (searchTerms.length > 1) {
+      // Each name can belong to a different person, but all must share one complete household key.
+      sql = `WITH matching_households AS (
+        SELECT trim(village_code) AS village_code, trim(hh_list_no) AS hh_list_no,
+          trim(family_no) AS family_no
+        FROM blb_registry_individuals WHERE ${scope}
+          AND trim(COALESCE(hh_list_no, '')) <> '' AND trim(COALESCE(family_no, '')) <> ''
+        GROUP BY trim(village_code), trim(hh_list_no), trim(family_no)
+        HAVING ${searchTerms.map(() => "MAX(lower(COALESCE(name, '')) LIKE ? ESCAPE '\\') = 1").join(" AND ")}
+      ) SELECT person.* FROM matching_households AS household
+      JOIN blb_registry_individuals AS person
+        ON trim(person.village_code) = household.village_code
+        AND trim(person.hh_list_no) = household.hh_list_no
+        AND trim(person.family_no) = household.family_no`;
+      values.push(...searchTerms.map((term) => `%${escapeLikePattern(term)}%`));
+    } else {
+      sql = `SELECT * FROM blb_registry_individuals WHERE ${scope}`;
+      if (searchTerms.length) {
+        const pattern = `%${escapeLikePattern(searchTerms[0])}%`;
+        sql += ` AND (
+          lower(COALESCE(name, '')) LIKE ? ESCAPE '\\'
+          OR lower(trim(village_code) || '-' || trim(COALESCE(hh_list_no, '')) || '-' ||
+            trim(COALESCE(family_no, '')) || '-' || trim(COALESCE(ind_no, ''))) LIKE ? ESCAPE '\\'
+        )`;
+        values.push(pattern, pattern);
+      }
+    }
+    sql += " ORDER BY family_no COLLATE BINARY, ind_no COLLATE BINARY, uid COLLATE BINARY LIMIT ? OFFSET ?";
     values.push(pageLimit, pageOffset);
     return getOfflineDatabase().getAllAsync(sql, values);
   }
 
-  const rows = readWebRegistry().individuals
-    .filter((individual) => villages.includes(String(individual.village_code ?? "").trim()))
-    .filter((individual) => String(individual.hh_list_no ?? "").trim() === house)
-    .filter((individual) => {
-      if (!normalizedSearch) return true;
-      const originalId = buildOriginalId(
-        individual.village_code,
-        individual.hh_list_no,
-        individual.family_no,
-        individual.ind_no,
-      );
-      return normalizeSearchValue(individual.name).includes(normalizedSearch)
-        || normalizeSearchValue(originalId).includes(normalizedSearch);
-    })
-    .sort((left, right) => {
-      for (const field of ["family_no", "ind_no", "uid"]) {
-        const a = String(left[field] ?? "");
-        const b = String(right[field] ?? "");
-        const comparison = a < b ? -1 : a > b ? 1 : 0;
-        if (comparison !== 0) return comparison;
-      }
-      return 0;
+  const scopedRows = readWebRegistry().individuals.filter((individual) =>
+    villages.includes(String(individual.village_code ?? "").trim())
+      && (!house || String(individual.hh_list_no ?? "").trim() === house));
+  let matches;
+  if (searchTerms.length > 1) {
+    const groups = new Map();
+    for (const row of scopedRows) {
+      const houseKey = String(row.hh_list_no ?? "").trim();
+      const familyKey = String(row.family_no ?? "").trim();
+      if (!houseKey || !familyKey) continue;
+      const key = JSON.stringify([String(row.village_code ?? "").trim(), houseKey, familyKey]);
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(row);
+    }
+    matches = [...groups.values()].filter((members) =>
+      searchTerms.every((term) => members.some((row) => normalizeSearchValue(row.name).includes(term)))).flat();
+  } else {
+    matches = scopedRows.filter((individual) => {
+      if (!searchTerms.length) return true;
+      return normalizeSearchValue(individual.name).includes(searchTerms[0])
+        || normalizeSearchValue(buildOriginalId(individual.village_code, individual.hh_list_no,
+          individual.family_no, individual.ind_no)).includes(searchTerms[0]);
     });
-  return rows.slice(pageOffset, pageOffset + pageLimit);
+  }
+  matches.sort((left, right) => {
+    for (const field of ["family_no", "ind_no", "uid"]) {
+      const a = String(left[field] ?? "");
+      const b = String(right[field] ?? "");
+      const comparison = a < b ? -1 : a > b ? 1 : 0;
+      if (comparison !== 0) return comparison;
+    }
+    return 0;
+  });
+  return matches.slice(pageOffset, pageOffset + pageLimit);
 }
 
 /** Browse reference households without changing study enrollment or task assignments. */

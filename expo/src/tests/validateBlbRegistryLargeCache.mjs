@@ -105,12 +105,28 @@ assert.deepEqual(Array.from(newPickerRows, (row) => row.uid), oldPickerRows.map(
 const lastPerson = await api.searchBlbRegistryPeople({ villageCode: found.households[0].village_code, houseNo: found.households[0].hh_list_no, search: "  ZED LAST MARKER ", limit: 10 }, allowed);
 assert.equal(lastPerson.length, 1);
 assert.equal(lastPerson[0].uid, "uid-0209999");
+const nameOnlyStart = performance.now();
+const nameOnly = await api.searchBlbRegistryPeople({ villageCode: found.households[0].village_code,
+  search: "  ZED LAST MARKER ", limit: 10 }, allowed);
+const nameOnlyMs = Math.round(performance.now() - nameOnlyStart);
+assert.deepEqual(Array.from(nameOnly, (row) => row.uid), ["uid-0209999"], "name-only lookup searches the full village beyond the first page");
+const commaStart = performance.now();
+const commaPeople = await api.searchBlbRegistryPeople({ villageCode: found.households[0].village_code,
+  search: "  RAJAT, ankit ", limit: 2 }, allowed);
+const commaPeopleMs = Math.round(performance.now() - commaStart);
+assert.equal(commaPeople.length, 2);
+assert.equal(queries.at(-1).rows, 2, "only the requested household-member page crosses into JavaScript");
+const commaRest = await api.searchBlbRegistryPeople({ villageCode: found.households[0].village_code,
+  search: "rajat, ankit", offset: 2, limit: 10 }, allowed);
+assert.equal(commaRest.length, 3, "all members are returned, including those matching neither search term");
+assert.equal(new Set([...commaPeople, ...commaRest].map((row) => row.uid)).size, 5);
+assert.ok([...commaPeople, ...commaRest].every((row) => row.hh_list_no === found.households[0].hh_list_no));
 assert.equal((await api.searchBlbRegistryPeople({ villageCode: "02", houseNo: "00000" }, allowed)).length, 0, "study locality is not expanded during BHQ lookup");
 assert.equal((await api.listBlbRegistryHouseholds({}, [])).households.length, 0);
 assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM blb_registry_individuals").get().n, count);
 console.log(JSON.stringify({ syntheticPeople: count, medianMs: {
   householdsBefore: baselineHouseholds, householdsAfter: afterHouseholds,
-  pickerBefore: baselinePicker, pickerAfter: afterPicker, substringSearch: searchMs,
+  pickerBefore: baselinePicker, pickerAfter: afterPicker, substringSearch: searchMs, nameOnly: nameOnlyMs, commaPeople: commaPeopleMs,
 }, householdBeforePlan: oldPlan, householdAfterPlan: householdPlan,
   pickerIndexedSearches: pickerPlan.filter((detail) => /idx_blb_registry_people_browse/.test(detail)).length,
   note: "Host SQLite timings; not phone measurements. Substring search still scans native SQLite rows." }, null, 2));

@@ -19,6 +19,7 @@ import { searchBlbRegistryPeople } from "../../../modules/households/blbRegistry
 import {
   buildRegistryFacingId,
   getRegistryLookupPrefill,
+  hasRegistryLookupCriteria,
   decodeRegistrySex,
 } from "./bhqRegistryLookup.js";
 
@@ -55,6 +56,8 @@ export function BhqRegistryLookupDrawer({ linkedUids = new Set(), survey, onSele
   const [hasMore, setHasMore] = useState(false);
   const [offset, setOffset] = useState(0);
   const queryToken = useRef(0);
+  const nameInput = useRef(null);
+  const canSearch = hasRegistryLookupCriteria({ villageCode, houseNo, search });
 
   const panelWidth = Math.min(width, Math.max(width * 0.92, 310), 480);
 
@@ -89,8 +92,7 @@ export function BhqRegistryLookupDrawer({ linkedUids = new Set(), survey, onSele
   }, [onClose]);
 
   useEffect(() => {
-    const normalizedVillage = String(villageCode || "").trim();
-    if (!normalizedVillage || !String(houseNo || "").trim()) {
+    if (!canSearch) {
       queryToken.current += 1;
       setRows([]);
       setBusy(false);
@@ -111,7 +113,7 @@ export function BhqRegistryLookupDrawer({ linkedUids = new Set(), survey, onSele
       clearTimeout(timer);
       queryToken.current += 1;
     };
-  }, [villageCode, houseNo, search]);
+  }, [villageCode, houseNo, search, canSearch]);
 
   function updateFilter(setValue, value, currentValue) {
     if (value === currentValue) return;
@@ -127,7 +129,7 @@ export function BhqRegistryLookupDrawer({ linkedUids = new Set(), survey, onSele
 
   async function loadResults({ reset = false } = {}) {
     const normalizedVillage = String(villageCode || "").trim();
-    if (!normalizedVillage || !String(houseNo || "").trim()) return;
+    if (!canSearch) return;
     const nextOffset = reset ? 0 : offset;
     const token = ++queryToken.current;
     if (reset) setBusy(true);
@@ -235,24 +237,25 @@ export function BhqRegistryLookupDrawer({ linkedUids = new Set(), survey, onSele
                 autoCapitalize="none"
                 autoCorrect={false}
                 onChangeText={(value) => updateFilter(setHouseNo, value, houseNo)}
-                placeholder="Required"
+                placeholder="Or search by name"
                 style={styles.input}
                 value={houseNo}
               />
             </View>
             <View style={styles.filterFieldFull}>
-              <Text style={styles.filterLabel}>Name or HDSS original ID</Text>
+              <Text style={styles.filterLabel}>Name(s) or HDSS original ID</Text>
               <TextInput
+                ref={nameInput}
                 accessibilityLabel="Search HDSS name or original ID"
                 autoCapitalize="none"
                 autoCorrect={false}
                 onChangeText={(value) => updateFilter(setSearch, value, search)}
-                placeholder="Type to filter results"
+                placeholder="Name, or name,name"
                 style={styles.input}
                 value={search}
               />
             </View>
-            <Text style={styles.scopeHint}>Results match the village code and house number entered above.</Text>
+            <Text style={styles.scopeHint}>Village must match exactly. Clear the house number for name-only search. Comma-separated names find households containing all names.</Text>
           </View>
 
           <View style={styles.resultHeader}>
@@ -261,10 +264,18 @@ export function BhqRegistryLookupDrawer({ linkedUids = new Set(), survey, onSele
             {!busy && rows.length ? <Text style={styles.resultHint}>{`${rows.length} shown`}</Text> : null}
           </View>
           {error ? <Text style={styles.error}>{error}</Text> : null}
-          {!busy && !error && !rows.length && villageCode.trim() && houseNo.trim() ? (
+          {!busy && !error && !rows.length && canSearch ? (
             <Text style={styles.empty}>No HDSS people match these filters.</Text>
           ) : null}
-          {!villageCode.trim() || !houseNo.trim() ? <Text style={styles.empty}>Enter a village code and house number to search.</Text> : null}
+          {!busy && !error && !rows.length && villageCode.trim() && houseNo.trim() ? (
+            <Pressable accessibilityRole="button" onPress={() => {
+              updateFilter(setHouseNo, "", houseNo);
+              nameInput.current?.focus();
+            }} style={styles.nameSearchButton}>
+              <Text style={styles.personId}>Search by name instead</Text>
+            </Pressable>
+          ) : null}
+          {!canSearch ? <Text style={styles.empty}>Enter a village code and either a house number or name.</Text> : null}
           <FlatList
             contentContainerStyle={styles.results}
             data={rows}
@@ -298,6 +309,7 @@ const styles = StyleSheet.create({
   filterField: { minWidth: 110, flex: 1, gap: 4 },
   filterFieldFull: { width: "100%", gap: 4 },
   scopeHint: { width: "100%", color: "#667085", fontSize: 12 },
+  nameSearchButton: { minHeight: 44, alignItems: "center", justifyContent: "center" },
   filterLabel: { color: "#344054", fontSize: 11, fontWeight: "800" },
   input: { minHeight: 40, paddingHorizontal: 10, borderWidth: 1, borderColor: "#d0d5dd", borderRadius: 7, color: "#18202a", backgroundColor: "#ffffff" },
   resultHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, paddingVertical: 8, borderTopWidth: 1, borderTopColor: "#eaecf0" },

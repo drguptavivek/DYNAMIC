@@ -124,3 +124,9 @@ export function getRegistryLookupPrefill(survey) {
     houseNo: String(survey?.getValue?.("hhq_structure_map_id") ?? ""),
   };
 }
+
+export function hasRegistryLookupCriteria({ villageCode, houseNo, search }) {
+  return Boolean(String(villageCode ?? "").trim() && (
+    String(houseNo ?? "").trim() || String(search ?? "").split(",").some((term) => term.trim())
+  ));
+}

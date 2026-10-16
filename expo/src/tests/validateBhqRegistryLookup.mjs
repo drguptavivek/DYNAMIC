@@ -22,6 +22,7 @@ const {
   decodeRegistrySex,
   getPanelRegistryDetails,
   getRegistryLookupPrefill,
+  hasRegistryLookupCriteria,
   masterStatusToChoice,
 } = lookup;
 
@@ -97,8 +98,26 @@ assert.deepEqual(getRegistryLookupPrefill({
   getValue: (name) => ({ hhq_locality_code: "001", hhq_structure_map_id: "0007" }[name]),
 }), { villageCode: "001", houseNo: "0007" });
 assert.deepEqual(getRegistryLookupPrefill({ getValue: () => undefined }), { villageCode: "", houseNo: "" });
+assert.equal(hasRegistryLookupCriteria({ villageCode: "11", houseNo: "0011" }), true);
+assert.equal(hasRegistryLookupCriteria({ villageCode: "11", search: " Rajat, Ankit " }), true);
+assert.equal(hasRegistryLookupCriteria({ villageCode: "11", search: " Rajat " }), true);
+assert.equal(hasRegistryLookupCriteria({ villageCode: "11", search: " , , " }), false);
+assert.equal(hasRegistryLookupCriteria({ villageCode: " ", houseNo: "0011", search: "Rajat" }), false);
+assert.equal(hasRegistryLookupCriteria({ villageCode: "11", houseNo: " " }), false);
 
 const form = JSON.parse(fs.readFileSync(new URL("../data/forms/baseline_household_questionnaire_v2026.05.09.json", import.meta.url), "utf8"));
+// A multi-locality account must never supply the drawer's prefill; read the current form each time.
+const prefillSurvey = new Model(prepareQuestionnaireSurveyJson(form));
+prefillSurvey.user = { locality_code: "02", area_assignments: [{ locality_code: "02" }, { locality_code: "11" }] };
+prefillSurvey.data = { hhq_locality_code: "11", hhq_structure_map_id: "0011", hhq_household_number: "99",
+  household_id: "2-71-7777-99" };
+assert.deepEqual(getRegistryLookupPrefill(prefillSurvey), { villageCode: "11", houseNo: "0011" });
+prefillSurvey.setValue("hhq_locality_code", "71");
+prefillSurvey.setValue("hhq_structure_map_id", "0009");
+assert.deepEqual(getRegistryLookupPrefill(prefillSurvey), { villageCode: "71", houseNo: "0009" }, "reopening reads changed form values");
+prefillSurvey.setValue("hhq_locality_code", undefined);
+prefillSurvey.setValue("hhq_structure_map_id", undefined);
+assert.deepEqual(getRegistryLookupPrefill(prefillSurvey), { villageCode: "", houseNo: "" }, "missing form values do not fall back to account or household ID");
 function findPanel(element) {
   if (element?.name === "hhq_household_members") return element;
   for (const child of element?.elements || []) {

@@ -478,6 +478,55 @@ for (const api of [webApi, realSqlApi]) {
   assert.equal((await api.searchBlbRegistryPeople({ villageCode: "10", houseNo: "099" }, [])).length, 0);
 }
 
+// BHQ names search the entire exact village, not only its displayed page.
+const nameLookupRows = Array.from({ length: 21001 }, (_, index) => ({
+  uid: `name-bulk-${index}`, village_code: "11", hh_list_no: String(index).padStart(5, "0"),
+  family_no: "01", ind_no: "01", name: `Unrelated ${index}`,
+}));
+nameLookupRows.push(
+  { uid: "names-a", village_code: " 11 ", hh_list_no: " 0011 ", family_no: " 09 ", ind_no: "01", name: "Rajat" },
+  { uid: "names-b", village_code: "11", hh_list_no: "0011", family_no: "09", ind_no: "02", name: "Ankit" },
+  { uid: "names-c", village_code: "11", hh_list_no: "0011", family_no: "09", ind_no: "03", name: "Other member" },
+  { uid: "other-family", village_code: "11", hh_list_no: "0011", family_no: "10", ind_no: "01", name: "Rajat" },
+  { uid: "cross-family", village_code: "11", hh_list_no: "0011", family_no: "11", ind_no: "01", name: "Ankit" },
+  { uid: "different-house", village_code: "11", hh_list_no: "0012", family_no: "09", ind_no: "01", name: "Ankit" },
+  { uid: "other-village-a", village_code: "71", hh_list_no: "0011", family_no: "09", ind_no: "01", name: "Rajat" },
+  { uid: "other-village-b", village_code: "71", hh_list_no: "0011", family_no: "09", ind_no: "02", name: "Ankit" },
+  { uid: "unknown-house-a", village_code: "11", hh_list_no: "", family_no: "09", ind_no: "01", name: "Rajat" },
+  { uid: "unknown-house-b", village_code: "11", hh_list_no: "", family_no: "09", ind_no: "02", name: "Ankit" },
+  { uid: "unknown-family-a", village_code: "11", hh_list_no: "unknown", family_no: "", ind_no: "01", name: "Rajat" },
+  { uid: "unknown-family-b", village_code: "11", hh_list_no: "unknown", family_no: " ", ind_no: "02", name: "Ankit" },
+  { uid: "literal-name-a", village_code: "11", hh_list_no: "quotes", family_no: "01", ind_no: "01", name: "100% A_B \\ O'Neil" },
+  { uid: "literal-name-b", village_code: "11", hh_list_no: "quotes", family_no: "01", ind_no: "02", name: "Partner" },
+  { uid: "not-literal", village_code: "11", hh_list_no: "quotes", family_no: "02", ind_no: "01", name: "100X AXB O'Neil Partner" },
+  { uid: "last-name-record", village_code: "11", hh_list_no: "99999", family_no: "99", ind_no: "01", name: "Final unique marker" },
+);
+for (const api of [webApi, realSqlApi]) {
+  await api.replaceBlbRegistry({ households: [], individuals: nameLookupRows });
+  const lookup = (fields, allowed = ["11", "71"]) => api.searchBlbRegistryPeople({ villageCode: "11", limit: 10, ...fields }, allowed);
+  const ids = (rows) => Array.from(rows, (row) => row.uid);
+  assert.deepEqual(ids(await lookup({ search: "  FINAL UNIQUE MARKER  " })), ["last-name-record"], "name-only search finds records beyond the initial 21,000 rows");
+  assert.deepEqual(ids(await lookup({ search: "rAJat, ANKIT" })), ["names-a", "names-b", "names-c"], "comma names return all members of their shared house and family only");
+  assert.deepEqual(ids(await lookup({ houseNo: "0011", search: "rAJat, ANKIT", limit: 2 })), ["names-a", "names-b"]);
+  assert.deepEqual(ids(await lookup({ houseNo: "0011", search: "rAJat, ANKIT", offset: 2, limit: 2 })), ["names-c"], "paging applies after full household matching");
+  assert.equal((await lookup({ houseNo: "0012", search: "Rajat, Ankit" })).length, 0, "names cannot escape an entered house");
+  assert.equal((await lookup({ houseNo: "11", search: "Rajat, Ankit" })).length, 0, "leading zeros remain significant");
+  assert.equal((await lookup({ villageCode: "02", search: "Rajat, Ankit" }, selectedMappedVillages)).length, 0, "02 is never expanded for either name search mode");
+  assert.equal((await lookup({ villageCode: "", search: "Rajat" })).length, 0);
+  assert.equal((await lookup({ search: "Rajat" }, ["71"])).length, 0);
+  assert.equal((await lookup({ search: "Rajat, Ankit" }, [])).length, 0);
+  assert.equal((await lookup({ search: " , , " })).length, 0);
+  assert.deepEqual(ids(await lookup({ search: " , final unique marker, " })), ["last-name-record"], "empty comma terms do not force household mode");
+  assert.deepEqual(ids(await lookup({ search: "11-99999-99-01" })), ["last-name-record"], "single original-ID search works without a house filter");
+  assert.ok(ids(await lookup({ search: "Rajat" })).includes("unknown-house-a"), "single-name search retains people with incomplete address keys");
+  assert.deepEqual(ids(await lookup({ houseNo: "0012", search: "Ankit" })), ["different-house"], "single-name search honors an entered house");
+  for (const literal of ["100%", "A_B", "\\", "O'Neil"]) {
+    const rows = await lookup({ search: `${literal}, Partner` });
+    if (literal === "O'Neil") assert.equal(rows.length, 3);
+    else assert.deepEqual(ids(rows), ["literal-name-a", "literal-name-b"], "SQL wildcards and backslash remain literal in comma names");
+  }
+}
+
 // Exercise the production server-pull mapper and native upsert. A fresh sync
 // must retain the exact UID instead of replacing it with an empty link.
 const pullMapperStart = schema.indexOf("export async function saveSyncedHouseholdsAndMembers");

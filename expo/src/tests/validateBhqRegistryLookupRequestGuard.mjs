@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import vm from "node:vm";
+import { hasRegistryLookupCriteria } from "../components/forms/renderers/bhqRegistryLookup.js";
 
 const source = fs.readFileSync(new URL("../components/forms/renderers/BhqRegistryLookupDrawer.js", import.meta.url), "utf8");
 const requestFunctions = source.slice(source.indexOf("  function updateFilter("), source.indexOf("  function renderPerson("));
@@ -25,6 +26,7 @@ const context = {
   searchBlbRegistryPeople: () => new Promise((resolve) => { finishRequest = resolve; }),
   onSelect: (item) => selected.push(item),
 };
+Object.defineProperty(context, "canSearch", { get: () => hasRegistryLookupCriteria(context) });
 for (const key of Object.keys(state)) {
   context[`set${key[0].toUpperCase()}${key.slice(1)}`] = (value) => {
     state[key] = typeof value === "function" ? value(state[key]) : value;
@@ -64,5 +66,17 @@ assert.equal(state.busy, false);
 const currentSelection = vm.runInContext(`((resultToken, item) => () => { ${selectionGuard} })(queryToken.current, { uid: "current-village-person" })`, context);
 currentSelection();
 assert.equal(selected[0].uid, "current-village-person");
+
+context.houseNo = "";
+context.search = "Rajat, Ankit";
+const nameSearch = context.loadResults({ reset: true });
+finishRequest([{ uid: "matching-household-member" }]);
+await nameSearch;
+assert.equal(state.rows[0].uid, "matching-household-member", "name searches do not require the form's initial house number");
+context.villageCode = "";
+context.search = "Rajat";
+const lastToken = queryToken.current;
+await context.loadResults({ reset: true });
+assert.equal(queryToken.current, lastToken, "name search never bypasses the required village");
 
 console.log("BHQ lookup input, late-request, and selection guards passed.");
