@@ -14,7 +14,9 @@ import {
   View,
 } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
+import * as Application from "expo-application";
 import { SafeAreaView } from "react-native-safe-area-context";
+import appConfig from "../../app.json";
 
 import { TaskDetailModal } from "../modules/worklist/TaskDetailModal.js";
 import { SHELL_NAV_ITEMS } from "../navigation/appNavigation.js";
@@ -454,6 +456,9 @@ function LoginScreen() {
         <View style={styles.loginBox}>
           <Text style={styles.loginTitle}>DYNAMIC</Text>
           <Text style={styles.loginSubtitle}>Field Worker Login</Text>
+          <Text style={styles.appVersion}>
+            Version {Application.nativeApplicationVersion || appConfig.expo.version} (build {Application.nativeBuildVersion || appConfig.expo.android.versionCode})
+          </Text>
 
           <TextInput
             style={styles.loginInput}
@@ -932,6 +937,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#667085",
     marginBottom: 8,
+  },
+  appVersion: {
+    fontSize: 13,
+    color: "#667085",
   },
   loginInput: {
     minHeight: 44,
