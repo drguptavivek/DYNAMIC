@@ -29,6 +29,7 @@ Rules:
 - Authentication secrets must be required in non-dev environments.
 - JWT verification must lock the expected algorithm and token type.
 - Login and refresh endpoints need rate limiting before field deployment.
+- QR login rate limits use the verified encrypted QR account ID, so different staff accounts behind the same network/proxy do not share one anonymous login budget. Reissued QR codes for the same account share its budget; invalid or expired QR codes remain in the anonymous IP bucket. Refresh limits distinguish full token hashes rather than shared JWT header prefixes. Extra request fields must not override the route's rate-limit identity.
 - The Expo field app must require local app unlock after login using device biometrics when available, with PIN fallback.
 - When the authenticated field app ordinarily leaves the foreground, it locks immediately.
 - Only an explicitly active system camera, gallery, or file-picker operation gets a 60-second return grace period. Returning from that picker sooner cancels its pending lock; QR scanning inside the app does not use this exception.

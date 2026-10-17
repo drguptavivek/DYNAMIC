@@ -1,5 +1,7 @@
 import { NextFunction, Request, Response } from "express";
+import { createHash } from "node:crypto";
 import { sendError } from "../lib/errors";
+import { decryptLoginQrPayload } from "../lib/loginQr";
 
 interface RateLimitBucket {
   count: number;
@@ -18,17 +20,30 @@ function getWindowMs(): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 900000;
 }
 
+function getPrincipal(req: Request, path: string): string {
+  if (path === "/qr-login") {
+    try {
+      // Only the authenticated QR identity may isolate an account's login budget.
+      return `qr:${decryptLoginQrPayload(req.body?.qr_payload).user_id}`;
+    } catch {
+      return "anonymous";
+    }
+  }
+  if (path === "/refresh") {
+    return typeof req.body?.refresh_token === "string"
+      ? `refresh:${createHash("sha256").update(req.body.refresh_token).digest("hex")}`
+      : "anonymous";
+  }
+  return typeof req.body?.username === "string" ? req.body.username : "anonymous";
+}
+
 export function authRateLimit(req: Request, res: Response, next: NextFunction): void {
   const now = Date.now();
   const windowMs = getWindowMs();
   const limit = getLimit();
-  const principal =
-    typeof req.body?.username === "string"
-      ? req.body.username
-      : typeof req.body?.refresh_token === "string"
-        ? req.body.refresh_token.slice(0, 24)
-        : "anonymous";
-  const key = `${req.ip || req.socket.remoteAddress || "unknown"}:${req.path}:${principal}`;
+  const path = req.path.toLowerCase().replace(/\/+$/, "");
+  const principal = getPrincipal(req, path);
+  const key = `${req.ip || req.socket.remoteAddress || "unknown"}:${path}:${principal}`;
   const current = buckets.get(key);
 
   if (!current || current.resetAt <= now) {
