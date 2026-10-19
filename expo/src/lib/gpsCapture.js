@@ -1,4 +1,4 @@
-import { readHouseholdGps } from "./householdGps.js";
+import { readHouseholdGps, MAX_HOUSEHOLD_GPS_ACCURACY_METERS } from "./householdGps.js";
 
 /** A fresh GPS watch works offline; only an acceptable fix completes capture. */
 export function startHouseholdGpsCapture(location, { now = Date.now, schedule = setTimeout,
@@ -30,9 +30,10 @@ export function startHouseholdGpsCapture(location, { now = Date.now, schedule = 
       timeInterval: 1000, distanceInterval: 0, mayShowUserSettingsDialog: false }, (position) => {
       if (finished || !Number.isFinite(position?.timestamp) || position.timestamp < started - 1000 ||
           position.timestamp < now() - 10000 || position.timestamp > now() + 1000) return;
+      const accuracy = position.coords?.accuracy;
+      if (!Number.isFinite(accuracy) || accuracy < 0 || accuracy > MAX_HOUSEHOLD_GPS_ACCURACY_METERS) return;
       const gps = readHouseholdGps({ hhq_gps_latitude: position.coords?.latitude,
-        hhq_gps_longitude: position.coords?.longitude, hhq_gps_accuracy_m: position.coords?.accuracy,
-        hhq_gps_captured_at: new Date(position.timestamp).toISOString() });
+        hhq_gps_longitude: position.coords?.longitude });
       if (gps) finish(null, gps);
     }, () => finish("gps_capture_failed"));
     if (finished) watch.remove();

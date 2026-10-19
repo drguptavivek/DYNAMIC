@@ -34,11 +34,13 @@ function fixture({ granted = true, enabled = true, synchronous, delayed = false 
 const fix = (accuracy = 25, time = timestamp) => ({ timestamp: time, coords: { latitude: 0, longitude: 0, accuracy } });
 {
   const f = fixture(); await flush();
-  f.emit(fix(25.1)); f.emit(fix(null)); f.emit(fix(-1)); f.emit(fix(1, timestamp - 30000));
+  for (const accuracy of [25.1, null, -1, undefined, '25', NaN, Infinity]) f.emit({ ...fix(), coords: { ...fix().coords, accuracy } });
+  for (const invalidTime of [undefined, NaN, Infinity, '2026-10-19']) f.emit({ ...fix(), timestamp: invalidTime });
+  f.emit(fix(1, timestamp - 30000));
   f.emit(fix(1, timestamp + 30000)); f.emit({ ...fix(), coords: { latitude: NaN, longitude: 0, accuracy: 1 } });
   assert.equal(f.counts().removed, 0, "Bad or cached fixes must not complete capture");
   f.emit(fix()); const { gps } = await f.outcome;
-  assert.deepEqual(gps, { latitude: 0, longitude: 0, accuracy_m: 25, captured_at: new Date(timestamp).toISOString() });
+  assert.deepEqual(gps, { latitude: 0, longitude: 0 }, 'Capture checks accuracy/time transiently and returns only coordinates');
   assert.equal(f.counts().removed, 1); assert.equal(f.counts().cleared, 1);
 }
 for (const [options, error] of [[{ granted: false }, "location_permission_was_not_granted"], [{ enabled: false }, "gps_services_disabled"]]) {
@@ -63,14 +65,13 @@ for (const action of ["expire", "fail"]) {
   const f = fixture(); f.operation.cancel(); assert.equal((await f.outcome).error, "gps_capture_cancelled");
   await flush(); assert.equal(f.counts().watches, 0);
 }
-const saved = { hhq_gps_latitude: 0, hhq_gps_longitude: 0, hhq_gps_accuracy_m: 25,
-  hhq_gps_captured_at: new Date(timestamp).toISOString() };
+const saved = { hhq_gps_latitude: 0, hhq_gps_longitude: 0 };
 assert.equal(buildHouseholdMapsUrl(readHouseholdGps(saved)), "https://www.google.com/maps/dir/?api=1&destination=0,0");
 assert.equal(readHouseholdGps({ ...saved, hhq_gps_latitude: 91 }), null);
-assert.equal(readHouseholdGps({ ...saved, hhq_gps_accuracy_m: null }), null);
-assert.equal(readHouseholdGps({ ...saved, hhq_gps_accuracy_m: 25.1 }), null);
-assert.equal(readHouseholdGps({ ...saved, hhq_gps_captured_at: "invalid" }), null);
-assert.equal(buildHouseholdMapsUrl({ latitude: 1, longitude: 2 }), null);
+assert.deepEqual(readHouseholdGps({ ...saved, hhq_gps_accuracy_m: null }), { latitude: 0, longitude: 0 });
+assert.deepEqual(readHouseholdGps({ ...saved, hhq_gps_accuracy_m: 25.1, hhq_gps_captured_at: 'invalid' }), { latitude: 0, longitude: 0 }, 'Legacy capture metadata does not prevent valid saved coordinates from opening maps');
+assert.equal(buildHouseholdMapsUrl({ latitude: 1, longitude: 2 }), 'https://www.google.com/maps/dir/?api=1&destination=1,2');
+assert.equal(buildHouseholdMapsUrl({ latitude: 91, longitude: 2 }), null);
 
 const compiled = await build({ entryPoints: [fileURLToPath(new URL("../components/forms/renderers/GpsRenderer.js", import.meta.url))],
   bundle: true, write: false, format: "cjs", platform: "node", jsx: "automatic", loader: { ".js": "jsx" },
@@ -103,7 +104,7 @@ function render() { cursor = 0; return nodes(module.exports.GpsRenderer({ questi
 const buttons = () => render().filter(n => n.type === "Pressable");
 assert.doesNotMatch(JSON.stringify(render()), /Accuracy \(metres\)|25 metres|25-metre/);
 assert.ok(!render().filter(n => n.type === "Text").some(n => [].concat(n.props.children).includes(25)),
-  "Accuracy is stored internally but is not displayed as a questionnaire answer");
+  "Accuracy is neither stored nor displayed as a questionnaire answer");
 assert.equal(NATIVE_FORM_TEXT.HHQ.gps_accuracy_metres, undefined);
 assert.doesNotMatch(NATIVE_FORM_TEXT.HHQ.gps_waiting_for_accuracy + NATIVE_FORM_TEXT.HHQ.gps_timeout, /accuracy|25|60/i);
 assert.equal(buttons().length, 2);
@@ -116,7 +117,7 @@ callback({ timestamp: Date.now(), coords: { latitude: 28.4, longitude: 77.3, acc
 assert.deepEqual(question.survey.data, { unrelated_answer: "keep", ...saved });
 callback({ timestamp: Date.now(), coords: { latitude: 28.4, longitude: 77.3, accuracy: 15 } });
 await capture;
-assert.equal(question.survey.data.hhq_gps_accuracy_m, 15);
+assert.deepEqual(question.survey.data, { unrelated_answer: 'keep', hhq_gps_latitude: 28.4, hhq_gps_longitude: 77.3 });
 assert.equal(question.survey.data.unrelated_answer, "keep"); assert.equal(changes, 1); assert.equal(removed, 1);
 question.readOnly = true;
 assert.equal(buttons().length, 1, "Read-only saved locations can open maps but cannot be captured again");
@@ -141,7 +142,8 @@ await realCapture;
 assert.equal(model.getQuestionByName("roster").panels[0], rosterPanel);
 assert.deepEqual(model.getValue("roster"), [{ member_name: "Asha" }]);
 assert.equal(model.getValue("unrelated_answer"), "keep");
-assert.equal(readHouseholdGps(model.data).accuracy_m, 15);
+assert.deepEqual(readHouseholdGps(model.data), { latitude: 28.4, longitude: 77.3 });
+assert.ok(!('hhq_gps_accuracy_m' in model.data) && !('hhq_gps_captured_at' in model.data));
 cleanup();
 for (const key of ["gps_latitude", "gps_longitude", "gps_waiting_for_accuracy", "gps_timeout",
   "gps_services_disabled", "gps_capture_failed", "gps_capture_cancelled", "gps_cancel_capture", "gps_open_google_maps",

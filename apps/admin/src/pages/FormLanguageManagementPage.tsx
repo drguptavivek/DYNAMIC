@@ -382,19 +382,20 @@ export default function FormLanguageManagementPage() {
 
   async function saveTranslations(closeElementName?: string, closeChoiceKey?: string) {
     if (!contextReady || !isCurrentContext() || !canEdit || saving) return false;
+    const generation = loadGeneration.current;
+    const isCurrentSave = () => isCurrentContext() && generation === loadGeneration.current;
     setSaving(true);
     setError("");
     setMessage("");
     try {
-      await api.put(`/form-language-management/forms/${selectedForm}`, {
+      const data = await api.put<{ translations: TranslationMap }>(`/form-language-management/forms/${selectedForm}`, {
         site_id: selectedSite,
         language_code: selectedLanguage,
         translations: buildCleanTranslations(translations),
       });
-      if (!isCurrentContext()) return true;
+      if (!isCurrentSave()) return true;
+      setTranslations(data.translations);
       setMessage("Translations saved. Field devices will receive them after Sync Now.");
-      await loadFormLanguage();
-      if (!isCurrentContext()) return true;
       if (closeElementName) {
         setEditingElements((current) => {
           const next = new Set(current);
@@ -411,7 +412,7 @@ export default function FormLanguageManagementPage() {
       }
       return true;
     } catch (err) {
-      if (isCurrentContext()) setError(err instanceof Error ? err.message : "Failed to save translations");
+      if (isCurrentSave()) setError(err instanceof Error ? err.message : "Failed to save translations");
       return false;
     } finally {
       setSaving(false);
@@ -692,24 +693,30 @@ export default function FormLanguageManagementPage() {
       `Are you sure you want to save ${matchedRows} imported translation rows for this questionnaire language?`,
     );
     if (!confirmed) return;
+    const generation = loadGeneration.current;
+    const isCurrentSave = () => isCurrentContext() && generation === loadGeneration.current;
     setTranslations(importTranslations);
     const previousTranslations = translations;
     setSaving(true);
     setError("");
     setMessage("");
     try {
-      await api.put(`/form-language-management/forms/${selectedForm}`, {
+      const data = await api.put<{ translations: TranslationMap }>(`/form-language-management/forms/${selectedForm}`, {
         site_id: selectedSite,
         language_code: selectedLanguage,
         translations: buildCleanTranslations(importTranslations),
       });
-      if (!isCurrentContext()) return;
+      if (!isCurrentSave()) return;
+      setTranslations(data.translations);
       setMessage("Imported translations saved. Field devices will receive them after Sync Now.");
+      importGeneration.current += 1;
       setImportPreviewRows([]);
       setImportTranslations(null);
-      await loadFormLanguage();
+      setImportContext("");
+      setEditingElements(new Set());
+      setEditingChoices(new Set());
     } catch (err) {
-      if (isCurrentContext()) {
+      if (isCurrentSave()) {
         setTranslations(previousTranslations);
         setError(err instanceof Error ? err.message : "Failed to save imported translations");
       }

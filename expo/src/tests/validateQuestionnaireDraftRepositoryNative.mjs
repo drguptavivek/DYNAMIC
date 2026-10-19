@@ -194,8 +194,8 @@ const context = {
 let mark = db.log.length;
 const draft1 = await saveQuestionnaireDraft({
   ...context,
-  payload: { hhq_site_id: 1 },
-  completionState: { currentPageName: "page_01" },
+  payload: { hhq_site_id: 1, hhq_gps_accuracy_m: 12, hhq_gps_captured_at: "old" },
+  completionState: { currentPageName: "page_01", prefill: { hhq_gps_accuracy_m: 12 } },
 });
 const save1Selects = selectCallsSince(db, mark);
 assert.ok(
@@ -211,6 +211,9 @@ assert.ok(save1Selects.every((sql) => /\btask_id\b/i.test(sql) && /\bsubject_typ
 assert.equal(draft1.draft_status, "active");
 assert.deepEqual(draft1.json_payload, { hhq_site_id: 1 });
 const firstCreatedAt = draft1.created_at;
+const persistedGpsDraft = await getActiveQuestionnaireDraft(context);
+assert.deepEqual(persistedGpsDraft.json_payload, { hhq_site_id: 1 });
+assert.deepEqual(persistedGpsDraft.completion_state, { currentPageName: "page_01", prefill: {} });
 
 mark = db.log.length;
 const directlyResaved = await saveQuestionnaireDraft({

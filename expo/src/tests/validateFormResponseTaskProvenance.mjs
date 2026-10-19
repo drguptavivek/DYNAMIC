@@ -28,7 +28,9 @@ function exercise() {
     source_form_response_id: "baseline-response" };
   saveTask(task);
   saveFormResponse({ id: "wq-response", task_id: task.id, task_key: task.task_key,
-    form_code: "WQ", form_version: "test", answers_json: { consent: 1 }, device_id: "device" });
+    form_code: "WQ", form_version: "test", answers_json: {
+      consent: 1, hhq_gps_accuracy_m: 12, hhq_gps_captured_at: "old",
+    }, device_id: "device" });
   assert.equal(getTask(task.id).status, "completed");
   assert.equal(getTask(task.id).source_form_response_id, "baseline-response");
   assert.deepEqual(getGeneratedTaskKeys("baseline-response"), [task.task_key]);
@@ -39,7 +41,10 @@ function exercise() {
   assert.equal(response.task_key, task.task_key);
   assert.equal(recoverFormResponseTaskKey(response), task.task_key);
   assert.deepEqual(response.answers_json, { consent: 1 });
-  saveSyncedFormResponsesBatch([{ ...response, task_id: "server-id", task_key: null }]);
+  saveSyncedFormResponsesBatch([{ ...response, task_id: "server-id", task_key: null,
+    answers_json: JSON.stringify({ consent: 1, hhq_gps_accuracy_m: 12,
+      hhq_gps_captured_at: "old", prefill: { hhq_gps_accuracy_m: 10 } }) }]);
+  assert.deepEqual(getFormResponseById(response.id).answers_json, { consent: 1, prefill: {} });
   assert.equal(getFormResponseById(response.id).task_key, task.task_key,
     "a pulled server response without a task key must retain the original finalized key");
 

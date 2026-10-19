@@ -27,6 +27,8 @@ const { buildPushRecords } = await import("../modules/sync/syncWorkflow.js");
 const { getLocalCalendarDate } = await import("../lib/localDate.js");
 
 const hhqPayload = {
+  hhq_gps_accuracy_m: 12, hhq_gps_captured_at: "old",
+  hhq_gps_latitude: 28.1, hhq_gps_longitude: 77.2,
   hhq_site_id: 1,
   hhq_locality_code: 2,
   hhq_structure_map_id: "0042",
@@ -77,6 +79,12 @@ const submission = await saveQuestionnaireSubmission({
   userId: "fieldworker-1",
 });
 assert.equal(fetchCalls, 0);
+assert.equal(submission.answers_json.hhq_gps_accuracy_m, undefined);
+assert.equal(submission.answers_json.hhq_gps_captured_at, undefined);
+assert.equal(submission.answers_json.hhq_gps_latitude, 28.1);
+assert.equal(submission.answers_json.hhq_gps_longitude, 77.2);
+assert.equal(store.get("dynamic_questionnaire_submissions_v1").includes("hhq_gps_accuracy_m"), false);
+assert.equal(store.get("dynamic_questionnaire_submissions_v1").includes("hhq_gps_captured_at"), false);
 
 assert.equal(submission.form_code, "HHQ");
 assert.equal(submission.form_version, "9 MAY 2026");

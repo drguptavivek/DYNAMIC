@@ -60,8 +60,6 @@ export function buildHhqPrefill(household, today = new Date()) {
     Object.assign(prefill, {
       hhq_gps_latitude: gps.latitude,
       hhq_gps_longitude: gps.longitude,
-      hhq_gps_accuracy_m: gps.accuracy_m,
-      hhq_gps_captured_at: gps.captured_at,
     });
   }
 

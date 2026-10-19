@@ -270,4 +270,18 @@ assert.deepEqual(
   },
 );
 
+const gpsPush = buildPushRecords({ formResponses: [{ id: "gps-legacy", form_code: "HHQ",
+  json_payload: { hhq_gps_accuracy_m: 10, hhq_gps_captured_at: "old", hhq_gps_latitude: 28.1 },
+  prefill_snapshot_json: JSON.stringify({ hhq_gps_accuracy_m: 10, hhq_gps_captured_at: "old",
+    hhq_gps_longitude: 77.2 }),
+  answers_json: JSON.stringify({ hhq_gps_latitude: 28.1, hhq_gps_longitude: 77.2,
+    hhq_gps_accuracy_m: 12, hhq_gps_captured_at: "old", prefill: { hhq_gps_accuracy_m: 10 } }) }],
+  domainEvents: [] });
+assert.deepEqual(gpsPush[0].data.answers_json,
+  { hhq_gps_latitude: 28.1, hhq_gps_longitude: 77.2, prefill: {} });
+assert.deepEqual(gpsPush[0].data.json_payload, { hhq_gps_latitude: 28.1 });
+assert.deepEqual(JSON.parse(gpsPush[0].data.prefill_snapshot_json), { hhq_gps_longitude: 77.2 });
+const gpsPushWithoutLegacyFields = buildPushRecords({ formResponses: [{ form_code: "HHQ", answers_json: {} }] });
+assert.equal(Object.hasOwn(gpsPushWithoutLegacyFields[0].data, "json_payload"), false);
+assert.equal(Object.hasOwn(gpsPushWithoutLegacyFields[0].data, "prefill_snapshot_json"), false);
 console.log("Validated sync workflow helpers.");

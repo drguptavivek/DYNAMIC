@@ -36,8 +36,10 @@ const canonicalForms = Object.fromEntries(formIndex.map(form => {
 }));
 const canonicalSaved = {}, pendingLoads = new Map();
 let canonicalMode = false;
+let pendingSave, saveResponse;
 const requests = [];
 const slots = [];
+const renderedEntryKeys = [];
 let cursor = 0, dirty = true, effects = [], tree;
 const sameDeps = (left, right) => left && right && left.length === right.length && left.every((value, index) => Object.is(value, right[index]));
 globalThis.languageHarness = {
@@ -86,9 +88,11 @@ globalThis.languageHarness = {
       if (!canonicalMode) assert.equal(code, 'HHQ');
       assert.equal(payload.site_id, 2);
       assert.equal(payload.language_code, 'hi');
+      const gate = pendingSave; pendingSave = undefined;
+      if (gate) await gate;
       if (canonicalMode) canonicalSaved[code] = structuredClone(payload.translations);
       else savedTranslations = structuredClone(payload.translations);
-      return {};
+      return { form_code: code, site_id: payload.site_id, language_code: payload.language_code, translations: structuredClone(saveResponse || payload.translations) };
     },
   },
 };
@@ -99,6 +103,7 @@ async function settle() {
     if (dirty) {
       dirty = false; cursor = 0;
       tree = module.exports.default();
+      renderedEntryKeys.push(nodes().filter(node => node.type === 'article').map(node => node.key));
       const pending = effects; effects = [];
       pending.forEach(callback => callback());
     }
@@ -272,8 +277,12 @@ try {
     });
     await importText(encodeCsv(rows));
     assert.match(text(tree), new RegExp(`${rows.length - 1} matched, 0 ignored`));
+    const importRenderStart = renderedEntryKeys.length;
+    const importGetCount = requests.filter(request => request.method === 'get').length;
     button('Add imported translations').props.onClick(); await settle();
     assert.deepEqual(canonicalSaved[form.form_code], expectedTranslations, `${form.form_code}: Unicode, quotes, newlines and exact option values survive the complete export/import/save cycle`);
+    assert.equal(requests.filter(request => request.method === 'get').length, importGetCount, 'Import save also avoids reloading the questionnaire');
+    renderedEntryKeys.slice(importRenderStart).forEach(keys => assert.deepEqual(keys, definition.elements.map(element => element.name), 'Import keeps editor rows mounted'));
     lastRows = rows;
   }
   const putCount = () => requests.filter(request => request.method === 'put').length;
@@ -322,10 +331,68 @@ try {
   await selectForm('PEF');
   finishFile(encodeCsv(lastRows)); await settle();
   assert.ok(!nodes().some(node => node.type === 'button' && text(node) === 'Add imported translations'), 'Late file read must not attach another form’s preview to the selected form');
+  for (const form of formIndex) {
+    await selectForm(form.form_code);
+    const definition = canonicalForms[form.form_code];
+    const question = definition.elements.findLast(element => element.choices.length > 0);
+    assert.ok(question, `${form.form_code} has an option to check`);
+    const entryKeys = definition.elements.map(element => element.name);
+    for (const kind of ['question', 'choice', 'failure']) {
+      const root = article(question.name);
+      const choice = question.choices[0];
+      const choiceRow = () => nodes(article(question.name)).find(node => node.type === 'div' && node.key === `${question.name}-${choice.value}`);
+      button('Edit', kind === 'choice' ? choiceRow() : root).props.onClick(); await settle();
+      const input = nodes(kind === 'choice' ? choiceRow() : article(question.name)).find(node => node.props?.placeholder === (kind === 'choice' ? 'Option text' : 'Translated text'));
+      const value = `${form.form_code} ${kind} translation`;
+      input.props.onChange({ target: { value } }); await settle();
+      let resolve, reject;
+      pendingSave = new Promise((done, fail) => { resolve = done; reject = fail; });
+      saveResponse = structuredClone(canonicalSaved[form.form_code]);
+      saveResponse[question.name] ??= {};
+      if (kind === 'choice') (saveResponse[question.name].choices ??= {})[choice.value] = `${value} reconciled`;
+      else saveResponse[question.name].title = `${value} reconciled`;
+      const renderStart = renderedEntryKeys.length;
+      const getCount = requests.filter(request => request.method === 'get').length;
+      button('Save', kind === 'choice' ? choiceRow() : article(question.name)).props.onClick(); await settle();
+      assert.ok(button('Save', kind === 'choice' ? choiceRow() : article(question.name)).props.disabled, 'Save remains mounted and disabled while PUT is pending');
+      if (kind === 'failure') reject(new Error('Save failed for test')); else resolve();
+      await settle();
+      assert.equal(requests.filter(request => request.method === 'get').length, getCount, `${form.form_code}: save never reloads the questionnaire`);
+      assert.ok(renderedEntryKeys.slice(renderStart).length > 0);
+      renderedEntryKeys.slice(renderStart).forEach(keys => assert.deepEqual(keys, entryKeys, `${form.form_code}: every entry stays mounted throughout ${kind} save`));
+      if (kind === 'failure') {
+        assert.match(text(tree), /Save failed for test/);
+        assert.equal(nodes(article(question.name)).find(node => node.props?.placeholder === 'Translated text').props.value, value, 'Failed save preserves the edit');
+        button('Cancel', article(question.name)).props.onClick(); await settle();
+      } else assert.ok(text(kind === 'choice' ? choiceRow() : article(question.name)).includes(`${value} reconciled`), 'Saved display uses the authoritative API translations');
+      saveResponse = undefined;
+    }
+  }
+  await selectForm('WQ');
+  const lateEntry = canonicalForms.WQ.elements[0].name;
+  button('Edit', article(lateEntry)).props.onClick(); await settle();
+  let finishSave;
+  pendingSave = new Promise(done => { finishSave = done; });
+  saveResponse = { [lateEntry]: { title: 'Late BWQ save must not appear' } };
+  button('Save', article(lateEntry)).props.onClick(); await settle();
+  await selectForm('HHQ');
+  finishSave(); await settle();
+  assert.ok(!text(tree).includes('Late BWQ save must not appear'), 'Late save cannot overwrite a newly selected form');
+  assert.deepEqual(nodes().filter(node => node.type === 'article').map(node => node.key), canonicalForms.HHQ.elements.map(element => element.name));
+  saveResponse = undefined;
+  const refreshedEntry = canonicalForms.HHQ.elements[0].name;
+  button('Edit', article(refreshedEntry)).props.onClick(); await settle();
+  pendingSave = new Promise(done => { finishSave = done; });
+  saveResponse = { [refreshedEntry]: { title: 'Stale save before refresh must not appear' } };
+  button('Save', article(refreshedEntry)).props.onClick(); await settle();
+  button('Refresh latest').props.onClick(); await settle();
+  finishSave(); await settle();
+  assert.ok(!text(tree).includes('Stale save before refresh must not appear'), 'A save finishing after a newer refresh cannot replace refreshed translations');
+  saveResponse = undefined;
   assert.ok(requests.every(request => request.path.startsWith('/form-language-management')), 'Translation editing must not submit forms or change workflow');
 } finally {
   globalThis.document = originalDocument; globalThis.window = originalWindow;
   URL.createObjectURL = originalCreateObjectURL; URL.revokeObjectURL = originalRevokeObjectURL;
   delete globalThis.languageHarness;
 }
-console.log('All 12 current codebooks export/import/save completely; scope, stale definitions, malformed CSV and async race guards passed.');
+console.log('All 12 current codebooks export/import/save completely; question and choice saves keep all editor rows mounted without reload; failure, authoritative responses, scope, stale definitions, malformed CSV and async race guards passed.');

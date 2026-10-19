@@ -15,7 +15,6 @@ function load(relativePath, imports) {
 }
 const answers = {
   hhq_gps_latitude: 28.31, hhq_gps_longitude: 77.32,
-  hhq_gps_accuracy_m: 12, hhq_gps_captured_at: "2026-10-19T10:00:00.000Z",
 };
 let rows = [];
 const queries = [];
@@ -36,7 +35,7 @@ assert.equal(repository.getSavedHouseholdGps("H1"), null);
 rows = [
   response({ household_id: "H2" }),
   response({ answers_json: "malformed JSON" }),
-  response({ answers_json: { ...answers, hhq_gps_accuracy_m: 26 } }),
+  response({ answers_json: { ...answers, hhq_gps_latitude: 91 } }),
   response({ answers_json: JSON.stringify(answers), sync_status: "pending" }),
   response({ answers_json: { ...answers, hhq_gps_latitude: 29 } }),
 ];
@@ -49,6 +48,11 @@ const household = { household_id: "H1", site_id: 2, locality_code: "11", head_na
 const restored = prefill.buildHhqPrefill(household, new Date(2026, 9, 19));
 assert.equal(typeof restored.then, "undefined", "BHQ prefill retains its synchronous contract");
 for (const [key, value] of Object.entries(answers)) assert.equal(restored.prefill[key], value);
+assert.ok(!('hhq_gps_accuracy_m' in restored.prefill) && !('hhq_gps_captured_at' in restored.prefill));
+rows = [response({ answers_json: { ...answers, hhq_gps_accuracy_m: 100, hhq_gps_captured_at: 'invalid' } })];
+assert.deepEqual(repository.getSavedHouseholdGps('H1'), gpsHelpers.readHouseholdGps(answers), 'Historical metadata does not block restored coordinates');
+const legacyPrefill = prefill.buildHhqPrefill(household).prefill;
+assert.ok(!('hhq_gps_accuracy_m' in legacyPrefill) && !('hhq_gps_captured_at' in legacyPrefill), 'Prefill never copies legacy capture metadata');
 assert.equal(restored.prefill.hhq_locality_code, "11");
 assert.equal(restored.prefill.hhq_household_head_name, "Head");
 assert.equal(restored.prefill.hhq_residence_area_type, 2);
@@ -120,7 +124,7 @@ readLocation = () => gpsHelpers.readHouseholdGps(answers);
 render("H3"); await tick();
 let tree = render("H3");
 assert.ok(textOf(tree).includes("28.31"));
-assert.ok(!textOf(tree).includes("Accuracy:"), "saved location details hide accuracy while retaining the internal accuracy check");
+assert.ok(!textOf(tree).includes("Accuracy:"), "saved location details show coordinates only");
 let opened;
 openUrl = async (url) => { opened = url; };
 await button(tree, "Open in Google Maps").props.onPress();

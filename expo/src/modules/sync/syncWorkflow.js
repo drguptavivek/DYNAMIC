@@ -1,3 +1,4 @@
+import { stripHouseholdGpsMetadata } from "../../../../shared/householdGpsStorage.cjs";
 import { buildHouseholdIdFromHhqData, normalizeIdPart } from "../households/householdIds.js";
 
 export function collectAssignedLocalityCodes(user, today = new Date().toISOString().split("T")[0]) {
@@ -44,7 +45,7 @@ function parseHouseholdScope(householdId) {
 
 function normalizeFormResponseForPush(response) {
   if (!response || !response.form_code) return response;
-  const answersJson = parseAnswersJson(response.answers_json);
+  const answersJson = stripHouseholdGpsMetadata(parseAnswersJson(response.answers_json));
   const formCode = String(response.form_code || "").toUpperCase();
   const householdId =
     response.household_id ||
@@ -66,6 +67,11 @@ function normalizeFormResponseForPush(response) {
     form_code: formCode || response.form_code,
     answers_json: answersJson,
   };
+  for (const field of ["json_payload", "prefill_snapshot_json"]) {
+    if (Object.prototype.hasOwnProperty.call(response, field)) {
+      normalized[field] = stripHouseholdGpsMetadata(response[field]);
+    }
+  }
 
   if (householdId || response.household_id) normalized.household_id = householdId || response.household_id;
   if (response.site_id !== undefined || hhqSiteId !== undefined || scope.site_id !== undefined) {

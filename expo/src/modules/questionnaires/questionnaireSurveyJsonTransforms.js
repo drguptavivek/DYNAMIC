@@ -211,17 +211,14 @@ function addHhqGpsCapture(surveyJson) {
       requiredErrorText: "Capture the household GPS location.",
       validators: [{
         type: "expression",
-        expression: "{hhq_gps_latitude} notempty and {hhq_gps_latitude} >= -90 and {hhq_gps_latitude} <= 90 and {hhq_gps_longitude} notempty and {hhq_gps_longitude} >= -180 and {hhq_gps_longitude} <= 180 and {hhq_gps_accuracy_m} notempty and {hhq_gps_accuracy_m} >= 0 and {hhq_gps_accuracy_m} <= 25 and {hhq_gps_captured_at} notempty",
+        expression: "{hhq_gps_latitude} notempty and {hhq_gps_latitude} >= -90 and {hhq_gps_latitude} <= 90 and {hhq_gps_longitude} notempty and {hhq_gps_longitude} >= -180 and {hhq_gps_longitude} <= 180",
         text: "Capture a valid household GPS location.",
       }],
     },
-    ...[
-      ["hhq_gps_longitude", "Longitude"],
-      ["hhq_gps_accuracy_m", "GPS accuracy (metres)"],
-      ["hhq_gps_captured_at", "GPS capture time"],
-    ].map(([name, title]) => ({
-      type: "text", name, title, renderAs: "background", readOnly: true, visibleIf,
-    })),
+    {
+      type: "text", name: "hhq_gps_longitude", title: "Longitude",
+      renderAs: "background", readOnly: true, visibleIf,
+    },
   ];
   function visit(elements = []) {
     return elements.flatMap((element) => {

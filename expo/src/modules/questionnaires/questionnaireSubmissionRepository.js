@@ -1,3 +1,4 @@
+import { stripHouseholdGpsMetadata } from "../../../../shared/householdGpsStorage.cjs";
 import {
   childDeathRecorded,
   eligibleWomanIdentified,
@@ -1179,7 +1180,7 @@ export async function saveQuestionnaireSubmission({
   if (correctionResponseId && !canCorrectExcludedWqResponse(correctionSource, Date.now())) {
     throw new Error("This excluded form is no longer within the 10-minute correction period.");
   }
-  let finalPayload = payload || {};
+  let finalPayload = stripHouseholdGpsMetadata(payload || {});
   let finalizedUltrasoundReports = null;
   let finalizedAncCardImage = null;
   let finalizedPffFirstUltrasoundImage = null;

@@ -17,6 +17,7 @@ import { buildFormAttachmentLocation, isSupportedImageBuffer } from "../lib/form
 import { ensureAssignedPendingHhqTasks } from "../lib/assignedHhqTasks";
 import { canResumePsfAfterNeverPregnantPff } from "../lib/psfResumeEligibility";
 import { requireSyncedHouseholdBaseline } from "../lib/syncDependencies";
+import { stripHouseholdGpsMetadata } from "../../../../shared/householdGpsStorage.cjs";
 
 const router = Router();
 const attachmentUpload = multer({
@@ -214,8 +215,8 @@ const mapDraftForExpo = (draft: typeof schema.questionnaireDrafts.$inferSelect) 
   locality_code: draft.locality_code,
   user_id: draft.user_id,
   device_id: draft.device_id,
-  json_payload: draft.json_payload,
-  completion_state: draft.completion_state,
+  json_payload: stripHouseholdGpsMetadata(draft.json_payload),
+  completion_state: stripHouseholdGpsMetadata(draft.completion_state),
   draft_status: draft.draft_status,
   created_at: draft.client_created_at,
   updated_at: draft.client_updated_at,
@@ -278,7 +279,7 @@ const mapFormResponseForExpo = (response: typeof schema.formResponses.$inferSele
     locality_code: response.locality_code,
     subject_type: response.subject_type,
     subject_id: response.subject_id,
-    answers_json: response.answers_json,
+    answers_json: stripHouseholdGpsMetadata(response.answers_json),
     submitted_at: response.created_offline_at ?? response.synced_at ?? response.created_at,
     sync_status: syncStatus,
     sync_error:
@@ -432,7 +433,12 @@ router.post(
 
       let synced = 0;
       const errors: { id: string; error: string }[] = [];
-      for (const draft of drafts) {
+      for (const incomingDraft of drafts) {
+        const draft = {
+          ...incomingDraft,
+          json_payload: stripHouseholdGpsMetadata(incomingDraft?.json_payload),
+          completion_state: stripHouseholdGpsMetadata(incomingDraft?.completion_state),
+        };
         const draftId = String(draft?.draft_id || "");
         try {
           if (!draftId || !draft?.form_code || draft?.user_id !== req.user!.sub) {
@@ -1166,7 +1172,12 @@ router.post(
 
     for (const record of records) {
       try {
-        const { type, data } = record;
+        const { type, data: incomingData } = record;
+        const data = type === "form_response" && incomingData ? {
+          ...incomingData,
+          answers_json: stripHouseholdGpsMetadata(incomingData.answers_json),
+          prefill_snapshot_json: stripHouseholdGpsMetadata(incomingData.prefill_snapshot_json),
+        } : incomingData;
         const recordId = data?.id ?? data?.task_key ?? "unknown";
         const recordUser = await resolveSyncPushUser(req, data?.user_id);
         if (!recordUser) {

@@ -430,4 +430,23 @@ assert.equal(
 );
 assert.equal(await removeQuestionnaireDraft("missing-draft"), false);
 
+const gpsDraft = await saveQuestionnaireDraft({
+  ...context, taskId: "gps-storage-test", subjectId: "2-02-0099-01",
+  payload: { hhq_gps_latitude: 28.1, hhq_gps_longitude: 77.2,
+    hhq_gps_accuracy_m: 12, hhq_gps_captured_at: "old" },
+  completionState: { prefill: { hhq_gps_accuracy_m: 11, hhq_gps_captured_at: "old", keep: 1 } },
+});
+assert.deepEqual(gpsDraft.json_payload, { hhq_gps_latitude: 28.1, hhq_gps_longitude: 77.2 });
+assert.deepEqual(gpsDraft.completion_state, { prefill: { keep: 1 } });
+const gpsStored = JSON.parse(store.get("dynamic_questionnaire_drafts_v1"))
+  .find((draft) => draft.draft_id === gpsDraft.draft_id);
+assert.deepEqual(gpsStored.json_payload, gpsDraft.json_payload);
+assert.deepEqual(gpsStored.completion_state, gpsDraft.completion_state);
+const legacyGps = { ...gpsDraft, json_payload: { ...gpsDraft.json_payload,
+  hhq_gps_accuracy_m: 10, hhq_gps_captured_at: "legacy" },
+  completion_state: { prefill: { hhq_gps_accuracy_m: 10, keep: 1 } } };
+const gpsSync = toDraftSyncRecord(legacyGps);
+assert.deepEqual(gpsSync.json_payload, gpsDraft.json_payload);
+assert.deepEqual(gpsSync.completion_state, { prefill: { keep: 1 } });
+assert.equal(legacyGps.json_payload.hhq_gps_accuracy_m, 10);
 console.log("Validated questionnaire draft workflow helpers.");

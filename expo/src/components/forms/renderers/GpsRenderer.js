@@ -35,8 +35,7 @@ export function GpsRenderer({ locale, question, onChange }) {
       if (!mounted.current || question.isReadOnly || question.readOnly) return;
       // Set the complete fix together so drafts never observe a partial location.
       question.survey.mergeData({
-        hhq_gps_latitude: result.latitude, hhq_gps_longitude: result.longitude,
-        hhq_gps_accuracy_m: result.accuracy_m, hhq_gps_captured_at: result.captured_at });
+        hhq_gps_latitude: result.latitude, hhq_gps_longitude: result.longitude });
       setStatus("gps_captured_from_this_device");
       onChange?.();
     } catch (error) {

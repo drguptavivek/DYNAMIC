@@ -1,3 +1,4 @@
+import { stripHouseholdGpsMetadata } from "../../../../shared/householdGpsStorage.cjs";
 import { getAssignedHouseholdIds, householdScopePredicate } from "../sync/householdAssignmentScope.js";
 import { getDb } from "./taskSchema.js";
 import { getLocalCalendarDate } from "../../lib/localDate.js";
@@ -1017,6 +1018,10 @@ export function completeTask(taskId, formCode, formVersion, answersJson, deviceI
 }
 
 export function saveFormResponse(response) {
+  response = { ...response,
+    answers_json: stripHouseholdGpsMetadata(response.answers_json),
+    json_payload: stripHouseholdGpsMetadata(response.json_payload),
+  };
   const db = getDb();
   const now = new Date().toISOString();
   const responseId = response.id || response.submission_id || `${response.form_code}-${now}`;
@@ -1271,6 +1276,10 @@ export function restoreLocalWqVisitorEligibility({ subjectId, pregnantNow = fals
 }
 
 function normalizePulledFormResponse(response) {
+  response = { ...response,
+    answers_json: stripHouseholdGpsMetadata(response.answers_json),
+    json_payload: stripHouseholdGpsMetadata(response.json_payload),
+  };
   const now = new Date().toISOString();
   const responseId = response.id || response.response_id || response.form_response_id || response.submission_id;
   const answersJson =

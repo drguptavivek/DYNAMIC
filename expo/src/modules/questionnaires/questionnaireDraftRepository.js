@@ -1,3 +1,4 @@
+import { stripHouseholdGpsMetadata } from "../../../../shared/householdGpsStorage.cjs";
 /**
  * Persists mutable questionnaire drafts in browser storage or the shared native SQLite database.
  */
@@ -185,6 +186,7 @@ async function readRows() {
 }
 
 async function persistDraft(draft) {
+  draft = stripHouseholdGpsMetadata(draft);
   // Computed fresh on every write so household_id/site_id/woman_id/etc. stay
   // in sync with json_payload, whether persistDraft is called with a
   // brand-new draft (no columns yet) or a decoded existing row (columns
@@ -688,6 +690,7 @@ export async function listQuestionnaireDraftsForSync(userId) {
 }
 
 export function toDraftSyncRecord(draft, task = null) {
+  draft = stripHouseholdGpsMetadata(draft);
   // Legacy PFF drafts can have a pregnancy ID as subject and no household
   // column. The local task retains the household even before server sync.
   const householdId = getDraftHouseholdId({ ...draft, household_id: task?.household_id || draft.household_id }) || null;
@@ -905,8 +908,8 @@ export async function saveQuestionnaireDraft({
     household_id: householdId || null,
     device_id: deviceId,
     user_id: userId,
-    json_payload: payload || {},
-    completion_state: completionState || {},
+    json_payload: stripHouseholdGpsMetadata(payload || {}),
+    completion_state: stripHouseholdGpsMetadata(completionState || {}),
     draft_status: "active",
     created_at: existing?.created_at || timestamp,
     updated_at: timestamp,
