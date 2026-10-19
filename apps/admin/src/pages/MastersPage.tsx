@@ -505,14 +505,45 @@ function LocalitiesTab({
   const siteNamesById = new Map(sites.map((site) => [site.site_id, site.site_name]));
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingLocality, setEditingLocality] = useState<Locality | null>(null);
+  const [search, setSearch] = useState("");
+  const [siteFilter, setSiteFilter] = useState("");
+  const query = search.trim().toLowerCase();
+  const filteredLocalities = localities.filter((locality) =>
+    (!siteFilter || locality.site_id.toString() === siteFilter) &&
+    (!query || locality.locality_name.toLowerCase().includes(query) ||
+      locality.locality_code.toLowerCase().includes(query)),
+  );
 
   return (
     <div>
       <div className={styles.tabHeader}>
         <h2>Study Localities</h2>
-        <button type="button" className={styles.primaryBtn} onClick={() => setShowCreateModal(true)}>
-          Add Locality
-        </button>
+        <div className={styles.filterGroup}>
+          <input
+            type="search"
+            aria-label="Search localities"
+            placeholder="Search locality name or code..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className={styles.searchInput}
+          />
+          <select
+            aria-label="Filter localities by site"
+            value={siteFilter}
+            onChange={(e) => setSiteFilter(e.target.value)}
+            className={styles.filterSelect}
+          >
+            <option value="">All Sites</option>
+            {sites.map((site) => (
+              <option key={site.site_id} value={site.site_id}>
+                {site.site_name} ({site.site_id})
+              </option>
+            ))}
+          </select>
+          <button type="button" className={styles.primaryBtn} onClick={() => setShowCreateModal(true)}>
+            Add Locality
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -533,7 +564,7 @@ function LocalitiesTab({
               </tr>
             </thead>
             <tbody>
-              {localities.map((loc) => (
+              {filteredLocalities.map((loc) => (
                 <tr key={`${loc.site_id}-${loc.locality_code}`}>
                   <td>{siteNamesById.get(loc.site_id) || "—"}</td>
                   <td>{loc.site_id}</td>
@@ -551,6 +582,11 @@ function LocalitiesTab({
                   </td>
                 </tr>
               ))}
+              {filteredLocalities.length === 0 && (
+                <tr>
+                  <td colSpan={6} className={styles.empty}>No localities match the filters</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
