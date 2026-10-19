@@ -654,10 +654,22 @@ export default function FormLanguageManagementPage() {
 
   return (
     <div className={styles.container}>
-      <h1>Form Language Management</h1>
-      <p className={styles.subtitle}>
-        Manage global questionnaire translations. Site selection only controls who can edit the selected language.
-      </p>
+      <header className={styles.pageHeader}>
+        <h1>Form Language Management</h1>
+        <details className={styles.helpPanel} aria-label="Form translation help">
+          <summary>Help</summary>
+          <div className={styles.helpBody}>
+            <p>Manage global questionnaire translations. Site selection only controls who can edit the selected language.</p>
+            <p>Export keeps the questionnaire order fixed. Sites can fill the translated_text column and send the CSV back for preview and import.</p>
+            <p>Central admin can always edit. Site users need permission ON.</p>
+            {!loading && loadedFormChecksum ? (
+              <p className={styles.definitionStatus}>
+                Latest Android questionnaire definition loaded • Checksum {loadedFormChecksum.slice(0, 12)}
+              </p>
+            ) : null}
+          </div>
+        </details>
+      </header>
 
       {error ? <div className={`${styles.message} ${styles.error}`}>{error}</div> : null}
       {message ? <div className={`${styles.message} ${styles.success}`}>{message}</div> : null}
@@ -688,10 +700,6 @@ export default function FormLanguageManagementPage() {
           </select>
         </div>
         <div className={styles.field}>
-          <label>Default Language</label>
-          <input className={styles.input} value="English" readOnly />
-        </div>
-        <div className={styles.field}>
           <label>Target Language</label>
           <select
             className={styles.select}
@@ -705,15 +713,22 @@ export default function FormLanguageManagementPage() {
             ))}
           </select>
         </div>
+        <span className={styles.defaultLanguage}>Default: English</span>
         <button className={styles.secondaryButton} type="button" onClick={() => void loadFormLanguage(true)} disabled={loading}>
           Refresh latest
         </button>
       </section>
 
       {canManagePermissions ? (
-        <section className={styles.permissionPanel}>
-          <div>
-            <div className={styles.permissionTitle}>Permission ON/OFF for selected site</div>
+        <details className={styles.permissionPanel} aria-label="Manage translation permissions">
+          <summary>
+            <strong>Permission management</strong>
+            {" · "}{sites.find((site) => site.site_id === selectedSite)?.site_name || "Select site above"}
+            {" · "}{getFormDisplayCode(permissionForm)}
+            {" · "}{languages.find((language) => language.code === permissionLanguage)?.label || permissionLanguage}
+            {" · "}{grantedUsersForSelectedSite}/{usersForSelectedSite.length} users permitted
+          </summary>
+          <div className={styles.permissionBody}>
             <p className={styles.permissionHelp}>
               ON allows all active non-field-worker users of this site to edit this form language.
               OFF makes it view-only. Field workers receive the saved global questionnaire language during mobile sync.
@@ -773,29 +788,18 @@ export default function FormLanguageManagementPage() {
           </div>
           </div>
           </div>
-        </section>
+        </details>
       ) : null}
 
       <section className={styles.editorPanel}>
-        <div className={styles.summaryRow}>
-          <span>
+        <div className={styles.editorHeader}>
+          <div className={styles.summaryRow}>
+            <span>
             {loading
               ? "Loading latest questionnaire..."
               : `${elements.length} translatable entries loaded${loadedFormVersion ? ` • Version ${loadedFormVersion}` : ""}`}
-          </span>
-          <span>{canEdit ? "Editing allowed" : "Read only until permission is granted"}</span>
-        </div>
-        {!loading && loadedFormChecksum ? (
-          <div className={styles.definitionStatus}>
-            Latest Android questionnaire definition loaded • Checksum {loadedFormChecksum.slice(0, 12)}
-          </div>
-        ) : null}
-        <div className={styles.csvPanel}>
-          <div>
-            <div className={styles.permissionTitle}>CSV import/export</div>
-            <p className={styles.permissionHelp}>
-              Export keeps the questionnaire order fixed. Sites can fill the translated_text column and send the CSV back for preview and import.
-            </p>
+            </span>
+            <span>{canEdit ? "Editing allowed" : "Read only until permission is granted"}</span>
           </div>
           <div className={styles.csvActions}>
             <button

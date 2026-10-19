@@ -12,13 +12,48 @@
 }
 
 .container h1 {
-  margin: 0 0 0.5rem;
+  margin: 0;
   color: #222;
 }
 
-.subtitle {
-  margin: 0 0 1.5rem;
+.pageHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.helpPanel,
+.defaultLanguage {
   color: #667085;
+  font-size: 0.85rem;
+}
+
+.helpPanel summary,
+.permissionPanel summary {
+  cursor: pointer;
+}
+
+.helpPanel[open] {
+  flex-basis: 100%;
+}
+
+.helpBody {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #e4e7ec;
+  border-radius: 6px;
+  background: #f8fafc;
+}
+
+.helpBody p {
+  margin: 0.25rem 0;
+}
+
+.defaultLanguage {
+  padding-bottom: 0.5rem;
+  white-space: nowrap;
 }
 
 .toolbar,
@@ -34,14 +69,21 @@
 .toolbar {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.75rem;
+  gap: 0.5rem 0.75rem;
   align-items: end;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.toolbar .select,
+.toolbar .secondaryButton {
+  padding: 0.45rem 0.6rem;
 }
 
 .field {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 0.2rem;
   flex: 1 1 110px;
   min-width: 0;
 }
@@ -140,14 +182,14 @@
 }
 
 .permissionPanel {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-  align-items: end;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.5rem;
+  color: #475467;
+  font-size: 0.85rem;
 }
 
-.permissionPanel > div:first-child {
-  flex: 1 1 560px;
+.permissionBody {
+  padding-top: 0.5rem;
   min-width: 0;
 }
 
@@ -257,18 +299,26 @@
   resize: vertical;
 }
 
+.editorHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin-bottom: 0.5rem;
+}
+
 .summaryRow {
   display: flex;
   flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1rem;
+  flex: 1 1 300px;
+  min-width: 0;
+  gap: 0.25rem 1rem;
   color: #667085;
   font-weight: 650;
 }
 
 .definitionStatus {
-  margin: -0.45rem 0 1rem;
   color: #047857;
   font-size: 0.85rem;
   font-weight: 700;
@@ -279,27 +329,6 @@
   margin-top: 1rem;
   color: #667085;
   font-weight: 650;
-}
-
-.csvPanel {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-  align-items: center;
-  margin-bottom: 1rem;
-  padding: 0.9rem;
-  border: 1px solid #e4e7ec;
-  border-radius: 8px;
-  background: #f8fafc;
-}
-
-.csvPanel > div:first-child {
-  flex: 1 1 320px;
-  min-width: 0;
-}
-
-.csvPanel .permissionHelp {
-  margin-bottom: 0;
 }
 
 .editorPanel {
@@ -574,14 +603,8 @@
 }
 
 @media (max-width: 1100px) {
-  .toolbar,
-  .permissionPanel,
   .editorPanel {
     padding: 0.75rem;
-  }
-
-  .subtitle {
-    margin-bottom: 1rem;
   }
 
   .field {
@@ -598,12 +621,4 @@
     margin: 0.25rem 0 0.5rem;
   }
 
-  .csvPanel {
-    padding: 0.65rem;
-  }
-
-  .summaryRow,
-  .definitionStatus {
-    margin-bottom: 0.5rem;
-  }
 }
