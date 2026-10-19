@@ -457,7 +457,7 @@ function LoginScreen() {
           <Text style={styles.loginTitle}>DYNAMIC</Text>
           <Text style={styles.loginSubtitle}>Field Worker Login</Text>
           <Text style={styles.appVersion}>
-            Version {Application.nativeApplicationVersion || appConfig.expo.version} (build {Application.nativeBuildVersion || appConfig.expo.android.versionCode})
+            Version {Application.nativeApplicationVersion || appConfig.expo.version}
           </Text>
 
           <TextInput
