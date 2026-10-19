@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { eq, and, ilike, or, desc, sql } from "drizzle-orm";
+import { eq, and, ilike, inArray, or, desc, sql } from "drizzle-orm";
 import { db, schema } from "../db";
 import { requireAuth } from "../middleware/auth";
 import { sendError, sendSuccess } from "../lib/errors";
@@ -29,7 +29,7 @@ router.get("/", requireAuth, async (req: Request, res: Response) => {
       per_page: perPageStr,
     });
 
-    const conditions: any[] = [eq(schema.pregnancies.pregnancy_status, "active")];
+    const conditions: any[] = [inArray(schema.pregnancies.pregnancy_status, ["active", "enrolled"])];
 
     if (siteId !== undefined) {
       conditions.push(eq(schema.pregnancies.site_id, siteId));
@@ -74,12 +74,14 @@ router.get("/", requireAuth, async (req: Request, res: Response) => {
       )
       .where(and(...conditions));
 
-    if (search) {
-      const searchTerm = `%${search}%`;
+    const searchText = typeof search === "string" ? search.trim() : "";
+    if (searchText) {
+      const searchTerm = `%${searchText}%`;
       const searchConditions = [
         ...conditions,
         or(
           ilike(schema.pregnancies.woman_id, searchTerm),
+          ilike(schema.pregnancies.household_id, searchTerm),
           ilike(schema.householdMembers.name, searchTerm),
         )!,
       ];
