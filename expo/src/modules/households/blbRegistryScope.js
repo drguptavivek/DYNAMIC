@@ -14,14 +14,8 @@ function getAssignedLocalities(user, today) {
     .filter(Boolean))].sort();
 }
 
-function expandVillages(localities) {
-  return [...new Set(localities.flatMap((locality) => locality === hdssVillageMapping.localityCode
-    ? [locality, ...hdssVillageMapping.villageCodes]
-    : [locality]))].sort();
-}
-
 export function getAssignedBlbRegistryVillages(user, today = new Date().toISOString().slice(0, 10)) {
-  return expandVillages(getAssignedLocalities(user, today));
+  return getAssignedLocalities(user, today);
 }
 
 export function getBlbRegistryVillageSearchScope(villageCode, allowedVillageCodes = []) {
@@ -35,7 +29,7 @@ export function getBlbRegistryVillageSearchScope(villageCode, allowedVillageCode
 export function getSelectedBlbRegistryVillages(user, selectedLocalityCode, today = new Date().toISOString().slice(0, 10)) {
   const localities = getAssignedLocalities(user, today);
   const selected = String(selectedLocalityCode || "").trim();
-  return expandVillages(selected ? localities.filter((locality) => locality === selected) : localities);
+  return selected ? localities.filter((locality) => locality === selected) : localities;
 }
 
 export function getBlbRegistryScopeFingerprint(user, today = new Date().toISOString().slice(0, 10)) {

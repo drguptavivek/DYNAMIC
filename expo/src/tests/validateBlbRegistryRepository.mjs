@@ -1,5 +1,6 @@
 /** Behavioral checks for the synthetic-only BLB registry cache and pull path. */
 import assert from "node:assert/strict";
+import { normalizeHdssHouseNumber } from "../../../shared/hdssHouseNumber.cjs";
 import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
@@ -23,7 +24,7 @@ const sync = fs.readFileSync(path.resolve(root, "../modules/sync/syncService.js"
 const schema = fs.readFileSync(path.resolve(root, "../modules/households/householdRepository.js"), "utf8");
 
 assert.match(repository, /uid: requiredText\(individual\?\.uid/);
-assert.match(repository, /hh_list_no: text\(individual\?\.hh_list_no\) \|\| ""/);
+assert.match(repository, /hh_list_no: normalizeHdssHouseNumber\(individual\?\.hh_list_no\)/);
 assert.match(schema, /uid TEXT PRIMARY KEY NOT NULL,[\s\S]*village_code TEXT,[\s\S]*source_age_as_of TEXT/);
 assert.doesNotMatch(schema, /UNIQUE\(hh_list_no, family_no, ind_no\)/);
 assert.match(schema, /ALTER TABLE blb_registry_individuals RENAME TO blb_registry_individuals_legacy/);
@@ -37,11 +38,11 @@ const scopedUser = {
     { site_id: 2, locality_code: "04", active_from: null, active_to: "2026-09-30" },
   ],
 };
-const mappedVillages = ["02", "10", "11", "12", "13", "14", "15", "20", "21", "22", "30", "31", "32", "33", "34", "39", "40", "41", "42", "43", "50", "51", "52", "60", "61", "62", "63", "64", "70", "71"];
+const mappedVillages = ["02"];
 assert.deepEqual(getAssignedBlbRegistryVillages(scopedUser, "2026-10-14"), mappedVillages);
 assert.equal(getBlbRegistryScopeFingerprint(scopedUser, "2026-10-14"), mappedVillages.join(","));
 assert.deepEqual(getSelectedBlbRegistryVillages(scopedUser, " 02 ", "2026-10-14"), mappedVillages);
-assert.deepEqual(getBlbRegistryVillageSearchScope(" 02 ", mappedVillages), ["02"], "BHQ entered village is exact while HDSS list locality retains its mapping");
+assert.deepEqual(getBlbRegistryVillageSearchScope(" 02 ", mappedVillages), ["02"], "entered village stays within its exact assignment");
 assert.deepEqual(getBlbRegistryVillageSearchScope(" 10 ", [" 10 "]), ["10"]);
 assert.deepEqual(getBlbRegistryVillageSearchScope("010", mappedVillages), [], "village leading zeros are significant");
 assert.deepEqual(getSelectedBlbRegistryVillages(scopedUser, "", "2026-10-14"), mappedVillages);
@@ -75,6 +76,7 @@ assert.deepEqual(lockOrder, ["first", "first-done", "second"]);
 function loadRepository({ platform, storage, db }) {
   const transformed = repository
     .replace('import { Platform } from "react-native";', "const Platform = globalThis.Platform;")
+    .replace('import { normalizeHdssHouseNumber } from "../../../../shared/hdssHouseNumber.cjs";', "const normalizeHdssHouseNumber = globalThis.normalizeHdssHouseNumber;")
     .replace('import { getOfflineDatabase } from "../storage/offlineDatabase";', "const getOfflineDatabase = globalThis.getOfflineDatabase;")
     .replace('import { getBlbRegistryVillageSearchScope } from "./blbRegistryScope.js";', "const getBlbRegistryVillageSearchScope = globalThis.getBlbRegistryVillageSearchScope;")
     .replace('import {\n  getRegistrySessionGeneration,\n  withRegistryCacheLock,\n} from "../storage/registryCacheLifecycle.js";', "const getRegistrySessionGeneration = globalThis.getRegistrySessionGeneration; const withRegistryCacheLock = globalThis.withRegistryCacheLock;")
@@ -83,6 +85,7 @@ function loadRepository({ platform, storage, db }) {
   const context = {
     Platform: platform,
     getBlbRegistryVillageSearchScope,
+    normalizeHdssHouseNumber,
     getOfflineDatabase: () => db,
     window: { localStorage: storage },
     generation: 0,
@@ -118,9 +121,9 @@ assert.equal((await webApi.findBlbRegistryIndividuals("01", "001", "02", "3", ["
 assert.equal(await webApi.findBlbRegistryIndividualByUid("UID-A!", ["03"]), null);
 assert.equal((await webApi.findBlbRegistryIndividuals("01", "", "", "", ["01"])).length, 0);
 assert.equal((await webApi.searchBlbRegistryPeople({ villageCode: "01", houseNo: "001" }, ["01"])).length, 2);
-assert.equal((await webApi.searchBlbRegistryPeople({ villageCode: "01", houseNo: "002" }, ["01"]))[0].hh_list_no, "002");
+assert.equal((await webApi.searchBlbRegistryPeople({ villageCode: "01", houseNo: "002" }, ["01"]))[0].hh_list_no, "0002");
 assert.equal((await webApi.searchBlbRegistryPeople({ villageCode: "01", houseNo: "002", search: "100%" }, ["01"])).length, 1);
-assert.equal((await webApi.searchBlbRegistryPeople({ villageCode: "01", houseNo: "001", search: "01-001-02-3", limit: 1, offset: 1 }, ["01"]))[0].uid, "UID-B");
+assert.equal((await webApi.searchBlbRegistryPeople({ villageCode: "01", houseNo: "001", search: "01-0001-02-3", limit: 1, offset: 1 }, ["01"]))[0].uid, "UID-B");
 assert.equal((await webApi.searchBlbRegistryPeople({ villageCode: "01", limit: 500 }, ["03"])).length, 0);
 assert.equal((await webApi.searchBlbRegistryPeople({ villageCode: "", houseNo: "001" }, ["01"])).length, 0);
 browserStorage.fail = true;
@@ -144,7 +147,7 @@ assert.ok(nativeLog.includes("ROLLBACK"));
 await nativeApi.searchBlbRegistryPeople({ villageCode: "01", houseNo: "001", search: "A%", offset: 2, limit: 500 }, ["01"]);
 const searchQuery = nativeLog.find((entry) => typeof entry === "object" && entry.sql.includes("FROM blb_registry_individuals"));
 assert.match(searchQuery.sql, /trim\(village_code\) = \?/);
-assert.match(searchQuery.sql, /trim\(hh_list_no\) = \?/);
+assert.match(searchQuery.sql, /lower\(trim\(hh_list_no\)\) = \?/);
 assert.match(searchQuery.sql, /ORDER BY family_no[\s\S]*ind_no[\s\S]*uid/);
 assert.match(searchQuery.params[2], /a\\%/);
 assert.equal(searchQuery.params.at(-2), 50);
@@ -299,6 +302,23 @@ for (const options of [
   assert.match(invalidReuse.message, /invalid unchanged response/);
   assert.equal(invalidReuse.replaceArgs, null);
 }
+// Scope changes invalidate cached counts/version even without a registry generation change.
+const scopeUser = { user_id: "worker", area_assignments: [{ site_id: 2, locality_code: "10" }] };
+const legacyExpandedScope = "02,10,11,12,13,14,15,20,21,22,30,31,32,33,34,39,40,41,42,43,50,51,52,60,61,62,63,64,70,71";
+for (const previousScope of ["11", legacyExpandedScope]) {
+  const scopedMarker = JSON.stringify({ version: versionA, userId: "worker", scope: previousScope,
+    households: 0, individuals: 1 });
+  const scopedRefresh = await runPull([pageResponse({ households: [], individuals: [{ uid: "village-10" }],
+    next_cursor: null, registry_version: versionA })],
+  { marker: scopedMarker, user: scopeUser, counts: { households: 0, individuals: 1 } });
+  assert.ok(!scopedRefresh.lastUrl.includes("known_registry_version"));
+  assert.equal(scopedRefresh.replaceArgs.individuals[0].uid, "village-10");
+  assert.equal(JSON.parse(scopedRefresh.marker).scope, "10");
+  const scopedFailure = await runPull([{ ok: false, status: 503 }],
+    { marker: scopedMarker, user: scopeUser, counts: { households: 0, individuals: 1 } }).catch((error) => error);
+  assert.equal(scopedFailure.marker, scopedMarker, "failed refresh retains previous complete cache marker");
+  assert.equal(scopedFailure.replaceArgs, null);
+}
 const lateUnchanged = await runPull([unchangedResponse], {
   marker: cacheMarker, counts: { households: 0, individuals: 1 },
   beforeResponse: (options) => { options.generation = 1; },
@@ -376,12 +396,18 @@ assert.deepEqual(await db.getAllAsync("SELECT * FROM blb_registry_individuals OR
 assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='index' AND name IN ('idx_blb_registry_household_browse','idx_blb_registry_people_browse')").get().n, 2);
 await initContext.initialize(db);
 assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM local_schema_migrations WHERE name='blb_registry.browse_indexes.v1'").get().n, 1);
-sqlite.exec("UPDATE blb_registry_individuals SET village_code='01'; UPDATE blb_registry_individuals SET name='A% Literal', hh_list_no=' 001 ' WHERE uid='legacy-test'");
+sqlite.exec("UPDATE blb_registry_individuals SET village_code='01', hh_list_no='0001'; UPDATE blb_registry_individuals SET name='A% Literal', hh_list_no=' 0001 ' WHERE uid='legacy-test'");
 const realSqlApi = loadRepository({ platform: { OS: "android" }, storage: null, db });
+const caseHousePlan = sqlite.prepare(`EXPLAIN QUERY PLAN SELECT * FROM blb_registry_individuals
+  WHERE trim(village_code) = ? AND lower(trim(hh_list_no)) = ?
+  ORDER BY family_no COLLATE BINARY, ind_no COLLATE BINARY, uid COLLATE BINARY LIMIT ? OFFSET ?`)
+  .all("10", "0011a", 10, 0);
+assert.ok(caseHousePlan.some((step) => /SEARCH blb_registry_individuals USING INDEX/.test(step.detail)),
+  "case-insensitive house lookup still uses the existing village expression index");
 const literalMatch = await realSqlApi.searchBlbRegistryPeople({ villageCode: "01", houseNo: "001", search: "A%" }, ["01"]);
 assert.equal(literalMatch.length, 1, "native LIKE escapes literal wildcard input");
 assert.equal(literalMatch[0].uid, "legacy-test");
-const originalIdMatches = await realSqlApi.searchBlbRegistryPeople({ villageCode: "01", houseNo: "001", search: "01-001-02-03" }, ["01"]);
+const originalIdMatches = await realSqlApi.searchBlbRegistryPeople({ villageCode: "01", houseNo: "001", search: "01-0001-02-03" }, ["01"]);
 assert.equal(originalIdMatches.length, 2, "native original-ID search retains both people and tolerates source padding");
 
 // Browsing groups reference people into scoped households before applying page limits.
@@ -406,14 +432,14 @@ for (const api of [webApi, realSqlApi]) {
   const firstPage = await api.listBlbRegistryHouseholds({ limit: 500 }, ["01"]);
   assert.equal(firstPage.households.length, 50, "household page cannot exceed 50");
   assert.equal(firstPage.hasMore, true);
-  assert.equal(firstPage.households[0].hh_list_no, "000", "leading zeros are retained");
+  assert.equal(firstPage.households[0].hh_list_no, "0000", "leading zeros are retained");
   const secondPage = await api.listBlbRegistryHouseholds({ offset: 50 }, ["01"]);
   assert.equal(secondPage.households.length, 7);
   assert.equal(secondPage.hasMore, false);
-  assert.equal(secondPage.households[0].hh_list_no, "050");
+  assert.equal(secondPage.households[0].hh_list_no, "0050");
   const found = await api.listBlbRegistryHouseholds({ search: "  rAJat , ANKIT  " }, ["01", "02"]);
   assert.equal(found.households.length, 1, "all comma-separated names must match the same household, across members");
-  assert.equal(found.households[0].hh_list_no, "099", "search covers households beyond the first page");
+  assert.equal(found.households[0].hh_list_no, "0099", "search covers households beyond the first page");
   assert.equal(found.households[0].member_count, 3, "matching household retains all members including duplicate address tuples");
   assert.deepEqual(Array.from(found.households[0].member_names), ["100% A_B \\ person", "Ankit", "Rajat"]);
   for (const search of ["100%", "A_B", "\\"]) {
@@ -435,37 +461,59 @@ for (const api of [webApi, realSqlApi]) {
   assert.equal((await api.listBlbRegistryHouseholdMembers({ villageCode: "01", houseNo: "", familyNo: "02" }, ["01"])).length, 0);
 }
 
-const selectedMappedVillages = getSelectedBlbRegistryVillages(scopedUser, "02", "2026-10-14");
+const multiVillageUser = { area_assignments: [
+  { site_id: 2, locality_code: "10" }, { site_id: 2, locality_code: "71" },
+] };
+assert.deepEqual(getAssignedBlbRegistryVillages(multiVillageUser), ["10", "71"]);
+assert.deepEqual(getSelectedBlbRegistryVillages(multiVillageUser, "10"), ["10"]);
+assert.deepEqual(getSelectedBlbRegistryVillages(multiVillageUser, ""), ["10", "71"]);
+assert.notEqual(getBlbRegistryScopeFingerprint(multiVillageUser), getBlbRegistryScopeFingerprint(scopedUser));
+const selectedMappedVillages = getSelectedBlbRegistryVillages(multiVillageUser, "");
 const mappedBrowseRows = browseRows.map((row) => ({ ...row, village_code: "10" }));
 mappedBrowseRows.push({ uid: "exact-house-10", village_code: " 10 ", hh_list_no: " 0011 ", family_no: "01", ind_no: "01", name: "Exact house" });
 mappedBrowseRows.push({ uid: "exact-house-71", village_code: "71", hh_list_no: "0011", family_no: "01", ind_no: "01", name: "Exact house" });
 mappedBrowseRows.push({ uid: "outside-approved-villages", village_code: "99", hh_list_no: "099", family_no: "02", ind_no: "01", name: "Rajat" });
 mappedBrowseRows.push({ uid: "last-approved-village", village_code: "71", hh_list_no: "099", family_no: "02", ind_no: "01", name: "Ankit" });
+mappedBrowseRows.push(
+  { uid: "case-house-v10-a", village_code: "10", hh_list_no: "0011a", family_no: "01", ind_no: "01", name: "Case First" },
+  { uid: "case-house-v10-b", village_code: "10", hh_list_no: "0011a", family_no: "01", ind_no: "02", name: "Case Second" },
+  { uid: "case-house-v71-a", village_code: "71", hh_list_no: "0011a", family_no: "01", ind_no: "01", name: "Case First" },
+);
 for (const api of [webApi, realSqlApi]) {
   await api.replaceBlbRegistry({ households: [], individuals: mappedBrowseRows });
   const page = await api.listBlbRegistryHouseholds({}, selectedMappedVillages);
-  assert.equal(page.households.length, 50, "selected study locality 02 browses source village 10");
+  assert.equal(page.households.length, 50, "explicitly assigned village 10 is browsable");
   assert.equal(page.hasMore, true);
   const matches = await api.listBlbRegistryHouseholds({ search: "  rAjAt, ANKIT  " }, selectedMappedVillages);
-  assert.equal(matches.households.length, 1, "mapped-locality search covers records beyond the displayed page");
+  assert.equal(matches.households.length, 1, "assigned-village search covers records beyond the displayed page");
   assert.equal(matches.households[0].village_code, "10");
   assert.equal((await api.listBlbRegistryHouseholdMembers({ villageCode: "10", houseNo: "100", familyNo: "01" }, selectedMappedVillages)).length, 51);
-  assert.equal((await api.listBlbRegistryHouseholds({ villageCode: "99" }, selectedMappedVillages)).households.length, 0, "mapping does not allow other source villages");
-  assert.equal((await api.searchBlbRegistryPeople({ villageCode: "02", houseNo: "0011", limit: 10 }, selectedMappedVillages)).length, 0, "entered village 02 never expands to mapped source villages");
-  assert.deepEqual(Array.from(await api.searchBlbRegistryPeople({ villageCode: "10", houseNo: "0011" }, selectedMappedVillages), (row) => row.uid), ["exact-house-10"]);
+  assert.equal((await api.listBlbRegistryHouseholds({ villageCode: "99" }, selectedMappedVillages)).households.length, 0, "assignments do not allow other source villages");
+  assert.equal((await api.searchBlbRegistryPeople({ villageCode: "02", houseNo: "0011", limit: 10 }, selectedMappedVillages)).length, 0, "unassigned village 02 never expands to assigned source villages");
+  assert.deepEqual(Array.from(await api.searchBlbRegistryPeople({ villageCode: "10", houseNo: "0011" }, selectedMappedVillages), (row) => row.uid), ["browse-11", "exact-house-10"]);
+  for (const houseNo of ["0011a", "0011A", " 0011A "]) {
+    const caseMatches = await api.searchBlbRegistryPeople({ villageCode: "10", houseNo }, selectedMappedVillages);
+    assert.deepEqual(Array.from(caseMatches, (row) => row.uid), ["case-house-v10-a", "case-house-v10-b"]);
+    assert.ok(caseMatches.every((row) => row.hh_list_no === "0011a" && row.village_code === "10"),
+      "house lookup ignores case while preserving original address and selected village");
+    const multiNameMatches = await api.searchBlbRegistryPeople({ villageCode: "10", houseNo,
+      search: "Case First, Case Second" }, selectedMappedVillages);
+    assert.deepEqual(Array.from(multiNameMatches, (row) => row.uid), ["case-house-v10-a", "case-house-v10-b"]);
+  }
+  assert.equal((await api.searchBlbRegistryPeople({ villageCode: "10", houseNo: "0011" }, ["71"])).length, 0);
   const firstPeople = await api.searchBlbRegistryPeople({ villageCode: "10", houseNo: "100", limit: 10 }, selectedMappedVillages);
   const nextPeople = await api.searchBlbRegistryPeople({ villageCode: "10", houseNo: "100", limit: 10, offset: 10 }, selectedMappedVillages);
   assert.equal(firstPeople.length, 10, "BHQ starts with ten people from the exact village and house");
   assert.equal(nextPeople.length, 10);
   assert.equal(new Set([...firstPeople, ...nextPeople].map((row) => row.uid)).size, 20, "load-more pages do not overlap");
-  assert.ok(firstPeople.every((row) => row.village_code.trim() === "10" && row.hh_list_no.trim() === "100"));
+  assert.ok(firstPeople.every((row) => row.village_code.trim() === "10" && row.hh_list_no.trim() === "0100"));
   const filteredPeople = await api.searchBlbRegistryPeople({ villageCode: " 10 ", houseNo: " 099 ", search: "  aNkIt  ", limit: 10 }, selectedMappedVillages);
   assert.deepEqual(Array.from(filteredPeople, (row) => row.uid), ["late-ankit"], "changed house and trimmed inputs search the whole cache before paging");
   const otherVillagePeople = await api.searchBlbRegistryPeople({ villageCode: "71", houseNo: "099", search: "Ankit", limit: 10 }, selectedMappedVillages);
   assert.deepEqual(Array.from(otherVillagePeople, (row) => row.uid), ["last-approved-village"], "changing village searches its exact household");
-  const byOriginalId = await api.searchBlbRegistryPeople({ villageCode: "10", houseNo: "099", search: " 10-099-02-03 ", limit: 10 }, selectedMappedVillages);
+  const byOriginalId = await api.searchBlbRegistryPeople({ villageCode: "10", houseNo: "099", search: " 10-0099-02-03 ", limit: 10 }, selectedMappedVillages);
   assert.deepEqual(Array.from(byOriginalId, (row) => row.uid), ["literal"], "original ID search applies inside the exact household");
-  assert.equal((await api.searchBlbRegistryPeople({ villageCode: "10", houseNo: "0099", search: "Ankit", limit: 10 }, selectedMappedVillages)).length, 0, "house filter preserves significant leading zeros");
+  assert.equal((await api.searchBlbRegistryPeople({ villageCode: "10", houseNo: "00099", search: "Ankit", limit: 10 }, selectedMappedVillages)).length, 0, "house filter preserves significant leading zeros");
   for (const fields of [
     { villageCode: "02", houseNo: "099" },
     { villageCode: "10", houseNo: "" },
@@ -510,7 +558,7 @@ for (const api of [webApi, realSqlApi]) {
   assert.deepEqual(ids(await lookup({ houseNo: "0011", search: "rAJat, ANKIT", limit: 2 })), ["names-a", "names-b"]);
   assert.deepEqual(ids(await lookup({ houseNo: "0011", search: "rAJat, ANKIT", offset: 2, limit: 2 })), ["names-c"], "paging applies after full household matching");
   assert.equal((await lookup({ houseNo: "0012", search: "Rajat, Ankit" })).length, 0, "names cannot escape an entered house");
-  assert.equal((await lookup({ houseNo: "11", search: "Rajat, Ankit" })).length, 0, "leading zeros remain significant");
+  assert.equal((await lookup({ houseNo: "11", search: "Rajat, Ankit" })).length, 3, "short numeric house input is padded consistently");
   assert.equal((await lookup({ villageCode: "02", search: "Rajat, Ankit" }, selectedMappedVillages)).length, 0, "02 is never expanded for either name search mode");
   assert.equal((await lookup({ villageCode: "", search: "Rajat" })).length, 0);
   assert.equal((await lookup({ search: "Rajat" }, ["71"])).length, 0);
@@ -568,6 +616,29 @@ const [webRetainedLink] = JSON.parse(storage.getItem("members"));
 assert.equal(webRetainedLink.registry_uid, pulledMember.registry_uid);
 assert.equal(webRetainedLink.registry_individual_id, pulledMember.registry_individual_id);
 assert.equal(webRetainedLink.registry_status, pulledMember.registry_status);
+// Incoming short numeric house numbers and every exact lookup use the same minimum width.
+for (const api of [webApi, realSqlApi]) {
+  const rows = ["1", "0001", "25", "12345", "123456", "0011a"].map((hh_list_no, index) => ({
+    uid: `pad-${index}`, village_code: "10", hh_list_no, family_no: "6", ind_no: String(index + 1), name: "Padding",
+  }));
+  rows.push({ ...rows[2], uid: "pad-other-village", village_code: "71" });
+  await api.replaceBlbRegistry({ households: [{ hh_list_no: "25", family_no: "6" }], individuals: rows });
+  for (const input of ["25", "025", "0025", " 25 "]) {
+    const people = await api.searchBlbRegistryPeople({ villageCode: "10", houseNo: input }, ["10", "71"]);
+    assert.deepEqual(Array.from(people, (row) => row.uid), ["pad-2"]);
+    assert.equal(people[0].hh_list_no, "0025");
+    assert.equal((await api.findBlbRegistryIndividual("10", input, "6", "3", ["10"])).uid, "pad-2");
+    assert.equal((await api.listBlbRegistryHouseholdMembers({ villageCode: "10", houseNo: input, familyNo: "6" }, ["10"])).length, 1);
+  }
+  const uidRecord = await api.findBlbRegistryIndividualByUid("pad-2", ["10"]);
+  assert.equal(uidRecord.uid, "pad-2"); assert.equal(uidRecord.family_no, "6"); assert.equal(uidRecord.ind_no, "3");
+  const groups = await api.listBlbRegistryHouseholds({}, ["10"]);
+  assert.equal(groups.households.find((row) => row.hh_list_no === "0001").member_count, 2);
+  for (const houseNo of ["12345", "123456", "0011a"]) {
+    const people = await api.searchBlbRegistryPeople({ villageCode: "10", houseNo }, ["10"]);
+    assert.equal(people[0].hh_list_no, houseNo);
+  }
+}
 sqlite.close();
 
 console.log("Validated BLB registry cache rollback, scoped household browsing and name search, schema migration, and paged pull behavior.");

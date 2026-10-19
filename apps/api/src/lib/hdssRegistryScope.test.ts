@@ -8,7 +8,7 @@ import { JwtPayload } from "../middleware/auth";
 import { buildAreaScopeCondition } from "./areaScope";
 import { buildHdssRegistryScopeCondition } from "./hdssRegistryScope";
 
-test("HDSS locality mapping expands only approved reference villages", async (t) => {
+test("HDSS registry scope matches assigned villages without locality wildcard expansion", async (t) => {
   let DatabaseSync;
   try {
     ({ DatabaseSync } = createRequire(import.meta.url)("node:sqlite"));
@@ -44,16 +44,14 @@ test("HDSS locality mapping expands only approved reference villages", async (t)
     assignments = [{ site_id: site, locality_code: locality, active_from: null, active_to: null }];
   };
   try {
-    await t.test("locality 02 grants all 29 approved villages but not outside sources", async () => {
-      assert.equal(villageMapping.villageCodes.length, 29);
+    await t.test("locality 02 grants only village 02", async () => {
       assign(2, "02");
-      // Direct locality/village equality remains valid alongside the explicit mapping.
-      assert.deepEqual(await visible(), [...villageMapping.villageCodes, "02"].sort());
+      assert.deepEqual(await visible(), ["02"]);
       const householdScope = await buildAreaScopeCondition(worker, schema.households);
       assert.ok(householdScope);
       assert.equal(dialect.sqlToQuery(householdScope).sql, "false");
     });
-    await t.test("Bareilly and zero, expired, or future assignments cannot use the mapping", async () => {
+    await t.test("Bareilly and zero, expired, or future assignments have no access", async () => {
       assign(1, "02");
       assert.deepEqual(await visible({ ...worker, site_id: 1 }), []);
       assignments = [];
@@ -72,6 +70,15 @@ test("HDSS locality mapping expands only approved reference villages", async (t)
       assert.deepEqual(await visible(), ["99"]);
       assignments = [];
       assert.deepEqual(await visible({ ...worker, role: "central_admin", site_id: null }), villages);
+    });
+    await t.test("multiple assigned villages form a union for workers and assigned site staff", async () => {
+      assignments = ["10", "11"].map((locality_code) => ({
+        site_id: 2, locality_code, active_from: null, active_to: null,
+      }));
+      assert.deepEqual(await visible(), ["10", "11"]);
+      assert.deepEqual(await visible({ ...worker, role: "site_data_manager" }), ["10", "11"]);
+      assignments.push({ site_id: 2, locality_code: "02", active_from: null, active_to: null });
+      assert.deepEqual(await visible(), ["02", "10", "11"]);
     });
   } finally {
     db.select = originalSelect;

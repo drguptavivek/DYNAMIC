@@ -134,6 +134,7 @@ Area scope is enforced server-side.
 Rules:
 
 - Pull scope is the intersection of request filters and active server-side assignments.
+- Ballabhgarh HDSS lookup downloads use the exact village codes in active site 2 locality assignments. Locality 02 is not a wildcard for other villages; multiple assigned villages grant their union. Registry refreshes replace only the lookup cache, never submitted forms, drafts, or household assignments.
 - Field-worker household reads require explicit household assignments: zero assignments means zero household work, even with a locality assignment. A completed pull refreshes device worklist visibility without deleting local submission evidence or drafts.
 - Push scope is resolved from server-known tasks/subjects when possible.
 - Client-provided `site_id`, `locality_code`, and `answers_json` are validation inputs, not the only source of truth.

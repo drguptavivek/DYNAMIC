@@ -5,6 +5,7 @@
  * previous complete cache until the final replacement transaction succeeds.
  */
 import { Platform } from "react-native";
+import { normalizeHdssHouseNumber } from "../../../../shared/hdssHouseNumber.cjs";
 
 import { getOfflineDatabase } from "../storage/offlineDatabase";
 import { getBlbRegistryVillageSearchScope } from "./blbRegistryScope.js";
@@ -80,7 +81,7 @@ function normalizeIndividual(individual) {
     village_name: text(individual?.village_name),
     phc_code: text(individual?.phc_code),
     phc_name: text(individual?.phc_name),
-    hh_list_no: text(individual?.hh_list_no) || "",
+    hh_list_no: normalizeHdssHouseNumber(individual?.hh_list_no),
     family_no: text(individual?.family_no) || "",
     ind_no: text(individual?.ind_no) || "",
     name: text(individual?.name) || "",
@@ -101,7 +102,7 @@ function normalizeIndividual(individual) {
 function normalizeHousehold(household) {
   return {
     ...household,
-    hh_list_no: text(household?.hh_list_no) || "",
+    hh_list_no: normalizeHdssHouseNumber(household?.hh_list_no),
     family_no: text(household?.family_no) || "",
   };
 }
@@ -378,7 +379,7 @@ export async function getBlbRegistryCounts() {
 export async function findBlbRegistryIndividuals(villageCode, hhListNo, familyNo, indNo, allowedVillageCodes = []) {
   if ([villageCode, hhListNo, familyNo, indNo].some((value) => !String(value ?? "").trim())) return [];
   if (!isAllowedVillage(villageCode, allowedVillageCodes)) return [];
-  const values = [String(villageCode).trim(), String(hhListNo).trim(), String(familyNo).trim(), String(indNo).trim()];
+  const values = [String(villageCode).trim(), normalizeHdssHouseNumber(hhListNo).trim(), String(familyNo).trim(), String(indNo).trim()];
   if (Platform.OS !== "web") {
     return getOfflineDatabase().getAllAsync(
       `SELECT * FROM blb_registry_individuals
@@ -422,7 +423,7 @@ export async function searchBlbRegistryPeople({
   limit = 50,
 } = {}, allowedVillageCodes = []) {
   const villages = getBlbRegistryVillageSearchScope(villageCode, allowedVillageCodes);
-  const house = String(houseNo ?? "").trim();
+  const house = normalizeHdssHouseNumber(houseNo).trim().toLowerCase();
   const searchTerms = String(search ?? "").split(",").map(normalizeSearchValue).filter(Boolean);
   if (!villages.length || (!house && !searchTerms.length)) return [];
   const pageOffset = normalizePage(offset, 0);
@@ -432,7 +433,7 @@ export async function searchBlbRegistryPeople({
     const values = [villages[0]];
     let scope = "trim(village_code) = ?";
     if (house) {
-      scope += " AND trim(hh_list_no) = ?";
+      scope += " AND lower(trim(hh_list_no)) = ?";
       values.push(house);
     }
     let sql;
@@ -470,7 +471,7 @@ export async function searchBlbRegistryPeople({
 
   const scopedRows = readWebRegistry().individuals.filter((individual) =>
     villages.includes(String(individual.village_code ?? "").trim())
-      && (!house || String(individual.hh_list_no ?? "").trim() === house));
+      && (!house || String(individual.hh_list_no ?? "").trim().toLowerCase() === house));
   let matches;
   if (searchTerms.length > 1) {
     const groups = new Map();
@@ -615,7 +616,7 @@ export async function countBlbRegistryHouseholds({ search = "", villageCode = ""
 
 /** Keep all UID rows, including people sharing an address tuple. */
 export async function listBlbRegistryHouseholdMembers({ villageCode, houseNo, familyNo } = {}, allowedVillageCodes = []) {
-  const values = [villageCode, houseNo, familyNo].map((value) => String(value ?? "").trim());
+  const values = [villageCode, normalizeHdssHouseNumber(houseNo), familyNo].map((value) => String(value ?? "").trim());
   if (values.some((value) => !value) || !isAllowedVillage(values[0], allowedVillageCodes)) return [];
   if (Platform.OS !== "web") {
     return getOfflineDatabase().getAllAsync(

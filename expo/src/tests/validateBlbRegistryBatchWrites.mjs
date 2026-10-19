@@ -1,5 +1,6 @@
 /** Exercise atomic native batch writes against real SQLite, without a device or service DB. */
 import assert from "node:assert/strict";
+import { normalizeHdssHouseNumber } from "../../../shared/hdssHouseNumber.cjs";
 import fs from "node:fs";
 import vm from "node:vm";
 import { DatabaseSync } from "node:sqlite";
@@ -20,6 +21,7 @@ let onInsert = null;
 let inserts = 0;
 let maxParameters = 0;
 const context = {
+  normalizeHdssHouseNumber,
   Platform: { OS: "android" },
   getRegistrySessionGeneration: () => generation,
   withRegistryCacheLock: async (work) => work(),
@@ -55,7 +57,8 @@ assert.deepEqual(allPeople().find((row) => row.uid === "blank"), Object.fromEntr
   name === "uid" ? "blank" : ["hh_list_no", "family_no", "ind_no", "name"].includes(name) ? "" : null])));
 assert.equal(allPeople().find((row) => row.uid === "person-0").age_years, 28);
 assert.equal(allPeople().find((row) => row.uid === "person-0").status, "dead");
-assert.deepEqual(allHouseholds(), [...households].sort((a, b) => a.hh_list_no.localeCompare(b.hh_list_no)));
+assert.deepEqual(allHouseholds(), households.map((row) => ({ ...row, hh_list_no: normalizeHdssHouseNumber(row.hh_list_no) }))
+  .sort((a, b) => a.hh_list_no.localeCompare(b.hh_list_no)));
 assert.deepEqual(progress.at(-1), { processed: rows.length + households.length, total: rows.length + households.length });
 assert.ok(progress.length < 5, "progress is throttled rather than emitted for every row or batch");
 assert.ok(progress.every((value, i) => i === 0 || value.processed > progress[i - 1].processed));

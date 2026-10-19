@@ -26,6 +26,8 @@ Current household ID format:
 
 `structure_map_id` accepts 1-6 alphanumeric characters (normalized to uppercase). Existing numeric IDs remain valid, and numeric values shorter than four characters retain the legacy four-character zero-padding.
 
+HDSS `house_no` uses the same minimum four-character padding for short numeric values on import and device caching (`1` becomes `0001`, `25` becomes `0025`). Longer and alphanumeric source house numbers are retained without truncation; registry UIDs, village codes, family numbers, and individual numbers are unchanged.
+
 Current member ID format:
 
 ```text

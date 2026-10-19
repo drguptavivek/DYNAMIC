@@ -36,6 +36,22 @@ const header = [
   "migration_reason",
 ].join(",");
 
+test("pads only short numeric HDSS houses and retains source identity fields", () => {
+  const houses = ["1", "25", "123", "0001", "12345", "123456", "0011a", "A", "0.0595", " 25 ", " 0004 "];
+  const expected = ["0001", "0025", "0123", "0001", "12345", "123456", "0011a", "A", "0.0595", "0025", " 0004 "];
+  const source = [header, ...houses.map((house, index) =>
+    `PAD-${index},10,Village,02,PHC,Person,7,1,${house},6,3,Resident,L,,,`)].join("\n");
+  const result = parseHdssRegistryCsv(source);
+  assert.deepEqual(result.issues, []);
+  assert.deepEqual(result.rows.map((row) => row.hh_list_no), expected);
+  result.rows.forEach((row, index) => {
+    assert.equal(row.uid, `PAD-${index}`);
+    assert.equal(row.village_code, "10");
+    assert.equal(row.family_no, "6");
+    assert.equal(row.ind_no, "3");
+  });
+});
+
 test("parses source text, preserves leading zeroes, and derives status from domicile", () => {
   const source = [
     header,

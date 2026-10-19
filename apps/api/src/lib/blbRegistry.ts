@@ -1,5 +1,6 @@
 /** Parser and row contract for the one-row-per-person Ballabgarh HDSS export. */
 import { createHash } from "node:crypto";
+import { normalizeHdssHouseNumber } from "../../../../shared/hdssHouseNumber.cjs";
 
 /** Validates HDSS source CSV locally without exposing participant values in errors. */
 export const DEFAULT_HDSS_SOURCE_AGE_AS_OF = "2026-10-14";
@@ -313,7 +314,7 @@ export function parseHdssRegistryCsv(
       name: nullableText(get("name")),
       age_years: ageYears,
       sex: sexText || null,
-      hh_list_no: nullableText(get("house_no")),
+      hh_list_no: nullableText(normalizeHdssHouseNumber(get("house_no"))),
       family_no: nullableText(get("family_no")),
       ind_no: nullableText(get("ind_no")),
       domicile,

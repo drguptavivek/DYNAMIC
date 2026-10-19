@@ -1,5 +1,6 @@
 /** Synthetic host benchmark: real SQLite query plans, never the device/service database. */
 import assert from "node:assert/strict";
+import { normalizeHdssHouseNumber } from "../../../shared/hdssHouseNumber.cjs";
 import fs from "node:fs";
 import vm from "node:vm";
 import { DatabaseSync } from "node:sqlite";
@@ -26,6 +27,7 @@ const init = { STUDY_SITES: [], STUDY_VILLAGES: [] };
 vm.runInNewContext(`${schema.slice(initStart, initEnd)}\nthis.initialize = initializeSqlite;`, init);
 await init.initialize(db);
 const context = {
+  normalizeHdssHouseNumber,
   Platform: { OS: "android" }, getOfflineDatabase: () => db,
   getRegistrySessionGeneration: () => 0, withRegistryCacheLock: async (work) => work(),
   getBlbRegistryVillageSearchScope,

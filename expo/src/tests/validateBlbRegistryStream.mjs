@@ -1,5 +1,6 @@
 /** Stream real SQLite pages while readers retain the last complete registry. */
 import assert from "node:assert/strict";
+import { normalizeHdssHouseNumber } from "../../../shared/hdssHouseNumber.cjs";
 import fs from "node:fs";
 import vm from "node:vm";
 import os from "node:os";
@@ -28,6 +29,7 @@ const platform = { OS: "android" };
 const storage = new Map();
 let quotaError = false;
 const context = {
+  normalizeHdssHouseNumber,
   Platform: platform,
   window: { localStorage: {
     getItem: (key) => storage.get(key),
