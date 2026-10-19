@@ -80,41 +80,43 @@ export default function EligibleWomenPage({ trackingOnly = false }: { trackingOn
           </select>
         )}
       </div>
-      {loading ? (
-        <p className={styles.loading}>Loading…</p>
-      ) : (
-        <table className={styles.table}>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>DOB</th>
-              <th>Locality</th>
-              <th>WQ Status</th>
-              <th>Tracking Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {women.map((w) => (
-              <tr key={w.woman_id}>
-                <td>{w.member_name || "—"}</td>
-                <td>{w.date_of_birth || "—"}</td>
-                <td>{w.locality_code}</td>
-                <td>
-                  <span className={styles.badge}>{w.wq_status}</span>
-                </td>
-                <td>
-                  <span
-                    className={styles.badge}
-                    style={{ backgroundColor: STATUS_COLORS[w.tracking_status] || "#6b7280" }}
-                  >
-                    {w.tracking_status}
-                  </span>
-                </td>
+      <div className={styles.tableScroll}>
+        {loading ? (
+          <p className={styles.loading}>Loading…</p>
+        ) : (
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>DOB</th>
+                <th>Locality</th>
+                <th>WQ Status</th>
+                <th>Tracking Status</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+            </thead>
+            <tbody>
+              {women.map((w) => (
+                <tr key={w.woman_id}>
+                  <td>{w.member_name || "—"}</td>
+                  <td>{w.date_of_birth || "—"}</td>
+                  <td>{w.locality_code}</td>
+                  <td>
+                    <span className={styles.badge}>{w.wq_status}</span>
+                  </td>
+                  <td>
+                    <span
+                      className={styles.badge}
+                      style={{ backgroundColor: STATUS_COLORS[w.tracking_status] || "#6b7280" }}
+                    >
+                      {w.tracking_status}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
       <div className={styles.pagination}>
         <button disabled={meta.page <= 1} onClick={() => load(meta.page - 1)}>
           ← Prev

@@ -63,51 +63,53 @@ export default function PregnantWomenPage() {
           onChange={(e) => setSearch(e.target.value)}
         />
       </div>
-      {loading ? (
-        <p className={styles.loading}>Loading…</p>
-      ) : (
-        <table className={styles.table}>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Household</th>
-              <th>Locality</th>
-              <th>LMP</th>
-              <th>EDD</th>
-              <th>GA (wks)</th>
-              <th>PEF</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((p) => (
-              <tr key={p.id}>
-                <td>{p.woman_name}</td>
-                <td>
-                  <code>{p.household_id}</code>
-                </td>
-                <td>{p.locality_code}</td>
-                <td>{p.lmp_date ?? "—"}</td>
-                <td>{p.edd ?? "—"}</td>
-                <td>
-                  {p.ga_weeks != null ? (
-                    <span
-                      className={styles.badge}
-                      style={{ backgroundColor: GA_COLOR(p.ga_weeks) }}
-                    >
-                      {p.ga_weeks}w
-                    </span>
-                  ) : (
-                    "—"
-                  )}
-                </td>
-                <td>
-                  <span className={styles.badge}>{p.pef_status}</span>
-                </td>
+      <div className={styles.tableScroll}>
+        {loading ? (
+          <p className={styles.loading}>Loading…</p>
+        ) : (
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Household</th>
+                <th>Locality</th>
+                <th>LMP</th>
+                <th>EDD</th>
+                <th>GA (wks)</th>
+                <th>PEF</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+            </thead>
+            <tbody>
+              {rows.map((p) => (
+                <tr key={p.id}>
+                  <td>{p.woman_name}</td>
+                  <td>
+                    <code>{p.household_id}</code>
+                  </td>
+                  <td>{p.locality_code}</td>
+                  <td>{p.lmp_date ?? "—"}</td>
+                  <td>{p.edd ?? "—"}</td>
+                  <td>
+                    {p.ga_weeks != null ? (
+                      <span
+                        className={styles.badge}
+                        style={{ backgroundColor: GA_COLOR(p.ga_weeks) }}
+                      >
+                        {p.ga_weeks}w
+                      </span>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                  <td>
+                    <span className={styles.badge}>{p.pef_status}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
       <div className={styles.pagination}>
         <button disabled={meta.page <= 1} onClick={() => load(meta.page - 1)}>
           ← Prev

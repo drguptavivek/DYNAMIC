@@ -40,12 +40,12 @@ export default function FormDataExportPage() {
 
   const selected = forms.find((form) => form.form_code === formCode);
   return (
-    <div style={{ maxWidth: 1000 }}>
+    <div style={{ width: "100%", minWidth: 0 }}>
       <h1>Form Data Export</h1>
       <p>Export submitted answers by form. Column headers match the Form Language Management variable names and option values remain the exact codes stored in the database.</p>
       {error && <div style={{ color: "#a11", background: "#fee", padding: 12, marginBottom: 16 }}>{error}</div>}
       <div style={{ display: "flex", gap: 16, alignItems: "end", flexWrap: "wrap", padding: 20, border: "1px solid #d9e0ea", borderRadius: 8 }}>
-        <label style={{ display: "grid", gap: 8, minWidth: 320 }}>
+        <label style={{ display: "grid", gap: 8, flex: "1 1 320px", minWidth: 0 }}>
           Form
           <select value={formCode} onChange={(event) => setFormCode(event.target.value)} disabled={loading || exporting} style={{ padding: 10 }}>
             {forms.map((form) => <option key={form.form_code} value={form.form_code}>{form.form_code} - {form.title}</option>)}

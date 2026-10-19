@@ -718,6 +718,7 @@ export default function FormLanguageManagementPage() {
               ON allows all active non-field-worker users of this site to edit this form language.
               OFF makes it view-only. Field workers receive the saved global questionnaire language during mobile sync.
             </p>
+            <div className={styles.permissionRow}>
             <div className={styles.permissionControls}>
               <input
                 className={styles.input}
@@ -752,7 +753,6 @@ export default function FormLanguageManagementPage() {
                   : `${grantedUsersForSelectedSite} of ${usersForSelectedSite.length} users have active permission`}
               </div>
             </div>
-          </div>
           <div className={styles.permissionActions}>
             <button
               className={`${styles.toggleButton} ${permissionFullyOn ? styles.toggleActive : ""}`}
@@ -770,6 +770,8 @@ export default function FormLanguageManagementPage() {
             >
               Permission OFF
             </button>
+          </div>
+          </div>
           </div>
         </section>
       ) : null}
@@ -818,6 +820,7 @@ export default function FormLanguageManagementPage() {
           </div>
         </div>
 
+        <div className={styles.editorScroll} role="region" aria-label="Questionnaire translations" tabIndex={0}>
         {importPreviewRows.length > 0 ? (
           <div className={styles.previewPanel}>
             <div className={styles.previewHeader}>
@@ -1026,6 +1029,7 @@ export default function FormLanguageManagementPage() {
 
         <div className={styles.editorFootnote}>
           Central admin can always edit. Site users need permission ON.
+        </div>
         </div>
       </section>
     </div>

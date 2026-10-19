@@ -1,5 +1,14 @@
 .container {
-  max-width: 1320px;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.container > * {
+  flex-shrink: 0;
 }
 
 .container h1 {
@@ -18,14 +27,14 @@
   background: #fff;
   border: 1px solid #ddd;
   border-radius: 8px;
-  padding: 1.25rem;
-  margin-bottom: 1rem;
+  padding: 1rem;
+  margin-bottom: 0.75rem;
 }
 
 .toolbar {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(160px, 1fr)) auto;
-  gap: 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
   align-items: end;
 }
 
@@ -33,6 +42,8 @@
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
+  flex: 1 1 110px;
+  min-width: 0;
 }
 
 .field label,
@@ -129,17 +140,31 @@
 }
 
 .permissionPanel {
-  display: grid;
-  grid-template-columns: 1fr auto;
+  display: flex;
+  flex-wrap: wrap;
   gap: 1rem;
   align-items: end;
 }
 
+.permissionPanel > div:first-child {
+  flex: 1 1 560px;
+  min-width: 0;
+}
+
 .permissionControls {
   display: grid;
-  grid-template-columns: repeat(4, minmax(140px, 1fr));
-  gap: 0.85rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
   align-items: end;
+  flex: 1 1 320px;
+  min-width: 0;
+}
+
+.permissionRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.75rem;
 }
 
 .checkboxField {
@@ -157,10 +182,12 @@
   min-height: 40px;
   color: #475467;
   font-weight: 700;
+  font-size: 0.85rem;
 }
 
 .permissionActions {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.75rem;
   align-items: center;
 }
@@ -232,6 +259,7 @@
 
 .summaryRow {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   gap: 1rem;
   margin-bottom: 1rem;
@@ -254,8 +282,8 @@
 }
 
 .csvPanel {
-  display: grid;
-  grid-template-columns: 1fr auto;
+  display: flex;
+  flex-wrap: wrap;
   gap: 1rem;
   align-items: center;
   margin-bottom: 1rem;
@@ -263,6 +291,35 @@
   border: 1px solid #e4e7ec;
   border-radius: 8px;
   background: #f8fafc;
+}
+
+.csvPanel > div:first-child {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+
+.csvPanel .permissionHelp {
+  margin-bottom: 0;
+}
+
+.editorPanel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 160px;
+  min-width: 0;
+  overflow: hidden;
+  container-type: inline-size;
+}
+
+.editorPanel > * {
+  flex-shrink: 0;
+}
+
+.editorPanel > .editorScroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
 }
 
 .csvActions {
@@ -304,6 +361,7 @@
 
 .previewHeader {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
@@ -392,7 +450,7 @@
 
 .questionHeader {
   display: grid;
-  grid-template-columns: minmax(180px, 220px) minmax(320px, 1fr) minmax(420px, 1.25fr) minmax(140px, auto);
+  grid-template-columns: minmax(120px, 0.65fr) minmax(0, 1fr) minmax(0, 1.25fr) auto;
   gap: 1rem;
   padding: 1rem;
   background: #f8fafc;
@@ -468,7 +526,7 @@
 
 .choiceRow {
   display: grid;
-  grid-template-columns: minmax(80px, 120px) minmax(320px, 1fr) minmax(420px, 1.25fr) minmax(140px, auto);
+  grid-template-columns: minmax(60px, 0.65fr) minmax(0, 1fr) minmax(0, 1.25fr) auto;
   gap: 1rem;
   align-items: center;
   padding-top: 0.85rem;
@@ -488,17 +546,21 @@
   background: #f8fafc;
 }
 
-@media (max-width: 1000px) {
-  .toolbar,
-  .permissionPanel,
-  .permissionControls,
-  .csvPanel,
-  .previewHeader,
+@container (max-width: 800px) {
+  .questionHeader,
+  .choiceRow {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+@container (max-width: 500px) {
   .questionHeader,
   .choiceRow {
     grid-template-columns: 1fr;
   }
+}
 
+@media (max-width: 1000px) {
   .csvActions,
   .previewHeader,
   .rowActions {
@@ -508,5 +570,40 @@
   .previewTableHeader,
   .previewTableRow {
     grid-template-columns: 60px minmax(140px, 1fr) 80px minmax(180px, 1fr) minmax(180px, 1fr) minmax(150px, 1fr);
+  }
+}
+
+@media (max-width: 1100px) {
+  .toolbar,
+  .permissionPanel,
+  .editorPanel {
+    padding: 0.75rem;
+  }
+
+  .subtitle {
+    margin-bottom: 1rem;
+  }
+
+  .field {
+    gap: 0.25rem;
+  }
+
+  .select,
+  .input {
+    padding: 0.45rem 0.5rem;
+  }
+
+  .permissionHelp {
+    font-size: 0.8rem;
+    margin: 0.25rem 0 0.5rem;
+  }
+
+  .csvPanel {
+    padding: 0.65rem;
+  }
+
+  .summaryRow,
+  .definitionStatus {
+    margin-bottom: 0.5rem;
   }
 }

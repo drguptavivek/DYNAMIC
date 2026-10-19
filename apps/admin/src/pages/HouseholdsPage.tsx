@@ -175,7 +175,7 @@ export default function HouseholdsPage() {
       ) : households.length === 0 ? (
         <div className={styles.empty}>No households found</div>
       ) : (
-        <div>
+        <div className={styles.results}>
           <div className={styles.pagination}>
             <span>
               {`Showing ${(page - 1) * PER_PAGE + 1}-${Math.min(page * PER_PAGE, total)} of ${total}`}

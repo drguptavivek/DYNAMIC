@@ -70,47 +70,49 @@ export default function ChildrenPage() {
           <option value="unknown">Unknown</option>
         </select>
       </div>
-      {loading ? (
-        <p className={styles.loading}>Loading…</p>
-      ) : (
-        <table className={styles.table}>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Sex</th>
-              <th>Birth Date</th>
-              <th>Age (mo)</th>
-              <th>Birth Status</th>
-              <th>Vital Status</th>
-              <th>Locality</th>
-              <th>Mother</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((c) => (
-              <tr key={c.id}>
-                <td>{c.full_name ?? "—"}</td>
-                <td>{c.sex ?? "—"}</td>
-                <td>{c.birth_date ?? "—"}</td>
-                <td>{c.age_months != null ? `${c.age_months}m` : "—"}</td>
-                <td>
-                  <span className={styles.badge}>{c.birth_status}</span>
-                </td>
-                <td>
-                  <span
-                    className={styles.badge}
-                    style={{ backgroundColor: VITAL_COLORS[c.current_vital_status] || "#6b7280" }}
-                  >
-                    {c.current_vital_status}
-                  </span>
-                </td>
-                <td>{c.locality_code}</td>
-                <td>{c.mother_name ?? "—"}</td>
+      <div className={styles.tableScroll}>
+        {loading ? (
+          <p className={styles.loading}>Loading…</p>
+        ) : (
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Sex</th>
+                <th>Birth Date</th>
+                <th>Age (mo)</th>
+                <th>Birth Status</th>
+                <th>Vital Status</th>
+                <th>Locality</th>
+                <th>Mother</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+            </thead>
+            <tbody>
+              {rows.map((c) => (
+                <tr key={c.id}>
+                  <td>{c.full_name ?? "—"}</td>
+                  <td>{c.sex ?? "—"}</td>
+                  <td>{c.birth_date ?? "—"}</td>
+                  <td>{c.age_months != null ? `${c.age_months}m` : "—"}</td>
+                  <td>
+                    <span className={styles.badge}>{c.birth_status}</span>
+                  </td>
+                  <td>
+                    <span
+                      className={styles.badge}
+                      style={{ backgroundColor: VITAL_COLORS[c.current_vital_status] || "#6b7280" }}
+                    >
+                      {c.current_vital_status}
+                    </span>
+                  </td>
+                  <td>{c.locality_code}</td>
+                  <td>{c.mother_name ?? "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
       <div className={styles.pagination}>
         <button disabled={meta.page <= 1} onClick={() => load(meta.page - 1)}>
           ← Prev

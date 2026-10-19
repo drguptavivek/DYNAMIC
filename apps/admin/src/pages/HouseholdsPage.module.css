@@ -1,5 +1,14 @@
 .container {
-  max-width: 1200px;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.container > :not(.results):not(.tableContainer):not(.empty) {
+  flex-shrink: 0;
 }
 
 .container h1 {
@@ -10,7 +19,7 @@
 .filters {
   display: flex;
   gap: 1rem;
-  margin-bottom: 2rem;
+  margin-bottom: 1rem;
   flex-wrap: wrap;
 }
 
@@ -23,8 +32,18 @@
   border: 1px solid #fecaca;
 }
 
-.pagination {
+.results {
   display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.pagination {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
   gap: 1rem;
@@ -35,6 +54,7 @@
 
 .paginationActions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.75rem;
 }
@@ -46,6 +66,9 @@
 
 .searchInput,
 .filterSelect {
+  flex: 1 1 150px;
+  max-width: 100%;
+  box-sizing: border-box;
   padding: 0.75rem;
   border: 1px solid #ddd;
   border-radius: 4px;
@@ -54,7 +77,7 @@
 
 .searchInput {
   flex: 1;
-  min-width: 200px;
+  min-width: min(200px, 100%);
 }
 
 .filterSelect {
@@ -81,7 +104,20 @@
   background: white;
   border-radius: 8px;
   border: 1px solid #ddd;
-  overflow-x: auto;
+  overflow: auto;
+}
+
+.container > .tableContainer,
+.results > .tableContainer {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.container > .empty {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
 }
 
 .table {
@@ -90,6 +126,9 @@
 }
 
 .table thead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
   background-color: #f9f9f9;
   border-bottom: 2px solid #ddd;
 }

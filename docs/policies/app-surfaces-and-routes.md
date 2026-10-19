@@ -71,6 +71,7 @@ Required admin surfaces:
 Rules:
 
 - Admin lists are backend-driven.
+- Admin navigation pages use the available content width. Titles, tabs, filters, and actions remain outside the scrolling record/list area; table headings stay visible inside that area. Filter, action, and pagination controls wrap to the available width.
 - Admin household/member displays use field-meaning labels, not sync internals.
 - Admin correction/data-quality actions must follow active correction policy.
 - Masters and users are controlled admin surfaces, not field-app workflows.
