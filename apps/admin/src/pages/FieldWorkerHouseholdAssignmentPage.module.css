@@ -1,5 +1,6 @@
 .container {
-  max-width: 1200px;
+  width: 100%;
+  min-width: 0;
   height: 100%;
   min-height: 0;
   display: flex;
@@ -11,7 +12,6 @@
 .error,
 .success,
 .tableToolbar,
-.tableSearchBar,
 .paginationBar {
   flex-shrink: 0;
 }
@@ -36,8 +36,8 @@
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  min-width: 220px;
-  flex: 1;
+  min-width: 0;
+  flex: 1 1 220px;
 }
 
 .fieldGroup label {
@@ -134,8 +134,14 @@
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
+  flex-wrap: wrap;
   padding: 1rem 1.5rem;
   border-bottom: 1px solid #e5e7eb;
+}
+
+.tableSummary {
+  min-width: 0;
+  flex: 1 1 200px;
 }
 
 .tableToolbar h2 {
@@ -156,11 +162,13 @@
   gap: 0.75rem;
   flex-wrap: wrap;
   justify-content: flex-end;
+  min-width: 0;
+  flex: 2 1 560px;
 }
 
 .tableSearchBar {
-  border-bottom: 1px solid #e5e7eb;
-  padding: 1rem 1.5rem;
+  min-width: 0;
+  flex: 1 1 220px;
 }
 
 .selectAllLabel {
@@ -180,7 +188,7 @@
   font-size: 0.875rem;
   min-height: 40px;
   padding: 0.65rem 0.75rem;
-  width: min(420px, 100%);
+  width: 100%;
 }
 
 .tableSearchBar input:focus {
@@ -423,6 +431,8 @@
   border-top: 1px solid #e5e7eb;
   color: #334155;
   display: flex;
+  flex-wrap: wrap;
+  min-width: 0;
   font-size: 0.875rem;
   gap: 1rem;
   justify-content: space-between;
@@ -432,6 +442,8 @@
 .paginationActions {
   align-items: center;
   display: flex;
+  flex-wrap: wrap;
+  min-width: 0;
   gap: 0.75rem;
 }
 
@@ -447,6 +459,7 @@
 
   .fieldGroup {
     min-width: 100%;
+    flex-basis: 100%;
   }
 
   .rangeFields {
@@ -461,6 +474,12 @@
     align-items: stretch;
     flex-direction: column;
     padding: 1rem;
+  }
+
+  .tableSummary,
+  .tableSearchBar,
+  .toolbarActions {
+    flex-basis: auto;
   }
 
   .toolbarActions {

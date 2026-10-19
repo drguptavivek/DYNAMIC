@@ -522,7 +522,7 @@ export default function FieldWorkerHouseholdAssignmentPage() {
       {hasViewed && (
         <div className={styles.tableCard}>
           <div className={styles.tableToolbar}>
-            <div>
+            <div className={styles.tableSummary}>
               <h2>Household Assignments</h2>
               <p>
                 {searchedHouseholds.length} household rows · {selectedHouseholdIds.length} selected
@@ -530,6 +530,16 @@ export default function FieldWorkerHouseholdAssignmentPage() {
                   ? ` from ${visibleHouseholds.length}`
                   : ""}
               </p>
+            </div>
+            <div className={styles.tableSearchBar}>
+              <input
+                type="search"
+                aria-label="Search household"
+                disabled={busy}
+                value={householdSearch}
+                onChange={(event) => setHouseholdSearch(event.target.value)}
+                placeholder="Search household"
+              />
             </div>
             <div className={styles.toolbarActions}>
               <label className={styles.selectAllLabel}>
@@ -554,17 +564,6 @@ export default function FieldWorkerHouseholdAssignmentPage() {
                 Clear all selected
               </button>
             </div>
-          </div>
-
-          <div className={styles.tableSearchBar}>
-            <input
-              type="search"
-              aria-label="Search household"
-              disabled={busy}
-              value={householdSearch}
-              onChange={(event) => setHouseholdSearch(event.target.value)}
-              placeholder="Search household"
-            />
           </div>
 
           {allSelectionLoading && <div role="status">Selecting all households in the selected site/locality...</div>}
