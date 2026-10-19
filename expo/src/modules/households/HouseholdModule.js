@@ -5,6 +5,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 
 import { getRuntimeFormByCode } from "../../data/runtimeFormCatalog";
+import { SavedHouseholdLocation } from "../../components/SavedHouseholdLocation.js";
 import { getAssignedLocalities, getAssignedSites } from "../../lib/householdMasterChoices.js";
 import { ROUTES, navigateTo } from "../../navigation/routes";
 import * as syncService from "../sync/syncService.js";
@@ -735,6 +736,7 @@ function HouseholdSlideout({ household, selectedMember, members, onClose, onDire
         ) : null}
 
         <ScrollView style={styles.slideoutList}>
+          <SavedHouseholdLocation householdId={household.household_id} />
           {members.map((member) => {
             const active = selectedMember?.individual_id === member.individual_id;
             return (

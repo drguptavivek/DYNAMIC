@@ -4,6 +4,7 @@
  */
 
 import { listFormResponses } from "../modules/tasks/taskRepository.js";
+import { getSavedHouseholdGps } from "../modules/households/householdGpsRepository.js";
 import {
   buildPefSourcePrefill,
   findPefSourceResponse,
@@ -53,6 +54,16 @@ export function buildHhqPrefill(household, today = new Date()) {
     hhq_household_head_name: household.household_head_name || household.head_name || "",
     hhq_household_address: household.address || "",
   });
+
+  const gps = getSavedHouseholdGps(household.household_id);
+  if (gps) {
+    Object.assign(prefill, {
+      hhq_gps_latitude: gps.latitude,
+      hhq_gps_longitude: gps.longitude,
+      hhq_gps_accuracy_m: gps.accuracy_m,
+      hhq_gps_captured_at: gps.captured_at,
+    });
+  }
 
   // Auto-select the residence area type from the locality's admin-managed
   // master data (synced onto the device with the household, so this also

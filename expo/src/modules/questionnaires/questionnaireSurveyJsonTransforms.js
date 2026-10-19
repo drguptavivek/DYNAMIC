@@ -196,6 +196,46 @@ function isHhqForm(form) {
   return form?.form_code === HHQ_FORM_CODE;
 }
 
+function addHhqGpsCapture(surveyJson) {
+  const consent = "hhq_consent_study_provide_pis_explain_study_adult_member";
+  const visibleIf = `{hhq_competent_respondent_available} = 1 and {${consent}} = 1`;
+  const fields = [
+    {
+      type: "text",
+      name: "hhq_gps_latitude",
+      title: "Household GPS location (latitude)",
+      description: "Capture the household location using GPS. GPS capture works without internet when device location is enabled.",
+      renderAs: "gps_decimal",
+      visibleIf,
+      isRequired: true,
+      requiredErrorText: "Capture the household GPS location.",
+      validators: [{
+        type: "expression",
+        expression: "{hhq_gps_latitude} notempty and {hhq_gps_latitude} >= -90 and {hhq_gps_latitude} <= 90 and {hhq_gps_longitude} notempty and {hhq_gps_longitude} >= -180 and {hhq_gps_longitude} <= 180 and {hhq_gps_accuracy_m} notempty and {hhq_gps_accuracy_m} >= 0 and {hhq_gps_accuracy_m} <= 25 and {hhq_gps_captured_at} notempty",
+        text: "Capture a valid household GPS location.",
+      }],
+    },
+    ...[
+      ["hhq_gps_longitude", "Longitude"],
+      ["hhq_gps_accuracy_m", "GPS accuracy (metres)"],
+      ["hhq_gps_captured_at", "GPS capture time"],
+    ].map(([name, title]) => ({
+      type: "text", name, title, renderAs: "background", readOnly: true, visibleIf,
+    })),
+  ];
+  function visit(elements = []) {
+    return elements.flatMap((element) => {
+      const next = { ...element };
+      if (Array.isArray(next.elements)) next.elements = visit(next.elements);
+      return next.name === consent ? [next, ...fields] : [next];
+    });
+  }
+  return {
+    ...surveyJson,
+    pages: surveyJson.pages.map((page) => ({ ...page, elements: visit(page.elements) })),
+  };
+}
+
 function isPefForm(form) {
   return String(form?.form_code || "").toUpperCase() === PEF_FORM_CODE;
 }
@@ -1456,6 +1496,7 @@ export function prepareQuestionnaireSurveyJson(form) {
     surveyJson = applyPffDeathStop(surveyJson);
   }
   if (isHhqForm(form)) {
+    surveyJson = addHhqGpsCapture(surveyJson);
     surveyJson = allowMultipleHhqMobileNumbers(surveyJson);
     surveyJson = applyHhqHighestGradeInput(surveyJson);
     surveyJson = markHhqDatabaseCheck(surveyJson);

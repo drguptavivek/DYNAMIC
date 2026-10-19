@@ -11,7 +11,7 @@ import * as transforms from "../modules/questionnaires/questionnaireSurveyJsonTr
 import * as taskPrefill from "../modules/households/hhqTaskPrefill.js";
 
 // Load the real prefill helpers without importing native task storage in Node.
-const prefillContext = { exports: {}, require: () => ({}) };
+const prefillContext = { exports: {}, require: (id) => id.endsWith("/householdGpsRepository.js") ? { getSavedHouseholdGps: () => null } : {} };
 vm.runInNewContext(transformSync(fs.readFileSync(new URL("../lib/prefillMapper.js", import.meta.url), "utf8"), { babelrc: false, configFile: false, plugins: ["@babel/plugin-transform-modules-commonjs"] }).code, prefillContext);
 const prefill = prefillContext.exports;
 

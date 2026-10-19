@@ -1,4 +1,5 @@
 import { getFormDisplayCode } from "../../lib/formDisplayCodes.js";
+import { SavedHouseholdLocation } from "../../components/SavedHouseholdLocation.js";
 import { describeNetworkError } from "../../lib/networkErrors.js";
 import { startTiming } from "../../lib/perfLog.js";
 import { useCommittedSearch } from "../../lib/useCommittedSearch.js";
@@ -378,6 +379,7 @@ function HouseholdDetailsModal({ household, visible, onClose }) {
             </Pressable>
           </View>
           <ScrollView contentContainerStyle={styles.detailsGrid}>
+            <SavedHouseholdLocation householdId={household.household_id} visible={visible} />
             {rows.map(([label, value, fullWidth, blankWhenEmpty]) => (
               <DetailRow
                 key={label}

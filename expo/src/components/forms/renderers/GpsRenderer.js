@@ -1,44 +1,78 @@
-import { getNativeFormText } from "../../../lib/nativeFormText.js";
-/** Captures coordinates through native location APIs and records structured answer data. */
-import React, { useState } from "react";
-import { Pressable, Text } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import { Linking, Pressable, Text } from "react-native";
 import * as Location from "expo-location";
 
+import { getNativeFormText, NATIVE_FORM_TEXT } from "../../../lib/nativeFormText.js";
+import { buildHouseholdMapsUrl, readHouseholdGps } from "../../../lib/householdGps.js";
+import { startHouseholdGpsCapture } from "../../../lib/gpsCapture.js";
 import { QuestionFrame, controlStyles } from "./QuestionFrame.js";
 
 export function GpsRenderer({ locale, question, onChange }) {
   const [status, setStatus] = useState("");
+  const [capturing, setCapturing] = useState(false);
+  const activeCapture = useRef(null);
+  const mounted = useRef(true);
   const isCaptureControl = question.name === "hhq_gps_latitude";
+  const readOnly = Boolean(question.isReadOnly || question.readOnly);
+  const gps = readHouseholdGps(question.survey?.data);
+  const text = (key) => getNativeFormText(question.survey, key, NATIVE_FORM_TEXT.HHQ[key], locale);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; activeCapture.current?.cancel(); };
+  }, []);
 
   async function capture() {
-    setStatus(getNativeFormText(question.survey, "requesting_location_permission", "Requesting location permission...", locale));
-    const permission = await Location.requestForegroundPermissionsAsync();
-    if (!permission.granted) {
-      setStatus(getNativeFormText(question.survey, "location_permission_was_not_granted", "Location permission was not granted.", locale));
-      return;
+    if (readOnly || activeCapture.current) return;
+    setCapturing(true);
+    setStatus("requesting_location_permission");
+    const operation = startHouseholdGpsCapture(Location, {
+      onWaiting: () => { if (mounted.current) setStatus("gps_waiting_for_accuracy"); },
+    });
+    activeCapture.current = operation;
+    try {
+      const result = await operation.promise;
+      if (!mounted.current || question.isReadOnly || question.readOnly) return;
+      // Set the complete fix together so drafts never observe a partial location.
+      question.survey.mergeData({
+        hhq_gps_latitude: result.latitude, hhq_gps_longitude: result.longitude,
+        hhq_gps_accuracy_m: result.accuracy_m, hhq_gps_captured_at: result.captured_at });
+      setStatus("gps_captured_from_this_device");
+      onChange?.();
+    } catch (error) {
+      if (mounted.current) setStatus(NATIVE_FORM_TEXT.HHQ[error.message] ? error.message : "gps_capture_failed");
+    } finally {
+      activeCapture.current = null;
+      if (mounted.current) setCapturing(false);
     }
-    setStatus(getNativeFormText(question.survey, "capturing_gps", "Capturing GPS...", locale));
-    const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-    const { latitude, longitude, altitude } = position.coords;
-    const survey = question.survey;
-    survey.setValue("hhq_gps_latitude", Number(latitude.toFixed(7)));
-    survey.setValue("hhq_gps_longitude", Number(longitude.toFixed(7)));
-    if (altitude !== null && altitude !== undefined) {
-      survey.setValue("hhq_gps_altitude_m", Number(altitude.toFixed(1)));
-    }
-    setStatus(getNativeFormText(question.survey, "gps_captured_from_this_device", "GPS captured from this device.", locale));
-    onChange?.();
+  }
+
+  async function openMap() {
+    const url = buildHouseholdMapsUrl(readHouseholdGps(question.survey?.data));
+    if (!url) return;
+    try { await Linking.openURL(url); }
+    catch { if (mounted.current) setStatus("gps_maps_unavailable"); }
   }
 
   return (
     <QuestionFrame locale={locale} question={question} tone="display">
-      <Text>{question.value === undefined || question.value === null ? getNativeFormText(question.survey, "not_captured", "Not captured", locale) : String(question.value)}</Text>
-      {isCaptureControl ? (
-        <Pressable onPress={capture} style={controlStyles.button}>
-          <Text style={controlStyles.buttonText}>{getNativeFormText(question.survey, "capture_gps", "Capture GPS", locale)}</Text>
+      {isCaptureControl && gps ? <>
+        <Text>{text("gps_latitude")}: {gps.latitude}</Text>
+        <Text>{text("gps_longitude")}: {gps.longitude}</Text>
+      </> : <Text>{question.value === undefined || question.value === null ? text("not_captured") : String(question.value)}</Text>}
+      {isCaptureControl && !readOnly ? (
+        <Pressable onPress={capture} disabled={capturing} accessibilityRole="button"
+          accessibilityState={{ disabled: capturing }} style={controlStyles.button}>
+          <Text style={controlStyles.buttonText}>{text("capture_gps")}</Text>
         </Pressable>
       ) : null}
-      {status ? <Text style={controlStyles.status}>{status}</Text> : null}
+      {capturing ? <Pressable accessibilityRole="button" onPress={() => activeCapture.current?.cancel()} style={controlStyles.button}>
+        <Text style={controlStyles.buttonText}>{text("gps_cancel_capture")}</Text>
+      </Pressable> : null}
+      {isCaptureControl && gps ? <Pressable accessibilityRole="button" onPress={openMap} style={controlStyles.button}>
+        <Text style={controlStyles.buttonText}>{text("gps_open_google_maps")}</Text>
+      </Pressable> : null}
+      {status ? <Text accessibilityLiveRegion="polite" style={controlStyles.status}>{text(status)}</Text> : null}
     </QuestionFrame>
   );
 }
