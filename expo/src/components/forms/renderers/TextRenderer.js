@@ -1,3 +1,4 @@
+import { showFormAlert } from "../../../lib/nativeFormPopups.js";
 /** Renders a single-line native text question with blur-time validation. */
 import React, { useRef } from "react";
 import { Alert, TextInput } from "react-native";
@@ -22,7 +23,7 @@ export function TextRenderer({ answerData, locale, question, onChange }) {
     const enteredValue = String(candidateValue ?? latestValueRef.current ?? "").trim();
     if (!isMobileNumber || !enteredValue || enteredValue === lastPromptedValueRef.current) return;
     lastPromptedValueRef.current = enteredValue;
-    Alert.alert(
+    showFormAlert(question.survey, Alert.alert,
       "Confirm mobile number",
       getMobileNumberConfirmationMessage(question),
       [{ text: "Yes" }, { text: "No" }],

@@ -1,3 +1,5 @@
+import { showFormAlert } from "../../lib/nativeFormPopups.js";
+import { getNativeFormText } from "../../lib/nativeFormText.js";
 import { getFormDisplayCode } from "../../lib/formDisplayCodes.js";
 import { shouldShowPffOutcomeReminder } from "../../lib/pffOutcomeReminder.js";
 import { startTiming } from "../../lib/perfLog.js";
@@ -477,7 +479,7 @@ export function QuestionnaireDashboard({
         setDraftId(null);
         const message = error?.message || "The correction draft could not be saved.";
         setSaveMessage(message);
-        Alert.alert("Correction period ended", message);
+        showFormAlert(model, Alert.alert, "Correction period ended", message);
         return null;
       }
     }
@@ -489,10 +491,10 @@ export function QuestionnaireDashboard({
     setDirty(false);
     if (!silent) {
       onDraftSaved?.();
-      const savedMessage = getDraftSavedMessage(activeLocale);
+      const savedMessage = getNativeFormText(model, "popup_draft_saved", getDraftSavedMessage(activeLocale));
       setSaveMessage(savedMessage);
       if (manual) {
-        Alert.alert(savedMessage, "", [
+        showFormAlert(model, Alert.alert, savedMessage, "", [
           {
             text: "OK",
             onPress: () =>
@@ -720,7 +722,7 @@ export function QuestionnaireDashboard({
         !pefSearchPromptedRef.current
       ) {
         pefSearchPromptedRef.current = true;
-        Alert.alert(
+        showFormAlert(model, Alert.alert,
           "Database search required",
           "Conduct search procedure in the database to locate women in the database.",
           [{ text: "OK" }],
@@ -786,7 +788,7 @@ export function QuestionnaireDashboard({
         if (options.name === WQ_RESIDENCE_DURATION_FIELD) {
           if (Number(options.value) === WQ_VISITOR_VALUE && !wqVisitorPromptOpenRef.current) {
             wqVisitorPromptOpenRef.current = true;
-            Alert.alert(
+            showFormAlert(model, Alert.alert,
               "Are you Really a Visitor ?",
               "If yes you will be excluded from this study.",
               [
@@ -957,7 +959,7 @@ export function QuestionnaireDashboard({
         const message =
           "The detailed-history total is lower than the earlier-summary total. Reverify Q3 or Q14 before continuing.";
         setSaveMessage(message);
-        Alert.alert("Reproductive history totals do not match", message);
+        showFormAlert(model, Alert.alert, "Reproductive history totals do not match", message);
         requestAnimationFrame(() => {
           rendererRef.current?.focusQuestion(WQ_REPRODUCTION_COMPARISON_FIELD);
         });
@@ -982,7 +984,7 @@ export function QuestionnaireDashboard({
       ) {
         options.allow = false;
         setSaveMessage("Add details for every Born Alive child before continuing.");
-        Alert.alert(
+        showFormAlert(model, Alert.alert,
           "Born Alive child details incomplete",
           "Add and save Q24_i-Q28_i for every child shown as Born Alive before continuing."
         );
@@ -1058,7 +1060,7 @@ export function QuestionnaireDashboard({
         const message = error?.message || "The form could not be finalized.";
         endSubmit({ error: message });
         setSaveMessage(message);
-        Alert.alert("Unable to save form", message);
+        showFormAlert(model, Alert.alert, "Unable to save form", message);
         return;
       }
       endSubmit();
@@ -1071,15 +1073,15 @@ export function QuestionnaireDashboard({
       }
       setSaveMessage(`Finalized ${submission.submission_id}`);
       if (isPregnancySurveillanceForm(form) && sender.data?.psf_tracking_disposition === "stopped") {
-        Alert.alert("Thank you. This woman has exited from the study.", "", [
+        showFormAlert(model, Alert.alert, "Thank you. This woman has exited from the study.", "", [
           { text: "OK", onPress: () => navigateTo(ROUTES.completedForms) },
         ]);
       } else if (isPregnancySurveillanceForm(form) && Number(sender.data?.psf_pregnant_now) === 1) {
-        Alert.alert("PEF form generated for this woman.", "", [
+        showFormAlert(model, Alert.alert, "PEF form generated for this woman.", "", [
           { text: "OK", onPress: () => navigateTo(ROUTES.completedForms) },
         ]);
       } else if (shouldShowPffOutcomeReminder(form.form_code, sender.data)) {
-        Alert.alert("Fill pregnancy outcome form.", "", [
+        showFormAlert(model, Alert.alert, "Fill pregnancy outcome form.", "", [
           { text: "OK", onPress: () => navigateTo(ROUTES.completedForms) },
         ]);
       } else if (
@@ -1087,12 +1089,12 @@ export function QuestionnaireDashboard({
         [1, 2, 8].includes(Number(sender.data?.psf_current_marital_status)) &&
         [2, 98].includes(Number(sender.data?.psf_pregnant_now))
       ) {
-        Alert.alert("PSF rescheduled.", "", [
+        showFormAlert(model, Alert.alert, "PSF rescheduled.", "", [
           { text: "OK", onPress: () => navigateTo(ROUTES.completedForms) },
         ]);
       } else if (isWomanQuestionnaire(form) && isWqRevisitStop(sender)) {
         const message = getWqRevisitStopMessage(sender);
-        Alert.alert(message, "", [
+        showFormAlert(model, Alert.alert, message, "", [
           {
             text: "OK",
             onPress: () => navigateTo(ROUTES.completedForms),
@@ -1389,7 +1391,7 @@ export function QuestionnaireDashboard({
                 <MaterialCommunityIcons color="#344054" name="format-list-bulleted-square" size={23} />
               </Pressable>
               <Text numberOfLines={1} style={[styles.formWindowTitle, styles.formWindowTitleCompact]}>
-                {form.title?.default || form.title}
+                {survey?.title || form.title?.default || form.title}
               </Text>
               <Pressable
                 accessibilityLabel="Close questionnaire"
@@ -1404,7 +1406,7 @@ export function QuestionnaireDashboard({
             <View style={[styles.titleBlock, compact && styles.formHeaderTitleBlockCompact]}>
               <Text style={styles.code}>{getFormDisplayCode(form.form_code)}</Text>
               <View>
-                <Text numberOfLines={compact ? 1 : undefined} style={[styles.formWindowTitle, compact && styles.formWindowTitleCompact]}>{form.title?.default || form.title}</Text>
+                <Text numberOfLines={compact ? 1 : undefined} style={[styles.formWindowTitle, compact && styles.formWindowTitleCompact]}>{survey?.title || form.title?.default || form.title}</Text>
                 <Text style={styles.subtle}>
                   {lastSavedAt
                     ? `Draft saved ${lastSavedAt}${dirty ? " · unsaved changes" : ""}`
@@ -1566,10 +1568,10 @@ export function QuestionnaireDashboard({
                     locale={activeLocale}
                     model={survey}
                     notice={saveMessage}
-                    pageIntro={(currentPage) => getQuestionnairePageIntro(form, currentPage?.name)}
+                    pageIntro={(currentPage) => getQuestionnairePageIntro(form, currentPage?.name, survey)}
                     pageFooter={(currentPage) =>
                       currentPage?.name === WQ_OUTCOME_PAGE_NAME && isWqVisitorAnswers(survey.data)
-                        ? "This women is Excluded From study"
+                        ? getNativeFormText(survey, "visitor_outcome_message", "This women is Excluded From study", activeLocale)
                         : ""
                     }
                     onCompleteRequested={(activeModel) => activeModel?.doComplete?.()}
@@ -1604,7 +1606,7 @@ export function QuestionnaireDashboard({
         <View style={styles.titleBlock}>
           <Text style={styles.code}>{getFormDisplayCode(form.form_code)}</Text>
           <View>
-            <Text style={styles.title}>{form.title?.default || form.title}</Text>
+            <Text style={styles.title}>{survey?.title || form.title?.default || form.title}</Text>
             <Text style={styles.subtle}>
               {`Version ${form.version} · ${form.question_count} fields`}
             </Text>

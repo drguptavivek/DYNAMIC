@@ -453,6 +453,7 @@
   font-weight: 650;
   overflow-wrap: anywhere;
   line-height: 1.4;
+  white-space: pre-wrap;
 }
 
 .hint {

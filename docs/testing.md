@@ -42,6 +42,13 @@ Expo tests:
 npm --workspace expo test
 ```
 
+Form language editor and shared text inventory (no database required, run from the repository root):
+
+```bash
+node apps/admin/src/tests/validateFormLanguageManagement.mjs
+node --test shared/formTranslation.test.cjs
+```
+
 HHQ backend integration on full-push test DB:
 
 ```bash

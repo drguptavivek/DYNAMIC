@@ -1,3 +1,4 @@
+import * as nativeFormText from "../lib/nativeFormText.js";
 /** Verifies the BHQ registry-link data contract without rendering a screen. */
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -251,6 +252,8 @@ const fakeReact = {
   useRef: (current) => ({ current }),
 };
 const rendererImports = {
+  "../../../lib/nativeFormText.js": nativeFormText,
+  "../../../lib/nativeFormPopups.js": await import("../lib/nativeFormPopups.js"),
   react: fakeReact,
   "react-native": { Alert: {}, Pressable: "Pressable", ScrollView: "ScrollView", Text: "Text", View: "View", StyleSheet: { create: (styles) => styles } },
   "@expo/vector-icons/MaterialCommunityIcons": () => null,
@@ -315,6 +318,7 @@ console.log("Validated Lookup placement after name, current-panel name prefill, 
 // Opening initializes from this panel once; typing in the drawer survives rerenders.
 const drawerSource = fs.readFileSync(new URL("../components/forms/renderers/BhqRegistryLookupDrawer.js", import.meta.url), "utf8");
 const drawerImports = {
+  "../../../lib/nativeFormText.js": nativeFormText,
   react: fakeReact,
   "react-native": {
     BackHandler: {}, FlatList: "FlatList", KeyboardAvoidingView: "KeyboardAvoidingView", Modal: "Modal",

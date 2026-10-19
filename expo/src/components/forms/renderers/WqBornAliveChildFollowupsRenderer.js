@@ -1,3 +1,4 @@
+import { getNativeFormText, formatNativeFormText } from "../../../lib/nativeFormText.js";
 /** Collects Q24_i-Q28_i one born-alive child at a time, then summarizes committed rows. */
 import React, { useEffect, useRef, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -39,18 +40,20 @@ function hasAnswer(question) {
   return value !== undefined && value !== null && value !== "";
 }
 
-function codedYesNo(value) {
-  if (Number(value) === 1) return "Yes";
-  if (Number(value) === 2) return "No";
+function codedYesNo(value, survey) {
+  const t = (key, fallback) => getNativeFormText(survey, key, fallback);
+  if (Number(value) === 1) return t("yes", "Yes");
+  if (Number(value) === 2) return t("no", "No");
   return "-";
 }
 
-function deathAge(value) {
+function deathAge(value, survey) {
+  const f = (key, fallback, values) => formatNativeFormText(survey, key, fallback, values);
   if (!value || typeof value !== "object") return "-";
   return [
-    value.days && `${value.days} days`,
-    value.months && `${value.months} months`,
-    value.years && `${value.years} years`,
+    value.days && f("value_days", "{value} days", { value: value.days }),
+    value.months && f("value_months", "{value} months", { value: value.months }),
+    value.years && f("value_years", "{value} years", { value: value.years }),
   ].filter(Boolean).join(", ") || "-";
 }
 
@@ -74,26 +77,27 @@ function normalizeVisibleNumericAnswers(panel) {
   }
 }
 
-function validateActiveChild(panel) {
+function validateActiveChild(panel, survey) {
+  const t = (key, fallback) => getNativeFormText(survey, key, fallback);
   const alive = Number(panelValue(panel, CHILD_ALIVE_FIELD));
-  if (![1, 2].includes(alive)) return "Answer Q24_i for this child.";
+  if (![1, 2].includes(alive)) return t("answer_q24_i_for_this_child", "Answer Q24_i for this child.");
   if (alive === 1) {
     if (!/^\d{2}$/.test(String(panelValue(panel, CHILD_AGE_FIELD) || ""))) {
-      return "Enter Q25_i age in completed years.";
+      return t("enter_q25_i_age_in_completed_years", "Enter Q25_i age in completed years.");
     }
     if (![1, 2].includes(Number(panelValue(panel, CHILD_LIVING_WITH_FIELD)))) {
-      return "Answer Q26_i for this child.";
+      return t("answer_q26_i_for_this_child", "Answer Q26_i for this child.");
     }
     if (!/^\d{2}$/.test(String(panelValue(panel, CHILD_LINE_FIELD) || ""))) {
-      return "The Q27_i household child number could not be generated.";
+      return t("the_q27_i_household_child_number_could_not_be_generated", "The Q27_i household child number could not be generated.");
     }
     return "";
   }
   const death = panelValue(panel, CHILD_DEATH_AGE_FIELD);
-  if (!death || typeof death !== "object") return "Enter Q28_i age at death.";
+  if (!death || typeof death !== "object") return t("enter_q28_i_age_at_death", "Enter Q28_i age at death.");
   const values = ["days", "months", "years"].map((name) => String(death[name] || ""));
   if (values.some((value) => !/^\d{2}$/.test(value))) {
-    return "Enter Q28_i days, months, and years as two digits.";
+    return t("enter_q28_i_days_months_and_years_as_two_digits", "Enter Q28_i days, months, and years as two digits.");
   }
   return "";
 }
@@ -104,6 +108,8 @@ export function WqBornAliveChildFollowupsRenderer({
   onRequestTopLevelFocus,
   renderQuestion,
 }) {
+  const t = (key, fallback) => getNativeFormText(question.survey, key, fallback);
+  const f = (key, fallback, values) => formatNativeFormText(question.survey, key, fallback, values);
   const panels = question.panels || [];
   const eligibleChildCount = Number(question.wqEligibleChildCount) || panels.length;
   const [editingIndex, setEditingIndex] = useState(null);
@@ -142,7 +148,11 @@ export function WqBornAliveChildFollowupsRenderer({
     if (!pendingLinePanel || panelChanged || !valueChanged || !birthdayPrompt) {
       return;
     }
-    Alert.alert("Confirm child age", birthdayPrompt);
+    Alert.alert(t("confirm_child_age", "Confirm child age"), birthdayPrompt === "If the child celebrated fifth birthday?"
+      ? t("if_the_child_celebrated_fifth_birthday", "If the child celebrated fifth birthday?")
+      : birthdayPrompt === "If the child celebrated first birthday?"
+        ? t("if_the_child_celebrated_first_birthday", "If the child celebrated first birthday?")
+        : birthdayPrompt, [{ text: t("popup_ok", "OK") }]);
   }, [editingIndex, pendingDeathAge, pendingDeathAgeSignature, pendingLinePanel]);
   useEffect(() => {
     if (
@@ -170,7 +180,7 @@ export function WqBornAliveChildFollowupsRenderer({
 
   function commitChild() {
     normalizeVisibleNumericAnswers(activePanel);
-    const validationError = validateActiveChild(activePanel);
+    const validationError = validateActiveChild(activePanel, question.survey);
     if (validationError) {
       setError(validationError);
       onChange?.();
@@ -198,11 +208,11 @@ export function WqBornAliveChildFollowupsRenderer({
   }
 
   function deleteChild(index, panel) {
-    const name = panelValue(panel, WQ_PREGNANCY_BABY_NAME_FIELD) || `Child ${index + 1}`;
-    Alert.alert("Delete child details?", `Clear the saved Q24_i-Q28_i details for ${name}?`, [
-      { text: "Cancel", style: "cancel" },
+    const name = panelValue(panel, WQ_PREGNANCY_BABY_NAME_FIELD) || f("child_number", "Child {number}", { number: index + 1 });
+    Alert.alert(t("delete_child_details", "Delete child details?"), f("clear_the_saved_q24_i_q28_i_details_for_name", "Clear the saved Q24_i-Q28_i details for {name}?", { name }), [
+      { text: t("cancel", "Cancel"), style: "cancel" },
       {
-        text: "Delete",
+        text: t("delete", "Delete"),
         style: "destructive",
         onPress: () => {
           for (const fieldName of [
@@ -229,20 +239,20 @@ export function WqBornAliveChildFollowupsRenderer({
   return (
     <View style={styles.wrap}>
       <View style={styles.headingRow}>
-        <Text style={styles.heading}>Born-alive child details table</Text>
-        <Text style={styles.count}>{`${committed.length} of ${eligibleChildCount} added`}</Text>
+        <Text style={styles.heading}>{t("born_alive_child_details_table", "Born-alive child details table")}</Text>
+        <Text style={styles.count}>{f("count_of_total_added", "{count} of {total} added", { count: committed.length, total: eligibleChildCount })}</Text>
       </View>
       {committed.length ? (
         <ScrollView horizontal nestedScrollEnabled showsHorizontalScrollIndicator>
           <View style={styles.table}>
             <View style={[styles.row, styles.headerRow]}>
-              <Text style={[styles.headerText, styles.pregnancyCell]}>Pregnancy</Text>
-              <Text style={[styles.headerText, styles.childCell]}>Child</Text>
-              <Text style={[styles.headerText, styles.nameCell]}>Name</Text>
-              <Text style={[styles.headerText, styles.aliveCell]}>Still alive</Text>
-              <Text style={[styles.headerText, styles.detailCell]}>Age / death age</Text>
-              <Text style={[styles.headerText, styles.livingCell]}>Living with respondent</Text>
-              <Text style={[styles.headerText, styles.actionsCell]}>Actions</Text>
+              <Text style={[styles.headerText, styles.pregnancyCell]}>{t("pregnancy", "Pregnancy")}</Text>
+              <Text style={[styles.headerText, styles.childCell]}>{t("child", "Child")}</Text>
+              <Text style={[styles.headerText, styles.nameCell]}>{t("name", "Name")}</Text>
+              <Text style={[styles.headerText, styles.aliveCell]}>{t("still_alive", "Still alive")}</Text>
+              <Text style={[styles.headerText, styles.detailCell]}>{t("age_death_age", "Age / death age")}</Text>
+              <Text style={[styles.headerText, styles.livingCell]}>{t("living_with_respondent", "Living with respondent")}</Text>
+              <Text style={[styles.headerText, styles.actionsCell]}>{t("actions", "Actions")}</Text>
             </View>
             {committed.map(({ index, panel }) => {
               const alive = panelValue(panel, CHILD_ALIVE_FIELD);
@@ -251,21 +261,21 @@ export function WqBornAliveChildFollowupsRenderer({
                   <Text style={[styles.cellText, styles.pregnancyCell]}>{panelValue(panel, WQ_FOLLOWUP_PREGNANCY_INDEX_FIELD)}</Text>
                   <Text style={[styles.cellText, styles.childCell]}>{panelValue(panel, WQ_FOLLOWUP_CHILD_INDEX_FIELD)}</Text>
                   <Text style={[styles.cellText, styles.nameCell]}>{panelValue(panel, WQ_PREGNANCY_BABY_NAME_FIELD) || "-"}</Text>
-                  <Text style={[styles.cellText, styles.aliveCell]}>{codedYesNo(alive)}</Text>
+                  <Text style={[styles.cellText, styles.aliveCell]}>{codedYesNo(alive, question.survey)}</Text>
                   <Text style={[styles.cellText, styles.detailCell]}>
-                    {Number(alive) === 1 ? `${panelValue(panel, CHILD_AGE_FIELD) || "-"} years` : deathAge(panelValue(panel, CHILD_DEATH_AGE_FIELD))}
+                    {Number(alive) === 1 ? f("value_years", "{value} years", { value: panelValue(panel, CHILD_AGE_FIELD) || "-" }) : deathAge(panelValue(panel, CHILD_DEATH_AGE_FIELD), question.survey)}
                   </Text>
                   <Text style={[styles.cellText, styles.livingCell]}>
                     {Number(alive) === 1
-                      ? `${codedYesNo(panelValue(panel, CHILD_LIVING_WITH_FIELD))} / line ${panelValue(panel, CHILD_LINE_FIELD) || "-"}`
+                      ? f("answer_line_number", "{answer} / line {number}", { answer: codedYesNo(panelValue(panel, CHILD_LIVING_WITH_FIELD), question.survey), number: panelValue(panel, CHILD_LINE_FIELD) || "-" })
                       : "-"}
                   </Text>
                   <View style={styles.actionsCell}>
                     <Pressable onPress={() => editChild(index)} style={styles.editButton}>
-                      <Text style={styles.actionText}>Edit</Text>
+                      <Text style={styles.actionText}>{t("edit", "Edit")}</Text>
                     </Pressable>
                     <Pressable onPress={() => deleteChild(index, panel)} style={styles.deleteButton}>
-                      <Text style={styles.deleteText}>Delete</Text>
+                      <Text style={styles.deleteText}>{t("delete", "Delete")}</Text>
                     </Pressable>
                   </View>
                 </View>
@@ -273,14 +283,14 @@ export function WqBornAliveChildFollowupsRenderer({
             })}
           </View>
         </ScrollView>
-      ) : <Text style={styles.empty}>The table will be created after the first child&apos;s details are added.</Text>}
+      ) : <Text style={styles.empty}>{t("the_table_will_be_created_after_the_first_child_s_details_are_added", "The table will be created after the first child's details are added.")}</Text>}
 
       {activePanel ? (
         <View style={styles.editor}>
           <Text style={styles.editorTitle}>
-            {`Pregnancy ${panelValue(activePanel, WQ_FOLLOWUP_PREGNANCY_INDEX_FIELD)} - Child ${panelValue(activePanel, WQ_FOLLOWUP_CHILD_INDEX_FIELD)}${panelValue(activePanel, WQ_PREGNANCY_BABY_NAME_FIELD) ? `: ${panelValue(activePanel, WQ_PREGNANCY_BABY_NAME_FIELD)}` : ""}`}
+            {f("pregnancy_pregnancy_child_child_name", "Pregnancy {pregnancy} - Child {child}{name}", { pregnancy: panelValue(activePanel, WQ_FOLLOWUP_PREGNANCY_INDEX_FIELD), child: panelValue(activePanel, WQ_FOLLOWUP_CHILD_INDEX_FIELD), name: panelValue(activePanel, WQ_PREGNANCY_BABY_NAME_FIELD) ? `: ${panelValue(activePanel, WQ_PREGNANCY_BABY_NAME_FIELD)}` : "" })}
           </Text>
-          <Text style={styles.editorInstruction}>Complete this child only. After saving, the next Born Alive child will be asked.</Text>
+          <Text style={styles.editorInstruction}>{t("complete_this_child_only_after_saving_the_next_born_alive_child_will_be_asked", "Complete this child only. After saving, the next Born Alive child will be asked.")}</Text>
           {activeQuestions.map((child) => renderQuestion(
             child,
             `${question.name}-${editingIndex}-${child.name}`
@@ -288,23 +298,23 @@ export function WqBornAliveChildFollowupsRenderer({
           {Number(panelValue(activePanel, CHILD_ALIVE_FIELD)) === 1 &&
           Number(panelValue(activePanel, CHILD_LIVING_WITH_FIELD)) === 1 ? (
             <View style={styles.generatedLineBox}>
-              <Text style={styles.generatedLineLabel}>Q27_i. Automatically generated household child number</Text>
-              <Text style={styles.generatedLineValue}>{panelValue(activePanel, CHILD_LINE_FIELD) || "Generating..."}</Text>
+              <Text style={styles.generatedLineLabel}>{t("q27_i_automatically_generated_household_child_number", "Q27_i. Automatically generated household child number")}</Text>
+              <Text style={styles.generatedLineValue}>{panelValue(activePanel, CHILD_LINE_FIELD) || t("generating", "Generating...")}</Text>
             </View>
           ) : null}
           {error ? <Text style={styles.error}>{error}</Text> : null}
           <Pressable onPress={commitChild} style={styles.commitButton}>
             <Text style={controlStyles.buttonText}>
               {Number(panelValue(activePanel, WQ_FOLLOWUP_COMPLETED_FIELD)) === 1
-                ? "Update child details"
-                : "Add child details"}
+                ? t("update_child_details", "Update child details")
+                : t("add_child_details", "Add child details")}
             </Text>
           </Pressable>
         </View>
       ) : committed.length === eligibleChildCount ? (
-        <Text style={styles.complete}>All Born Alive children have been added.</Text>
+        <Text style={styles.complete}>{t("all_born_alive_children_have_been_added", "All Born Alive children have been added.")}</Text>
       ) : (
-        <Text style={styles.empty}>Preparing the next Born Alive child...</Text>
+        <Text style={styles.empty}>{t("preparing_the_next_born_alive_child", "Preparing the next Born Alive child...")}</Text>
       )}
     </View>
   );

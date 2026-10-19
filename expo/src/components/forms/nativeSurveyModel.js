@@ -1,3 +1,4 @@
+import { getNativeFormText, formatNativeFormText, NATIVE_QUESTION_TITLE_KEYS } from "../../lib/nativeFormText.js";
 /**
  * Centralizes native renderer selection, localized Survey Core metadata, values, and previews.
  */
@@ -75,10 +76,10 @@ export function isNativeInternalPanelField(name) {
 export function getPanelCommitLabel(question, panel, editorMode, isWqPregnancyHistory) {
   if (isWqPregnancyHistory) {
     const { count, index } = getWqMultipleBirthRow(panel);
-    if (editorMode !== "add") return `Update child ${index}`;
-    return index < count ? `Add child ${index}` : question?.addPanelText || "Add pregnancy outcome";
+    if (editorMode !== "add") return formatNativeFormText(question.survey, "update_child_childnumber", "Update child {childNumber}", { childNumber: index }, question?.survey?.locale);
+    return index < count ? formatNativeFormText(question.survey, "add_child_childnumber", "Add child {childNumber}", { childNumber: index }, question?.survey?.locale) : question?.addPanelText || getNativeFormText(question.survey, "add_pregnancy_outcome", "Add pregnancy outcome", question?.survey?.locale);
   }
-  return editorMode === "add" ? question?.addPanelText || "Add entry" : "Update entry";
+  return editorMode === "add" ? question?.addPanelText || getNativeFormText(question.survey, "add_entry", "Add entry", question?.survey?.locale) : getNativeFormText(question.survey, "update_entry", "Update entry", question?.survey?.locale);
 }
 
 export function appendDynamicPanel(question) {
@@ -242,13 +243,34 @@ function pregnancyOutcomePrompt(question) {
   return "";
 }
 
-function childName(question) {
+function childName(question, locale) {
   return String(
-    getQuestionValueForInterpolation(question, WQ_PREGNANCY_BABY_NAME_FIELD) || "the child"
+    getQuestionValueForInterpolation(question, WQ_PREGNANCY_BABY_NAME_FIELD) || getNativeFormText(question?.survey, "bwq_child_fallback", "the child", locale)
   );
 }
 
+function renderNativeTitleContext(text, question, locale) {
+  const sex = Number(getQuestionValueForInterpolation(question, WQ_PREGNANCY_BABY_SEX_FIELD));
+  const locality = String(getQuestionValueForInterpolation(question, WQ_CURRENT_HOUSEHOLD_LOCALITY_FIELD) || "").trim().split(/\s+\/\s+/)[0];
+  const values = {
+    localityName: locality || "the locality of the current household",
+    childName: childName(question, locale),
+    pronoun: getNativeFormText(question?.survey, sex === 1 ? "bwq_child_pronoun_male" : sex === 2 ? "bwq_child_pronoun_female" : "bwq_child_pronoun_unknown", sex === 1 ? "he" : sex === 2 ? "she" : "they", locale),
+    possessive: getNativeFormText(question?.survey, sex === 1 ? "bwq_child_possessive_male" : sex === 2 ? "bwq_child_possessive_female" : "bwq_child_possessive_unknown", sex === 1 ? "his" : sex === 2 ? "her" : "their", locale),
+  };
+  return interpolateSurveyValues(text, question).replace(/\{(localityName|childName|pronoun|possessive)\}/g,
+    (_token, name) => String(values[name]));
+}
+
 export function getNativeQuestionTitle(question, locale = "default") {
+  const nativeTitleTranslated = locale !== "default" && locale !== "en" &&
+    (NATIVE_QUESTION_TITLE_KEYS[question?.name] || []).some((key) => {
+      const text = question?.survey?.nativeText?.[key]?.[locale];
+      return typeof text === "string" && text.trim();
+    });
+  if (!nativeTitleTranslated && locale !== "default" && locale !== "en" && question?.locTitle?.getLocales?.().includes(locale) && question.locTitle.getLocaleText(locale)?.trim()) {
+    return renderNativeTitleContext(question.locTitle.getLocaleText(locale), question, locale);
+  }
   if (question?.name === WQ_CURRENT_LOCALITY_DURATION_FIELD) {
     const originalTitle = localizedText(question?.locTitle, question?.title || "", locale);
     const localityAndSite = String(
@@ -257,17 +279,16 @@ export function getNativeQuestionTitle(question, locale = "default") {
     const localityName = localityAndSite.split(/\s+\/\s+/)[0]?.trim();
     const displayedLocality = localityName || "the locality of the current household";
     return (
-      `${sourcePrefixFromTitle(originalTitle)}How long have you been living continuously in ` +
-      `${displayedLocality}?\nIf less than one year, record 00 years`
+      sourcePrefixFromTitle(originalTitle) + formatNativeFormText(question.survey, "bwq_locality_duration", "How long have you been living continuously in {localityName}?\nIf less than one year, record 00 years", { localityName: displayedLocality }, locale)
     );
   }
   if (question?.name === WQ_PROGRESSIVE_DOB_FIELD) {
     const originalTitle = localizedText(question?.locTitle, question?.title || "", locale);
-    return `${sourcePrefixFromTitle(originalTitle)}What is your date of birth?`;
+    return sourcePrefixFromTitle(originalTitle) + formatNativeFormText(question.survey, "bwq_dob", "What is your date of birth?", {}, locale);
   }
   if (question?.name === WQ_PREGNANCY_OUTCOME_REVIEW_FIELD) {
     const originalTitle = localizedText(question?.locTitle, question?.title || "", locale);
-    return `${sourcePrefixFromTitle(originalTitle) || "23_i. "}PREGNANCY OUTCOME`;
+    return (sourcePrefixFromTitle(originalTitle) || "23_i. ") + formatNativeFormText(question.survey, "bwq_pregnancy_outcome_review", "PREGNANCY OUTCOME", {}, locale);
   }
   if (question?.name === WQ_PREGNANCY_OUTCOME_DATE_FIELD) {
     const originalTitle = interpolateSurveyValues(
@@ -278,12 +299,12 @@ export function getNativeQuestionTitle(question, locale = "default") {
     if (outcome) {
       const datePrompt =
         outcome === "Born alive"
-          ? `On what day, month, and year was ${childName(question)} born?`
-          : "On what day, month, and year did this pregnancy end?";
+          ? formatNativeFormText(question.survey, "bwq_baby_birth_date", "On what day, month, and year was {childName} born?", { childName: childName(question, locale) }, locale)
+          : formatNativeFormText(question.survey, "bwq_pregnancy_end_date", "On what day, month, and year did this pregnancy end?", {}, locale);
       if (outcome === "Born alive") {
         return `${sourcePrefixFromTitle(originalTitle)}${datePrompt}`;
       }
-      return `${sourcePrefixFromTitle(originalTitle)}${outcome}\n${datePrompt}`;
+      return `${sourcePrefixFromTitle(originalTitle)}${getNativeFormText(question.survey, outcome.toLowerCase().replace(/ /g, "_"), outcome, locale)}\n${datePrompt}`;
     }
   }
   if (
@@ -296,12 +317,12 @@ export function getNativeQuestionTitle(question, locale = "default") {
     );
     const sex = Number(getQuestionValueForInterpolation(question, WQ_PREGNANCY_BABY_SEX_FIELD));
     if (sex === 1 || sex === 2) {
-      const pronoun = sex === 1 ? "he" : "she";
-      const possessive = sex === 1 ? "his" : "her";
+      const pronoun = getNativeFormText(question.survey, sex === 1 ? "bwq_child_pronoun_male" : "bwq_child_pronoun_female", sex === 1 ? "he" : "she", locale);
+      const possessive = getNativeFormText(question.survey, sex === 1 ? "bwq_child_possessive_male" : "bwq_child_possessive_female", sex === 1 ? "his" : "her", locale);
       const wording =
         question.name === WQ_PREGNANCY_CHILD_AGE_FIELD
-          ? `How old was ${childName(question)} at ${possessive} last birthday?`
-          : `How old was ${childName(question)} when ${pronoun} died?`;
+          ? formatNativeFormText(question.survey, "bwq_child_last_birthday", "How old was {childName} at {possessive} last birthday?", { childName: childName(question, locale), possessive }, locale)
+          : formatNativeFormText(question.survey, "bwq_child_death_age", "How old was {childName} when {pronoun} died?", { childName: childName(question, locale), pronoun }, locale);
       return sourcePrefixFromTitle(originalTitle) + wording;
     }
   }
@@ -314,8 +335,8 @@ export function getNativeQuestionTitle(question, locale = "default") {
       );
       const title =
         rowNumber === 1
-          ? "Think back to your first pregnancy. Was that a single pregnancy, twins, or triplets?"
-          : "Think back to your next pregnancy. Was that a single pregnancy, twins, or triplets?";
+          ? formatNativeFormText(question.survey, "bwq_first_pregnancy_type", "Think back to your first pregnancy. Was that a single pregnancy, twins, or triplets?", {}, locale)
+          : formatNativeFormText(question.survey, "bwq_next_pregnancy_type", "Think back to your next pregnancy. Was that a single pregnancy, twins, or triplets?", {}, locale);
       return sourcePrefixFromTitle(originalTitle) + title;
     }
   }
@@ -327,10 +348,10 @@ export function getNativeQuestionTitle(question, locale = "default") {
     const multipleBirth = getWqMultipleBirthRow(question?.parent);
     const title =
       multipleBirth.count <= 1
-        ? "Was the baby born alive, born dead, or did you have a miscarriage or abortion?"
+        ? formatNativeFormText(question.survey, "bwq_singleton_outcome", "Was the baby born alive, born dead, or did you have a miscarriage or abortion?", {}, locale)
         : multipleBirth.index === 1
-          ? "Was the first baby in this pregnancy born alive or born dead?"
-          : "Was the next baby in this pregnancy born alive or born dead?";
+          ? formatNativeFormText(question.survey, "bwq_first_baby_outcome", "Was the first baby in this pregnancy born alive or born dead?", {}, locale)
+          : formatNativeFormText(question.survey, "bwq_next_baby_outcome", "Was the next baby in this pregnancy born alive or born dead?", {}, locale);
     return sourcePrefixFromTitle(originalTitle) + title;
   }
   if (question?.name === WQ_SECTION_4_HUSBAND_OCCUPATION_FIELD) {
@@ -346,15 +367,19 @@ export function getNativeQuestionTitle(question, locale = "default") {
       );
       const occupationTitle =
         maritalStatus === "1"
-          ? "What is your (last) husband's occupation? That is, what kind of work does he mainly do?"
-          : "What was your (last) husband's occupation. That is, what kind of work did he mainly do?";
+          ? formatNativeFormText(question.survey, "bwq_husband_occupation_present", "What is your (last) husband's occupation? That is, what kind of work does he mainly do?", {}, locale)
+          : formatNativeFormText(question.survey, "bwq_husband_occupation_past", "What was your (last) husband's occupation. That is, what kind of work did he mainly do?", {}, locale);
       return sourcePrefixFromTitle(originalTitle) + occupationTitle;
     }
   }
-  return interpolateSurveyValues(
-    localizedText(question?.locTitle, question?.title || question?.name || "", locale),
-    question
-  );
+  const fallbackKey = `title_fallback_${question?.name}`;
+  const originalTitle = question?.survey?.nativeText?.[fallbackKey];
+  const hasTranslatedTitle = locale !== "default" && locale !== "en" &&
+    question?.locTitle?.getLocales?.().includes(locale) && question.locTitle.getLocaleText(locale)?.trim();
+  const title = originalTitle && !hasTranslatedTitle
+    ? getNativeFormText(question.survey, fallbackKey, typeof originalTitle === "string" ? originalTitle : originalTitle.default, locale)
+    : localizedText(question?.locTitle, question?.title || question?.name || "", locale);
+  return renderNativeTitleContext(title, question, locale);
 }
 
 export function getNativeQuestionDescription(question, locale = "default") {
@@ -412,7 +437,7 @@ export function getWqMultipleBirthRow(panel) {
   return { count, index, plurality };
 }
 
-export function getWqPregnancyChildSummary(panel) {
+export function getWqPregnancyChildSummary(panel, survey = panel?.survey) {
   const nameQuestion = panel?.getQuestionByName?.(WQ_PREGNANCY_BABY_NAME_FIELD);
   const sexQuestion = panel?.getQuestionByName?.(WQ_PREGNANCY_BABY_SEX_FIELD);
   const birthResultQuestion = panel?.getQuestionByName?.(WQ_PREGNANCY_OUTCOME_FIELD);
@@ -427,10 +452,10 @@ export function getWqPregnancyChildSummary(panel) {
     ? 1
     : birthResult;
   const bornStatus = {
-    1: "Born Alive",
-    2: "Born Dead",
-    3: "Miscarriage",
-    4: "Abortion",
+    1: getNativeFormText(survey, "born_alive", "Born Alive", survey?.locale),
+    2: getNativeFormText(survey, "born_dead", "Born Dead", survey?.locale),
+    3: getNativeFormText(survey, "miscarriage", "Miscarriage", survey?.locale),
+    4: getNativeFormText(survey, "abortion", "Abortion", survey?.locale),
   }[outcomeCode] || "-";
   const duration = durationQuestion?.value;
   const numericDuration = (value) => {
@@ -454,24 +479,24 @@ export function getWqPregnancyChildSummary(panel) {
     bornStatus,
     name: name || "-",
     outcome: {
-      1: "Born Alive",
-      2: "Born Dead",
-      3: "Miscarriage",
-      4: "Abortion",
+      1: getNativeFormText(survey, "born_alive", "Born Alive", survey?.locale),
+      2: getNativeFormText(survey, "born_dead", "Born Dead", survey?.locale),
+      3: getNativeFormText(survey, "miscarriage", "Miscarriage", survey?.locale),
+      4: getNativeFormText(survey, "abortion", "Abortion", survey?.locale),
     }[calculatedOutcomeCode] || "-",
     outcomeYear: outcomeYear || "-",
-    pregnancyLasts: getWqPregnancyDurationSummary(duration),
+    pregnancyLasts: getWqPregnancyDurationSummary(duration, survey),
     sex: sex || "-",
   };
 }
 
-export function getWqPregnancyDurationSummary(duration) {
+export function getWqPregnancyDurationSummary(duration, survey) {
   const weeks = String(duration?.weeks ?? "").trim();
   const months = String(duration?.months ?? "").trim();
-  if (weeks && weeks !== "00") return `${weeks} weeks`;
-  if (months && months !== "00") return `${months} months`;
-  if (weeks) return `${weeks} weeks`;
-  if (months) return `${months} months`;
+  if (weeks && weeks !== "00") return formatNativeFormText(survey, "count_weeks", "{count} weeks", { count: weeks }, survey?.locale);
+  if (months && months !== "00") return formatNativeFormText(survey, "count_months", "{count} months", { count: months }, survey?.locale);
+  if (weeks) return formatNativeFormText(survey, "count_weeks", "{count} weeks", { count: weeks }, survey?.locale);
+  if (months) return formatNativeFormText(survey, "count_months", "{count} months", { count: months }, survey?.locale);
   return "-";
 }
 
@@ -500,8 +525,8 @@ export function groupWqPregnancyHistoryPanels(panels = []) {
   return groups;
 }
 
-export function getWqPregnancyReviewLabel(groupPosition, childPosition) {
-  return childPosition === 0 ? `Pregnancy ${groupPosition + 1}` : "";
+export function getWqPregnancyReviewLabel(groupPosition, childPosition, survey) {
+  return childPosition === 0 ? formatNativeFormText(survey, "pregnancy_pregnancynumber", "Pregnancy {pregnancyNumber}", { pregnancyNumber: groupPosition + 1 }, survey?.locale) : "";
 }
 
 export function reorderWqPregnancyHistoryValues(values = [], fromPosition, toPosition) {
@@ -561,11 +586,11 @@ export function insertLatestWqPregnancyGroupAt(values = [], toPosition) {
   return reorderWqPregnancyHistoryValues(values, groupCount - 1, targetPosition);
 }
 
-export function getWqPregnancyGapPrompt(groupCount, gapPosition) {
+export function getWqPregnancyGapPrompt(groupCount, gapPosition, survey) {
   if (groupCount <= 1 || gapPosition <= 0) {
-    return "Were there any other pregnancies before Pregnancy 1?";
+    return getNativeFormText(survey, "were_there_any_other_pregnancies_before_pregnancy_1", "Were there any other pregnancies before Pregnancy 1?", survey?.locale);
   }
-  return `Were there any other pregnancies between Pregnancy ${gapPosition} and Pregnancy ${gapPosition + 1}?`;
+  return formatNativeFormText(survey, "were_there_any_other_pregnancies_between_pregnancy_previousnumber_and_pregnancy_nextnumber", "Were there any other pregnancies between Pregnancy {previousNumber} and Pregnancy {nextNumber}?", { previousNumber: gapPosition, nextNumber: gapPosition + 1 }, survey?.locale);
 }
 
 export function shouldShowWqPregnancyHistoryQuestion(child, multipleBirth) {

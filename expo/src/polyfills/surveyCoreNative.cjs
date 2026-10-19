@@ -21,7 +21,9 @@ function createSurveyModel(surveyJson) {
   const surveyCore = require("survey-core");
   const { Model, Question, SurveyModel } = surveyCore;
   ensureNativeSurveyCorePatch({ Question, SurveyModel });
-  return new Model(surveyJson);
+  const model = new Model(surveyJson);
+  model.nativeText = surveyJson?.nativeText || {};
+  return model;
 }
 
 function isNativeSurveyCorePatched() {

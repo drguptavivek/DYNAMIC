@@ -1,3 +1,4 @@
+import { getNativeFormText } from "../../../lib/nativeFormText.js";
 import React, { useEffect, useRef, useState } from "react";
 import {
   BackHandler,
@@ -184,7 +185,7 @@ export function BhqRegistryLookupDrawer({ linkedUids = new Set(), survey, panel,
           }}
           style={[styles.selectButton, alreadyLinked && styles.selectButtonDisabled]}
         >
-          <Text style={styles.selectButtonText}>{alreadyLinked ? "Linked" : "Select"}</Text>
+          <Text style={styles.selectButtonText}>{alreadyLinked ? getNativeFormText(survey, "linked", "Linked", survey?.locale || "default") : getNativeFormText(survey, "select", "Select", survey?.locale || "default")}</Text>
         </Pressable>
       </View>
     );
@@ -198,16 +199,16 @@ export function BhqRegistryLookupDrawer({ linkedUids = new Set(), survey, panel,
       visible
     >
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.root}>
-        <Pressable accessibilityLabel="Close HDSS lookup" onPress={onClose} style={styles.scrim} />
+        <Pressable accessibilityLabel={getNativeFormText(survey, "close_hdss_lookup", "Close HDSS lookup", survey?.locale || "default")} onPress={onClose} style={styles.scrim} />
         <View style={[styles.drawer, { width: panelWidth }]}>
           <View style={styles.header}>
             <View style={styles.headerCopy}>
-              <Text style={styles.eyebrow}>BHQ member</Text>
-              <Text style={styles.title}>Find HDSS person</Text>
-              <Text style={styles.subtitle}>Select one record to link this person.</Text>
+              <Text style={styles.eyebrow}>{getNativeFormText(survey, "bhq_member", "BHQ member", survey?.locale || "default")}</Text>
+              <Text style={styles.title}>{getNativeFormText(survey, "find_hdss_person", "Find HDSS person", survey?.locale || "default")}</Text>
+              <Text style={styles.subtitle}>{getNativeFormText(survey, "select_one_record_to_link_this_person", "Select one record to link this person.", survey?.locale || "default")}</Text>
             </View>
             <Pressable
-              accessibilityLabel="Close HDSS lookup"
+              accessibilityLabel={getNativeFormText(survey, "close_hdss_lookup", "Close HDSS lookup", survey?.locale || "default")}
               accessibilityRole="button"
               hitSlop={8}
               onPress={onClose}
@@ -219,63 +220,63 @@ export function BhqRegistryLookupDrawer({ linkedUids = new Set(), survey, panel,
 
           <View style={styles.filters}>
             <View style={styles.filterField}>
-              <Text style={styles.filterLabel}>Village code</Text>
+              <Text style={styles.filterLabel}>{getNativeFormText(survey, "village_code", "Village code", survey?.locale || "default")}</Text>
               <TextInput
-                accessibilityLabel="HDSS village code"
+                accessibilityLabel={getNativeFormText(survey, "hdss_village_code", "HDSS village code", survey?.locale || "default")}
                 autoCapitalize="none"
                 autoCorrect={false}
                 onChangeText={(value) => updateFilter(setVillageCode, value, villageCode)}
-                placeholder="Required"
+                placeholder={getNativeFormText(survey, "required", "Required", survey?.locale || "default")}
                 style={styles.input}
                 value={villageCode}
               />
             </View>
             <View style={styles.filterField}>
-              <Text style={styles.filterLabel}>House number</Text>
+              <Text style={styles.filterLabel}>{getNativeFormText(survey, "house_number", "House number", survey?.locale || "default")}</Text>
               <TextInput
-                accessibilityLabel="HDSS house number"
+                accessibilityLabel={getNativeFormText(survey, "hdss_house_number", "HDSS house number", survey?.locale || "default")}
                 autoCapitalize="none"
                 autoCorrect={false}
                 onChangeText={(value) => updateFilter(setHouseNo, value, houseNo)}
-                placeholder="Or search by name"
+                placeholder={getNativeFormText(survey, "or_search_by_name", "Or search by name", survey?.locale || "default")}
                 style={styles.input}
                 value={houseNo}
               />
             </View>
             <View style={styles.filterFieldFull}>
-              <Text style={styles.filterLabel}>Name of individual or HDSS original ID</Text>
+              <Text style={styles.filterLabel}>{getNativeFormText(survey, "name_of_individual_or_hdss_original_id", "Name of individual or HDSS original ID", survey?.locale || "default")}</Text>
               <TextInput
                 ref={nameInput}
-                accessibilityLabel="Search HDSS name or original ID"
+                accessibilityLabel={getNativeFormText(survey, "search_hdss_name_or_original_id", "Search HDSS name or original ID", survey?.locale || "default")}
                 autoCapitalize="none"
                 autoCorrect={false}
                 onChangeText={(value) => updateFilter(setSearch, value, search)}
-                placeholder="Name, or name,name"
+                placeholder={getNativeFormText(survey, "name_or_name_name", "Name, or name,name", survey?.locale || "default")}
                 style={styles.input}
                 value={search}
               />
             </View>
-            <Text style={styles.scopeHint}>Village must match exactly. Clear the house number for name-only search. Comma-separated names find households containing all names.</Text>
+            <Text style={styles.scopeHint}>{getNativeFormText(survey, "village_must_match_exactly_clear_the_house_number_for_name_only_search_comma_separated_names_find_ho", "Village must match exactly. Clear the house number for name-only search. Comma-separated names find households containing all names.", survey?.locale || "default")}</Text>
           </View>
 
           <View style={styles.resultHeader}>
-            <Text style={styles.resultTitle}>HDSS people</Text>
-            {busy ? <Text style={styles.resultHint}>Searching…</Text> : null}
+            <Text style={styles.resultTitle}>{getNativeFormText(survey, "hdss_people", "HDSS people", survey?.locale || "default")}</Text>
+            {busy ? <Text style={styles.resultHint}>{getNativeFormText(survey, "searching", "Searching\u2026", survey?.locale || "default")}</Text> : null}
             {!busy && rows.length ? <Text style={styles.resultHint}>{`${rows.length} shown`}</Text> : null}
           </View>
           {error ? <Text style={styles.error}>{error}</Text> : null}
           {!busy && !error && !rows.length && canSearch ? (
-            <Text style={styles.empty}>No HDSS people match these filters.</Text>
+            <Text style={styles.empty}>{getNativeFormText(survey, "no_hdss_people_match_these_filters", "No HDSS people match these filters.", survey?.locale || "default")}</Text>
           ) : null}
           {!busy && !error && !rows.length && villageCode.trim() && houseNo.trim() ? (
             <Pressable accessibilityRole="button" onPress={() => {
               updateFilter(setHouseNo, "", houseNo);
               nameInput.current?.focus();
             }} style={styles.nameSearchButton}>
-              <Text style={styles.personId}>Search by name instead</Text>
+              <Text style={styles.personId}>{getNativeFormText(survey, "search_by_name_instead", "Search by name instead", survey?.locale || "default")}</Text>
             </Pressable>
           ) : null}
-          {!canSearch ? <Text style={styles.empty}>Enter a village code and either a house number or name.</Text> : null}
+          {!canSearch ? <Text style={styles.empty}>{getNativeFormText(survey, "enter_a_village_code_and_either_a_house_number_or_name", "Enter a village code and either a house number or name.", survey?.locale || "default")}</Text> : null}
           <FlatList
             contentContainerStyle={styles.results}
             data={rows}
@@ -286,7 +287,7 @@ export function BhqRegistryLookupDrawer({ linkedUids = new Set(), survey, panel,
             }}
             onEndReachedThreshold={0.6}
             renderItem={renderPerson}
-            ListFooterComponent={loadingMore ? <Text style={styles.resultHint}>Loading more…</Text> : null}
+            ListFooterComponent={loadingMore ? <Text style={styles.resultHint}>{getNativeFormText(survey, "loading_more", "Loading more\u2026", survey?.locale || "default")}</Text> : null}
             style={styles.resultList}
           />
         </View>

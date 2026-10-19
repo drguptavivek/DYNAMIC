@@ -1,3 +1,5 @@
+import { showFormAlert } from "../../lib/nativeFormPopups.js";
+import { getNativeFormText } from "../../lib/nativeFormText.js";
 /**
  * Composes the native baseline household interview, confirmation gate, and final preview flow.
  */
@@ -210,9 +212,9 @@ function getHhqAvailabilityStopMessage(model) {
     : HHQ_REVISIT_NEEDED_MESSAGE;
 }
 
-function showHhqAvailabilityStopPopup(message) {
+function showHhqAvailabilityStopPopup(message, survey) {
   if (!message) return;
-  Alert.alert(message);
+  showFormAlert(survey, Alert.alert, message);
 }
 
 export function BaselineHouseholdForm({
@@ -443,7 +445,7 @@ export function BaselineHouseholdForm({
       if (options.name === HHQ_COMPETENT_RESPONDENT_FIELD) {
         const stopMessage = getHhqAvailabilityStopMessage(sender);
         setMessage(stopMessage);
-        showHhqAvailabilityStopPopup(stopMessage);
+        showHhqAvailabilityStopPopup(stopMessage, survey);
         if (isHhqAvailabilityStop(sender)) {
           memberSummaryConfirmedRef.current = false;
           setMemberSummaryConfirmed(false);
@@ -572,10 +574,10 @@ export function BaselineHouseholdForm({
       dirtyRef.current = false;
       if (!silent) {
         onDraftSaved?.();
-        const savedMessage = getDraftSavedMessage(locale);
+        const savedMessage = getNativeFormText(model, "popup_draft_saved", getDraftSavedMessage(locale));
         showTransientMessage(savedMessage);
         if (manual) {
-          Alert.alert(savedMessage, `${savedAnswerCount} answer fields saved on this device.`, [
+          showFormAlert(model, Alert.alert, savedMessage, `${savedAnswerCount} answer fields saved on this device.`, [
             {
               text: "OK",
               onPress: () => onManualDraftSaved?.(),
@@ -620,7 +622,7 @@ export function BaselineHouseholdForm({
       <View style={styles.window}>
         <View style={[styles.header, compact && styles.headerCompact]}>
           <Text numberOfLines={1} style={[styles.title, compact && styles.titleCompact]}>
-            Baseline Household Questionnaire
+            {model?.title || "Baseline Household Questionnaire"}
           </Text>
         </View>
         <View style={styles.body}>
@@ -800,7 +802,7 @@ export function BaselineHouseholdForm({
         onDraftSaved?.();
       }
       setMessage(availabilityStop ? getHhqAvailabilityStopMessage(model) : `Saved household ${registryRecord.household_id}`);
-      await waitForSubmissionAcknowledgement(Alert.alert);
+      await waitForSubmissionAcknowledgement(Alert.alert, model);
       await onSaved?.(registryRecord);
     } catch (error) {
       setMessage(`Could not save household: ${error.message}`);
@@ -825,6 +827,7 @@ export function BaselineHouseholdForm({
     if (saving) return;
     requestFinalSubmissionConfirmation({
       showAlert: Alert.alert,
+      survey: model,
       onConfirm: submitFinal,
     });
   }
@@ -845,7 +848,7 @@ export function BaselineHouseholdForm({
           <MaterialCommunityIcons color="#344054" name="format-list-bulleted-square" size={23} />
         </Pressable>
         <Text numberOfLines={1} style={[styles.title, compact && styles.titleCompact]}>
-          Baseline Household Questionnaire
+          {model?.title || "Baseline Household Questionnaire"}
         </Text>
         <Pressable accessibilityLabel="Close questionnaire" onPress={closeForm} style={styles.headerIconButton}>
           <MaterialCommunityIcons color="#d92d20" name="close-circle" size={25} />
@@ -859,7 +862,7 @@ export function BaselineHouseholdForm({
             notice={message}
             pageIntro={
               model.currentPage?.name === HOUSEHOLD_CHARACTERISTICS_PAGE_NAME
-                ? HOUSEHOLD_CHARACTERISTICS_INTRO
+                ? getNativeFormText(model, "household_characteristics_intro", HOUSEHOLD_CHARACTERISTICS_INTRO)
                 : ""
             }
             onPreviewRequested={() => openPreview()}
@@ -888,6 +891,7 @@ export function BaselineHouseholdForm({
           <>
             {message ? <Text style={styles.message}>{message}</Text> : null}
             <SectionNavigator
+              model={model}
               drawerOpen={sectionDrawerOpen}
               onDrawerOpenChange={setSectionDrawerOpen}
               onSelect={handleSectionSelect}

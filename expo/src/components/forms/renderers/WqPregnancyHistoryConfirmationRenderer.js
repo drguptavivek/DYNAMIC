@@ -1,3 +1,4 @@
+import { getNativeFormText, formatNativeFormText } from "../../../lib/nativeFormText.js";
 /** Shows Q22b's ordered pregnancy/child review and returns corrections to Q14. */
 import React, { useMemo } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -15,6 +16,8 @@ export function WqPregnancyHistoryConfirmationRenderer({
   question,
   onChange,
 }) {
+  const t = (key, fallback) => getNativeFormText(question.survey, key, fallback);
+  const f = (key, fallback, values) => formatNativeFormText(question.survey, key, fallback, values);
   const history = question.survey?.getQuestionByName?.(WQ_PREGNANCY_HISTORY_PANEL_FIELD);
   const groups = useMemo(
     () => groupWqPregnancyHistoryPanels(history?.panels || []),
@@ -42,26 +45,26 @@ export function WqPregnancyHistoryConfirmationRenderer({
   return (
     <QuestionFrame locale={locale} question={question}>
       <View style={styles.wrap}>
-        <Text style={styles.heading}>Complete pregnancy history in chronological order</Text>
-        <Text style={styles.help}>Pregnancy 1 is the woman&apos;s first pregnancy.</Text>
+        <Text style={styles.heading}>{t("complete_pregnancy_history_in_chronological_order", "Complete pregnancy history in chronological order")}</Text>
+        <Text style={styles.help}>{t("pregnancy_1_is_the_woman_s_first_pregnancy", "Pregnancy 1 is the woman's first pregnancy.")}</Text>
         <ScrollView horizontal nestedScrollEnabled showsHorizontalScrollIndicator>
           <View style={styles.table}>
             <View style={[styles.row, styles.headerRow]}>
-              <Text style={[styles.headerText, styles.pregnancyCell]}>Pregnancy</Text>
-              <Text style={[styles.headerText, styles.serialCell]}>S.No.</Text>
-              <Text style={[styles.headerText, styles.statusCell]}>Born status</Text>
-              <Text style={[styles.headerText, styles.nameCell]}>Name of child</Text>
-              <Text style={[styles.headerText, styles.sexCell]}>Sex</Text>
-              <Text style={[styles.headerText, styles.durationCell]}>Pregnancy lasts</Text>
-              <Text style={[styles.headerText, styles.outcomeYearCell]}>Year of Outcome</Text>
+              <Text style={[styles.headerText, styles.pregnancyCell]}>{t("pregnancy", "Pregnancy")}</Text>
+              <Text style={[styles.headerText, styles.serialCell]}>{t("s_no", "S.No.")}</Text>
+              <Text style={[styles.headerText, styles.statusCell]}>{t("born_status", "Born status")}</Text>
+              <Text style={[styles.headerText, styles.nameCell]}>{t("name_of_child", "Name of child")}</Text>
+              <Text style={[styles.headerText, styles.sexCell]}>{t("sex", "Sex")}</Text>
+              <Text style={[styles.headerText, styles.durationCell]}>{t("pregnancy_lasts", "Pregnancy lasts")}</Text>
+              <Text style={[styles.headerText, styles.outcomeYearCell]}>{t("year_of_outcome", "Year of Outcome")}</Text>
             </View>
             {groups.flatMap((group, groupIndex) =>
               group.rows.map(({ panel }, childIndex) => {
-                const child = getWqPregnancyChildSummary(panel);
+                const child = getWqPregnancyChildSummary(panel, question.survey);
                 return (
                   <View key={`${group.groupIndex}-${childIndex}`} style={styles.row}>
                     <Text style={[styles.cellText, styles.pregnancyCell]}>
-                      {childIndex === 0 ? `Pregnancy ${groupIndex + 1}` : ""}
+                      {childIndex === 0 ? f("pregnancy_number", "Pregnancy {number}", { number: groupIndex + 1 }) : ""}
                     </Text>
                     <Text style={[styles.cellText, styles.serialCell]}>{childIndex + 1}</Text>
                     <Text style={[styles.cellText, styles.statusCell]}>{child.bornStatus}</Text>
@@ -77,8 +80,8 @@ export function WqPregnancyHistoryConfirmationRenderer({
         </ScrollView>
         <View style={styles.answerRow}>
           {[
-            { label: "Yes", value: 1 },
-            { label: "No", value: 2 },
+            { label: t("yes", "Yes"), value: 1 },
+            { label: t("no", "No"), value: 2 },
           ].map((choice) => {
             const selected = String(value) === String(choice.value);
             return (

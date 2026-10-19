@@ -1,3 +1,4 @@
+import { getNativeFormText } from "../../../lib/nativeFormText.js";
 /** Renders BWQ Q10 as progressively less precise date-of-birth entry. */
 import React from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
@@ -74,22 +75,22 @@ export function WqProgressiveDobRenderer({ answerData, locale, onChange, questio
   return (
     <QuestionFrame locale={locale} question={question}>
       <View style={styles.wrap}>
-        <Text style={styles.optionTitle}>Option 1: Enter DD / MM / YYYY</Text>
+        <Text style={styles.optionTitle}>{getNativeFormText(question.survey, "option_1_enter_dd_mm_yyyy", "Option 1: Enter DD / MM / YYYY", locale)}</Text>
         {dateInputs("exact", [["day", "DD", 2], ["month", "MM", 2], ["year", "YYYY", 4]])}
         <ModeRadio
           disabled={disabled}
-          label="Don't know DOB"
+          label={getNativeFormText(question.survey, "don_t_know_dob", "Don't know DOB", locale)}
           onPress={() => activate("month_year")}
           selected={atLeastMonthYear}
         />
 
         {atLeastMonthYear ? (
           <View style={styles.level}>
-            <Text style={styles.optionTitle}>Option 2: Enter MM / YYYY</Text>
+            <Text style={styles.optionTitle}>{getNativeFormText(question.survey, "option_2_enter_mm_yyyy", "Option 2: Enter MM / YYYY", locale)}</Text>
             {dateInputs("month_year", [["month", "MM", 2], ["year", "YYYY", 4]])}
             <ModeRadio
               disabled={disabled}
-              label="Don't know MM/YY"
+              label={getNativeFormText(question.survey, "don_t_know_mm_yy", "Don't know MM/YY", locale)}
               onPress={() => activate("year")}
               selected={atLeastYear}
             />
@@ -98,11 +99,11 @@ export function WqProgressiveDobRenderer({ answerData, locale, onChange, questio
 
         {atLeastYear ? (
           <View style={styles.level}>
-            <Text style={styles.optionTitle}>Option 3: Enter YYYY</Text>
+            <Text style={styles.optionTitle}>{getNativeFormText(question.survey, "option_3_enter_yyyy", "Option 3: Enter YYYY", locale)}</Text>
             {dateInputs("year", [["year", "YYYY", 4]])}
             <ModeRadio
               disabled={disabled}
-              label="Don't know anything"
+              label={getNativeFormText(question.survey, "don_t_know_anything", "Don't know anything", locale)}
               onPress={() => activate("unknown")}
               selected={value.mode === "unknown"}
             />

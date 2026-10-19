@@ -1,3 +1,4 @@
+import { getNativeFormText } from "../../../lib/nativeFormText.js";
 /** Renders a dynamic household-member dropdown for task-context linked questions. */
 import React, { useMemo, useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
@@ -25,7 +26,7 @@ export function HouseholdMemberDropdownRenderer({ answerData, locale, question, 
   const selectedChoice = selection.choice;
   const selectedText =
     selectedChoice?.text ||
-    (value === undefined || value === null || value === "" ? "Select member" : String(value));
+    (value === undefined || value === null || value === "" ? getNativeFormText(question.survey, "select_member", "Select member", locale) : String(value));
 
   function commitChoice(choice) {
     if (disabled) return;
@@ -66,7 +67,7 @@ export function HouseholdMemberDropdownRenderer({ answerData, locale, question, 
         <Text style={styles.chevron}>v</Text>
       </Pressable>
       {!choices.length ? (
-        <Text style={controlStyles.status}>No household members available on this device.</Text>
+        <Text style={controlStyles.status}>{getNativeFormText(question.survey, "no_household_members_available_on_this_device", "No household members available on this device.", locale)}</Text>
       ) : null}
       {selection.mode === "outside" ? (
         <View style={styles.outsideName}>
@@ -84,7 +85,7 @@ export function HouseholdMemberDropdownRenderer({ answerData, locale, question, 
               onChange?.();
             }}
             onChangeText={commitOutsideName}
-            placeholder="Type the husband's or partner's name"
+            placeholder={getNativeFormText(question.survey, "type_the_husband_s_or_partner_s_name", "Type the husband's or partner's name", locale)}
             style={[controlStyles.input, disabled && controlStyles.readOnly]}
             value={selection.typedName}
           />
@@ -100,9 +101,9 @@ export function HouseholdMemberDropdownRenderer({ answerData, locale, question, 
         <Pressable onPress={() => setOpen(false)} style={styles.modalBackdrop}>
           <Pressable onPress={() => {}} style={styles.modalMenu}>
             <View style={styles.menuHeader}>
-              <Text style={styles.menuTitle}>Select household member</Text>
+              <Text style={styles.menuTitle}>{getNativeFormText(question.survey, "select_household_member", "Select household member", locale)}</Text>
               <Pressable onPress={() => setOpen(false)} style={styles.closeButton}>
-                <Text style={styles.closeText}>Close</Text>
+                <Text style={styles.closeText}>{getNativeFormText(question.survey, "close", "Close", locale)}</Text>
               </Pressable>
             </View>
             <ScrollView nestedScrollEnabled style={styles.choiceList}>

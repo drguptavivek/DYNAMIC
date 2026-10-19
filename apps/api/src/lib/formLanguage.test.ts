@@ -5,6 +5,7 @@ import {
   flattenFormElements,
   mergeMissingFormTranslations,
   reconcileFormTranslations,
+  mergeFormTranslationEdits,
 } from "./formLanguage";
 
 test("applies question and option translations as SurveyJS localized text", () => {
@@ -69,7 +70,7 @@ test("flattens form elements with option values for the admin editor", () => {
     ],
   });
 
-  assert.deepEqual(elements, [
+  assert.deepEqual(elements.filter(element => element.kind !== "page"), [
     {
       name: "q1",
       type: "dropdown",
@@ -111,10 +112,10 @@ test("flattens nested form elements without exporting pages as questions", () =>
 
   assert.deepEqual(
     elements.map((element) => element.name),
-    ["member_panel", "member_name"],
+    ["@page:page_household", "member_panel", "member_name"],
   );
-  assert.equal(elements[0].page_title, "Household Schedule");
-  assert.equal(elements[1].page_name, "page_household");
+  assert.equal(elements[1].page_title, "Household Schedule");
+  assert.equal(elements[2].page_name, "page_household");
 });
 
 test("merges bundled translations into database translations without overwriting edits", () => {
@@ -158,7 +159,7 @@ test("merges bundled translations into database translations without overwriting
   });
 });
 
-test("reconciles translations against the latest questionnaire fields and options", () => {
+test("reconciles bundled current translations without deleting inactive stored evidence", () => {
   const result = reconcileFormTranslations(
     {
       retained: { title: "Edited question", choices: { "1": "One", "9": "Removed choice" } },
@@ -176,7 +177,23 @@ test("reconciles translations against the latest questionnaire fields and option
 
   assert.equal(result.changed, true);
   assert.deepEqual(result.translations, {
-    retained: { title: "Edited question", choices: { "1": "One", "2": "Bundled two" } },
+    retained: { title: "Edited question", choices: { "1": "One", "9": "Removed choice", "2": "Bundled two" } },
     added: { title: "New bundled question" },
+    removed: { title: "Removed question" },
   });
+});
+
+
+test("only active submitted fields and options can change stored translations", () => {
+  const stored = { active: { title: "Old", choices: { old: "Retired", yes: "Yes" } }, removed: { title: "Keep" } };
+  const incoming = { active: { title: "Edited", choices: { yes: "Edited yes", evil: "Ignored" } }, fake: { title: "Ignored" } };
+  const result = mergeFormTranslationEdits(stored, incoming, [{ name: "active", title: "Active", description: "", choices: [{ value: "yes", text: "Yes" }] }]);
+  assert.deepEqual(result, { active: { title: "Edited", choices: { old: "Retired", yes: "Edited yes" } }, removed: { title: "Keep" } });
+  assert.equal(stored.active.title, "Old");
+});
+
+
+test("clearing an active translation preserves inactive fields and retired options", () => {
+  const result = mergeFormTranslationEdits({ active: { title: "Remove", choices: { yes: "Remove", retired: "Keep" } }, retired: { title: "Keep" } }, {}, [{ name: "active", title: "Active", description: "", choices: [{ value: "yes", text: "Yes" }] }]);
+  assert.deepEqual(result, { active: { choices: { retired: "Keep" } }, retired: { title: "Keep" } });
 });

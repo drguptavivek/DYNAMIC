@@ -1,3 +1,4 @@
+import { getNativeFormText, formatNativeFormText } from "../../../lib/nativeFormText.js";
 /** Renders Q23_i as an ordered child table with a calculated outcome per row. */
 import React, { useMemo } from "react";
 import { StyleSheet, Text, View } from "react-native";
@@ -10,6 +11,8 @@ import {
 import { QuestionFrame } from "./QuestionFrame.js";
 
 export function WqPregnancyOutcomeReviewRenderer({ locale, question }) {
+  const t = (key, fallback) => getNativeFormText(question.survey, key, fallback);
+  const f = (key, fallback, values) => formatNativeFormText(question.survey, key, fallback, values);
   const history = question.survey?.getQuestionByName?.(WQ_PREGNANCY_HISTORY_PANEL_FIELD);
   const groups = useMemo(
     () => groupWqPregnancyHistoryPanels(history?.panels || []),
@@ -20,18 +23,18 @@ export function WqPregnancyOutcomeReviewRenderer({ locale, question }) {
     <QuestionFrame locale={locale} question={question}>
       <View style={styles.table}>
         <View style={[styles.row, styles.headerRow]}>
-          <Text style={[styles.headerText, styles.pregnancyCell]}>Pregnancy</Text>
-          <Text style={[styles.headerText, styles.serialCell]}>No.</Text>
-          <Text style={[styles.headerText, styles.nameCell]}>Child</Text>
-          <Text style={[styles.headerText, styles.outcomeCell]}>Outcome</Text>
+          <Text style={[styles.headerText, styles.pregnancyCell]}>{t("pregnancy", "Pregnancy")}</Text>
+          <Text style={[styles.headerText, styles.serialCell]}>{t("serial_number", "No.")}</Text>
+          <Text style={[styles.headerText, styles.nameCell]}>{t("child", "Child")}</Text>
+          <Text style={[styles.headerText, styles.outcomeCell]}>{t("outcome", "Outcome")}</Text>
         </View>
         {groups.flatMap((group, groupIndex) =>
           group.rows.map(({ panel }, childIndex) => {
-            const child = getWqPregnancyChildSummary(panel);
+            const child = getWqPregnancyChildSummary(panel, question.survey);
             return (
               <View key={`${group.groupIndex}-${childIndex}`} style={styles.row}>
                 <Text style={[styles.cellText, styles.pregnancyCell]}>
-                  {childIndex === 0 ? `Preg. ${groupIndex + 1}` : ""}
+                  {childIndex === 0 ? f("preg_number", "Preg. {number}", { number: groupIndex + 1 }) : ""}
                 </Text>
                 <Text style={[styles.cellText, styles.serialCell]}>{childIndex + 1}</Text>
                 <Text style={[styles.cellText, styles.nameCell]}>{child.name}</Text>

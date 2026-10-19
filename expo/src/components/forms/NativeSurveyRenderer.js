@@ -358,6 +358,7 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
     <View style={styles.compactHeaderContent}>
       {sections.length ? (
         <SectionNavigator
+          model={model}
           drawerOpen={sectionDrawerOpen}
           onDrawerOpenChange={onSectionDrawerOpenChange}
           onSelect={onSectionSelect}
@@ -390,7 +391,7 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
         </ScrollView>
       ) : (
         <>
-          {sections.length ? <SectionNavigator sections={sections} onSelect={onSectionSelect} /> : null}
+          {sections.length ? <SectionNavigator model={model} sections={sections} onSelect={onSectionSelect} /> : null}
           {notice ? <Text style={styles.notice}>{notice}</Text> : null}
           {pageHeader}
           {resolvedPageIntro ? <Text style={styles.pageIntro}>{resolvedPageIntro}</Text> : null}

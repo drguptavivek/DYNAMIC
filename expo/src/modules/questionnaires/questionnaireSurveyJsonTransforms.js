@@ -1,3 +1,5 @@
+import { NATIVE_FORM_TEXT, NATIVE_QUESTION_TITLE_OVERRIDES, getNativeFormText } from "../../lib/nativeFormText.js";
+import formTranslation from "../../../../shared/formTranslation.cjs";
 /**
  * Applies form-specific compatibility transforms before a definition enters Survey Core.
  */
@@ -760,9 +762,9 @@ function isWqForm(form) {
   return form?.form_code === WQ_FORM_CODE;
 }
 
-export function getQuestionnairePageIntro(form, pageName) {
+export function getQuestionnairePageIntro(form, pageName, survey) {
   return isWqForm(form) && pageName === WQ_REPRODUCTION_PAGE_NAME
-    ? WQ_REPRODUCTION_INTRO_TEXT
+    ? getNativeFormText(survey || form, "reproduction_intro", WQ_REPRODUCTION_INTRO_TEXT)
     : "";
 }
 
@@ -1439,6 +1441,7 @@ export function getPreparedSurveyJson(form) {
 }
 
 export function prepareQuestionnaireSurveyJson(form) {
+  const nativeTitleFallbacks = {};
   let surveyJson = prepareSurveyJson(form);
   surveyJson = scopeDynamicPanelExpressions(surveyJson);
   surveyJson = hideQuestionnaireLanguageFields(surveyJson);
@@ -1483,6 +1486,43 @@ export function prepareQuestionnaireSurveyJson(form) {
     surveyJson = applyWqBornAliveChildFollowupLoop(surveyJson);
     surveyJson = applyWqReproductionComparisonTable(surveyJson);
     surveyJson = markWqLmpTimingControl(surveyJson);
+  }
+  if (isWqForm(form)) {
+    const visit = (node) => {
+      if (Array.isArray(node)) return node.map(visit);
+      if (!node || typeof node !== "object") return node;
+      const next = { ...node };
+      const override = NATIVE_QUESTION_TITLE_OVERRIDES[node.name];
+      if (override) {
+        const title = typeof node.title === "object" ? node.title : { default: node.title || "" };
+        const prefix = (String(title.default || title.en || "").match(/^\s*[\dA-Za-z_]+[.)]\s*/) || [""])[0];
+        if ([
+          "pregnancy_02_reproduction_check_16_and_17_type_of_pregnancy_outcome",
+          "pregnancy_02_reproduction_if_born_alive_and_still_living_if_18_i_1_b",
+          "pregnancy_02_reproduction_if_born_alive_and_now_dead_if_19_i_1_boy_h",
+          "pregnancy_02_reproduction_if_i_1_think_back_to_your_first_pregnancy",
+          "wq_04_husband_s_backgroun_if_1_1_currently_married_what_is_your_last",
+        ].includes(node.name)) nativeTitleFallbacks[`title_fallback_${node.name}`] = title.default || title.en || "";
+        next.title = { ...title, default: prefix + override };
+      }
+      for (const field of ["pages", "elements", "templateElements"]) {
+        if (Array.isArray(next[field])) next[field] = next[field].map(visit);
+      }
+      return next;
+    };
+    surveyJson = visit(surveyJson);
+  }
+  surveyJson = { ...surveyJson, nativeText: { ...(NATIVE_FORM_TEXT[form?.form_code] || {}), ...nativeTitleFallbacks } };
+  const locales = new Set(["hi", "kn", "mr", "ta", "te", ...Object.keys(form?.native_form_translations || {})]);
+  for (const locale of locales) {
+    const translations = formTranslation.extractFormTextTranslations(form, locale);
+    for (const [key, saved] of Object.entries(form?.native_form_translations?.[locale] || {})) {
+      translations[key] = { ...translations[key], ...saved,
+        choices: { ...translations[key]?.choices, ...saved.choices } };
+    }
+    if (Object.keys(translations).length) {
+      surveyJson = formTranslation.applyFormTextTranslations(surveyJson, locale, translations, form);
+    }
   }
   return surveyJson;
 }

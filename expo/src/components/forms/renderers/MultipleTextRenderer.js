@@ -1,3 +1,4 @@
+import { getNativeFormText } from "../../../lib/nativeFormText.js";
 import { QuestionFrame, controlStyles } from "./QuestionFrame.js";
 /** Renders a SurveyJS multiple-text question as individually labeled native inputs. */
 import React, { useEffect, useState } from "react";
@@ -197,7 +198,7 @@ function PregnancyDurationInput({ answerData, locale, onChange, question }) {
   return (
     <QuestionFrame locale={locale} question={question}>
       <View style={styles.durationWrap}>
-        <Text style={styles.label}>Duration unit</Text>
+        <Text style={styles.label}>{getNativeFormText(question.survey, "duration_unit", "Duration unit", locale)}</Text>
         <Pressable
           accessibilityRole="button"
           disabled={question.isReadOnly}
@@ -205,14 +206,14 @@ function PregnancyDurationInput({ answerData, locale, onChange, question }) {
           style={[controlStyles.input, styles.unitSelector, question.isReadOnly && controlStyles.readOnly]}
         >
           <Text style={[styles.unitText, !selectedUnit && styles.placeholderText]}>
-            {selectedUnit === "weeks" ? "Weeks" : selectedUnit === "months" ? "Months" : "Select weeks or months"}
+            {selectedUnit === "weeks" ? getNativeFormText(question.survey, "weeks", "Weeks", locale) : selectedUnit === "months" ? getNativeFormText(question.survey, "months", "Months", locale) : getNativeFormText(question.survey, "select_weeks_or_months", "Select weeks or months", locale)}
           </Text>
           <Text style={styles.chevron}>v</Text>
         </Pressable>
 
         {selectedItem ? (
           <View style={styles.item}>
-            <Text style={styles.label}>{selectedUnit === "weeks" ? "Weeks" : "Months"}</Text>
+            <Text style={styles.label}>{selectedUnit === "weeks" ? getNativeFormText(question.survey, "weeks", "Weeks", locale) : getNativeFormText(question.survey, "months", "Months", locale)}</Text>
             <TextInput
               accessibilityLabel={`${question.name}.${selectedUnit}`}
               editable={!question.isReadOnly}
@@ -245,10 +246,10 @@ function PregnancyDurationInput({ answerData, locale, onChange, question }) {
       >
         <Pressable onPress={() => setMenuOpen(false)} style={styles.modalBackdrop}>
           <Pressable onPress={() => {}} style={styles.unitMenu}>
-            <Text style={styles.menuTitle}>Pregnancy duration</Text>
+            <Text style={styles.menuTitle}>{getNativeFormText(question.survey, "pregnancy_duration", "Pregnancy duration", locale)}</Text>
             {[
-              { label: "Weeks", value: "weeks" },
-              { label: "Months", value: "months" },
+              { label: getNativeFormText(question.survey, "weeks", "Weeks", locale), value: "weeks" },
+              { label: getNativeFormText(question.survey, "months", "Months", locale), value: "months" },
             ].map((option) => (
               <Pressable
                 key={option.value}

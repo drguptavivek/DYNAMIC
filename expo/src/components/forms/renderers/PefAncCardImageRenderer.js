@@ -1,3 +1,4 @@
+import { getNativeFormText } from "../../../lib/nativeFormText.js";
 /** Collects exactly one durable camera/gallery image for PEF Q47. */
 import React, { useState } from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
@@ -50,7 +51,7 @@ export function PefAncCardImageRenderer({
         ? await ImagePicker.requestCameraPermissionsAsync()
         : await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
-        setError(`${source === "camera" ? "Camera" : "Gallery"} permission is required.`);
+        setError(`${source === "camera" ? getNativeFormText(question.survey, "camera", "Camera", locale) : getNativeFormText(question.survey, "gallery", "Gallery", locale)} permission is required.`);
         return;
       }
       const result = source === "camera"
@@ -94,17 +95,17 @@ export function PefAncCardImageRenderer({
   return (
     <QuestionFrame locale={locale} question={question}>
       {image?.local_uri ? <Image source={{ uri: image.local_uri }} style={styles.preview} /> : null}
-      <Text style={styles.qualityNote}>Please make sure the image is not blurred or cropped. Ensure image quality.</Text>
+      <Text style={styles.qualityNote}>{getNativeFormText(question.survey, "please_make_sure_the_image_is_not_blurred_or_cropped_ensure_image_quality", "Please make sure the image is not blurred or cropped. Ensure image quality.", locale)}</Text>
       <View style={styles.actions}>
         <Pressable onPress={() => chooseImage("camera")} style={controlStyles.button}>
-          <Text style={controlStyles.buttonText}>{image?.local_uri ? "Retake" : "Camera"}</Text>
+          <Text style={controlStyles.buttonText}>{image?.local_uri ? getNativeFormText(question.survey, "retake", "Retake", locale) : getNativeFormText(question.survey, "camera", "Camera", locale)}</Text>
         </Pressable>
         <Pressable onPress={() => chooseImage("gallery")} style={controlStyles.button}>
-          <Text style={controlStyles.buttonText}>{image?.local_uri ? "Replace" : "Gallery"}</Text>
+          <Text style={controlStyles.buttonText}>{image?.local_uri ? getNativeFormText(question.survey, "replace", "Replace", locale) : getNativeFormText(question.survey, "gallery", "Gallery", locale)}</Text>
         </Pressable>
         {image?.local_uri ? (
           <Pressable onPress={removeImage} style={styles.removeButton}>
-            <Text style={styles.removeText}>Remove</Text>
+            <Text style={styles.removeText}>{getNativeFormText(question.survey, "remove", "Remove", locale)}</Text>
           </Pressable>
         ) : null}
       </View>

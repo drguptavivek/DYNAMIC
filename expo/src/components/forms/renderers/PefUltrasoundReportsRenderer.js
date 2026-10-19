@@ -1,3 +1,4 @@
+import { formatNativeFormText, getNativeFormText } from "../../../lib/nativeFormText.js";
 /** Collects up to five dated ultrasound reports with one or two images each. */
 import React, { useRef, useState } from "react";
 import {
@@ -51,7 +52,7 @@ function createEmptyImage() {
   };
 }
 
-function UltrasoundDateInput({ index, value, onChange }) {
+function UltrasoundDateInput({ index, value, onChange, survey, locale }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const webInputRef = useRef(null);
   const displayValue = formatSurveyDateDisplay(value);
@@ -77,7 +78,7 @@ function UltrasoundDateInput({ index, value, onChange }) {
   return (
     <View style={styles.datePickerWrap}>
       <Pressable
-        accessibilityLabel={`Ultrasound date for report ${index + 1}`}
+        accessibilityLabel={formatNativeFormText(survey, "ultrasound_date_for_report_reportnumber", "Ultrasound date for report {reportNumber}", { reportNumber: index + 1 }, locale)}
         accessibilityRole="button"
         onPress={openPicker}
         style={styles.dateButton}
@@ -89,7 +90,7 @@ function UltrasoundDateInput({ index, value, onChange }) {
       </Pressable>
       {Platform.OS === "web"
         ? React.createElement("input", {
-            "aria-label": `Ultrasound date for report ${index + 1}`,
+            "aria-label": formatNativeFormText(survey, "ultrasound_date_for_report_reportnumber", "Ultrasound date for report {reportNumber}", { reportNumber: index + 1 }, locale),
             max: maximumDate,
             onChange: (event) => {
               const nextDate = parseSurveyDate(event.target.value);
@@ -194,7 +195,7 @@ export function PefUltrasoundReportsRenderer({
         ? await ImagePicker.requestCameraPermissionsAsync()
         : await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
-        setError(`${source === "camera" ? "Camera" : "Gallery"} permission is required.`);
+        setError(`${source === "camera" ? getNativeFormText(question.survey, "camera", "Camera", locale) : getNativeFormText(question.survey, "gallery", "Gallery", locale)} permission is required.`);
         return;
       }
       const options = {
@@ -246,9 +247,9 @@ export function PefUltrasoundReportsRenderer({
 
   return (
     <QuestionFrame locale={locale} question={question}>
-      <Text style={styles.label}>How many reports do you have?</Text>
+      <Text style={styles.label}>{getNativeFormText(question.survey, "how_many_reports_do_you_have", "How many reports do you have?", locale)}</Text>
       <TextInput
-        accessibilityLabel="Number of ultrasound reports"
+        accessibilityLabel={getNativeFormText(question.survey, "number_of_ultrasound_reports", "Number of ultrasound reports", locale)}
         keyboardType="number-pad"
         maxLength={1}
         onChangeText={setReportCount}
@@ -258,21 +259,23 @@ export function PefUltrasoundReportsRenderer({
       />
       {value.reports.map((report, index) => (
         <View key={report.report_id || `report-${index + 1}`} style={styles.reportCard}>
-          <Text style={styles.reportTitle}>{`Report ${index + 1}`}</Text>
-          <Text style={styles.fieldLabel}>Date of ultrasound</Text>
+          <Text style={styles.reportTitle}>{formatNativeFormText(question.survey, "report_reportnumber", "Report {reportNumber}", { reportNumber: index + 1 }, locale)}</Text>
+          <Text style={styles.fieldLabel}>{getNativeFormText(question.survey, "date_of_ultrasound", "Date of ultrasound", locale)}</Text>
           <UltrasoundDateInput
+            survey={question.survey}
+            locale={locale}
             index={index}
             onChange={(ultrasoundDate) => updateReport(index, { ultrasound_date: ultrasoundDate })}
             value={report.ultrasound_date || ""}
           />
           {report.images.map((image, imageIndex) => (
             <View key={image.attachment_id} style={styles.imageCard}>
-              <Text style={styles.imageTitle}>{`Image ${imageIndex + 1}`}</Text>
+              <Text style={styles.imageTitle}>{formatNativeFormText(question.survey, "image_imagenumber", "Image {imageNumber}", { imageNumber: imageIndex + 1 }, locale)}</Text>
               {image.local_uri ? (
                 <View style={styles.previewWrap}>
                   <Image source={{ uri: image.local_uri }} style={styles.preview} />
                   <Pressable
-                    accessibilityLabel={`Open Image ${imageIndex + 1} in full screen`}
+                    accessibilityLabel={formatNativeFormText(question.survey, "open_image_imagenumber_in_full_screen", "Open Image {imageNumber} in full screen", { imageNumber: imageIndex + 1 }, locale)}
                     accessibilityRole="button"
                     onPress={() => setPreviewUri(image.local_uri)}
                     style={styles.expandButton}
@@ -282,29 +285,27 @@ export function PefUltrasoundReportsRenderer({
                 </View>
               ) : null}
               {image.local_uri ? (
-                <Text style={styles.imageQualityHint}>
-                  Please make sure Image is not Blurr or croped. ensure image quality.
-                </Text>
+                <Text style={styles.imageQualityHint}>{getNativeFormText(question.survey, "please_make_sure_image_is_not_blurr_or_croped_ensure_image_quality", "Please make sure Image is not Blurr or croped. ensure image quality.", locale)}</Text>
               ) : null}
               <View style={styles.actions}>
                 <Pressable
                   onPress={() => chooseImage(index, imageIndex, "camera")}
                   style={controlStyles.button}
                 >
-                  <Text style={controlStyles.buttonText}>{image.local_uri ? "Retake" : "Camera"}</Text>
+                  <Text style={controlStyles.buttonText}>{image.local_uri ? getNativeFormText(question.survey, "retake", "Retake", locale) : getNativeFormText(question.survey, "camera", "Camera", locale)}</Text>
                 </Pressable>
                 <Pressable
                   onPress={() => chooseImage(index, imageIndex, "gallery")}
                   style={controlStyles.button}
                 >
-                  <Text style={controlStyles.buttonText}>{image.local_uri ? "Replace" : "Gallery"}</Text>
+                  <Text style={controlStyles.buttonText}>{image.local_uri ? getNativeFormText(question.survey, "replace", "Replace", locale) : getNativeFormText(question.survey, "gallery", "Gallery", locale)}</Text>
                 </Pressable>
                 {image.local_uri ? (
                   <Pressable
                     onPress={() => removeImage(index, imageIndex)}
                     style={styles.removeButton}
                   >
-                    <Text style={styles.removeText}>Remove</Text>
+                    <Text style={styles.removeText}>{getNativeFormText(question.survey, "remove", "Remove", locale)}</Text>
                   </Pressable>
                 ) : null}
               </View>
@@ -313,7 +314,7 @@ export function PefUltrasoundReportsRenderer({
           {report.images.length < PEF_ULTRASOUND_IMAGES_PER_REPORT_MAX && report.images[0]?.local_uri ? (
             <Pressable onPress={() => addImage(index)} style={styles.addImageButton}>
               <MaterialCommunityIcons color="#1769aa" name="plus" size={20} />
-              <Text style={styles.addImageText}>Add image</Text>
+              <Text style={styles.addImageText}>{getNativeFormText(question.survey, "add_image", "Add image", locale)}</Text>
             </Pressable>
           ) : null}
         </View>
@@ -328,7 +329,7 @@ export function PefUltrasoundReportsRenderer({
         <View style={styles.fullScreenPreview}>
           <Image source={{ uri: previewUri }} style={styles.fullScreenImage} />
           <Pressable
-            accessibilityLabel="Close full screen image"
+            accessibilityLabel={getNativeFormText(question.survey, "close_full_screen_image", "Close full screen image", locale)}
             accessibilityRole="button"
             onPress={() => setPreviewUri("")}
             style={styles.closePreviewButton}

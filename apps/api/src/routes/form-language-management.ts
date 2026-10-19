@@ -1,10 +1,11 @@
+import { createHash } from "node:crypto";
 import { Router, Request, Response } from "express";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db, schema } from "../db";
 import { requireRole } from "../middleware/auth";
 import { sendError, sendSuccess } from "../lib/errors";
-import { getAllFormMetadata, getFormJson, getLatestFormMetadata } from "../lib/formCatalog";
+import { getAllFormMetadata, getFormJson, getPreparedFormJson } from "../lib/formCatalog";
 import {
   SUPPORTED_FORM_LANGUAGES,
   canEditFormLanguage,
@@ -13,6 +14,7 @@ import {
   getStoredTranslations,
   listFormLanguagePermissions,
   reconcileFormTranslations,
+  mergeFormTranslationEdits,
   saveFormLanguagePermission,
   saveFormTranslations,
 } from "../lib/formLanguage";
@@ -174,7 +176,7 @@ router.get("/forms/:form_code", async (req: Request, res: Response) => {
     }
     if (!(await assertCanAccessSite(req, res, siteId))) return;
 
-    const formJson = getFormJson(formCode);
+    const formJson = getPreparedFormJson(formCode);
     if (!formJson) {
       sendError(res, 404, "FORM_NOT_FOUND", `Form code ${formCode} not found`);
       return;
@@ -184,23 +186,15 @@ router.get("/forms/:form_code", async (req: Request, res: Response) => {
     const elements = flattenFormElements(formJson);
     const bundledTranslations = extractTranslationsFromFormJson(formJson, languageCode);
     const reconciled = reconcileFormTranslations(translations, bundledTranslations, elements);
-    if (reconciled.changed) {
-      translations = await saveFormTranslations({
-        siteId,
-        formCode,
-        languageCode,
-        translations: reconciled.translations,
-        updatedByUserId: req.user.sub,
-      });
-    }
+    translations = reconciled.translations;
     const canEdit = await canEditFormLanguage(req.user, siteId, formCode, languageCode);
-    const metadata = getLatestFormMetadata(formCode);
+    const rawForm = getFormJson(formCode);
 
     res.setHeader("Cache-Control", "no-store");
     sendSuccess(res, {
       form_code: formCode,
-      form_version: metadata?.version || String(formJson.version || ""),
-      form_checksum: metadata?.checksum || "",
+      form_version: String(rawForm?.version || ""),
+      form_checksum: createHash("sha256").update(JSON.stringify(formJson)).digest("hex"),
       site_id: siteId,
       language_code: languageCode,
       elements,
@@ -238,9 +232,10 @@ router.put("/forms/:form_code", async (req: Request, res: Response) => {
       return;
     }
 
-    const formJson = getFormJson(formCode)!;
+    const formJson = getPreparedFormJson(formCode)!;
+    const stored = await getStoredTranslations(body.site_id, formCode, languageCode);
     const reconciled = reconcileFormTranslations(
-      body.translations,
+      mergeFormTranslationEdits(stored, body.translations, flattenFormElements(formJson)),
       extractTranslationsFromFormJson(formJson, languageCode),
       flattenFormElements(formJson),
     );

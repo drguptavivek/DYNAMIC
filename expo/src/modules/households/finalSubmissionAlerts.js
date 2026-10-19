@@ -1,8 +1,9 @@
+import { showFormAlert } from "../../lib/nativeFormPopups.js";
 export const FINAL_SUBMISSION_CONFIRMATION_MESSAGE =
   "Are you sure you want to final submit this form?";
 
-export function requestFinalSubmissionConfirmation({ showAlert, onConfirm }) {
-  showAlert("Final submission", FINAL_SUBMISSION_CONFIRMATION_MESSAGE, [
+export function requestFinalSubmissionConfirmation({ showAlert, onConfirm, survey }) {
+  showFormAlert(survey, showAlert, "Final submission", FINAL_SUBMISSION_CONFIRMATION_MESSAGE, [
     {
       text: "No",
       style: "cancel",
@@ -14,9 +15,9 @@ export function requestFinalSubmissionConfirmation({ showAlert, onConfirm }) {
   ]);
 }
 
-export function waitForSubmissionAcknowledgement(showAlert) {
+export function waitForSubmissionAcknowledgement(showAlert, survey) {
   return new Promise((resolve) => {
-    showAlert(
+    showFormAlert(survey, showAlert,
       "Form is submitted",
       "",
       [

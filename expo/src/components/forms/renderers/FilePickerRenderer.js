@@ -1,3 +1,4 @@
+import { getNativeFormText } from "../../../lib/nativeFormText.js";
 /** Selects a device file with native APIs while leaving attachment storage to the caller. */
 import React from "react";
 import { Pressable, Text } from "react-native";
@@ -26,9 +27,9 @@ export function FilePickerRenderer({ locale, question, onChange }) {
   }
   return (
     <QuestionFrame locale={locale} question={question}>
-      <Text style={controlStyles.status}>{files[0]?.name || "No file selected"}</Text>
+      <Text style={controlStyles.status}>{files[0]?.name || getNativeFormText(question.survey, "no_file_selected", "No file selected", locale)}</Text>
       <Pressable onPress={pickFile} style={controlStyles.button}>
-        <Text style={controlStyles.buttonText}>Choose file</Text>
+        <Text style={controlStyles.buttonText}>{getNativeFormText(question.survey, "choose_file", "Choose file", locale)}</Text>
       </Pressable>
     </QuestionFrame>
   );

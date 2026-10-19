@@ -27,6 +27,15 @@ Rules:
 - Household details should load after selecting a household/member, not by rendering all records at once.
 - HDSS list uses the assigned Ballabhgarh village cache and the selected locality. Search trims surrounding spaces and ignores case. Comma-separated names must all match members of the same household; search covers the full scoped cache before pagination. The footer shows the current page and total matching pages, with 50 households per page. Household identity includes village, house number, and family number. Member details hide internal HDSS UIDs; Android Back returns to the previous household list and preserves its search and page. This reference list does not enroll members or create forms/tasks.
 
+## Form Language Management
+
+- The admin form selector uses the mobile display aliases BHQ and BWQ while requests, translation keys, permissions, and stored submissions retain internal codes HHQ and WQ.
+- The editor derives its English inventory from the same prepared questionnaire used by Android. It includes form and section headings, nested questions and choices, help text, HTML instructions, repeated-field labels, and the native form labels used by custom controls and tables.
+- Form popup titles, bodies, buttons, and section-drawer labels use the same inventory. Translate only their displayed text after the original form decisions; preserve confirmation callbacks, cancellation behavior, required acknowledgements, and dynamic values. Unknown server errors retain their original text.
+- Existing named-question translation keys remain valid. Additional entries use stable `@form`, `@page:`, `@text:`, and `@native:` keys within the existing translation JSON and CSV columns; they are text, never answers or workflow fields.
+- Loading the editor does not write translations. Saving active entries preserves previously stored translations for inactive fields and choices; permissions still control all edits.
+- Protocol downloads retain the raw questionnaire definition and carry translation overlays for application after Android's presentation transforms. Preparing or translating text must not change expressions, required rules, answer keys, task scheduling, or interview language locking.
+
 ## Runtime Site And Locality Choices
 
 HHQ site/locality choices come from authenticated user context:

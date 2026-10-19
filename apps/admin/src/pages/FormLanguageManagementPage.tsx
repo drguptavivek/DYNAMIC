@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../lib/api";
+import { getFormDisplayCode } from "../../../../expo/src/lib/formDisplayCodes.js";
 import styles from "./FormLanguageManagementPage.module.css";
 
 interface FormMeta {
@@ -37,6 +38,7 @@ interface FormElement {
   source_code?: string;
   order?: number;
   section_order?: number;
+  kind?: string;
   choices: Array<{ value: string; text: string }>;
 }
 
@@ -666,7 +668,7 @@ export default function FormLanguageManagementPage() {
           <select className={styles.select} value={selectedForm} onChange={(event) => setSelectedForm(event.target.value)}>
             {forms.map((form) => (
               <option key={form.form_code} value={form.form_code}>
-                {form.form_code} - {form.title}
+                {getFormDisplayCode(form.form_code)} - {form.title}
               </option>
             ))}
           </select>
@@ -729,7 +731,7 @@ export default function FormLanguageManagementPage() {
               <select className={styles.select} value={permissionForm} onChange={(event) => setPermissionForm(event.target.value)}>
                 {forms.map((form) => (
                   <option key={form.form_code} value={form.form_code}>
-                    {form.form_code}
+                    {getFormDisplayCode(form.form_code)}
                   </option>
                 ))}
               </select>
@@ -777,13 +779,13 @@ export default function FormLanguageManagementPage() {
           <span>
             {loading
               ? "Loading latest questionnaire..."
-              : `${elements.length} current fields loaded${loadedFormVersion ? ` • Version ${loadedFormVersion}` : ""}`}
+              : `${elements.length} translatable entries loaded${loadedFormVersion ? ` • Version ${loadedFormVersion}` : ""}`}
           </span>
           <span>{canEdit ? "Editing allowed" : "Read only until permission is granted"}</span>
         </div>
         {!loading && loadedFormChecksum ? (
           <div className={styles.definitionStatus}>
-            Latest bundled definition loaded • Checksum {loadedFormChecksum.slice(0, 12)}
+            Latest Android questionnaire definition loaded • Checksum {loadedFormChecksum.slice(0, 12)}
           </div>
         ) : null}
         <div className={styles.csvPanel}>
@@ -876,7 +878,7 @@ export default function FormLanguageManagementPage() {
         ) : null}
 
         {elements.length === 0 ? (
-          <div className={styles.emptyState}>Select a form, site, and language to load questions.</div>
+          <div className={styles.emptyState}>Select a form, site, and language to load questionnaire text.</div>
         ) : (
           <div className={styles.editorRows}>
             {elements.map((element) => (
@@ -885,6 +887,9 @@ export default function FormLanguageManagementPage() {
                   <div className={styles.questionIdentity}>
                     <div className={styles.questionCode}>{element.name}</div>
                     <div className={styles.questionMeta}>
+                      {element.kind ? (
+                        <span>{{ form: "Form heading", page: "Section heading", text: "Instruction / label", native: "App form label" }[element.kind] || element.kind}</span>
+                      ) : null}
                       {element.source_code ? <span>Q{element.source_code}</span> : null}
                       {element.page_title || element.page_name ? (
                         <span>{element.page_title || element.page_name}</span>
@@ -906,7 +911,7 @@ export default function FormLanguageManagementPage() {
                           value={translations[element.name]?.title || ""}
                           disabled={saving}
                           onChange={(event) => setQuestionTranslation(element.name, "title", event.target.value)}
-                          placeholder="Question text"
+                          placeholder="Translated text"
                         />
                         {element.description ? (
                           <textarea

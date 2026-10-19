@@ -1,3 +1,4 @@
+import { getNativeFormText } from "../../../lib/nativeFormText.js";
 /** Compares WQ summary counts with completed detailed pregnancy-history counts before Q29. */
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -44,21 +45,21 @@ export function WqReproductionComparisonRenderer({
     <QuestionFrame locale={locale} question={question}>
       <View style={styles.table}>
         <View style={styles.groupRow}>
-          <Text style={styles.group}>Earlier summary</Text>
-          <Text style={[styles.group, styles.rightGroup]}>Detailed history</Text>
+          <Text style={styles.group}>{getNativeFormText(question.survey, "earlier_summary", "Earlier summary", locale)}</Text>
+          <Text style={[styles.group, styles.rightGroup]}>{getNativeFormText(question.survey, "detailed_history", "Detailed history", locale)}</Text>
         </View>
         {COLUMNS.map((column) => (
           <View key={column.key} style={styles.row}>
-            <Text style={styles.leftLabelCell}>{column.left}</Text>
+            <Text style={styles.leftLabelCell}>{getNativeFormText(question.survey, `comparison_${column.key}_left`, column.left, locale)}</Text>
             <Text style={styles.valueCell}>{comparison.summary[column.key]}</Text>
-            <Text style={styles.rightLabelCell}>{column.right}</Text>
+            <Text style={styles.rightLabelCell}>{getNativeFormText(question.survey, `comparison_${column.key}_right`, column.right, locale)}</Text>
             <Text style={[styles.valueCell, comparison.summary[column.key] !== comparison.detailed[column.key] && styles.mismatch]}>{comparison.detailed[column.key]}</Text>
           </View>
         ))}
         <View style={[styles.row, styles.grandTotalRow]}>
-          <Text style={[styles.leftLabelCell, styles.grandTotalLabel]}>Total</Text>
+          <Text style={[styles.leftLabelCell, styles.grandTotalLabel]}>{getNativeFormText(question.survey, "total", "Total", locale)}</Text>
           <Text style={[styles.valueCell, styles.grandTotalValue]}>{summaryTotal}</Text>
-          <Text style={[styles.rightLabelCell, styles.grandTotalLabel]}>Total</Text>
+          <Text style={[styles.rightLabelCell, styles.grandTotalLabel]}>{getNativeFormText(question.survey, "total", "Total", locale)}</Text>
           <Text style={[
             styles.valueCell,
             styles.grandTotalValue,
@@ -66,18 +67,16 @@ export function WqReproductionComparisonRenderer({
           ]}>{detailedTotal}</Text>
         </View>
       </View>
-      <Text style={styles.note}>Highlighted detailed totals do not match the corresponding earlier answer.</Text>
+      <Text style={styles.note}>{getNativeFormText(question.survey, "highlighted_detailed_totals_do_not_match_the_corresponding_earlier_answer", "Highlighted detailed totals do not match the corresponding earlier answer.", locale)}</Text>
       {needsReverification ? (
         <View style={styles.warningBox}>
-          <Text style={styles.warningText}>
-            Detailed birth History has less births, miscarriages etc than what was initially told. Maybe some pregnancies/births have been missed in detailed history? Lets Reverify.
-          </Text>
+          <Text style={styles.warningText}>{getNativeFormText(question.survey, "detailed_birth_history_has_less_births_miscarriages_etc_than_what_was_initially_told_maybe_some_preg", "Detailed birth History has less births, miscarriages etc than what was initially told. Maybe some pregnancies/births have been missed in detailed history? Lets Reverify.", locale)}</Text>
           <View style={styles.buttonRow}>
             <Pressable onPress={() => goToQuestion(Q3_FIELD)} style={styles.correctionButton}>
-              <Text style={styles.buttonText}>Go to Q3</Text>
+              <Text style={styles.buttonText}>{getNativeFormText(question.survey, "go_to_q3", "Go to Q3", locale)}</Text>
             </Pressable>
             <Pressable onPress={() => goToQuestion(Q14_FIELD)} style={styles.correctionButton}>
-              <Text style={styles.buttonText}>Go to Q14</Text>
+              <Text style={styles.buttonText}>{getNativeFormText(question.survey, "go_to_q14", "Go to Q14", locale)}</Text>
             </Pressable>
           </View>
         </View>

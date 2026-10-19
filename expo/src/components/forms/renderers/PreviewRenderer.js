@@ -2,6 +2,9 @@
 import React from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 
+import { formatNativeFormText } from "../../../lib/nativeFormText.js";
+import { NATIVE_FORM_DIALOG_TEXT } from "../../../lib/nativeFormDialogText.js";
+
 import { buildNativeSurveyPreview } from "../nativeSurveyModel.js";
 
 export function PreviewRenderer({ locale, model }) {
@@ -17,7 +20,7 @@ export function PreviewRenderer({ locale, model }) {
                 <Text style={styles.questionTitle}>{question.title}</Text>
                 {question.panelRows.map((panel) => (
                   <View key={panel.index} style={styles.repeatRow}>
-                    <Text style={styles.rowTitle}>{`Row ${panel.index}`}</Text>
+                    <Text style={styles.rowTitle}>{formatNativeFormText(model, "preview_row", NATIVE_FORM_DIALOG_TEXT.preview_row, { number: panel.index }, locale)}</Text>
                     {panel.questions.map((item) => (
                       <View key={item.name} style={styles.answerRow}>
                         <Text style={styles.label}>{item.title}</Text>

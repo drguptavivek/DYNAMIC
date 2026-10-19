@@ -12,12 +12,15 @@ import {
   useWindowDimensions,
 } from "react-native";
 
+import { NATIVE_FORM_DIALOG_TEXT } from "../../lib/nativeFormDialogText.js";
+import { formatNativeFormText, getNativeFormText } from "../../lib/nativeFormText.js";
+
 const STATUS_LABELS = {
-  not_applicable: "Not applicable",
-  pending: "Not started",
-  in_progress: "In progress",
-  needs_attention: "Needs attention",
-  complete: "Complete",
+  not_applicable: "section_not_applicable",
+  pending: "section_not_started",
+  in_progress: "section_in_progress",
+  needs_attention: "section_needs_attention",
+  complete: "section_complete",
 };
 
 const STATUS_COLORS = {
@@ -29,6 +32,7 @@ const STATUS_COLORS = {
 };
 
 export function SectionNavigator({
+  model,
   drawerOpen: controlledDrawerOpen,
   onDrawerOpenChange,
   onSelect,
@@ -36,6 +40,8 @@ export function SectionNavigator({
   progressDotsPressable = true,
   showCompactTrigger = true,
 }) {
+  const text = (key) => getNativeFormText(model, key, NATIVE_FORM_DIALOG_TEXT[key]);
+  const statusLabel = (status) => STATUS_LABELS[status] ? text(STATUS_LABELS[status]) : status;
   const { width } = useWindowDimensions();
   const compact = width < 700;
   const [internalDrawerOpen, setInternalDrawerOpen] = useState(false);
@@ -55,22 +61,22 @@ export function SectionNavigator({
   }
 
   if (!compact) {
-    return <WideSectionNavigator sections={sections} onSelect={onSelect} />;
+    return <WideSectionNavigator model={model} sections={sections} onSelect={onSelect} />;
   }
 
   return (
     <View style={styles.compactWrap}>
       {showCompactTrigger ? (
         <Pressable
-          accessibilityLabel="Open section navigator"
+          accessibilityLabel={text("section_open_navigator")}
           onPress={() => setDrawerOpen(true)}
           style={styles.sectionButton}
         >
-          <Text style={styles.sectionButtonText}>Sections</Text>
+          <Text style={styles.sectionButtonText}>{text("section_sections")}</Text>
         </Pressable>
       ) : null}
       <View
-        accessibilityLabel="Section progress"
+        accessibilityLabel={text("section_progress")}
         style={[styles.dots, !showCompactTrigger && styles.dotsOnly]}
       >
         {progressSections.map((section, index) => {
@@ -88,7 +94,7 @@ export function SectionNavigator({
           return progressDotsPressable ? (
             <Pressable
               key={section.name}
-              accessibilityLabel={`${index + 1}. ${section.title}. ${STATUS_LABELS[section.status] || section.status}`}
+              accessibilityLabel={formatNativeFormText(model, "section_progress_description", NATIVE_FORM_DIALOG_TEXT.section_progress_description, { number: index + 1, title: section.title, status: statusLabel(section.status) })}
               hitSlop={8}
               onPress={() => setDrawerOpen(true)}
               style={styles.dotTarget}
@@ -98,7 +104,7 @@ export function SectionNavigator({
           ) : (
             <View
               key={section.name}
-              accessibilityLabel={`${index + 1}. ${section.title}. ${STATUS_LABELS[section.status] || section.status}`}
+              accessibilityLabel={formatNativeFormText(model, "section_progress_description", NATIVE_FORM_DIALOG_TEXT.section_progress_description, { number: index + 1, title: section.title, status: statusLabel(section.status) })}
               style={styles.dotTarget}
             >
               {dot}
@@ -117,15 +123,15 @@ export function SectionNavigator({
           <View style={[styles.drawer, { width: Math.min(width * 0.86, 360) }]}>
             <View style={styles.drawerHeader}>
               <View>
-                <Text style={styles.drawerTitle}>Questionnaire sections</Text>
-                <Text style={styles.drawerSubtitle}>Select a section to continue</Text>
+                <Text style={styles.drawerTitle}>{text("section_questionnaire_sections")}</Text>
+                <Text style={styles.drawerSubtitle}>{text("section_select_to_continue")}</Text>
               </View>
               <Pressable
-                accessibilityLabel="Close section navigator"
+                accessibilityLabel={text("section_close_navigator")}
                 onPress={() => setDrawerOpen(false)}
                 style={styles.closeButton}
               >
-                <Text style={styles.closeButtonText}>Close</Text>
+                <Text style={styles.closeButtonText}>{text("section_close")}</Text>
               </Pressable>
             </View>
             <ScrollView contentContainerStyle={styles.drawerRows}>
@@ -152,7 +158,7 @@ export function SectionNavigator({
                       {`${index + 1}. ${section.title}`}
                     </Text>
                     <Text style={[styles.status, styles[`status_${section.status}`]]}>
-                      {STATUS_LABELS[section.status] || section.status}
+                      {statusLabel(section.status)}
                       {section.total ? ` · ${section.answered}/${section.total}` : ""}
                     </Text>
                   </View>
@@ -161,7 +167,7 @@ export function SectionNavigator({
             </ScrollView>
           </View>
           <Pressable
-            accessibilityLabel="Close section navigator"
+            accessibilityLabel={text("section_close_navigator")}
             onPress={() => setDrawerOpen(false)}
             style={styles.scrim}
           />
@@ -171,10 +177,12 @@ export function SectionNavigator({
   );
 }
 
-function WideSectionNavigator({ sections, onSelect }) {
+function WideSectionNavigator({ model, sections, onSelect }) {
+  const text = (key) => getNativeFormText(model, key, NATIVE_FORM_DIALOG_TEXT[key]);
+  const statusLabel = (status) => STATUS_LABELS[status] ? text(STATUS_LABELS[status]) : status;
   return (
     <View style={styles.wrap}>
-      <Text style={styles.heading}>Sections</Text>
+      <Text style={styles.heading}>{text("section_sections")}</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.items}>
         {sections.map((section) => (
           <Pressable
@@ -191,7 +199,7 @@ function WideSectionNavigator({ sections, onSelect }) {
               {section.title}
             </Text>
             <Text style={[styles.status, styles[`status_${section.status}`]]}>
-              {STATUS_LABELS[section.status] || section.status}
+              {statusLabel(section.status)}
               {section.total ? ` · ${section.answered}/${section.total}` : ""}
             </Text>
           </Pressable>

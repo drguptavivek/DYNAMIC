@@ -1,3 +1,5 @@
+import { showFormAlert } from "../../../lib/nativeFormPopups.js";
+import { formatNativeFormText, getNativeFormText } from "../../../lib/nativeFormText.js";
 /**
  * Renders repeat entries with a count, explicit row selection, editing, addition, and deletion.
  */
@@ -150,7 +152,7 @@ export function DynamicPanelRenderer({
     const answeredQuestion = (panel.questions || []).find(
       (item) => !item.isReadOnly && item.value !== undefined && item.value !== null && item.value !== ""
     );
-    return answeredQuestion ? String(answeredQuestion.value) : `Entry ${index + 1}`;
+    return answeredQuestion ? String(answeredQuestion.value) : formatNativeFormText(question.survey, "entry_entrynumber", "Entry {entryNumber}", { entryNumber: index + 1 }, locale);
   }
 
   function removeEntry(index) {
@@ -213,19 +215,19 @@ export function DynamicPanelRenderer({
       visitorPromptOpenRef.current
     ) return;
     visitorPromptOpenRef.current = true;
-    Alert.alert(
-      "Confirm household membership",
-      BHQ_VISITOR_CONFIRMATION_MESSAGE,
+    showFormAlert(question.survey, Alert.alert,
+      getNativeFormText(question.survey, "confirm_household_membership", "Confirm household membership", locale),
+      getNativeFormText(question.survey, "bhq_visitor_confirmation", BHQ_VISITOR_CONFIRMATION_MESSAGE, locale),
       [
         {
-          text: "VISITOR",
+          text: getNativeFormText(question.survey, "visitor", "VISITOR", locale),
           onPress: () => {
             visitorPromptOpenRef.current = false;
             removeEntry(editingIndex);
           },
         },
         {
-          text: "MEMBER",
+          text: getNativeFormText(question.survey, "member", "MEMBER", locale),
           onPress: () => {
             visitorPromptOpenRef.current = false;
             clearBhqResidenceMonths(residenceQuestion);
@@ -347,9 +349,9 @@ export function DynamicPanelRenderer({
     setEditorMode(null);
     onChange?.();
     confirmCommittedHhqMobileNumber(question, activePanel, () => {
-      Alert.alert(
-        "Confirm mobile number",
-        MOBILE_CONFIRMATION_MESSAGE,
+      showFormAlert(question.survey, Alert.alert,
+        getNativeFormText(question.survey, "confirm_mobile_number", "Confirm mobile number", locale),
+        getNativeFormText(question.survey, "mobile_confirmation", MOBILE_CONFIRMATION_MESSAGE, locale),
         [{ text: "Yes" }, { text: "No" }],
       );
     });
@@ -372,13 +374,13 @@ export function DynamicPanelRenderer({
       <View style={[styles.wrap, styles.dedicatedEditor]}>
         <View style={styles.dedicatedEditorHeader}>
           <View style={styles.dedicatedEditorHeading}>
-            <Text style={styles.dedicatedEditorEyebrow}>Pregnancy entry</Text>
+            <Text style={styles.dedicatedEditorEyebrow}>{getNativeFormText(question.survey, "pregnancy_entry", "Pregnancy entry", locale)}</Text>
             <Text style={styles.dedicatedEditorTitle}>
               {getPanelEditorTitle(panels, editingIndex, editorMode, true)}
             </Text>
           </View>
           <Pressable
-            accessibilityLabel="Close pregnancy entry"
+            accessibilityLabel={getNativeFormText(question.survey, "close_pregnancy_entry", "Close pregnancy entry", locale)}
             hitSlop={6}
             onPress={closeEditor}
             style={styles.dedicatedCloseButton}
@@ -414,8 +416,8 @@ export function DynamicPanelRenderer({
         <Text style={styles.title}>{getNativeQuestionTitle(question, locale)}</Text>
         <Text style={styles.count}>
           {isWqPregnancyHistory
-            ? `${pregnancyGroups.length} ${pregnancyGroups.length === 1 ? "pregnancy" : "pregnancies"}, ${committedPanels.length} ${committedPanels.length === 1 ? "baby/outcome" : "babies/outcomes"}`
-            : `${committedPanels.length} ${committedPanels.length === 1 ? "entry" : "entries"} added`}
+            ? formatNativeFormText(question.survey, "pregnancy_entry_count", `${pregnancyGroups.length} ${pregnancyGroups.length === 1 ? "pregnancy" : "pregnancies"}, ${committedPanels.length} ${committedPanels.length === 1 ? "baby/outcome" : "babies/outcomes"}`, { pregnancyCount: pregnancyGroups.length, outcomeCount: committedPanels.length }, locale)
+            : formatNativeFormText(question.survey, "panel_entry_count", `${committedPanels.length} ${committedPanels.length === 1 ? "entry" : "entries"} added`, { entryCount: committedPanels.length }, locale)}
         </Text>
       </View>
       {isWqPregnancyHistory
@@ -427,18 +429,18 @@ export function DynamicPanelRenderer({
           style={styles.addButton}
         >
           <MaterialCommunityIcons color="#ffffff" name="plus" size={20} />
-          <Text style={controlStyles.buttonText}>{question.addPanelText || "Add row"}</Text>
+          <Text style={controlStyles.buttonText}>{question.addPanelText || getNativeFormText(question.survey, "add_row", "Add row", locale)}</Text>
         </Pressable>
       ) : null}
       {pregnancyGroups.length ? <View style={styles.pregnancyList}>
         {pregnancyGroups.map((group, groupPosition) => (
           <View key={`pregnancy-${group.groupIndex}`} style={styles.pregnancyGroup}>
             <View style={styles.pregnancyHeadingRow}>
-              <Text style={styles.pregnancyTitle}>{`Pregnancy ${group.groupIndex}`}</Text>
+              <Text style={styles.pregnancyTitle}>{formatNativeFormText(question.survey, "pregnancy_pregnancynumber", "Pregnancy {pregnancyNumber}", { pregnancyNumber: group.groupIndex }, locale)}</Text>
               {pregnancyGroups.length > 1 ? (
                 <View style={styles.orderControls}>
                   <Pressable
-                    accessibilityLabel={`Move pregnancy ${group.groupIndex} earlier`}
+                    accessibilityLabel={formatNativeFormText(question.survey, "move_pregnancy_pregnancynumber_earlier", "Move pregnancy {pregnancyNumber} earlier", { pregnancyNumber: group.groupIndex }, locale)}
                     disabled={groupPosition === 0 || editorMode !== null}
                     hitSlop={6}
                     onPress={() => movePregnancy(groupPosition, groupPosition - 1)}
@@ -451,7 +453,7 @@ export function DynamicPanelRenderer({
                     />
                   </Pressable>
                   <Pressable
-                    accessibilityLabel={`Move pregnancy ${group.groupIndex} later`}
+                    accessibilityLabel={formatNativeFormText(question.survey, "move_pregnancy_pregnancynumber_later", "Move pregnancy {pregnancyNumber} later", { pregnancyNumber: group.groupIndex }, locale)}
                     disabled={groupPosition === pregnancyGroups.length - 1 || editorMode !== null}
                     hitSlop={6}
                     onPress={() => movePregnancy(groupPosition, groupPosition + 1)}
@@ -469,11 +471,11 @@ export function DynamicPanelRenderer({
             <ScrollView horizontal nestedScrollEnabled showsHorizontalScrollIndicator>
               <View style={styles.childTable}>
                 <View style={styles.childTableHeader}>
-                  <Text style={[styles.childHeaderText, styles.childSerialCell]}>S.No.</Text>
-                  <Text style={[styles.childHeaderText, styles.childStatusCell]}>Born status</Text>
-                  <Text style={[styles.childHeaderText, styles.childNameCell]}>Name of child</Text>
-                  <Text style={[styles.childHeaderText, styles.childSexCell]}>Sex</Text>
-                  <Text style={[styles.childHeaderText, styles.childDurationCell]}>Pregnancy lasts</Text>
+                  <Text style={[styles.childHeaderText, styles.childSerialCell]}>{getNativeFormText(question.survey, "s_no", "S.No.", locale)}</Text>
+                  <Text style={[styles.childHeaderText, styles.childStatusCell]}>{getNativeFormText(question.survey, "born_status", "Born status", locale)}</Text>
+                  <Text style={[styles.childHeaderText, styles.childNameCell]}>{getNativeFormText(question.survey, "name_of_child", "Name of child", locale)}</Text>
+                  <Text style={[styles.childHeaderText, styles.childSexCell]}>{getNativeFormText(question.survey, "sex", "Sex", locale)}</Text>
+                  <Text style={[styles.childHeaderText, styles.childDurationCell]}>{getNativeFormText(question.survey, "pregnancy_lasts", "Pregnancy lasts", locale)}</Text>
                   <View style={styles.childActionCell} />
                 </View>
                 {group.rows.map(({ panel, panelIndex, multipleBirth }) => {
@@ -520,7 +522,7 @@ export function DynamicPanelRenderer({
                 isWqPregnancyHistory
               )}
             </Text>
-            <Pressable accessibilityLabel="Close entry editor" hitSlop={6} onPress={closeEditor}>
+            <Pressable accessibilityLabel={getNativeFormText(question.survey, "close_entry_editor", "Close entry editor", locale)} hitSlop={6} onPress={closeEditor}>
               <MaterialCommunityIcons color="#475467" name="close-circle-outline" size={22} />
             </Pressable>
           </View>
@@ -568,7 +570,7 @@ export function DynamicPanelRenderer({
           style={styles.addButton}
         >
           <MaterialCommunityIcons color="#ffffff" name="plus" size={20} />
-          <Text style={controlStyles.buttonText}>{question.addPanelText || "Add row"}</Text>
+          <Text style={controlStyles.buttonText}>{question.addPanelText || getNativeFormText(question.survey, "add_row", "Add row", locale)}</Text>
         </Pressable>
       ) : null}
       {registryPanel ? (
@@ -699,12 +701,13 @@ function getPregnancyGroupIndex(panels, editingIndex) {
 
 function getPanelEditorTitle(panels, editingIndex, editorMode, isWqPregnancyHistory) {
   const panel = panels[editingIndex];
+  const survey = panel?.survey;
   const multipleBirth = getWqMultipleBirthRow(panel);
   if (isWqPregnancyHistory) {
     const groupIndex = getPregnancyGroupIndex(panels, editingIndex);
-    return `Pregnancy ${groupIndex} - Baby ${multipleBirth.index} of ${multipleBirth.count}`;
+    return formatNativeFormText(survey, "pregnancy_pregnancynumber_baby_childnumber_of_childcount", "Pregnancy {pregnancyNumber} - Baby {childNumber} of {childCount}", { pregnancyNumber: groupIndex, childNumber: multipleBirth.index, childCount: multipleBirth.count }, survey?.locale);
   }
-  return editorMode === "add" ? "New entry" : `Edit entry ${editingIndex + 1}`;
+  return editorMode === "add" ? getNativeFormText(survey, "new_entry", "New entry", survey?.locale) : formatNativeFormText(survey, "edit_entry_entrynumber", "Edit entry {entryNumber}", { entryNumber: editingIndex + 1 }, survey?.locale);
 }
 
 function RegistryLinkControl({ onClear, onOpen, panel }) {
@@ -712,12 +715,12 @@ function RegistryLinkControl({ onClear, onOpen, panel }) {
   if (!details) {
     return (
       <Pressable
-        accessibilityLabel="Find HDSS person"
+        accessibilityLabel={getNativeFormText(panel?.survey, "find_hdss_person", "Find HDSS person", panel?.survey?.locale)}
         accessibilityRole="button"
         onPress={onOpen}
         style={styles.registryLookupPressable}
       >
-        <Text style={styles.registryLookupText}>Lookup</Text>
+        <Text style={styles.registryLookupText}>{getNativeFormText(panel?.survey, "lookup", "Lookup", panel?.survey?.locale)}</Text>
       </Pressable>
     );
   }
@@ -726,12 +729,12 @@ function RegistryLinkControl({ onClear, onOpen, panel }) {
     .join(" · ");
   return (
     <View style={styles.registryChip}>
-      <Pressable accessibilityLabel="Replace linked HDSS person" onPress={onOpen} style={styles.registryChipBody}>
+      <Pressable accessibilityLabel={getNativeFormText(panel?.survey, "replace_linked_hdss_person", "Replace linked HDSS person", panel?.survey?.locale)} onPress={onOpen} style={styles.registryChipBody}>
         <Text selectable style={styles.registryChipId}>{details.originalId}</Text>
         <Text selectable style={styles.registryChipDetails}>{summary || "HDSS record linked"}</Text>
       </Pressable>
       <Pressable
-        accessibilityLabel="Unlink HDSS person"
+        accessibilityLabel={getNativeFormText(panel?.survey, "unlink_hdss_person", "Unlink HDSS person", panel?.survey?.locale)}
         accessibilityRole="button"
         hitSlop={6}
         onPress={onClear}

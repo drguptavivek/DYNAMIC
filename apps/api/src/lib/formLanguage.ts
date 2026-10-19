@@ -21,28 +21,15 @@ export const SUPPORTED_FORM_LANGUAGES = [
   { code: "te", label: "Telugu" },
 ] as const;
 
+import {
+  applyFormTextTranslations, extractFormTextTranslations, flattenFormText,
+} from "../../../../shared/formTranslation.cjs";
+import type {
+  FormElementTranslation, FormTranslations, FormTextElement,
+} from "../../../../shared/formTranslation.cjs";
+export type { FormElementTranslation, FormTranslations };
+export type FlattenedFormElement = FormTextElement;
 type TranslationChoiceMap = Record<string, string>;
-
-export type FormElementTranslation = {
-  title?: string;
-  description?: string;
-  choices?: TranslationChoiceMap;
-};
-
-export type FormTranslations = Record<string, FormElementTranslation>;
-
-export type FlattenedFormElement = {
-  name: string;
-  type?: string;
-  title: string;
-  description: string;
-  page_name?: string;
-  page_title?: string;
-  source_code?: string;
-  order?: number;
-  section_order?: number;
-  choices: Array<{ value: string; text: string }>;
-};
 
 function normalizeFormCode(formCode: string): string {
   return String(formCode || "").trim().toUpperCase();
@@ -54,38 +41,6 @@ function normalizeLanguageCode(languageCode: string): string {
 
 function cloneJson<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
-}
-
-function localizedText(value: unknown): string {
-  if (typeof value === "string") return value;
-  if (value && typeof value === "object") {
-    const text = value as Record<string, unknown>;
-    const direct = text.default ?? text.en ?? text.english;
-    return typeof direct === "string" ? direct : "";
-  }
-  return "";
-}
-
-function selectedLocalizedText(value: unknown, languageCode?: string): string {
-  const normalizedLanguage = normalizeLanguageCode(languageCode || "");
-  if (!normalizedLanguage) return "";
-  if (!value || typeof value !== "object" || Array.isArray(value)) return "";
-
-  const text = value as Record<string, unknown>;
-  const direct = text[normalizedLanguage] ?? text[normalizedLanguage.toLowerCase()];
-  if (typeof direct === "string") return direct;
-
-  const languageLabel = SUPPORTED_FORM_LANGUAGES.find((language) => language.code === normalizedLanguage)?.label;
-  const labelValue = languageLabel ? text[languageLabel] ?? text[languageLabel.toLowerCase()] : undefined;
-  return typeof labelValue === "string" ? labelValue : "";
-}
-
-function ensureLocalizedObject(value: unknown): Record<string, string> {
-  if (typeof value === "string") return { default: value };
-  if (value && typeof value === "object" && !Array.isArray(value)) {
-    return { ...(value as Record<string, string>) };
-  }
-  return { default: "" };
 }
 
 function normalizeTranslations(value: unknown): FormTranslations {
@@ -117,156 +72,9 @@ function normalizeTranslations(value: unknown): FormTranslations {
   return result;
 }
 
-function iterateElements(items: unknown[], visit: (element: Record<string, unknown>) => void): void {
-  for (const item of items) {
-    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
-    const element = item as Record<string, unknown>;
-    visit(element);
-
-    for (const nestedKey of ["elements", "templateElements", "columns", "rows"]) {
-      const nested = element[nestedKey];
-      if (Array.isArray(nested)) iterateElements(nested, visit);
-    }
-  }
-}
-
-function applyTranslationToChoice(choice: unknown, languageCode: string, text: string): void {
-  if (!choice || typeof choice !== "object") return;
-  const choiceObj = choice as Record<string, unknown>;
-  choiceObj.text = {
-    ...ensureLocalizedObject(choiceObj.text ?? String(choiceObj.value ?? "")),
-    [languageCode]: text,
-  };
-}
-
-export function applyTranslationsToFormJson(
-  formJson: Record<string, unknown>,
-  languageCode: string,
-  translations: FormTranslations,
-): Record<string, unknown> {
-  if (!languageCode || Object.keys(translations).length === 0) return cloneJson(formJson);
-
-  const nextJson = cloneJson(formJson);
-  const pages = Array.isArray(nextJson.pages) ? nextJson.pages : [];
-
-  iterateElements(pages, (element) => {
-    const name = typeof element.name === "string" ? element.name : "";
-    if (!name) return;
-    const translation = translations[name];
-    if (!translation) return;
-
-    if (translation.title) {
-      element.title = {
-        ...ensureLocalizedObject(element.title ?? name),
-        [languageCode]: translation.title,
-      };
-    }
-
-    if (translation.description) {
-      element.description = {
-        ...ensureLocalizedObject(element.description ?? ""),
-        [languageCode]: translation.description,
-      };
-    }
-
-    if (translation.choices && Array.isArray(element.choices)) {
-      for (const choice of element.choices) {
-        const value =
-          choice && typeof choice === "object"
-            ? String((choice as Record<string, unknown>).value ?? "")
-            : String(choice ?? "");
-        const choiceTranslation = translation.choices[value];
-        if (choiceTranslation) applyTranslationToChoice(choice, languageCode, choiceTranslation);
-      }
-    }
-  });
-
-  return nextJson;
-}
-
-export function flattenFormElements(
-  formJson: Record<string, unknown>,
-): FlattenedFormElement[] {
-  const elements: FlattenedFormElement[] = [];
-  const pages = Array.isArray(formJson.pages) ? formJson.pages : [];
-
-  for (const page of pages) {
-    if (!page || typeof page !== "object" || Array.isArray(page)) continue;
-    const pageObj = page as Record<string, unknown>;
-    const pageName = typeof pageObj.name === "string" ? pageObj.name : undefined;
-    const pageTitle = localizedText(pageObj.title);
-    const pageElements = Array.isArray(pageObj.elements) ? pageObj.elements : [];
-
-    iterateElements(pageElements, (element) => {
-      const name = typeof element.name === "string" ? element.name : "";
-      if (!name) return;
-      const choices = Array.isArray(element.choices)
-        ? element.choices.map((choice) => {
-            if (choice && typeof choice === "object") {
-              const choiceObj = choice as Record<string, unknown>;
-              return {
-                value: String(choiceObj.value ?? ""),
-                text: localizedText(choiceObj.text ?? choiceObj.value),
-              };
-            }
-            return { value: String(choice ?? ""), text: String(choice ?? "") };
-          })
-        : [];
-
-      elements.push({
-        name,
-        type: typeof element.type === "string" ? element.type : undefined,
-        title: localizedText(element.title ?? name),
-        description: localizedText(element.description),
-        page_name: pageName,
-        page_title: pageTitle,
-        source_code: typeof element.sourceCode === "string" ? element.sourceCode : undefined,
-        order: typeof element.order === "number" ? element.order : undefined,
-        section_order: typeof element.section_order === "number" ? element.section_order : undefined,
-        choices,
-      });
-    });
-  }
-
-  return elements;
-}
-
-export function extractTranslationsFromFormJson(
-  formJson: Record<string, unknown>,
-  languageCode: string,
-): FormTranslations {
-  const translations: FormTranslations = {};
-  const pages = Array.isArray(formJson.pages) ? formJson.pages : [];
-
-  iterateElements(pages, (element) => {
-    const name = typeof element.name === "string" ? element.name : "";
-    if (!name) return;
-
-    const translation: FormElementTranslation = {};
-    const title = selectedLocalizedText(element.title, languageCode).trim();
-    const description = selectedLocalizedText(element.description, languageCode).trim();
-    if (title) translation.title = title;
-    if (description) translation.description = description;
-
-    if (Array.isArray(element.choices)) {
-      const choices: TranslationChoiceMap = {};
-      for (const choice of element.choices) {
-        if (!choice || typeof choice !== "object") continue;
-        const choiceObj = choice as Record<string, unknown>;
-        const value = String(choiceObj.value ?? "");
-        const text = selectedLocalizedText(choiceObj.text, languageCode).trim();
-        if (value && text) choices[value] = text;
-      }
-      if (Object.keys(choices).length > 0) translation.choices = choices;
-    }
-
-    if (Object.keys(translation).length > 0) {
-      translations[name] = translation;
-    }
-  });
-
-  return translations;
-}
+export const applyTranslationsToFormJson = applyFormTextTranslations;
+export const flattenFormElements = flattenFormText;
+export const extractTranslationsFromFormJson = extractFormTextTranslations;
 
 export function mergeMissingFormTranslations(
   current: FormTranslations,
@@ -314,29 +122,32 @@ export function reconcileFormTranslations(
   bundled: FormTranslations,
   elements: FlattenedFormElement[],
 ): { translations: FormTranslations; changed: boolean } {
-  const activeElements = new Map(elements.map((element) => [element.name, element]));
-  const reconciled: FormTranslations = {};
+  const activeNames = new Set(elements.map((element) => element.name));
+  const activeBundled = Object.fromEntries(Object.entries(bundled).filter(([name]) => activeNames.has(name)));
+  return mergeMissingFormTranslations(normalizeTranslations(current), activeBundled);
+}
 
-  for (const [name, translation] of Object.entries(current)) {
-    const element = activeElements.get(name);
-    if (!element) continue;
-
-    const activeChoiceValues = new Set(element.choices.map((choice) => choice.value));
-    const choices = Object.fromEntries(
-      Object.entries(translation.choices || {}).filter(([value]) => activeChoiceValues.has(value)),
-    );
+// Accept edits only for the current inventory, retaining inactive stored evidence.
+export function mergeFormTranslationEdits(
+  stored: FormTranslations, incoming: FormTranslations, elements: FlattenedFormElement[],
+): FormTranslations {
+  const result = cloneJson(normalizeTranslations(stored));
+  for (const element of elements) {
+    const edit = incoming[element.name] || {};
     const next: FormElementTranslation = {};
-    if (translation.title?.trim()) next.title = translation.title.trim();
-    if (translation.description?.trim()) next.description = translation.description.trim();
-    if (Object.keys(choices).length > 0) next.choices = choices;
-    if (Object.keys(next).length > 0) reconciled[name] = next;
+    if (edit.title?.trim()) next.title = edit.title.trim();
+    if (edit.description?.trim()) next.description = edit.description.trim();
+    const activeChoices = new Set(element.choices.map((choice) => choice.value));
+    const choices = Object.fromEntries(Object.entries(result[element.name]?.choices || {}).filter(([value]) => !activeChoices.has(value)));
+    for (const choice of element.choices) {
+      const text = edit.choices?.[choice.value]?.trim();
+      if (text) choices[choice.value] = text;
+    }
+    if (Object.keys(choices).length) next.choices = choices;
+    if (Object.keys(next).length) result[element.name] = next;
+    else delete result[element.name];
   }
-
-  const merged = mergeMissingFormTranslations(reconciled, bundled).translations;
-  return {
-    translations: merged,
-    changed: JSON.stringify(merged) !== JSON.stringify(normalizeTranslations(current)),
-  };
+  return result;
 }
 
 export async function getStoredTranslations(
@@ -494,12 +305,15 @@ export async function getEffectiveFormJson(
   if (!formJson) return null;
 
   let effectiveJson = cloneJson(formJson);
+  const nativeFormTranslations: Record<string, FormTranslations> = {};
   for (const language of SUPPORTED_FORM_LANGUAGES) {
     if (language.code === "en") continue;
     const translations = await getStoredTranslations(siteId, code, language.code);
     effectiveJson = applyTranslationsToFormJson(effectiveJson, language.code, translations);
+    if (Object.keys(translations).length) nativeFormTranslations[language.code] = translations;
   }
 
+  if (Object.keys(nativeFormTranslations).length) effectiveJson.native_form_translations = nativeFormTranslations;
   return effectiveJson;
 }
 

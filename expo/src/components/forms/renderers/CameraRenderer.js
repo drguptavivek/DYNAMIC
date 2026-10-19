@@ -1,3 +1,4 @@
+import { getNativeFormText } from "../../../lib/nativeFormText.js";
 /** Captures an image with native camera APIs without assuming attachment persistence policy. */
 import React from "react";
 import { Image, Pressable, StyleSheet, Text } from "react-native";
@@ -30,7 +31,7 @@ export function CameraRenderer({ locale, question, onChange }) {
     <QuestionFrame locale={locale} question={question}>
       {images[0]?.uri ? <Image source={{ uri: images[0].uri }} style={styles.preview} /> : null}
       <Pressable onPress={captureImage} style={controlStyles.button}>
-        <Text style={controlStyles.buttonText}>Take photo</Text>
+        <Text style={controlStyles.buttonText}>{getNativeFormText(question.survey, "take_photo", "Take photo", locale)}</Text>
       </Pressable>
     </QuestionFrame>
   );

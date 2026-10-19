@@ -1,3 +1,4 @@
+import { getNativeFormText } from "../../../lib/nativeFormText.js";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import React, { useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -12,6 +13,7 @@ import {
 } from "../nativeSurveyModel.js";
 
 export function WqPregnancyGapReviewRenderer({ question, onChange, onRequestTopLevelFocus }) {
+  const t = (key, fallback) => getNativeFormText(question.survey, key, fallback);
   const history = question.survey?.getQuestionByName?.(WQ_PREGNANCY_HISTORY_PANEL_FIELD);
   const groups = useMemo(
     () => groupWqPregnancyHistoryPanels(history?.panels || []),
@@ -61,11 +63,11 @@ export function WqPregnancyGapReviewRenderer({ question, onChange, onRequestTopL
   if (!groups.length) {
     return (
       <View style={styles.wrap}>
-        <Text style={styles.heading}>Pregnancy history review</Text>
-        <Text style={styles.emptyText}>No pregnancy has been recorded yet.</Text>
+        <Text style={styles.heading}>{t("pregnancy_history_review", "Pregnancy history review")}</Text>
+        <Text style={styles.emptyText}>{t("no_pregnancy_has_been_recorded_yet", "No pregnancy has been recorded yet.")}</Text>
         <Pressable onPress={addPregnancyAtGap} style={styles.addButton}>
           <MaterialCommunityIcons color="#ffffff" name="plus" size={20} />
-          <Text style={styles.addButtonText}>Add pregnancy</Text>
+          <Text style={styles.addButtonText}>{t("add_pregnancy", "Add pregnancy")}</Text>
         </Pressable>
       </View>
     );
@@ -73,24 +75,24 @@ export function WqPregnancyGapReviewRenderer({ question, onChange, onRequestTopL
 
   return (
     <View style={styles.wrap}>
-      <Text style={styles.heading}>Review pregnancies in chronological order</Text>
-      <Text style={styles.help}>Pregnancy 1 is the woman&apos;s first pregnancy.</Text>
+      <Text style={styles.heading}>{t("review_pregnancies_in_chronological_order", "Review pregnancies in chronological order")}</Text>
+      <Text style={styles.help}>{t("pregnancy_1_is_the_woman_s_first_pregnancy", "Pregnancy 1 is the woman's first pregnancy.")}</Text>
       <ScrollView horizontal nestedScrollEnabled showsHorizontalScrollIndicator>
         <View style={styles.table}>
           <View style={[styles.row, styles.headerRow]}>
-            <Text style={[styles.headerText, styles.pregnancyCell]}>Pregnancy</Text>
-            <Text style={[styles.headerText, styles.serialCell]}>S.No.</Text>
-            <Text style={[styles.headerText, styles.statusCell]}>Born status</Text>
-            <Text style={[styles.headerText, styles.nameCell]}>Name of child</Text>
-            <Text style={[styles.headerText, styles.sexCell]}>Sex</Text>
-            <Text style={[styles.headerText, styles.durationCell]}>Pregnancy lasts</Text>
+            <Text style={[styles.headerText, styles.pregnancyCell]}>{t("pregnancy", "Pregnancy")}</Text>
+            <Text style={[styles.headerText, styles.serialCell]}>{t("s_no", "S.No.")}</Text>
+            <Text style={[styles.headerText, styles.statusCell]}>{t("born_status", "Born status")}</Text>
+            <Text style={[styles.headerText, styles.nameCell]}>{t("name_of_child", "Name of child")}</Text>
+            <Text style={[styles.headerText, styles.sexCell]}>{t("sex", "Sex")}</Text>
+            <Text style={[styles.headerText, styles.durationCell]}>{t("pregnancy_lasts", "Pregnancy lasts")}</Text>
           </View>
           {groups.flatMap((group, groupIndex) => group.rows.map(({ panel }, childIndex) => {
-            const child = getWqPregnancyChildSummary(panel);
+            const child = getWqPregnancyChildSummary(panel, question.survey);
             return (
               <View key={`${group.groupIndex}-${childIndex}`} style={styles.row}>
                 <Text style={[styles.cellText, styles.pregnancyCell]}>
-                  {getWqPregnancyReviewLabel(groupIndex, childIndex)}
+                  {getWqPregnancyReviewLabel(groupIndex, childIndex, question.survey)}
                 </Text>
                 <Text style={[styles.cellText, styles.serialCell]}>{childIndex + 1}</Text>
                 <Text style={[styles.cellText, styles.statusCell]}>{child.bornStatus}</Text>
@@ -105,25 +107,25 @@ export function WqPregnancyGapReviewRenderer({ question, onChange, onRequestTopL
 
       <View style={styles.questionBox}>
         <Text style={styles.questionCode}>22_i.</Text>
-        <Text style={styles.questionText}>{getWqPregnancyGapPrompt(groups.length, gapPosition)}</Text>
+        <Text style={styles.questionText}>{getWqPregnancyGapPrompt(groups.length, gapPosition, question.survey)}</Text>
         <View style={styles.answerRow}>
           <Pressable
             onPress={() => chooseDecision("yes")}
             style={[styles.answerButton, decision === "yes" && styles.answerButtonSelected]}
           >
-            <Text style={styles.answerText}>Yes</Text>
+            <Text style={styles.answerText}>{t("yes", "Yes")}</Text>
           </Pressable>
           <Pressable
             onPress={confirmNoMissingPregnancy}
             style={[styles.answerButton, decision === "no" && styles.answerButtonSelected]}
           >
-            <Text style={styles.answerText}>No</Text>
+            <Text style={styles.answerText}>{t("no", "No")}</Text>
           </Pressable>
         </View>
         {decision === "yes" ? (
           <Pressable onPress={addPregnancyAtGap} style={styles.addButton}>
             <MaterialCommunityIcons color="#ffffff" name="plus" size={20} />
-            <Text style={styles.addButtonText}>Add pregnancy here</Text>
+            <Text style={styles.addButtonText}>{t("add_pregnancy_here", "Add pregnancy here")}</Text>
           </Pressable>
         ) : null}
       </View>

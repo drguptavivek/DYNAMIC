@@ -1,3 +1,4 @@
+import { showFormAlert } from "../../../lib/nativeFormPopups.js";
 /** Renders and normalizes a numeric Survey Core question using a native text input. */
 import React, { useRef } from "react";
 import { Alert, TextInput } from "react-native";
@@ -42,7 +43,7 @@ export function NumberRenderer({ answerData, locale, question, onChange }) {
     const enteredValue = String(candidateValue ?? latestValueRef.current ?? "").trim();
     if (!isMobileNumber || !enteredValue || enteredValue === lastPromptedValueRef.current) return;
     lastPromptedValueRef.current = enteredValue;
-    Alert.alert(
+    showFormAlert(question.survey, Alert.alert,
       "Confirm mobile number",
       getMobileNumberConfirmationMessage(question),
       [{ text: "Yes" }, { text: "No" }],

@@ -1,3 +1,4 @@
+import { getNativeFormText } from "../../../lib/nativeFormText.js";
 /** Captures coordinates through native location APIs and records structured answer data. */
 import React, { useState } from "react";
 import { Pressable, Text } from "react-native";
@@ -10,13 +11,13 @@ export function GpsRenderer({ locale, question, onChange }) {
   const isCaptureControl = question.name === "hhq_gps_latitude";
 
   async function capture() {
-    setStatus("Requesting location permission...");
+    setStatus(getNativeFormText(question.survey, "requesting_location_permission", "Requesting location permission...", locale));
     const permission = await Location.requestForegroundPermissionsAsync();
     if (!permission.granted) {
-      setStatus("Location permission was not granted.");
+      setStatus(getNativeFormText(question.survey, "location_permission_was_not_granted", "Location permission was not granted.", locale));
       return;
     }
-    setStatus("Capturing GPS...");
+    setStatus(getNativeFormText(question.survey, "capturing_gps", "Capturing GPS...", locale));
     const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
     const { latitude, longitude, altitude } = position.coords;
     const survey = question.survey;
@@ -25,16 +26,16 @@ export function GpsRenderer({ locale, question, onChange }) {
     if (altitude !== null && altitude !== undefined) {
       survey.setValue("hhq_gps_altitude_m", Number(altitude.toFixed(1)));
     }
-    setStatus("GPS captured from this device.");
+    setStatus(getNativeFormText(question.survey, "gps_captured_from_this_device", "GPS captured from this device.", locale));
     onChange?.();
   }
 
   return (
     <QuestionFrame locale={locale} question={question} tone="display">
-      <Text>{question.value === undefined || question.value === null ? "Not captured" : String(question.value)}</Text>
+      <Text>{question.value === undefined || question.value === null ? getNativeFormText(question.survey, "not_captured", "Not captured", locale) : String(question.value)}</Text>
       {isCaptureControl ? (
         <Pressable onPress={capture} style={controlStyles.button}>
-          <Text style={controlStyles.buttonText}>Capture GPS</Text>
+          <Text style={controlStyles.buttonText}>{getNativeFormText(question.survey, "capture_gps", "Capture GPS", locale)}</Text>
         </Pressable>
       ) : null}
       {status ? <Text style={controlStyles.status}>{status}</Text> : null}
