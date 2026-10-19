@@ -49,6 +49,13 @@ node apps/admin/src/tests/validateFormLanguageManagement.mjs
 node --test shared/formTranslation.test.cjs
 ```
 
+Household assignment range and page-selection checks (no database required):
+
+```bash
+node --test shared/householdAssignmentRange.test.cjs
+node apps/admin/src/tests/validateHouseholdAssignmentPage.mjs
+```
+
 HHQ backend integration on full-push test DB:
 
 ```bash

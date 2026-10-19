@@ -6,6 +6,7 @@ import { db, schema } from "../db";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { sendError, sendSuccess } from "../lib/errors";
 import { addDays, parseISODate, toISODate } from "@dynamic/shared-workflow";
+import { parseHouseholdAssignmentRange } from "../../../../shared/householdAssignmentRange.cjs";
 
 const router = Router();
 const HHQ_ASSIGNMENT_WINDOW_DAYS = 180;
@@ -36,12 +37,6 @@ const clearAssignmentsSchema = z.object({
   user_ids: z.array(z.string().min(1)).optional(),
 });
 
-function parseRange(value: string | undefined): number | undefined {
-  if (!value?.trim()) return undefined;
-  const parsed = Number(value.trim());
-  return Number.isFinite(parsed) ? parsed : undefined;
-}
-
 function buildHhqTaskKey(householdId: string, targetDate: string): string {
   return `${householdId}:household:${householdId}:HHQ:baseline:${targetDate}:v1`;
 }
@@ -58,17 +53,27 @@ router.get(
         return;
       }
 
-      const start = parseRange(query.household_start);
-      const end = parseRange(query.household_end);
+      let range;
+      try {
+        range = parseHouseholdAssignmentRange(query.household_start, query.household_end, {
+          siteId: query.site_id, localityCode: query.locality_code,
+        });
+      } catch (error) {
+        sendError(res, 400, "VALIDATION_ERROR", error instanceof Error ? error.message : "Invalid household range");
+        return;
+      }
       const conditions: any[] = [eq(schema.households.site_id, query.site_id)];
-      if (query.locality_code) {
-        conditions.push(eq(schema.households.locality_code, query.locality_code));
+      if (range.localityCode !== undefined) {
+        conditions.push(eq(schema.households.locality_code, range.localityCode));
       }
-      if (start !== undefined) {
-        conditions.push(sql`cast(${schema.households.household_number} as integer) >= ${start}`);
+      if (range.structureMapId !== undefined) {
+        conditions.push(eq(schema.households.structure_map_id, range.structureMapId));
       }
-      if (end !== undefined) {
-        conditions.push(sql`cast(${schema.households.household_number} as integer) <= ${end}`);
+      if (range.start !== undefined) {
+        conditions.push(sql`cast(${schema.households.household_number} as integer) >= ${range.start}`);
+      }
+      if (range.end !== undefined) {
+        conditions.push(sql`cast(${schema.households.household_number} as integer) <= ${range.end}`);
       }
 
       const rows = await db

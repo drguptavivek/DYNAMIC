@@ -66,6 +66,7 @@ Required admin surfaces:
 | `/children` | Child registry. |
 | `/masters` | Sites, localities, mapping frame, and study masters. |
 | `/users` | User management and active locality assignment summary. |
+| `/field-worker-household-assignment` | Scoped household selection and staff assignment. |
 
 Rules:
 
@@ -73,6 +74,8 @@ Rules:
 - Admin household/member displays use field-meaning labels, not sync internals.
 - Admin correction/data-quality actions must follow active correction policy.
 - Masters and users are controlled admin surfaces, not field-app workflows.
+- Household assignment filters and selection controls remain visible while the table scrolls. The table-header checkbox selects/deselects only the current page; the separate site/locality checkbox selects every household in that scope, ignoring range and search. Changing filters clears selection.
+- Assignment ranges accept inclusive household numbers or full household IDs with the same site/locality/structure prefix. Full IDs must match selected scope; malformed, mixed, conflicting, or reversed bounds are rejected instead of silently disabling filtering.
 
 ## API Surface
 
