@@ -1,3 +1,4 @@
+import { getNativeFormText } from "./nativeFormText.js";
 import { validateWqProgressiveDob } from "./wqProgressiveDob.js";
 
 export const WQ_AGE_FIELD = "wq_age_last_birthday";
@@ -934,11 +935,34 @@ export function applyWqCheck8Confirmation(model) {
   return message;
 }
 
+export const WQ_TRANSFUSION_TIMING_FIELD =
+  "wq_03_other_health_issues_in_which_month_and_year_did_you_have_the_l";
+
+export function validateWqTransfusionTiming(value, referenceDate = new Date()) {
+  if (value === undefined || value === null || value === "" || value === 98 || value === "98") return null;
+  const month = String(value?.month ?? "");
+  const year = String(value?.year ?? "");
+  if (!/^\d{1,2}$/.test(month) || Number(month) < 1 || Number(month) > 12 ||
+      !/^\d{4}$/.test(year) || Number(year) < 1) return "transfusion_date_invalid";
+  if (Number(year) > referenceDate.getFullYear() ||
+      (Number(year) === referenceDate.getFullYear() && Number(month) > referenceDate.getMonth() + 1)) {
+    return "transfusion_date_future";
+  }
+  return null;
+}
+
 // SurveyJS discards question.addError() messages on re-validation triggered by
 // page navigation, so blocking must happen here via options.error; addError
 // above only produces the immediate inline display while the interviewer types.
 export function attachWqValidation(model) {
   model?.onValidateQuestion?.add((sender, options) => {
+    if (options.name === WQ_TRANSFUSION_TIMING_FIELD) {
+      const key = validateWqTransfusionTiming(options.value, wqReferenceDate(sender.getValue(WQ_INTERVIEW_DATE_FIELD)));
+      if (key) options.error = getNativeFormText(sender, key,
+        key === "transfusion_date_future"
+          ? "The last transfusion cannot be later than the interview month."
+          : "Enter a valid month and four-digit year, or select Do not remember.");
+    }
     if (
       options.name === WQ_AGE_FIELD ||
       options.name === WQ_BIRTH_MONTH_YEAR_FIELD ||

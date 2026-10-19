@@ -29,6 +29,7 @@ import { WqPregnancyGapReviewRenderer } from "./WqPregnancyGapReviewRenderer.js"
 import { WqPregnancyHistoryConfirmationRenderer } from "./WqPregnancyHistoryConfirmationRenderer.js";
 import { WqPregnancyOutcomeReviewRenderer } from "./WqPregnancyOutcomeReviewRenderer.js";
 import { WqReproductionComparisonRenderer } from "./WqReproductionComparisonRenderer.js";
+import { WqTransfusionTimingRenderer } from "./WqTransfusionTimingRenderer.js";
 import { WqLmpTimingRenderer } from "./WqLmpTimingRenderer.js";
 import { WqProgressiveDobRenderer } from "./WqProgressiveDobRenderer.js";
 import { WqPregnancySinceLastRenderer } from "./WqPregnancySinceLastRenderer.js";
@@ -99,6 +100,7 @@ function NativeQuestionRendererBase({
         onRequestTopLevelFocus={onRequestTopLevelFocus}
       />
     ); break;
+    case "wq-transfusion-timing": rendered = <WqTransfusionTimingRenderer {...props} />; break;
     case "wq-lmp-timing": rendered = <WqLmpTimingRenderer {...props} />; break;
     case "wq-progressive-dob": rendered = <WqProgressiveDobRenderer {...props} />; break;
     case "wq-born-alive-child-followups": rendered = (

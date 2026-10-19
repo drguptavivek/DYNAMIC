@@ -27,6 +27,10 @@ export const NATIVE_FORM_TEXT = {
     "select_weeks_or_months": "Select weeks or months"
   },
   "WQ": {
+    "transfusion_month": "Month (MM)",
+    "transfusion_year": "Year (YYYY)",
+    "transfusion_date_invalid": "Enter a valid month and four-digit year, or select Do not remember.",
+    "transfusion_date_future": "The last transfusion cannot be later than the interview month.",
     "earlier_summary": "Earlier summary",
     "detailed_history": "Detailed history",
     "total": "Total",

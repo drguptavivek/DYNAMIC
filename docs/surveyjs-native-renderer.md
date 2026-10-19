@@ -44,6 +44,7 @@ Each renderer lives in its own file under `expo/src/components/forms/renderers/`
 | Select many | `type: checkbox` | `SelectManyRenderer.js` |
 | Compound text | `type: multipletext` | `MultipleTextRenderer.js` |
 | Progressive DOB | `renderAs: wq_progressive_dob` | `WqProgressiveDobRenderer.js` |
+| Last transfusion month/year | `renderAs: wq_transfusion_timing` | `WqTransfusionTimingRenderer.js` |
 | Repeat section | `type: paneldynamic` | `DynamicPanelRenderer.js` |
 | Instruction | `type: html` | `InstructionRenderer.js` |
 | Calculate | `renderAs: readonly_calculated_numeric` | `CalculateRenderer.js` |
@@ -81,6 +82,8 @@ Survey Core is the authoritative validation runtime on Android and web.
 Missing translations follow Survey Core's definition fallback rules. Renderer components must not keep independent translated copies of protocol labels.
 
 Date questions use the native platform calendar. Android renders the React Native community date-picker calendar; web opens the browser's native date input. The interviewer-facing control displays `DD-MMM-YYYY`, while Survey Core continues to store the stable ISO `YYYY-MM-DD` value.
+
+BWQ Q9b keeps its original answer key and Q9a visibility rule. Its native month/year control stores `{ month, year }` for a known month and year, or the existing code `98` for Do not remember. Existing numeric or string `98` answers remain readable. Labels and validation text are part of the shared admin translation and CSV inventory.
 
 ## Section State And Navigation
 

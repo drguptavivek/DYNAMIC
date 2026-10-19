@@ -889,13 +889,15 @@ function addWqStablePregnancyRowId(surveyJson) {
   };
 }
 
-function markWqLmpTimingControl(surveyJson) {
+function markWqTimingControls(surveyJson) {
   return {
     ...surveyJson,
     pages: surveyJson.pages.map((page) => ({
       ...page,
       elements: page.elements.map((element) =>
-        element.name === WQ_Q33A_NAME
+        element.name === "wq_03_other_health_issues_in_which_month_and_year_did_you_have_the_l"
+          ? { ...element, type: "text", renderAs: "wq_transfusion_timing" }
+          : element.name === WQ_Q33A_NAME
           ? { ...element, renderAs: "wq_lmp_timing" }
           : element
       ),
@@ -1485,7 +1487,7 @@ export function prepareQuestionnaireSurveyJson(form) {
     surveyJson = addWqStablePregnancyRowId(surveyJson);
     surveyJson = applyWqBornAliveChildFollowupLoop(surveyJson);
     surveyJson = applyWqReproductionComparisonTable(surveyJson);
-    surveyJson = markWqLmpTimingControl(surveyJson);
+    surveyJson = markWqTimingControls(surveyJson);
   }
   if (isWqForm(form)) {
     const visit = (node) => {

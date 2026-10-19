@@ -746,6 +746,7 @@ export function getNativeRendererKind(question) {
   const isWqReproductionComparison = question.name === WQ_REPRODUCTION_COMPARISON_FIELD;
   const isWqLmpTiming = question.name === WQ_LMP_TIMING_FIELD;
   const isWqProgressiveDob = question.name === WQ_PROGRESSIVE_DOB_FIELD;
+  if (renderAs === "wq_transfusion_timing") return "wq-transfusion-timing";
   if (renderAs === "readonly_calculated_numeric") return "calculate";
   if (renderAs === "readonly_summary") return "display";
   if (renderAs === "db_check") return "db-check";
@@ -836,6 +837,9 @@ function isEmptyValue(value) {
 
 function displayValue(question) {
   if (isEmptyValue(question?.value)) return "-";
+  if (question?.renderAs === "wq_transfusion_timing" && String(question.value) === "98") {
+    return getNativeQuestionChoices(question, question.survey?.locale).find((choice) => String(choice.value) === "98")?.text || "98";
+  }
   if (["pef_ultrasound_reports", "form_ultrasound_reports"].includes(question?.renderAs)) {
     const reports = Array.isArray(question.value?.reports) ? question.value.reports : [];
     return reports.length > 0
