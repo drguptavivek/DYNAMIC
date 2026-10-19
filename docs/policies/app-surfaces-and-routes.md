@@ -34,6 +34,8 @@ Rules:
 - Form popup titles, bodies, buttons, and section-drawer labels use the same inventory. Translate only their displayed text after the original form decisions; preserve confirmation callbacks, cancellation behavior, required acknowledgements, and dynamic values. Unknown server errors retain their original text.
 - Existing named-question translation keys remain valid. Additional entries use stable `@form`, `@page:`, `@text:`, and `@native:` keys within the existing translation JSON and CSV columns; they are text, never answers or workflow fields.
 - Loading the editor does not write translations. Saving active entries preserves previously stored translations for inactive fields and choices; permissions still control all edits.
+- CSV export includes the entire current inventory in questionnaire order, retains its original nine columns and exact internal variable/option codes, and appends display form code, version, and definition checksum. Export filenames use BHQ/BWQ display aliases. Import checks supplied form/language/checksum metadata before preview, preserves canonical keys including whitespace, and requires preview plus confirmation before saving. Legacy CSV files without the new metadata remain supported.
+- Delayed definition loads or file reads must not replace the currently selected form/language or enable an export/import/save for stale data.
 - Protocol downloads retain the raw questionnaire definition and carry translation overlays for application after Android's presentation transforms. Preparing or translating text must not change expressions, required rules, answer keys, task scheduling, or interview language locking.
 
 ## Runtime Site And Locality Choices

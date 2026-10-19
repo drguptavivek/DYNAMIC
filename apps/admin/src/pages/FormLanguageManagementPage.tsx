@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../lib/api";
 import { getFormDisplayCode } from "../../../../expo/src/lib/formDisplayCodes.js";
 import styles from "./FormLanguageManagementPage.module.css";
@@ -134,6 +134,7 @@ function parseCsv(text: string): string[][] {
   let row: string[] = [];
   let value = "";
   let quoted = false;
+  let closedQuote = false;
 
   for (let index = 0; index < text.length; index += 1) {
     const char = text[index];
@@ -145,6 +146,7 @@ function parseCsv(text: string): string[][] {
         index += 1;
       } else if (char === '"') {
         quoted = false;
+        closedQuote = true;
       } else {
         value += char;
       }
@@ -152,20 +154,26 @@ function parseCsv(text: string): string[][] {
     }
 
     if (char === '"') {
+      if (value !== "" || closedQuote) throw new Error("CSV contains a misplaced quote.");
       quoted = true;
     } else if (char === ",") {
       row.push(value);
       value = "";
-    } else if (char === "\n") {
+      closedQuote = false;
+    } else if (char === "\n" || char === "\r") {
+      if (char === "\r" && nextChar === "\n") index += 1;
       row.push(value);
       rows.push(row);
       row = [];
       value = "";
-    } else if (char !== "\r") {
+      closedQuote = false;
+    } else {
+      if (closedQuote) throw new Error("CSV contains text after a closing quote.");
       value += char;
     }
   }
 
+  if (quoted) throw new Error("CSV contains an unterminated quoted field.");
   row.push(value);
   if (row.some((cell) => cell.trim() !== "")) rows.push(row);
   return rows;
@@ -180,11 +188,12 @@ function canonicalChoiceValue(element: FormElement, rawValue: string): string | 
   const exactChoice = element.choices.find((choice) => String(choice.value) === trimmedValue);
   if (exactChoice) return String(exactChoice.value);
 
+  if (!trimmedValue) return null;
   const numericValue = Number(trimmedValue);
   if (!Number.isFinite(numericValue)) return null;
 
-  const numericChoice = element.choices.find((choice) => Number(choice.value) === numericValue);
-  return numericChoice ? String(numericChoice.value) : null;
+  const numericChoices = element.choices.filter((choice) => String(choice.value).trim() !== "" && Number(choice.value) === numericValue);
+  return numericChoices.length === 1 ? String(numericChoices[0].value) : null;
 }
 
 function downloadTextFile(filename: string, content: string) {
@@ -224,6 +233,15 @@ export default function FormLanguageManagementPage() {
   const [importTranslations, setImportTranslations] = useState<TranslationMap | null>(null);
   const [permissionForm, setPermissionForm] = useState("");
   const [permissionLanguage, setPermissionLanguage] = useState("hi");
+  const contextKey = `${selectedForm}|${selectedSite}|${selectedLanguage}`;
+  const currentContext = useRef(contextKey);
+  currentContext.current = contextKey;
+  const loadGeneration = useRef(0);
+  const importGeneration = useRef(0);
+  const [loadedContext, setLoadedContext] = useState("");
+  const [importContext, setImportContext] = useState("");
+  const contextReady = loadedContext === contextKey && !loading;
+  const isCurrentContext = () => currentContext.current === contextKey;
 
   const permissionLookup = useMemo(() => {
     return new Map(
@@ -293,6 +311,16 @@ export default function FormLanguageManagementPage() {
   }
 
   async function loadFormLanguage(cacheBust = false) {
+    if (!isCurrentContext() || !selectedForm || !selectedSite || !selectedLanguage) return;
+    const generation = ++loadGeneration.current;
+    const isCurrentRequest = () => isCurrentContext() && generation === loadGeneration.current;
+    importGeneration.current += 1;
+    setLoadedContext("");
+    setImportContext("");
+    setEditingElements(new Set());
+    setEditingChoices(new Set());
+    setImportPreviewRows([]);
+    setImportTranslations(null);
     setLoading(true);
     setError("");
     setMessage("");
@@ -305,16 +333,19 @@ export default function FormLanguageManagementPage() {
       const data = await api.get<FormLanguageDetail>(
         `/form-language-management/forms/${selectedForm}?${params.toString()}`,
       );
+      if (!isCurrentRequest()) return;
       setElements(data.elements);
       setLoadedFormVersion(data.form_version || "");
       setLoadedFormChecksum(data.form_checksum || "");
       setTranslations(data.translations || {});
       setCanEdit(data.can_edit);
+      setLoadedContext(contextKey);
       setEditingElements(new Set());
       setEditingChoices(new Set());
       setImportPreviewRows([]);
       setImportTranslations(null);
     } catch (err) {
+      if (!isCurrentRequest()) return;
       setError(err instanceof Error ? err.message : "Failed to load selected form language");
       setElements([]);
       setLoadedFormVersion("");
@@ -322,7 +353,7 @@ export default function FormLanguageManagementPage() {
       setTranslations({});
       setCanEdit(false);
     } finally {
-      setLoading(false);
+      if (isCurrentRequest()) setLoading(false);
     }
   }
 
@@ -350,7 +381,7 @@ export default function FormLanguageManagementPage() {
   }
 
   async function saveTranslations(closeElementName?: string, closeChoiceKey?: string) {
-    if (!selectedForm || !selectedSite) return false;
+    if (!contextReady || !isCurrentContext() || !canEdit || saving) return false;
     setSaving(true);
     setError("");
     setMessage("");
@@ -360,8 +391,10 @@ export default function FormLanguageManagementPage() {
         language_code: selectedLanguage,
         translations: buildCleanTranslations(translations),
       });
+      if (!isCurrentContext()) return true;
       setMessage("Translations saved. Field devices will receive them after Sync Now.");
       await loadFormLanguage();
+      if (!isCurrentContext()) return true;
       if (closeElementName) {
         setEditingElements((current) => {
           const next = new Set(current);
@@ -378,7 +411,7 @@ export default function FormLanguageManagementPage() {
       }
       return true;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save translations");
+      if (isCurrentContext()) setError(err instanceof Error ? err.message : "Failed to save translations");
       return false;
     } finally {
       setSaving(false);
@@ -386,7 +419,7 @@ export default function FormLanguageManagementPage() {
   }
 
   function startEditingElement(name: string) {
-    if (!canEdit) return;
+    if (!canEdit || !contextReady || !isCurrentContext() || saving) return;
     setEditingElements((current) => new Set(current).add(name));
   }
 
@@ -399,7 +432,7 @@ export default function FormLanguageManagementPage() {
   }
 
   function startEditingChoice(name: string, choiceValue: string) {
-    if (!canEdit) return;
+    if (!canEdit || !contextReady || !isCurrentContext() || saving) return;
     setEditingChoices((current) => new Set(current).add(choiceEditKey(name, choiceValue)));
   }
 
@@ -461,6 +494,9 @@ export default function FormLanguageManagementPage() {
         "default_text",
         "target_language",
         "translated_text",
+        "form_display_code",
+        "form_version",
+        "form_checksum",
       ],
     ];
 
@@ -510,16 +546,21 @@ export default function FormLanguageManagementPage() {
       }
     }
 
-    return rows;
+    return rows.map((row, index) => index === 0 ? row : [...row, getFormDisplayCode(selectedForm), loadedFormVersion, loadedFormChecksum]);
   }
 
   function exportTranslationCsv() {
-    if (!selectedForm || !selectedSite || !selectedLanguage || elements.length === 0) return;
+    if (!contextReady || !isCurrentContext() || elements.length === 0) return;
     const csv = `\uFEFF${buildExportRows().map((row) => row.map(csvEscape).join(",")).join("\r\n")}`;
-    downloadTextFile(`${selectedForm}-${selectedLanguage}-translations.csv`, csv);
+    downloadTextFile(`${getFormDisplayCode(selectedForm)}-${selectedLanguage}-translations.csv`, csv);
   }
 
   async function previewTranslationCsv(file: File | null) {
+    if (!contextReady || !isCurrentContext() || saving) return;
+    const generation = ++importGeneration.current;
+    const formGeneration = loadGeneration.current;
+    const isCurrentImport = () => isCurrentContext() && generation === importGeneration.current && formGeneration === loadGeneration.current;
+    setImportContext("");
     setError("");
     setMessage("");
     setImportPreviewRows([]);
@@ -528,6 +569,7 @@ export default function FormLanguageManagementPage() {
 
     try {
       const text = await file.text();
+      if (!isCurrentImport()) return;
       const rows = parseCsv(text.replace(/^\uFEFF/, ""));
       if (rows.length < 2) {
         setError("CSV has no translation rows.");
@@ -535,6 +577,7 @@ export default function FormLanguageManagementPage() {
       }
 
       const headers = rows[0].map(normalizeHeader);
+      if (new Set(headers).size !== headers.length) throw new Error("CSV contains duplicate column headers.");
       const columnIndex = (name: string) => headers.indexOf(name);
       const variableIndex = columnIndex("variable_name");
       const rowTypeIndex = columnIndex("row_type");
@@ -547,18 +590,37 @@ export default function FormLanguageManagementPage() {
         return;
       }
 
+      const acceptedForms = new Set([selectedForm, getFormDisplayCode(selectedForm)].map((value) => value.toLowerCase()));
+      const acceptedLanguages = new Set([selectedLanguage, languages.find((language) => language.code === selectedLanguage)?.label || selectedLanguage].map((value) => value.toLowerCase()));
+      for (const [index, cells] of rows.slice(1).entries()) {
+        for (const column of ["form_code", "form_display_code"]) {
+          const value = (cells[columnIndex(column)] || "").trim();
+          if (value && !acceptedForms.has(value.toLowerCase())) throw new Error(`CSV row ${index + 2} belongs to a different form. Select the matching form before importing.`);
+        }
+        const language = (cells[columnIndex("target_language")] || "").trim();
+        if (language && !acceptedLanguages.has(language.toLowerCase())) throw new Error(`CSV row ${index + 2} belongs to a different target language.`);
+        const checksum = (cells[columnIndex("form_checksum")] || "").trim();
+        if (checksum && checksum.toLowerCase() !== loadedFormChecksum.toLowerCase()) throw new Error(`CSV row ${index + 2} uses an older questionnaire definition. Refresh latest and export a new codebook before importing.`);
+      }
+
       const elementLookup = new Map(elements.map((element) => [element.name, element]));
+      const trimmedElementLookup = new Map<string, FormElement | null>();
+      for (const element of elements) {
+        const trimmedName = element.name.trim();
+        trimmedElementLookup.set(trimmedName, trimmedElementLookup.has(trimmedName) ? null : element);
+      }
       const nextTranslations: TranslationMap = { ...translations };
       const previewRows: ImportPreviewRow[] = [];
 
       rows.slice(1).forEach((cells, index) => {
         const rowNumber = index + 2;
-        const variableName = (cells[variableIndex] || "").trim();
+        const rawVariableName = cells[variableIndex] || "";
+        const element = elementLookup.get(rawVariableName) || trimmedElementLookup.get(rawVariableName.trim());
+        const variableName = element?.name || rawVariableName.trim();
         const rowType = (cells[rowTypeIndex] || "").trim().toLowerCase();
         const optionValue = optionValueIndex >= 0 ? (cells[optionValueIndex] || "").trim() : "";
         const defaultText = defaultTextIndex >= 0 ? cells[defaultTextIndex] || "" : "";
         const translatedText = (cells[translatedTextIndex] || "").trim();
-        const element = elementLookup.get(variableName);
 
         let status: ImportPreviewRow["status"] = "ignored";
         let rowMessage = "";
@@ -616,14 +678,15 @@ export default function FormLanguageManagementPage() {
 
       setImportPreviewRows(previewRows);
       setImportTranslations(nextTranslations);
+      setImportContext(contextKey);
       setMessage(`${previewRows.filter((row) => row.status === "matched").length} CSV rows matched. Review preview, then add imported translations.`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not read CSV file.");
+      if (isCurrentImport()) setError(err instanceof Error ? err.message : "Could not read CSV file.");
     }
   }
 
   async function addImportedTranslations() {
-    if (!importTranslations) return;
+    if (!importTranslations || !contextReady || !isCurrentContext() || importContext !== contextKey || !canEdit || saving) return;
     const matchedRows = importPreviewRows.filter((row) => row.status === "matched").length;
     const confirmed = window.confirm(
       `Are you sure you want to save ${matchedRows} imported translation rows for this questionnaire language?`,
@@ -640,13 +703,16 @@ export default function FormLanguageManagementPage() {
         language_code: selectedLanguage,
         translations: buildCleanTranslations(importTranslations),
       });
+      if (!isCurrentContext()) return;
       setMessage("Imported translations saved. Field devices will receive them after Sync Now.");
       setImportPreviewRows([]);
       setImportTranslations(null);
       await loadFormLanguage();
     } catch (err) {
-      setTranslations(previousTranslations);
-      setError(err instanceof Error ? err.message : "Failed to save imported translations");
+      if (isCurrentContext()) {
+        setTranslations(previousTranslations);
+        setError(err instanceof Error ? err.message : "Failed to save imported translations");
+      }
     } finally {
       setSaving(false);
     }
@@ -806,7 +872,7 @@ export default function FormLanguageManagementPage() {
               className={styles.secondaryButton}
               type="button"
               onClick={exportTranslationCsv}
-              disabled={loading || elements.length === 0}
+              disabled={!contextReady || elements.length === 0}
             >
               Export CSV
             </button>
@@ -815,6 +881,7 @@ export default function FormLanguageManagementPage() {
               <input
                 accept=".csv,text/csv"
                 type="file"
+                disabled={!contextReady || saving}
                 onChange={(event) => {
                   void previewTranslationCsv(event.target.files?.[0] || null);
                   event.currentTarget.value = "";
@@ -839,7 +906,7 @@ export default function FormLanguageManagementPage() {
                   className={styles.button}
                   type="button"
                   onClick={() => void addImportedTranslations()}
-                  disabled={!canEdit || saving || importPreviewRows.every((row) => row.status !== "matched")}
+                  disabled={!contextReady || importContext !== contextKey || !canEdit || saving || importPreviewRows.every((row) => row.status !== "matched")}
                 >
                   Add imported translations
                 </button>
@@ -884,7 +951,7 @@ export default function FormLanguageManagementPage() {
           </div>
         ) : null}
 
-        {elements.length === 0 ? (
+        {!contextReady || elements.length === 0 ? (
           <div className={styles.emptyState}>Select a form, site, and language to load questionnaire text.</div>
         ) : (
           <div className={styles.editorRows}>
@@ -916,7 +983,7 @@ export default function FormLanguageManagementPage() {
                           lang={selectedLanguage}
                           dir="auto"
                           value={translations[element.name]?.title || ""}
-                          disabled={saving}
+                          disabled={!contextReady || saving}
                           onChange={(event) => setQuestionTranslation(element.name, "title", event.target.value)}
                           placeholder="Translated text"
                         />
@@ -926,7 +993,7 @@ export default function FormLanguageManagementPage() {
                             lang={selectedLanguage}
                             dir="auto"
                             value={translations[element.name]?.description || ""}
-                            disabled={saving}
+                            disabled={!contextReady || saving}
                             onChange={(event) => setQuestionTranslation(element.name, "description", event.target.value)}
                             placeholder="Help text"
                           />
@@ -960,7 +1027,7 @@ export default function FormLanguageManagementPage() {
                         className={styles.smallButton}
                         type="button"
                         onClick={() => startEditingElement(element.name)}
-                        disabled={!canEdit || saving}
+                        disabled={!contextReady || !canEdit || saving}
                       >
                         Edit
                       </button>
@@ -981,7 +1048,7 @@ export default function FormLanguageManagementPage() {
                               lang={selectedLanguage}
                               dir="auto"
                               value={translations[element.name]?.choices?.[choice.value] || ""}
-                              disabled={saving}
+                              disabled={!contextReady || saving}
                               onChange={(event) => setChoiceTranslation(element.name, choice.value, event.target.value)}
                               placeholder="Option text"
                             />
@@ -1015,7 +1082,7 @@ export default function FormLanguageManagementPage() {
                                 className={styles.smallButton}
                                 type="button"
                                 onClick={() => startEditingChoice(element.name, choice.value)}
-                                disabled={!canEdit || saving}
+                                disabled={!contextReady || !canEdit || saving}
                               >
                                 Edit
                               </button>
