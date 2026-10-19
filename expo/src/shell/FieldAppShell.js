@@ -14,10 +14,9 @@ import {
   View,
 } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
-import * as Application from "expo-application";
 import { SafeAreaView } from "react-native-safe-area-context";
-import appConfig from "../../app.json";
 
+import { AppVersionLabel } from "../components/AppVersionLabel.js";
 import { TaskDetailModal } from "../modules/worklist/TaskDetailModal.js";
 import { SHELL_NAV_ITEMS } from "../navigation/appNavigation.js";
 import { navigateTo } from "../navigation/routes.js";
@@ -271,6 +270,7 @@ function AppLockScreen() {
         <View style={styles.loginBox}>
           <Text style={styles.loginTitle}>DYNAMIC</Text>
           <Text style={styles.loginSubtitle}>{setupMode ? "Create App PIN" : "App Locked"}</Text>
+          <AppVersionLabel style={styles.appVersion} />
 
           {forgotMode ? (
             <TextInput
@@ -456,9 +456,7 @@ function LoginScreen() {
         <View style={styles.loginBox}>
           <Text style={styles.loginTitle}>DYNAMIC</Text>
           <Text style={styles.loginSubtitle}>Field Worker Login</Text>
-          <Text style={styles.appVersion}>
-            Version {Application.nativeApplicationVersion || appConfig.expo.version}
-          </Text>
+          <AppVersionLabel style={styles.appVersion} />
 
           <TextInput
             style={styles.loginInput}

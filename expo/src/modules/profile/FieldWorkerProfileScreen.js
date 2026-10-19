@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { buildFieldWorkerProfile } from "./profileData.js";
+import { AppVersionLabel } from "../../components/AppVersionLabel.js";
 import { listTasks } from "../tasks/taskRepository.js";
 import { useFieldApp } from "../../shell/FieldAppProvider.js";
 import { buildTimingExport, clearTimings, listTimings, summarizeTimings } from "../../lib/perfLog.js";
@@ -90,6 +91,7 @@ export function FieldWorkerProfileScreen({ user, localities }) {
       <View style={styles.header}>
         <Text style={styles.title}>Field Worker Profile</Text>
         <Text style={styles.subtitle}>{profile.display_name}</Text>
+        <AppVersionLabel style={styles.subtitle} />
       </View>
 
       <View style={styles.section}>
