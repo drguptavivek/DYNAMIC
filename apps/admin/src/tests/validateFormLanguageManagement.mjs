@@ -257,6 +257,24 @@ try {
     assert.deepEqual(rows[0].slice(0, 9), ['order', 'form_code', 'variable_name', 'row_type', 'option_value', 'default_language', 'default_text', 'target_language', 'translated_text']);
     assert.deepEqual(rows[0].slice(9), ['form_display_code', 'form_version', 'form_checksum']);
     const definition = canonicalForms[form.form_code];
+    const displayedKeys = nodes().filter(node => node.type === 'article').map(node => node.key);
+    assert.deepEqual([...displayedKeys].sort(), definition.elements.map(element => element.name).sort(), `${form.form_code}: grouping retains every translation exactly once`);
+    const questionnaireBox = nodes().find(node => node.props?.['data-translation-group'] === 'questionnaire');
+    const appBox = nodes().find(node => node.props?.['data-translation-group'] === 'app');
+    assert.ok(questionnaireBox && appBox, `${form.form_code}: questionnaire and app messages have separate boxes`);
+    const questionnaireKeys = nodes(questionnaireBox).filter(node => node.type === 'article').map(node => node.key);
+    const appKeys = nodes(appBox).filter(node => node.type === 'article').map(node => node.key);
+    assert.ok(questionnaireKeys.includes('@form'));
+    assert.ok(appKeys.includes('@native:popup_draft_saved'));
+    assert.ok(appKeys.every(name => definition.elements.find(element => element.name === name)?.kind === 'native'));
+    const authoredKeys = definition.elements.filter(element => element.kind !== 'native').map(element => element.name);
+    assert.deepEqual(questionnaireKeys.filter(name => authoredKeys.includes(name)), authoredKeys, `${form.form_code}: authored questionnaire order stays intact`);
+    if (form.form_code === 'HHQ') assert.ok(questionnaireKeys.includes('@native:household_characteristics_intro'), 'BHQ page instruction stays with questionnaire');
+    if (form.form_code === 'WQ') {
+      assert.equal(questionnaireKeys[questionnaireKeys.indexOf('@page:page_02_reproduction') + 1], '@native:reproduction_intro', 'BWQ reproduction instruction follows its section heading');
+      const dob = 'wq_01_respondent_s_backgr_in_what_month_and_year_were_you_born';
+      assert.equal(questionnaireKeys[questionnaireKeys.indexOf(dob) + 1], '@native:bwq_dob', 'Native question wording stays next to its questionnaire field');
+    }
     const expected = definition.elements.flatMap(element => [
       [element.name, 'question', '', element.title || element.name],
       ...(element.description ? [[element.name, 'help', '', element.description]] : []),
@@ -300,7 +318,7 @@ try {
     button('Add imported translations').props.onClick(); await settle();
     assert.deepEqual(canonicalSaved[form.form_code], expectedTranslations, `${form.form_code}: Unicode, quotes, newlines and exact option values survive the complete export/import/save cycle`);
     assert.equal(requests.filter(request => request.method === 'get').length, importGetCount, 'Import save also avoids reloading the questionnaire');
-    renderedEntryKeys.slice(importRenderStart).forEach(keys => assert.deepEqual(keys, definition.elements.map(element => element.name), 'Import keeps editor rows mounted'));
+    renderedEntryKeys.slice(importRenderStart).forEach(keys => assert.deepEqual(keys, displayedKeys, 'Import keeps grouped editor rows mounted'));
     lastRows = rows;
   }
   const putCount = () => requests.filter(request => request.method === 'put').length;
@@ -354,7 +372,7 @@ try {
     const definition = canonicalForms[form.form_code];
     const question = definition.elements.findLast(element => element.choices.length > 0);
     assert.ok(question, `${form.form_code} has an option to check`);
-    const entryKeys = definition.elements.map(element => element.name);
+    const entryKeys = nodes().filter(node => node.type === 'article').map(node => node.key);
     for (const kind of ['question', 'choice', 'failure']) {
       const root = article(question.name);
       const choice = question.choices[0];
@@ -396,7 +414,7 @@ try {
   await selectForm('HHQ');
   finishSave(); await settle();
   assert.ok(!text(tree).includes('Late BWQ save must not appear'), 'Late save cannot overwrite a newly selected form');
-  assert.deepEqual(nodes().filter(node => node.type === 'article').map(node => node.key), canonicalForms.HHQ.elements.map(element => element.name));
+  assert.deepEqual(nodes().filter(node => node.type === 'article').map(node => node.key).sort(), canonicalForms.HHQ.elements.map(element => element.name).sort());
   saveResponse = undefined;
   const refreshedEntry = canonicalForms.HHQ.elements[0].name;
   button('Edit', article(refreshedEntry)).props.onClick(); await settle();

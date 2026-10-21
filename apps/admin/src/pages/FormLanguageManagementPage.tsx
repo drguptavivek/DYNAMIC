@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../lib/api";
 import { getFormDisplayCode } from "../../../../expo/src/lib/formDisplayCodes.js";
+import { NATIVE_QUESTION_TITLE_KEYS } from "../../../../expo/src/lib/nativeFormText.js";
 import styles from "./FormLanguageManagementPage.module.css";
 
 interface FormMeta {
@@ -124,6 +125,42 @@ function choiceEditKey(elementName: string, choiceValue: string): string {
   return `${elementName}::${choiceValue}`;
 }
 
+function groupEditorElements(elements: FormElement[]) {
+  const questionnaire = elements.filter((element) => element.kind !== "native");
+  const app: FormElement[] = [];
+  const nativeAnchors = new Map<string, string>([
+    ["household_characteristics_intro", "hhq_household_characteristics_intro"],
+    ["reproduction_intro", "@page:page_02_reproduction"],
+    ...Object.entries(NATIVE_QUESTION_TITLE_KEYS).flatMap(([question, keys]) =>
+      (keys as string[]).map((key): [string, string] => [key, question]),
+    ),
+  ]);
+  const afterQuestion = new Map<string, FormElement[]>();
+  for (const element of elements) {
+    if (element.kind !== "native") continue;
+    const key = element.name.replace(/^@native:/, "");
+    const anchor = key.startsWith("title_fallback_") ? key.slice("title_fallback_".length) : nativeAnchors.get(key);
+    if (!anchor) {
+      app.push(element);
+      continue;
+    }
+    const siblings = afterQuestion.get(anchor) || [];
+    siblings.push(element);
+    afterQuestion.set(anchor, siblings);
+  }
+  const orderedQuestionnaire = questionnaire.flatMap((element) => {
+    const nativeRows = afterQuestion.get(element.name) || [];
+    afterQuestion.delete(element.name);
+    return [element, ...nativeRows];
+  });
+  // Keep a native question variant editable if its conditional anchor is absent.
+  for (const rows of afterQuestion.values()) orderedQuestionnaire.push(...rows);
+  return [
+    { key: "questionnaire", title: "Questionnaire", help: "Questions, headings and help text in form order.", elements: orderedQuestionnaire },
+    { key: "app", title: "App messages and popups", help: "Messages, dialogs and app controls used by this form. These are not questionnaire questions.", elements: app },
+  ].filter((section) => section.elements.length > 0);
+}
+
 function csvEscape(value: unknown): string {
   const text = String(value ?? "");
   return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
@@ -242,6 +279,8 @@ export default function FormLanguageManagementPage() {
   const [importContext, setImportContext] = useState("");
   const contextReady = loadedContext === contextKey && !loading;
   const isCurrentContext = () => currentContext.current === contextKey;
+
+  const editorSections = useMemo(() => groupEditorElements(elements), [elements]);
 
   const permissionLookup = useMemo(() => {
     return new Map(
@@ -961,15 +1000,22 @@ export default function FormLanguageManagementPage() {
         {!contextReady || elements.length === 0 ? (
           <div className={styles.emptyState}>Select a form, site, and language to load questionnaire text.</div>
         ) : (
-          <div className={styles.editorRows}>
-            {elements.map((element) => (
+          <div className={styles.editorSections}>
+            {editorSections.map((section) => (
+            <section className={styles.translationSection} key={section.key} data-translation-group={section.key} aria-labelledby={`translation-section-${section.key}`}>
+              <header className={styles.sectionHeader}>
+                <h2 id={`translation-section-${section.key}`}>{section.title}</h2>
+                <p>{section.help}</p>
+              </header>
+              <div className={styles.editorRows}>
+            {section.elements.map((element) => (
               <article className={styles.questionCard} key={element.name}>
                 <div className={styles.questionHeader}>
                   <div className={styles.questionIdentity}>
                     <div className={styles.questionCode}>{element.name}</div>
                     <div className={styles.questionMeta}>
                       {element.kind ? (
-                        <span>{{ form: "Form heading", page: "Section heading", text: "Instruction / label", native: "App form label" }[element.kind] || element.kind}</span>
+                        <span>{{ form: "Form heading", page: "Section heading", text: "Instruction / label", native: section.key === "questionnaire" ? (element.name.endsWith("_intro") ? "Questionnaire instruction" : "Question text variant") : "App message / label" }[element.kind] || element.kind}</span>
                       ) : null}
                       {element.source_code ? <span>Q{element.source_code}</span> : null}
                       {element.page_title || element.page_name ? (
@@ -1101,6 +1147,9 @@ export default function FormLanguageManagementPage() {
                   </div>
                 ) : null}
               </article>
+            ))}
+              </div>
+            </section>
             ))}
           </div>
         )}
