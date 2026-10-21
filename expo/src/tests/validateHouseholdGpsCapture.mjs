@@ -5,17 +5,25 @@ import { startHouseholdGpsCapture } from "../lib/gpsCapture.js";
 import { readHouseholdGps, buildHouseholdMapsUrl } from "../lib/householdGps.js";
 import { NATIVE_FORM_TEXT } from "../lib/nativeFormText.js";
 import { createSurveyModel } from "../polyfills/surveyCoreNative.js";
+import { beginAppLockMediaActivity, endAppLockMediaActivity, isAppLockMediaActivityActive,
+  resetAppLockMediaActivityForTests } from "../modules/auth/appLockMediaActivity.js";
 
 const timestamp = Date.parse("2026-10-19T10:00:00.000Z");
 const flush = async () => { for (let i = 0; i < 10; i++) await Promise.resolve(); };
-function fixture({ granted = true, enabled = true, synchronous, delayed = false } = {}) {
-  let callback, errorCallback, timeout, resolveWatch;
+function fixture({ granted = true, enabled = true, synchronous, delayed = false,
+  delayedPermission = false, delayedServices = false, permissionError } = {}) {
+  let callback, errorCallback, timeout, resolveWatch, resolvePermission, rejectPermission, resolveServices;
   let removed = 0, watches = 0, waiting = 0, cleared = 0;
   const subscription = { remove: () => removed++ };
   const location = {
     Accuracy: { BestForNavigation: 6 },
-    requestForegroundPermissionsAsync: async () => ({ granted }),
-    hasServicesEnabledAsync: async () => enabled,
+    requestForegroundPermissionsAsync: () => {
+      assert.equal(isAppLockMediaActivityActive(), true, "Only the system permission request needs the app-lock exception");
+      if (permissionError === "throw") throw new Error("permission failed");
+      if (permissionError === "reject") return Promise.reject(new Error("permission failed"));
+      return delayedPermission ? new Promise((resolve, reject) => { resolvePermission = resolve; rejectPermission = reject; }) : Promise.resolve({ granted });
+    },
+    hasServicesEnabledAsync: async () => delayedServices ? new Promise(resolve => { resolveServices = resolve; }) : enabled,
     watchPositionAsync: async (options, receive, fail) => {
       watches++; callback = receive; errorCallback = fail;
       assert.deepEqual(options, { accuracy: 6, timeInterval: 1000, distanceInterval: 0, mayShowUserSettingsDialog: false });
@@ -29,9 +37,64 @@ function fixture({ granted = true, enabled = true, synchronous, delayed = false 
   const outcome = operation.promise.then(gps => ({ gps }), error => ({ error: error.message }));
   return { operation, outcome, emit: p => callback(p), fail: () => errorCallback("native error"),
     expire: () => timeout(), resolveWatch: () => resolveWatch(subscription),
+    resolvePermission: () => resolvePermission({ granted }), rejectPermission: () => rejectPermission(new Error("permission failed")),
+    resolveServices: () => resolveServices(enabled),
     counts: () => ({ removed, watches, waiting, cleared }) };
 }
 const fix = (accuracy = 25, time = timestamp) => ({ timestamp: time, coords: { latitude: 0, longitude: 0, accuracy } });
+resetAppLockMediaActivityForTests();
+for (const granted of [true, false]) {
+  const f = fixture({ delayedPermission: true, granted });
+  assert.equal(isAppLockMediaActivityActive(), true, "Pending Android permission dialog must not immediately trigger PIN lock");
+  await flush(); assert.equal(isAppLockMediaActivityActive(), true);
+  f.resolvePermission(); await flush();
+  assert.equal(isAppLockMediaActivityActive(), false, "The exception must end before waiting for satellites or GPS services");
+  if (granted) {
+    assert.equal(f.counts().watches, 1);
+    f.emit(fix()); assert.ok((await f.outcome).gps);
+  } else {
+    assert.equal((await f.outcome).error, "location_permission_was_not_granted");
+  }
+}
+for (const permissionError of ["throw", "reject"]) {
+  const f = fixture({ permissionError });
+  assert.equal((await f.outcome).error, "gps_capture_failed");
+  assert.equal(isAppLockMediaActivityActive(), false, "Permission exceptions must release app-lock protection");
+  assert.equal(f.counts().watches, 0);
+}
+{
+  const f = fixture({ delayedServices: true, delayed: true }); await flush();
+  assert.equal(isAppLockMediaActivityActive(), false, "Checking enabled services must not inherit the permission exception");
+  f.resolveServices(); await flush();
+  assert.equal(isAppLockMediaActivityActive(), false, "Starting a GPS watch must not inherit the permission exception");
+  f.resolveWatch(); await flush();
+  f.operation.cancel(); await f.outcome;
+}
+for (const action of ["cancel", "expire"]) {
+  for (const settlePermission of ["resolvePermission", "rejectPermission"]) {
+    const f = fixture({ delayedPermission: true });
+    assert.equal(isAppLockMediaActivityActive(), true);
+    if (action === "cancel") f.operation.cancel(); else f.expire();
+    assert.equal((await f.outcome).error, action === "cancel" ? "gps_capture_cancelled" : "gps_timeout");
+    assert.equal(isAppLockMediaActivityActive(), false, "Cancelling or timing out an unresolved permission prompt must release its exception");
+    beginAppLockMediaActivity();
+    f[settlePermission](); await flush();
+    assert.equal(isAppLockMediaActivityActive(), true, "Late permission completion must not release a newer camera operation's exception");
+    assert.equal(f.counts().watches, 0);
+    assert.equal(f.counts().cleared, 1);
+    endAppLockMediaActivity();
+    assert.equal(isAppLockMediaActivityActive(), false);
+  }
+}
+{
+  beginAppLockMediaActivity();
+  const f = fixture({ delayedPermission: true });
+  f.resolvePermission(); await flush();
+  assert.equal(isAppLockMediaActivityActive(), true, "A nested camera operation must survive GPS permission completion");
+  endAppLockMediaActivity();
+  assert.equal(isAppLockMediaActivityActive(), false, "An active GPS watch must not delay ordinary background PIN locking");
+  f.operation.cancel(); await f.outcome;
+}
 {
   const f = fixture(); await flush();
   for (const accuracy of [25.1, null, -1, undefined, '25', NaN, Infinity]) f.emit({ ...fix(), coords: { ...fix().coords, accuracy } });
@@ -76,13 +139,14 @@ assert.equal(buildHouseholdMapsUrl({ latitude: 91, longitude: 2 }), null);
 const compiled = await build({ entryPoints: [fileURLToPath(new URL("../components/forms/renderers/GpsRenderer.js", import.meta.url))],
   bundle: true, write: false, format: "cjs", platform: "node", jsx: "automatic", loader: { ".js": "jsx" },
   plugins: [{ name: "gps-native-mocks", setup(builder) {
-    builder.onResolve({ filter: /^(react|react\/jsx-runtime|react-native|expo-location)$|\/QuestionFrame\.js$/ },
+    builder.onResolve({ filter: /^(react|react\/jsx-runtime|react-native|expo-location)$|\/(QuestionFrame|appLockMediaActivity)\.js$/ },
       args => ({ path: args.path, namespace: "mock" }));
     builder.onLoad({ filter: /.*/, namespace: "mock" }, args => ({ contents:
       args.path === "react" ? 'export default {}; export const useState=x=>globalThis.gpsHarness.state(x),useRef=x=>globalThis.gpsHarness.ref(x),useEffect=x=>globalThis.gpsHarness.effect(x);' :
       args.path === "react/jsx-runtime" ? 'export const Fragment="Fragment",jsx=(type,props)=>({type,props}),jsxs=jsx;' :
       args.path === "react-native" ? 'export const Text="Text",Pressable="Pressable";export const Linking={openURL:url=>globalThis.gpsHarness.openURL(url)};' :
       args.path === "expo-location" ? 'export const Accuracy={BestForNavigation:6},requestForegroundPermissionsAsync=()=>globalThis.gpsHarness.permission(),hasServicesEnabledAsync=async()=>true,watchPositionAsync=(...a)=>globalThis.gpsHarness.watch(...a);' :
+      args.path.endsWith("/appLockMediaActivity.js") ? 'export const beginAppLockMediaActivity=()=>globalThis.gpsHarness.beginPermission(),endAppLockMediaActivity=()=>globalThis.gpsHarness.endPermission();' :
       'export const QuestionFrame="QuestionFrame",controlStyles={};'
     }));
   } }] });
@@ -90,6 +154,7 @@ const module = { exports: {} }; new Function("module", "exports", compiled.outpu
 let hooks = [], cursor = 0, cleanup, changes = 0, requested = 0, removed = 0, callback;
 let urls = [];
 globalThis.gpsHarness = {
+  beginPermission: beginAppLockMediaActivity, endPermission: endAppLockMediaActivity,
   state(value) { const slot = cursor++; if (!(slot in hooks)) hooks[slot] = value; return [hooks[slot], next => { hooks[slot] = next; }]; },
   ref(value) { const slot = cursor++; return hooks[slot] ||= { current: value }; },
   effect(fn) { if (!cleanup) cleanup = fn(); },
@@ -145,10 +210,11 @@ assert.equal(model.getValue("unrelated_answer"), "keep");
 assert.deepEqual(readHouseholdGps(model.data), { latitude: 28.4, longitude: 77.3 });
 assert.ok(!('hhq_gps_accuracy_m' in model.data) && !('hhq_gps_captured_at' in model.data));
 cleanup();
+assert.equal(isAppLockMediaActivityActive(), false, "Renderer capture/unmount paths must not leak the permission exception");
 for (const key of ["gps_latitude", "gps_longitude", "gps_waiting_for_accuracy", "gps_timeout",
   "gps_services_disabled", "gps_capture_failed", "gps_capture_cancelled", "gps_cancel_capture", "gps_open_google_maps",
   "gps_maps_unavailable", "capture_gps", "not_captured", "location_permission_was_not_granted", "requesting_location_permission"]) {
   assert.ok(NATIVE_FORM_TEXT.HHQ[key], key + " must be available for translation/codebook");
 }
 delete globalThis.gpsHarness;
-console.log("Validated offline GPS accuracy, permission/services, fresh fixes, timeout/cancel cleanup, draft preservation, map links, translation, and read-only UI.");
+console.log("Validated GPS permission-only app-lock exception, cancellation/timeout/nested operation cleanup, offline accuracy, fresh fixes, draft preservation, map links, translation, and read-only UI.");

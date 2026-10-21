@@ -1,19 +1,25 @@
 /** Native alert content; keys are shared with the questionnaire translation inventory. */
 const common = {
+  popup_draft_saved: "Form saved as draft.",
+  popup_ok: "OK",
+};
+const householdSubmission = {
   popup_final_submission: "Final submission",
   popup_final_submission_confirmation: "Are you sure you want to final submit this form?",
   popup_form_submitted: "Form is submitted",
-  popup_draft_saved: "Form saved as draft.",
   popup_answer_fields_saved: "{count} answer fields saved on this device.",
   popup_yes: "Yes",
   popup_no: "No",
-  popup_ok: "OK",
-  popup_cancel: "Cancel",
-  popup_delete: "Delete",
+};
+const questionnaireSubmission = {
   popup_unable_to_save: "Unable to save form",
   popup_finalization_failed: "The form could not be finalized.",
+};
+const womanCorrection = {
   popup_correction_period_ended: "Correction period ended",
   popup_correction_draft_failed: "The correction draft could not be saved.",
+  popup_yes: "Yes",
+  popup_no: "No",
 };
 const household = {
   popup_revisit_needed: "Revisit Needed-fill the form again",
@@ -26,7 +32,6 @@ const household = {
 const mobile = {
   confirm_mobile_number: "Confirm mobile number",
   mobile_confirmation: "Read this mobile number to the Respondent and confirm whether the number is correct or not.",
-  popup_partner_mobile_confirmation: "Please read the mobile number to Respondent and confirm that the number is correct or not.",
 };
 const woman = {
   popup_visitor_title: "Are you Really a Visitor ?",
@@ -47,8 +52,13 @@ export const NATIVE_FORM_POPUP_TEXT = Object.fromEntries(
   ["HHQ", "WQ", "HRF", "PEF", "UF", "PFF", "POF", "BAF", "SBF", "NFF", "CDF", "PSF"]
     .map((code) => [code, { ...common }]),
 );
-Object.assign(NATIVE_FORM_POPUP_TEXT.HHQ, household, mobile);
-Object.assign(NATIVE_FORM_POPUP_TEXT.WQ, woman, mobile);
+for (const code of Object.keys(NATIVE_FORM_POPUP_TEXT).filter(code => code !== "HHQ")) {
+  Object.assign(NATIVE_FORM_POPUP_TEXT[code], questionnaireSubmission);
+}
+Object.assign(NATIVE_FORM_POPUP_TEXT.HHQ, householdSubmission, household, mobile);
+Object.assign(NATIVE_FORM_POPUP_TEXT.WQ, womanCorrection, woman, mobile, {
+  popup_partner_mobile_confirmation: "Please read the mobile number to Respondent and confirm that the number is correct or not.",
+});
 Object.assign(NATIVE_FORM_POPUP_TEXT.PEF, {
   popup_database_search_title: "Database search required",
   popup_database_search_message: "Conduct search procedure in the database to locate women in the database.",

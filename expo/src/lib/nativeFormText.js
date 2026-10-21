@@ -50,12 +50,7 @@ export const NATIVE_FORM_TEXT = {
     "name_of_child": "Name of child",
     "sex": "Sex",
     "pregnancy_lasts": "Pregnancy lasts",
-    "lookup": "Lookup",
     "close_pregnancy_entry": "Close pregnancy entry",
-    "close_entry_editor": "Close entry editor",
-    "find_hdss_person": "Find HDSS person",
-    "replace_linked_hdss_person": "Replace linked HDSS person",
-    "unlink_hdss_person": "Unlink HDSS person",
     "comparison_living_left": "Q3a + Q3b\nSons/daughters living with you",
     "comparison_living_right": "Born Alive + Q24 Yes + Q26 Yes",
     "comparison_elsewhere_left": "Q5a + Q5b\nAlive, not living with you",
@@ -86,19 +81,12 @@ export const NATIVE_FORM_TEXT = {
     "miscarriage": "Miscarriage",
     "abortion": "Abortion",
     "add_pregnancy_outcome": "Add pregnancy outcome",
-    "add_entry": "Add entry",
-    "update_entry": "Update entry",
     "update_child_childnumber": "Update child {childNumber}",
     "add_child_childnumber": "Add child {childNumber}",
-    "entry_entrynumber": "Entry {entryNumber}",
     "move_pregnancy_pregnancynumber_earlier": "Move pregnancy {pregnancyNumber} earlier",
     "move_pregnancy_pregnancynumber_later": "Move pregnancy {pregnancyNumber} later",
-    "add_row": "Add row",
     "pregnancy_entry_count": "{pregnancyCount} pregnancies, {outcomeCount} babies/outcomes",
-    "panel_entry_count": "{entryCount} entries added",
     "pregnancy_pregnancynumber_baby_childnumber_of_childcount": "Pregnancy {pregnancyNumber} - Baby {childNumber} of {childCount}",
-    "new_entry": "New entry",
-    "edit_entry_entrynumber": "Edit entry {entryNumber}",
     "bwq_locality_duration": "How long have you been living continuously in {localityName}?\nIf less than one year, record 00 years",
     "bwq_dob": "What is your date of birth?",
     "bwq_pregnancy_outcome_review": "PREGNANCY OUTCOME",
@@ -159,42 +147,20 @@ export const NATIVE_FORM_TEXT = {
     "name_or_name_name": "Name, or name,name",
     "linked": "Linked",
     "select": "Select",
-    "pregnancy_entry": "Pregnancy entry",
-    "s_no": "S.No.",
-    "born_status": "Born status",
-    "name_of_child": "Name of child",
-    "sex": "Sex",
-    "pregnancy_lasts": "Pregnancy lasts",
     "lookup": "Lookup",
-    "close_pregnancy_entry": "Close pregnancy entry",
-    "close_entry_editor": "Close entry editor",
     "replace_linked_hdss_person": "Replace linked HDSS person",
     "unlink_hdss_person": "Unlink HDSS person",
     "household_characteristics_intro": "Now I would like to ask some questions about household environment, household amenities and possessions.",
-    "add_pregnancy_outcome": "Add pregnancy outcome",
-    "add_entry": "Add entry",
-    "update_entry": "Update entry",
-    "entry_entrynumber": "Entry {entryNumber}",
-    "add_row": "Add row",
     "confirm_household_membership": "Confirm household membership",
     "visitor": "VISITOR",
     "member": "MEMBER",
     "confirm_mobile_number": "Confirm mobile number",
     "bhq_visitor_confirmation": "Are you sure this person is a visitor? Confirm and check: is this person a visitor or a member of this household?",
     "mobile_confirmation": "Read this mobile number to the Respondent and confirm whether the number is correct or not.",
-    "panel_entry_count": "{entryCount} entries added",
-    "new_entry": "New entry",
-    "edit_entry_entrynumber": "Edit entry {entryNumber}"
   },
   "UF": {
     "choose_file": "Choose file",
-    "no_file_selected": "No file selected",
-    "retake": "Retake",
-    "camera": "Camera",
-    "replace": "Replace",
-    "gallery": "Gallery",
-    "remove": "Remove",
-    "please_make_sure_the_image_is_not_blurred_or_cropped_ensure_image_quality": "Please make sure the image is not blurred or cropped. Ensure image quality."
+    "no_file_selected": "No file selected"
   }
 };
 
@@ -245,12 +211,29 @@ export const NATIVE_QUESTION_TITLE_KEYS = {
   ]
 };
 
+// These controls render only in the three questionnaires with generic repeat panels.
+const repeatedEntryText = {
+  "preview_row": NATIVE_FORM_DIALOG_TEXT.preview_row,
+  "close_entry_editor": "Close entry editor",
+  "add_entry": "Add entry",
+  "update_entry": "Update entry",
+  "entry_entrynumber": "Entry {entryNumber}",
+  "add_row": "Add row",
+  "panel_entry_count": "{entryCount} entries added",
+  "new_entry": "New entry",
+  "edit_entry_entrynumber": "Edit entry {entryNumber}",
+};
+for (const code of ["HHQ", "WQ", "HRF"]) {
+  NATIVE_FORM_TEXT[code] = { ...NATIVE_FORM_TEXT[code], ...repeatedEntryText };
+}
+
 for (const [code, texts] of Object.entries(NATIVE_FORM_TEXT_EXTRA)) {
   NATIVE_FORM_TEXT[code] = { ...NATIVE_FORM_TEXT[code], ...texts };
 }
 
+const sectionDialogText = Object.fromEntries(Object.entries(NATIVE_FORM_DIALOG_TEXT).filter(([key]) => key !== "preview_row"));
 for (const [code, texts] of Object.entries(NATIVE_FORM_POPUP_TEXT)) {
-  NATIVE_FORM_TEXT[code] = { ...NATIVE_FORM_DIALOG_TEXT, ...texts, ...NATIVE_FORM_TEXT[code] };
+  NATIVE_FORM_TEXT[code] = { ...sectionDialogText, ...texts, ...NATIVE_FORM_TEXT[code] };
 }
 
 export function getNativeFormText(surveyOrForm, key, fallback = "", locale) {

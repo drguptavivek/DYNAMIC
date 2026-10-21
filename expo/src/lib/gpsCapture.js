@@ -1,4 +1,5 @@
 import { readHouseholdGps, MAX_HOUSEHOLD_GPS_ACCURACY_METERS } from "./householdGps.js";
+import { beginAppLockMediaActivity, endAppLockMediaActivity } from "../modules/auth/appLockMediaActivity.js";
 
 /** A fresh GPS watch works offline; only an acceptable fix completes capture. */
 export function startHouseholdGpsCapture(location, { now = Date.now, schedule = setTimeout,
@@ -7,11 +8,18 @@ export function startHouseholdGpsCapture(location, { now = Date.now, schedule = 
   let subscription;
   let resolveResult;
   let rejectResult;
+  let permissionPromptActive = false;
   const started = now();
   const promise = new Promise((resolve, reject) => { resolveResult = resolve; rejectResult = reject; });
+  function endPermissionPrompt() {
+    if (!permissionPromptActive) return;
+    permissionPromptActive = false;
+    endAppLockMediaActivity();
+  }
   function finish(code, gps) {
     if (finished) return;
     finished = true;
+    endPermissionPrompt();
     unschedule(timer);
     subscription?.remove();
     if (code) rejectResult(new Error(code));
@@ -19,7 +27,15 @@ export function startHouseholdGpsCapture(location, { now = Date.now, schedule = 
   }
   const timer = schedule(() => finish("gps_timeout"), 60000);
   (async () => {
-    const permission = await location.requestForegroundPermissionsAsync();
+    // Android's location permission dialog can temporarily background the app.
+    beginAppLockMediaActivity();
+    permissionPromptActive = true;
+    let permission;
+    try {
+      permission = await location.requestForegroundPermissionsAsync();
+    } finally {
+      endPermissionPrompt();
+    }
     if (finished) return;
     if (!permission.granted) return finish("location_permission_was_not_granted");
     const enabled = await location.hasServicesEnabledAsync();

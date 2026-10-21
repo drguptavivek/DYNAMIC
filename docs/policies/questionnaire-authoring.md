@@ -33,6 +33,7 @@ Do question-by-question PDF comparison before questionnaire JSON changes.
 - Keep each renderer capability in a standalone module. Do not hide WebView or `survey-react-ui` fallback behavior behind a native form route.
 - Renderer selection comes from question type/input metadata and explicit rendering hints. Unsupported capabilities fail visibly in development.
 - Regex validators display the definition-owned localized error message at the affected control.
+- Each form's translation editor and codebook include only text reachable in that form, including its native headings, help and popups. Shared renderer branches must not add another form's pregnancy or lookup labels; genuinely shared navigation and save/submit dialogs remain available in each applicable form.
 - Repeated sections show the entry count and allow a specific entry to be selected, edited, or deleted subject to the definition's minimum-row rule.
 - Every new interview requires a language declaration before questionnaire inputs appear. Apply it to the Survey Core locale and language answer, then lock it through filling and preview. Drafts preserve and restore the declared locale; device preferences cannot change an ongoing interview.
 - Keep database checks, section state, roster confirmation, generated-ID display, and preview as named app capabilities around generic field renderers.

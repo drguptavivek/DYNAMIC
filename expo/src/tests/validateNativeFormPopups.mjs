@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import vm from "node:vm";
 import { NATIVE_FORM_TEXT } from "../lib/nativeFormText.js";
+import { getPanelCommitLabel } from "../components/forms/nativeSurveyModel.js";
 import { getNativeFormText } from "../lib/nativeFormText.js";
 import { showFormAlert, translateFormPopupText } from "../lib/nativeFormPopups.js";
 import { requestFinalSubmissionConfirmation, waitForSubmissionAcknowledgement } from "../modules/households/finalSubmissionAlerts.js";
@@ -45,6 +46,42 @@ for (const code of ["HHQ", "WQ", "HRF", "PEF", "UF", "PFF", "POF", "BAF", "SBF",
   assert.equal(NATIVE_FORM_TEXT[code].popup_draft_saved, "Form saved as draft.");
   assert.equal(NATIVE_FORM_TEXT[code].popup_ok, "OK");
 }
+// Shared renderer files do not make their form-specific branches applicable everywhere.
+const formCodes = Object.keys(NATIVE_FORM_TEXT);
+const scopedNativeKeys = {
+  pregnancy_entry: ["WQ"], pregnancy_lasts: ["WQ"], born_status: ["WQ"],
+  s_no: ["WQ"], name_of_child: ["WQ"], sex: ["WQ"],
+  close_pregnancy_entry: ["WQ"], add_pregnancy_outcome: ["WQ"],
+  lookup: ["HHQ"], find_hdss_person: ["HHQ"],
+  replace_linked_hdss_person: ["HHQ"], unlink_hdss_person: ["HHQ"],
+  capture_gps: ["HHQ"], household_characteristics_intro: ["HHQ"],
+  camera: ["PEF"], gallery: ["PEF"], retake: ["PEF"],
+  how_many_reports_do_you_have: ["PEF"], choose_file: ["UF"],
+  popup_partner_mobile_confirmation: ["WQ"],
+  popup_history_totals_title: ["WQ"], popup_correction_period_ended: ["WQ"],
+  popup_final_submission: ["HHQ"], popup_form_submitted: ["HHQ"],
+  popup_answer_fields_saved: ["HHQ"], popup_household_excluded: ["HHQ"],
+  popup_database_search_title: ["PEF"], popup_fill_pof: ["PFF"],
+  popup_pef_generated: ["PSF"], popup_woman_exited: ["PSF"],
+  popup_unable_to_save: formCodes.filter(code => code !== "HHQ"),
+};
+for (const key of ["add_entry", "update_entry", "entry_entrynumber", "add_row", "panel_entry_count", "new_entry", "edit_entry_entrynumber", "close_entry_editor", "preview_row"]) {
+  scopedNativeKeys[key] = ["HHQ", "WQ", "HRF"];
+}
+for (const [key, expectedCodes] of Object.entries(scopedNativeKeys)) {
+  assert.deepEqual(formCodes.filter(code => key in NATIVE_FORM_TEXT[code]).sort(), [...expectedCodes].sort(), `${key} must be offered only in questionnaires that render it`);
+  for (const code of expectedCodes) {
+    const english = NATIVE_FORM_TEXT[code][key];
+    const model = { locale: "hi", nativeText: { [key]: { default: english, hi: `translated ${english}` } } };
+    assert.equal(getNativeFormText(model, key, english), `translated ${english}`, `${code}: scoped key still uses its saved translation`);
+  }
+}
+for (const code of ["HHQ", "WQ", "HRF"]) {
+  const model = { locale: "hi", nativeText: { update_entry: { hi: `${code} translated update` }, add_entry: { hi: `${code} translated add` } } };
+  assert.equal(getPanelCommitLabel({ survey: model }, {}, "edit", false), `${code} translated update`);
+  assert.equal(getPanelCommitLabel({ survey: model }, {}, "add", false), `${code} translated add`);
+}
+console.log("All 12 native translation inventories retain relevant controls and exclude other forms' branches.");
 for (const relative of ["../modules/households/BaselineHouseholdForm.js", "../modules/questionnaires/QuestionnaireDashboard.js", "../components/forms/renderers/TextRenderer.js", "../components/forms/renderers/NumberRenderer.js", "../components/forms/renderers/DynamicPanelRenderer.js"]) {
   const source = fs.readFileSync(new URL(relative, import.meta.url), "utf8");
   assert.match(source, /showFormAlert\(/);

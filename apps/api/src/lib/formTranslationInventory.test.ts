@@ -34,3 +34,24 @@ test("current mobile-only PEF, PFF and WQ fields are editable alongside headings
   assert.ok(inventory("HHQ").some(row => row.kind === "page"));
   assert.ok(inventory("HHQ").some(row => row.kind === "native"));
 });
+
+test("native translation rows belong to their questionnaire and retain applicable saved translations", () => {
+  const expected = {
+    HHQ: { present: ["lookup", "capture_gps", "confirm_household_membership"], absent: ["pregnancy_entry", "pregnancy_lasts", "close_pregnancy_entry", "add_pregnancy_outcome", "popup_history_totals_title", "popup_database_search_title"] },
+    WQ: { present: ["pregnancy_entry", "pregnancy_lasts", "close_pregnancy_entry", "popup_history_totals_title"], absent: ["lookup", "find_hdss_person", "capture_gps", "popup_database_search_title"] },
+    PEF: { present: ["how_many_reports_do_you_have", "popup_database_search_title"], absent: ["lookup", "pregnancy_entry", "popup_history_totals_title", "capture_gps"] },
+  };
+  for (const [code, scope] of Object.entries(expected)) {
+    const prepared = getPreparedFormJson(code)!;
+    const names = new Set(flattenFormText(prepared).map(row => row.name));
+    for (const key of scope.present) assert.ok(names.has(`@native:${key}`), `${code}: missing ${key}`);
+    for (const key of scope.absent) assert.ok(!names.has(`@native:${key}`), `${code}: unrelated ${key}`);
+    const retained = `@native:${scope.present[0]}`;
+    const obsolete = `@native:${scope.absent[0]}`;
+    const translated = applyFormTextTranslations(prepared, "hi", {
+      [retained]: { title: "Existing translation" }, [obsolete]: { title: "Unrelated old translation" },
+    });
+    assert.equal(extractFormTextTranslations(translated, "hi")[retained]?.title, "Existing translation");
+    assert.equal(extractFormTextTranslations(translated, "hi")[obsolete], undefined);
+  }
+});

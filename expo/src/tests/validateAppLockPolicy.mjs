@@ -1,6 +1,7 @@
 /** Verifies app-lock PIN policy, hashing, persistence, and retry behavior. */
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { startHouseholdGpsCapture } from "../lib/gpsCapture.js";
 
 import {
   clearLockForTests,
@@ -83,6 +84,63 @@ endAppLockMediaActivity();
 assert.equal(isAppLockMediaActivityActive(), false, "media exception ends after every operation");
 endAppLockMediaActivity();
 assert.equal(isAppLockMediaActivityActive(), false, "media activity count cannot become negative");
+
+// Exercise the provider's actual AppState listener with a pending GPS permission.
+const listenerStart = fieldAppProviderSource.indexOf("const cancelPendingAppLock = () => {");
+const listenerEnd = fieldAppProviderSource.indexOf("return () => {", listenerStart);
+assert.ok(listenerStart >= 0 && listenerEnd > listenerStart, "app-lock effect is present");
+let changeAppState;
+let locked = false;
+const pendingLocks = new Map();
+let timerId = 0;
+new Function("AppState", "appLockTimerRef", "appStateRef", "user", "appLockConfigured",
+  "isAppLockMediaActivityActive", "setTimeout", "clearTimeout", "setAppLocked",
+  "refreshClockGuard", "APP_LOCK_MEDIA_PICKER_GRACE_MS",
+  fieldAppProviderSource.slice(listenerStart, listenerEnd))(
+  { addEventListener: (_event, listener) => { changeAppState = listener; } },
+  { current: null }, { current: "active" }, user, true, isAppLockMediaActivityActive,
+  (callback, delay) => { assert.equal(delay, 60000); pendingLocks.set(++timerId, callback); return timerId; },
+  (id) => pendingLocks.delete(id), (value) => { locked = value; }, () => {}, 60000,
+);
+let grantPermission;
+let watchStarted = false;
+const location = {
+  Accuracy: { BestForNavigation: 1 },
+  requestForegroundPermissionsAsync: () => new Promise((resolve) => { grantPermission = resolve; }),
+  hasServicesEnabledAsync: async () => true,
+  watchPositionAsync: async () => { watchStarted = true; return { remove() {} }; },
+};
+const capture = startHouseholdGpsCapture(location, { schedule: () => 1, unschedule() {} });
+const cancelled = assert.rejects(capture.promise, /gps_capture_cancelled/);
+changeAppState("inactive");
+assert.equal(locked, false, "location permission prompt must not immediately open PIN lock");
+assert.equal(pendingLocks.size, 1, "permission prompt uses the existing bounded grace");
+changeAppState("active");
+assert.equal(pendingLocks.size, 0, "returning from permission prompt cancels pending PIN lock");
+assert.equal(locked, false);
+grantPermission({ granted: true });
+await new Promise((resolve) => setImmediate(resolve));
+assert.equal(watchStarted, true);
+assert.equal(isAppLockMediaActivityActive(), false, "satellite waiting must not keep the exception");
+changeAppState("background");
+assert.equal(locked, true, "leaving the app during GPS watch must still lock immediately");
+capture.cancel();
+await cancelled;
+
+locked = false;
+const stalledCapture = startHouseholdGpsCapture(location, { schedule: () => 1, unschedule() {} });
+const stalledCancelled = assert.rejects(stalledCapture.promise, /gps_capture_cancelled/);
+changeAppState("inactive");
+assert.equal(locked, false);
+assert.equal(pendingLocks.size, 1);
+for (const callback of pendingLocks.values()) callback();
+pendingLocks.clear();
+assert.equal(locked, true, "staying away during a permission prompt still locks after the grace");
+stalledCapture.cancel();
+await stalledCancelled;
+grantPermission({ granted: true });
+await new Promise((resolve) => setImmediate(resolve));
+assert.equal(isAppLockMediaActivityActive(), false);
 
 await clearLockForTests();
 

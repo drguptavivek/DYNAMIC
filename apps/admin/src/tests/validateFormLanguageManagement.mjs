@@ -264,6 +264,16 @@ try {
     ]);
     assert.deepEqual(rows.slice(1).map(row => [row[2], row[3], row[4], row[6]]), expected, `${form.form_code}: every current heading, field, help text, choice and popup exports in order`);
     assert.ok(rows.some(row => row[2] === '@native:popup_ok'));
+    const exportedNames = new Set(rows.slice(1).map(row => row[2]));
+    const nativeScope = {
+      HHQ: { present: ['lookup', 'capture_gps', 'confirm_household_membership'], absent: ['pregnancy_entry', 'pregnancy_lasts', 'close_pregnancy_entry', 'add_pregnancy_outcome', 'popup_history_totals_title', 'popup_database_search_title'] },
+      WQ: { present: ['pregnancy_entry', 'pregnancy_lasts', 'popup_history_totals_title'], absent: ['lookup', 'find_hdss_person', 'capture_gps', 'popup_database_search_title'] },
+      PEF: { present: ['how_many_reports_do_you_have', 'popup_database_search_title'], absent: ['lookup', 'pregnancy_entry', 'popup_history_totals_title', 'capture_gps'] },
+    }[form.form_code];
+    if (nativeScope) {
+      for (const key of nativeScope.present) assert.ok(exportedNames.has(`@native:${key}`), `${form.form_code}: export includes its own ${key}`);
+      for (const key of nativeScope.absent) assert.ok(!exportedNames.has(`@native:${key}`), `${form.form_code}: export excludes unrelated ${key}`);
+    }
     const display = { HHQ: 'BHQ', WQ: 'BWQ' }[form.form_code] || form.form_code;
     assert.equal(downloadName, `${display}-hi-translations.csv`);
     const expectedTranslations = {};
@@ -275,8 +285,16 @@ try {
       if (row[3] === 'option') (entry.choices ??= {})[row[4]] = row[8];
       else entry[row[3] === 'help' ? 'description' : 'title'] = row[8];
     });
-    await importText(encodeCsv(rows));
-    assert.match(text(tree), new RegExp(`${rows.length - 1} matched, 0 ignored`));
+    const importRows = structuredClone(rows);
+    if (form.form_code === 'HHQ') {
+      const unrelated = [...rows.at(-1)];
+      unrelated[2] = '@native:pregnancy_lasts';
+      unrelated[3] = 'question'; unrelated[4] = '';
+      unrelated[6] = 'Pregnancy lasts'; unrelated[8] = 'Must not become a BHQ translation';
+      importRows.push(unrelated);
+    }
+    await importText(encodeCsv(importRows));
+    assert.match(text(tree), new RegExp(`${rows.length - 1} matched, ${form.form_code === 'HHQ' ? 1 : 0} ignored`));
     const importRenderStart = renderedEntryKeys.length;
     const importGetCount = requests.filter(request => request.method === 'get').length;
     button('Add imported translations').props.onClick(); await settle();
