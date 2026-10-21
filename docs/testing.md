@@ -56,6 +56,15 @@ node --test shared/householdAssignmentRange.test.cjs
 node apps/admin/src/tests/validateHouseholdAssignmentPage.mjs
 ```
 
+Operational dashboard checks (no database required):
+
+```bash
+npm --workspace @dynamic/api exec -- tsx --test src/lib/operationsDashboard.test.ts src/routes/dashboard.test.ts
+node apps/admin/src/tests/validateOperationsDashboard.mjs
+```
+
+`operationsDashboard.postgres.test.ts` additionally executes the actual grouped SQL against temporary fixture tables on a single connection. It runs only when `DASHBOARD_TEST_DATABASE_URL` points to a local PostgreSQL instance, rolls its temporary fixtures back, and must have one assigned test owner. Never point it at AWS. No reset, schema push or application seed is needed.
+
 HHQ backend integration on full-push test DB:
 
 ```bash

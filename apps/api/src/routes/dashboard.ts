@@ -4,8 +4,31 @@ import { db, schema } from "../db";
 import { requireAuth } from "../middleware/auth";
 import { sendError, sendSuccess } from "../lib/errors";
 import { appendAreaScopeCondition } from "../lib/areaScope";
+import { requireDataAccess } from "../lib/dataAccess";
+import { assembleDashboard, dashboardScope, dashboardSql } from "../lib/operationsDashboard";
+import type { DashboardStaffRow } from "../../../../shared/operationsDashboard";
 
 const router = Router();
+
+router.get("/operations", requireAuth, requireDataAccess("can_access_aggregate_dashboards"), async (req: Request, res: Response) => {
+  try {
+    const scope = dashboardScope(req.user!, req.query);
+    const queries = dashboardSql(scope);
+    const [roster, facts, options, quality, cohort] = await Promise.all([
+      db.execute(queries.roster), db.execute(queries.facts), db.execute(queries.options), db.execute(queries.quality), db.execute(queries.cohort),
+    ]);
+    sendSuccess(res, assembleDashboard(scope, roster.rows as unknown as DashboardStaffRow[], facts.rows as any[], options.rows as any[], quality.rows[0] as any, cohort.rows[0] as any));
+  } catch (error) {
+    if (error instanceof Error && error.message === "DASHBOARD_FORBIDDEN") {
+      sendError(res, 403, "FORBIDDEN", "This dashboard is available to site and central managers only");
+    } else if (error instanceof Error && error.message.startsWith("INVALID_")) {
+      sendError(res, 400, error.message, "Invalid dashboard date or location filter");
+    } else {
+      console.error("Operations dashboard error:", error);
+      sendError(res, 500, "INTERNAL_ERROR", "An error occurred");
+    }
+  }
+});
 
 async function countRows(table: any, user: Request["user"], extra: any[] = []) {
   const conditions = [...extra];

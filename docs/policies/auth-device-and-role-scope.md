@@ -106,6 +106,12 @@ Role rules:
 - US collaborators must not access participant names, direct identifiers, contact details, free-text notes that may contain identifiers, device/user audit trails that identify participants, or raw CRF answers unless explicitly de-identified for their view.
 - Admin correction and data-quality permissions must follow role and site/locality scope.
 
+## Operational Dashboard Scope
+
+The staff operations dashboard is available to Central Admins and Central Data Managers across sites, and to Site Data Managers, Site Research Scientists, and Site Investigators across their own account's site. The API pins site roles to `user.site_id` even if a different site is requested, and requires aggregate-dashboard capability. Field workers, field supervisors, and collaborators cannot access staff operations or sync audit rows through this endpoint.
+
+Staff activity is attributed only using the submission's recorded user, never the current device owner. Completed counts include primary accepted submissions by client submission date in India time; receipt counts use server receipt date. Drafts are active server backups, excluding tasks already finalized, and cannot represent unsynced device-only drafts. Assigned villages describe assignments rather than staff GPS location. Shared household/task totals are distinct, so the sum of individual staff workloads can exceed the site total. Pending tasks are available, nonterminal work within the task's actionable window (baseline household/woman forms remain actionable); overdue tasks are the subset past their deadline, or target date when no deadline exists. Date filters select activity days, not historical assignment snapshots. Sync issues cover recorded push errors/conflicts; failures that never reach the server are not observable.
+
 ## PII Boundary
 
 Participant-identifying data must stay inside India-hosted operational access unless an approved de-identified export explicitly removes direct and reasonably identifying fields.

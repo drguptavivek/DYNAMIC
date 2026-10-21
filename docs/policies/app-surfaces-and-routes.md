@@ -52,6 +52,10 @@ If a field user has one site, preselect it. Locality choices must be limited to 
 
 ## Admin App
 
+The operational dashboard gives central admins/data managers cross-site staff comparisons and pins site data managers/research scientists/investigators to their own site on the server. Date filters use India time. Staff, form-type, site and locality views share the selected area; staff search filters the staff tables only. Shared household and task assignments count once in area totals and once for each assigned user's row. Current study totals remain available separately from selected-day activity.
+
+Completed-form counts use primary submissions and their recorded client submission date, with server receipt as a fallback; receipt counts remain separate. Staff attribution comes only from the recorded submitter, never inferred from the device's current owner. Unattributed historical forms are disclosed separately. Draft counts mean active server backups, excluding backups for tasks with a primary submission; phone-only drafts and unsynced completed forms are unknown. Latest server contact may be a recorded sync, draft backup or received response. Recorded push issues cannot reveal every device/network/download failure. Assigned and worked localities are operational labels, not live staff positions. Date selection does not reconstruct historical task or assignment ownership.
+
 Required admin surfaces:
 
 | Route | Purpose |
