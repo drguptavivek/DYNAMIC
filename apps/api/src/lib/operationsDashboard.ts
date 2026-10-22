@@ -81,7 +81,7 @@ export function dashboardSql(scope: DashboardScope) {
         and coalesce(t.deadline_date,t.target_date)<${date}::date
       union all select z.user_id,u.site_id,null,'sync_errors',z.sync_log_id,'' from sync_logs z join roster u on u.user_id=z.user_id
       where coalesce(z.completed_at,z.started_at)>=${start}::timestamptz and coalesce(z.completed_at,z.started_at)<${finish}::timestamptz
-        and (z.status in ('error','failed','partial_success') or coalesce(z.conflicts_detected,0)>0)
+        and z.status in ('error','failed','partial_success')
     ) select f.user_id,f.site_id,f.locality_code,grouping(f.user_id) gu,grouping(f.site_id) gs,grouping(f.locality_code) gl,
       metric,code,count(distinct id)::integer count from facts f join roster r on r.user_id=f.user_id
       group by grouping sets ((f.user_id,metric,code),(f.site_id,metric,code),(f.site_id,f.locality_code,metric,code),(metric,code))`,
@@ -121,7 +121,7 @@ export function assembleDashboard(scope: DashboardScope, users: DashboardStaffRo
     "Forms completed use the client submission date in India time; received forms use the server receipt date. Only primary accepted submissions count.",
     "Drafts are active server backups, excluding tasks already submitted. Unsynced phone drafts and outbox forms are not visible here.",
     "Village labels show assigned localities, not the user's current physical location. Household and task totals count unique records even when assigned to multiple users.",
-    "Sync issues reflect recorded push errors or conflicts; failed connections and HDSS download failures may not reach the server. Sync issues are user/site metrics, not attributed to a village.",
+    "Sync issues count recorded failed or partially successful syncs; successful repeat uploads are excluded. Failed connections and HDSS download failures may not reach the server. Sync issues are user/site metrics, not attributed to a village.",
     "Task and assignment figures show current server state; changing the date changes activity counts and due-date comparison, not historical assignment ownership."
   ] };
 }

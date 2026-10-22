@@ -47,7 +47,14 @@ test("dashboard aggregates real PostgreSQL fixtures without cross-site leaks or 
       ('t3','c1',4,'04','completed','enabled','available','WQ',null,'2026-10-20',null),
       ('t4','c1',4,'04','planned','disabled','available','WQ',null,'2026-10-20',null),
       ('t5','b1',2,'20','due','enabled','available','WQ',null,'2026-10-20',null);
-      insert into sync_logs values('s1','cw','2026-10-21 10:00Z','2026-10-21 10:01Z','partial_success',1),('s2','bw','2026-10-21 10:00Z','2026-10-21 10:02Z','failed',0);
+      insert into sync_logs values
+      ('s1','cw','2026-10-21 10:00Z','2026-10-21 10:01Z','partial_success',1),
+      ('s2','bw','2026-10-21 10:00Z','2026-10-21 10:02Z','failed',0),
+      ('s3','cw','2026-10-21 10:00Z','2026-10-21 10:03Z','error',0),
+      ('s4','cw','2026-10-21 10:00Z','2026-10-21 10:04Z','success',2),
+      ('s5','bw','2026-10-21 10:00Z','2026-10-21 10:05Z','success',3),
+      ('s6','co','2026-10-21 10:00Z','2026-10-21 10:06Z','success',0),
+      ('s7','co','2026-10-21 10:00Z','2026-10-21 10:07Z','success',1);
       insert into data_quality_flags values(4,'open','c1',null),(2,'open','b1',null);
       insert into household_members values(4,'04'),(4,'05'),(2,'20');
       insert into eligible_women values(4,'04','completed','active'),(4,'05','completed','not_tracked'),(2,'20','completed','active');
@@ -91,7 +98,10 @@ test("dashboard aggregates real PostgreSQL fixtures without cross-site leaks or 
     assert.equal(worker.backed_up_drafts,1,"exclude stale active backup for completed task");
     assert.equal(worker.pending_tasks,2);
     assert.equal(worker.overdue_tasks,1);
-    assert.equal(worker.sync_errors,1);
+    assert.equal(worker.sync_errors,2,"count error and partial success, excluding successful repeat uploads");
+    assert.equal(chennai.users.find(row=>row.user_id==="co")!.sync_errors,0,"successful syncs with or without repeat uploads are not issues");
+    assert.equal(chennai.totals.sync_errors,2);
+    assert.equal(chennai.sites_summary.find(row=>row.site_id===4)!.sync_errors,2);
     assert.equal(chennai.totals.unattributed_forms,1,"do not guess historical submitter");
     assert.equal(chennai.totals.open_data_quality_flags,6);
     assert.deepEqual(chennai.cohort,{households:2,members:2,eligible_women:2,tracking_eligible_women:1,active_pregnancies:2,children:1});
@@ -100,7 +110,12 @@ test("dashboard aggregates real PostgreSQL fixtures without cross-site leaks or 
     const central=await load(user("central_admin",null),{});
     assert.equal(central.totals.assigned_households,3);
     assert.equal(central.totals.forms_completed,3);
-    assert.equal(central.totals.sync_errors,2);
+    assert.equal(central.totals.sync_errors,3,"retain error, failed and partial success only across sites");
+    assert.equal(central.users.find(row=>row.user_id==="bw")!.sync_errors,1);
+    assert.equal(central.sites_summary.find(row=>row.site_id===2)!.sync_errors,1);
+    assert.equal(central.sites_summary.find(row=>row.site_id===4)!.sync_errors,2);
+    const ballabhgarh=await load(user("site_data_manager",2),{});
+    assert.equal(ballabhgarh.totals.sync_errors,1,"site dashboards also exclude successful repeat uploads");
     assert.equal(central.users.length,5);
     assert.equal(central.cohort.households,3);
     assert.equal(central.cohort.children,2);

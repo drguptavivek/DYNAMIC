@@ -72,7 +72,7 @@ function OperationsView() {
     ["Backed-up drafts", totals?.backed_up_drafts, "Current drafts backed up to the server; device-only drafts are unavailable."],
     ["Pending tasks", totals?.pending_tasks, "Current pending and in-progress tasks."],
     ["Overdue tasks", totals?.overdue_tasks, "Pending tasks whose deadline has passed by the selected date."],
-    ["Recorded sync issues", totals?.sync_errors, "Sync requests with recorded failures or conflicts on the selected date."],
+    ["Recorded sync issues", totals?.sync_errors, "Failed or partially successful sync requests on the selected date. Successful repeat uploads are excluded."],
   ] as const;
   const studyCards = !loading && !error && data?.cohort ? [
     ["Households", data.cohort.households],
