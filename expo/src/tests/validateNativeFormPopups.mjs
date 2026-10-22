@@ -3,7 +3,8 @@ import fs from "node:fs";
 import vm from "node:vm";
 import { NATIVE_FORM_TEXT } from "../lib/nativeFormText.js";
 import { getPanelCommitLabel } from "../components/forms/nativeSurveyModel.js";
-import { getNativeFormText } from "../lib/nativeFormText.js";
+import { formatNativeFormText, getNativeFormText } from "../lib/nativeFormText.js";
+import { NATIVE_ANC_IMAGE_FORM_TEXT, NATIVE_IMAGE_FORM_TEXT } from "../lib/nativeFormTextExtra.js";
 import { showFormAlert, translateFormPopupText } from "../lib/nativeFormPopups.js";
 import { requestFinalSubmissionConfirmation, waitForSubmissionAcknowledgement } from "../modules/households/finalSubmissionAlerts.js";
 
@@ -55,8 +56,8 @@ const scopedNativeKeys = {
   lookup: ["HHQ"], find_hdss_person: ["HHQ"],
   replace_linked_hdss_person: ["HHQ"], unlink_hdss_person: ["HHQ"],
   capture_gps: ["HHQ"], household_characteristics_intro: ["HHQ"],
-  camera: ["PEF"], gallery: ["PEF"], retake: ["PEF"],
-  how_many_reports_do_you_have: ["PEF"], choose_file: ["UF"],
+  camera: ["PEF", "PFF"], gallery: ["PEF", "PFF"], retake: ["PEF", "PFF"],
+  how_many_reports_do_you_have: ["PEF", "PFF"], choose_file: ["UF"],
   popup_partner_mobile_confirmation: ["WQ"],
   popup_history_totals_title: ["WQ"], popup_correction_period_ended: ["WQ"],
   popup_final_submission: ["HHQ"], popup_form_submitted: ["HHQ"],
@@ -68,6 +69,12 @@ const scopedNativeKeys = {
 for (const key of ["add_entry", "update_entry", "entry_entrynumber", "add_row", "panel_entry_count", "new_entry", "edit_entry_entrynumber", "close_entry_editor", "preview_row"]) {
   scopedNativeKeys[key] = ["HHQ", "WQ", "HRF"];
 }
+scopedNativeKeys.not_calculated_yet = ["HHQ", "WQ", "HRF"];
+for (const key of ["age_unavailable", "age_years", "status_unavailable", "hdss_id_unavailable", "unnamed_person", "count_shown", "select_hdss_person_name", "hdss_record_linked", "could_not_search_hdss_registry"]) {
+  scopedNativeKeys[key] = ["HHQ"];
+}
+for (const key of Object.keys(NATIVE_IMAGE_FORM_TEXT)) scopedNativeKeys[key] = ["PEF", "PFF"];
+for (const key of Object.keys(NATIVE_ANC_IMAGE_FORM_TEXT)) scopedNativeKeys[key] = ["PEF", "PFF"];
 for (const [key, expectedCodes] of Object.entries(scopedNativeKeys)) {
   assert.deepEqual(formCodes.filter(code => key in NATIVE_FORM_TEXT[code]).sort(), [...expectedCodes].sort(), `${key} must be offered only in questionnaires that render it`);
   for (const code of expectedCodes) {
@@ -117,3 +124,30 @@ assert.equal(navigations[0][0], "/worklist");
 showFormAlert(survey, showAlert, "Unknown message");
 assert.equal(alerts.at(-1)[2][0].text, "ठीक", "the implicit native OK must also be translated");
 console.log("Actual questionnaire manual draft popup uses its model, admin override and original acknowledgement navigation.");
+
+// Lookup fallbacks translate while imported identity data stays unchanged.
+const lookupSource = fs.readFileSync(new URL("../components/forms/renderers/BhqRegistryLookupDrawer.js", import.meta.url), "utf8");
+const lookupContext = { getNativeFormText, formatNativeFormText, buildRegistryFacingId: () => "" };
+vm.createContext(lookupContext);
+vm.runInContext(lookupSource.slice(lookupSource.indexOf("function formatAge("), lookupSource.indexOf("export function BhqRegistryLookupDrawer")), lookupContext);
+const lookupModel = { locale: "hi", nativeText: {
+  age_unavailable: { hi: "translated missing age" }, age_years: { hi: "age {age}" },
+  status_unavailable: { hi: "translated missing status" }, hdss_id_unavailable: { hi: "translated missing ID" },
+  count_shown: { hi: "shown {count}" }, select_hdss_person_name: { hi: "select {name}" },
+} };
+assert.equal(lookupContext.formatAge({}, lookupModel), "translated missing age");
+assert.equal(lookupContext.formatAge({ age_years: 42 }, lookupModel), "age 42");
+assert.equal(lookupContext.getPersonStatus({}, lookupModel), "translated missing status");
+assert.equal(lookupContext.getPersonStatus({ domicile: "Resident" }, lookupModel), "Resident");
+assert.equal(lookupContext.personFacingId({}, lookupModel), "translated missing ID");
+assert.equal(lookupContext.personFacingId({ original_id: "10-0011-01-01" }, lookupModel), "10-0011-01-01");
+assert.equal(formatNativeFormText(lookupModel, "count_shown", "{count} shown", { count: 10 }), "shown 10");
+assert.equal(formatNativeFormText(lookupModel, "select_hdss_person_name", "Select HDSS person {name}", { name: "Asha" }), "select Asha");
+for (const renderer of ["PefAncCardImageRenderer", "PefUltrasoundReportsRenderer"]) {
+  const source = fs.readFileSync(new URL(`../components/forms/renderers/${renderer}.js`, import.meta.url), "utf8");
+  assert.match(source, /getNativeFormText\(question.survey, "camera_permission_required"/);
+  assert.match(source, /getNativeFormText\(question.survey, "gallery_permission_required"/);
+  assert.match(source, /storageError\?\.message \|\|/);
+  assert.doesNotMatch(source, /\} permission is required/);
+}
+console.log("Calculated, lookup and image-control labels retain translations, scope and imported data.");

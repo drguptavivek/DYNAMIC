@@ -33,6 +33,17 @@ test("current mobile-only PEF, PFF and WQ fields are editable alongside headings
   assert.ok(inventory("WQ").some(row => row.name === "wq_woman_mobile_numbers"));
   assert.ok(inventory("HHQ").some(row => row.kind === "page"));
   assert.ok(inventory("HHQ").some(row => row.kind === "native"));
+  for (const title of ["PIPED WATER", "DUG WELL", "WATER FROM SPRING", "FLUSH OR POUR FLUSH TOILET", "PIT LATRINE", "Select dug well type"]) {
+    assert.ok(inventory("HHQ").some(row => row.title === title), `BHQ group label is editable: ${title}`);
+    assert.ok(!inventory("WQ").some(row => row.title === title), "BHQ groups never leak into BWQ");
+  }
+  for (const code of ["WQ", "PEF", "PSF"]) {
+    for (const title of ["Date", "Relative time", "Days Ago", "Weeks Ago", "Months Ago", "Years Ago"]) {
+      assert.ok(inventory(code).some(row => row.title === title), `${code}: LMP option is editable: ${title}`);
+    }
+  }
+  assert.ok(inventory("WQ").some(row => row.title === "don't know month" && row.name.includes("/unknownChoice:")));
+  assert.ok(inventory("WQ").some(row => row.title === "don't know year" && row.name.includes("/unknownChoice:")));
 });
 
 test("native translation rows belong to their questionnaire and retain applicable saved translations", () => {

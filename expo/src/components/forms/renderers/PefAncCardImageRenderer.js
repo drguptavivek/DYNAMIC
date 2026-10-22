@@ -27,7 +27,6 @@ export function PefAncCardImageRenderer({
   onRequestTopLevelFocus,
 }) {
   const image = normalizePefAncCardImage(question.value);
-  const imageLabel = question.imageCategory === "ANC" ? "ANC card" : "report";
   const [error, setError] = useState("");
 
   function commit(next) {
@@ -51,7 +50,9 @@ export function PefAncCardImageRenderer({
         ? await ImagePicker.requestCameraPermissionsAsync()
         : await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
-        setError(`${source === "camera" ? getNativeFormText(question.survey, "camera", "Camera", locale) : getNativeFormText(question.survey, "gallery", "Gallery", locale)} permission is required.`);
+        setError(source === "camera"
+          ? getNativeFormText(question.survey, "camera_permission_required", "Camera permission is required.", locale)
+          : getNativeFormText(question.survey, "gallery_permission_required", "Gallery permission is required.", locale));
         return;
       }
       const result = source === "camera"
@@ -79,7 +80,9 @@ export function PefAncCardImageRenderer({
       commit({ attachment_id: attachmentId, ...stored });
       restoreUploadFocus();
     } catch (storageError) {
-      setError(storageError?.message || `Could not save the ${imageLabel} image on this device.`);
+      setError(storageError?.message || (question.imageCategory === "ANC"
+        ? getNativeFormText(question.survey, "could_not_save_anc_card_image", "Could not save the ANC card image on this device.", locale)
+        : getNativeFormText(question.survey, "could_not_save_report_image", "Could not save the report image on this device.", locale)));
       restoreUploadFocus();
     } finally {
       endAppLockMediaActivity();

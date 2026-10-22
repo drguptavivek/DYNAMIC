@@ -1,6 +1,50 @@
-/** BWQ native review and child-follow-up text outside the questionnaire JSON. */
+/** Labels used by the PEF and PFF native image controls. */
+export const NATIVE_IMAGE_FORM_TEXT = {
+  "how_many_reports_do_you_have": "How many reports do you have?",
+  "date_of_ultrasound": "Date of ultrasound",
+  "please_make_sure_image_is_not_blurr_or_croped_ensure_image_quality": "Please make sure Image is not Blurr or croped. ensure image quality.",
+  "remove": "Remove",
+  "add_image": "Add image",
+  "number_of_ultrasound_reports": "Number of ultrasound reports",
+  "close_full_screen_image": "Close full screen image",
+  "retake": "Retake",
+  "camera": "Camera",
+  "replace": "Replace",
+  "gallery": "Gallery",
+  "ultrasound_date_for_report_reportnumber": "Ultrasound date for report {reportNumber}",
+  "report_reportnumber": "Report {reportNumber}",
+  "image_imagenumber": "Image {imageNumber}",
+  "open_image_imagenumber_in_full_screen": "Open Image {imageNumber} in full screen",
+  "camera_permission_required": "Camera permission is required.",
+  "gallery_permission_required": "Gallery permission is required.",
+  "select_number_of_reports_before_image": "Select the number of reports before adding an image.",
+  "could_not_save_image": "Could not save the image on this device."
+};
+
+/** Labels used by the single ANC-card/report image widget in PEF and PFF. */
+export const NATIVE_ANC_IMAGE_FORM_TEXT = {
+  "please_make_sure_the_image_is_not_blurred_or_cropped_ensure_image_quality": "Please make sure the image is not blurred or cropped. Ensure image quality.",
+  "could_not_save_anc_card_image": "Could not save the ANC card image on this device.",
+  "could_not_save_report_image": "Could not save the report image on this device."
+};
+
+/** Form-specific native labels outside the questionnaire JSON. */
 export const NATIVE_FORM_TEXT_EXTRA = {
+  "HHQ": {
+    "not_calculated_yet": "Not calculated yet",
+    "age_unavailable": "Age unavailable",
+    "age_years": "{age} years",
+    "status_unavailable": "Status unavailable",
+    "hdss_id_unavailable": "HDSS ID unavailable",
+    "unnamed_person": "Unnamed person",
+    "count_shown": "{count} shown",
+    "select_hdss_person_name": "Select HDSS person {name}",
+    "hdss_record_linked": "HDSS record linked",
+    "could_not_search_hdss_registry": "Could not search the HDSS registry."
+  },
+  "HRF": { "not_calculated_yet": "Not calculated yet" },
   "WQ": {
+    "not_calculated_yet": "Not calculated yet",
     "born_alive_child_details_table": "Born-alive child details table",
     "pregnancy": "Pregnancy",
     "child": "Child",

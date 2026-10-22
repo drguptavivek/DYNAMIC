@@ -5,7 +5,7 @@ const TEXT_PROPERTIES = new Set([
   'otherText', 'noneText', 'selectAllText', 'otherPlaceholder', 'otherErrorText',
   'commentText', 'commentPlaceholder', 'label', 'caption', 'emptyText', 'noRowsText',
 ]);
-const CHILD_ARRAYS = ['elements', 'templateElements', 'items', 'columns', 'rows', 'validators'];
+const CHILD_ARRAYS = ['elements', 'templateElements', 'items', 'columns', 'rows', 'validators', 'specialChoices'];
 const LANGUAGE_LABELS = { hi: 'Hindi', kn: 'Kannada', mr: 'Marathi', ta: 'Tamil', te: 'Telugu', en: 'English' };
 const isObject = value => value && typeof value === 'object' && !Array.isArray(value);
 const english = value => typeof value === 'string' ? value : isObject(value) ? String(value.default ?? value.en ?? value.english ?? '') : '';
@@ -40,6 +40,7 @@ function visitFormText(form, visit) {
         walk(child, childOwner, page, 'element', key === 'elements' || key === 'templateElements');
       });
     }
+    walk(node.unknownChoice, `${owner}/unknownChoice`, page, 'element', false);
   }
   walk(form, '@form', undefined, 'form', false);
   (form.pages || []).forEach((page, index) => {

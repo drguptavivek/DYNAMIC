@@ -724,14 +724,14 @@ function RegistryLinkControl({ onClear, onOpen, panel }) {
       </Pressable>
     );
   }
-  const summary = [details.name, details.age === null || details.age === undefined ? null : `${details.age} years`, details.sex, details.status]
+  const summary = [details.name, details.age === null || details.age === undefined ? null : formatNativeFormText(panel?.survey, "age_years", "{age} years", { age: details.age }, panel?.survey?.locale), details.sex, details.status]
     .filter(Boolean)
     .join(" · ");
   return (
     <View style={styles.registryChip}>
       <Pressable accessibilityLabel={getNativeFormText(panel?.survey, "replace_linked_hdss_person", "Replace linked HDSS person", panel?.survey?.locale)} onPress={onOpen} style={styles.registryChipBody}>
         <Text selectable style={styles.registryChipId}>{details.originalId}</Text>
-        <Text selectable style={styles.registryChipDetails}>{summary || "HDSS record linked"}</Text>
+        <Text selectable style={styles.registryChipDetails}>{summary || getNativeFormText(panel?.survey, "hdss_record_linked", "HDSS record linked", panel?.survey?.locale)}</Text>
       </Pressable>
       <Pressable
         accessibilityLabel={getNativeFormText(panel?.survey, "unlink_hdss_person", "Unlink HDSS person", panel?.survey?.locale)}

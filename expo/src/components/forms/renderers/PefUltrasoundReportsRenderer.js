@@ -195,7 +195,9 @@ export function PefUltrasoundReportsRenderer({
         ? await ImagePicker.requestCameraPermissionsAsync()
         : await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
-        setError(`${source === "camera" ? getNativeFormText(question.survey, "camera", "Camera", locale) : getNativeFormText(question.survey, "gallery", "Gallery", locale)} permission is required.`);
+        setError(source === "camera"
+          ? getNativeFormText(question.survey, "camera_permission_required", "Camera permission is required.", locale)
+          : getNativeFormText(question.survey, "gallery_permission_required", "Gallery permission is required.", locale));
         return;
       }
       const options = {
@@ -212,7 +214,7 @@ export function PefUltrasoundReportsRenderer({
       const current = normalizePefUltrasoundReports(question.value)
         .reports[reportIndex]?.images[imageIndex];
       if (!current) {
-        setError("Select the number of reports before adding an image.");
+        setError(getNativeFormText(question.survey, "select_number_of_reports_before_image", "Select the number of reports before adding an image.", locale));
         return;
       }
       const stored = await persistPefUltrasoundImage(result.assets[0], current.attachment_id);
@@ -221,7 +223,7 @@ export function PefUltrasoundReportsRenderer({
       }
       updateImage(reportIndex, imageIndex, stored);
     } catch (storageError) {
-      setError(storageError?.message || "Could not save the image on this device.");
+      setError(storageError?.message || getNativeFormText(question.survey, "could_not_save_image", "Could not save the image on this device.", locale));
     } finally {
       endAppLockMediaActivity();
     }

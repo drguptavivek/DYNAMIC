@@ -8,7 +8,8 @@ import { NATIVE_FORM_TEXT } from '../lib/nativeFormText.js';
 const files = ['WqBornAliveChildFollowupsRenderer', 'WqPregnancyGapReviewRenderer', 'WqPregnancyHistoryConfirmationRenderer', 'WqPregnancyOutcomeReviewRenderer'];
 const rendererPath = name => fileURLToPath(new URL(`../components/forms/renderers/${name}.js`, import.meta.url));
 const source = (await Promise.all(files.map(name => readFile(rendererPath(name), 'utf8')))).join('\n');
-for (const key of Object.keys(NATIVE_FORM_TEXT_EXTRA.WQ)) assert.ok(source.includes(`"${key}"`), `Unused native text entry ${key}`);
+const inventorySource = `${source}\n${await readFile(rendererPath('CalculateRenderer'), 'utf8')}`;
+for (const key of Object.keys(NATIVE_FORM_TEXT_EXTRA.WQ)) assert.ok(inventorySource.includes(`"${key}"`), `Unused native text entry ${key}`);
 for (const match of source.matchAll(/\b(?:t|f)\("([^"]+)", ("(?:[^"\\]|\\.)*")/g)) {
   assert.equal(NATIVE_FORM_TEXT.WQ[match[1]], JSON.parse(match[2]), `Native inventory must preserve the exact English fallback for ${match[1]}`);
 }

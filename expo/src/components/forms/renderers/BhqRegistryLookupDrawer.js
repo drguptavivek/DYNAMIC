@@ -1,4 +1,4 @@
-import { getNativeFormText } from "../../../lib/nativeFormText.js";
+import { formatNativeFormText, getNativeFormText } from "../../../lib/nativeFormText.js";
 import React, { useEffect, useRef, useState } from "react";
 import {
   BackHandler,
@@ -26,22 +26,24 @@ import {
 
 const PAGE_SIZE = 10;
 
-function formatAge(person) {
+function formatAge(person, survey) {
   const age = person?.age_years ?? person?.age;
-  return age === null || age === undefined || age === "" ? "Age unavailable" : `${age} years`;
+  return age === null || age === undefined || age === ""
+    ? getNativeFormText(survey, "age_unavailable", "Age unavailable", survey?.locale)
+    : formatNativeFormText(survey, "age_years", "{age} years", { age }, survey?.locale);
 }
 
-function getPersonStatus(person) {
-  return String(person?.domicile || person?.status || person?.curr_status || "Status unavailable").trim();
+function getPersonStatus(person, survey) {
+  return String(person?.domicile || person?.status || person?.curr_status || getNativeFormText(survey, "status_unavailable", "Status unavailable", survey?.locale)).trim();
 }
 
-function personFacingId(person) {
+function personFacingId(person, survey) {
   return person?.original_id
     || person?.originalId
     || buildRegistryFacingId(person?.village_code, person?.hh_list_no, person?.family_no, person?.ind_no)
     || person?.hdss_unique_id
     || person?.uid
-    || "HDSS ID unavailable";
+    || getNativeFormText(survey, "hdss_id_unavailable", "HDSS ID unavailable", survey?.locale);
 }
 
 export function BhqRegistryLookupDrawer({ linkedUids = new Set(), survey, panel, onSelect, onClose }) {
@@ -151,7 +153,7 @@ export function BhqRegistryLookupDrawer({ linkedUids = new Set(), survey, panel,
       setHasMore(nextRows.length === PAGE_SIZE);
     } catch (lookupError) {
       if (token !== queryToken.current) return;
-      setError(lookupError?.message || "Could not search the HDSS registry.");
+      setError(lookupError?.message || getNativeFormText(survey, "could_not_search_hdss_registry", "Could not search the HDSS registry.", survey?.locale));
       if (reset) setRows([]);
       setHasMore(false);
     } finally {
@@ -164,8 +166,8 @@ export function BhqRegistryLookupDrawer({ linkedUids = new Set(), survey, panel,
 
   function renderPerson({ item }) {
     const resultToken = queryToken.current;
-    const displayName = String(item?.name || "Unnamed person").trim() || "Unnamed person";
-    const id = personFacingId(item);
+    const displayName = String(item?.name || "").trim() || getNativeFormText(survey, "unnamed_person", "Unnamed person", survey?.locale);
+    const id = personFacingId(item, survey);
     const alreadyLinked = linkedUids.has(String(item?.uid || "").trim());
     return (
       <View style={styles.personRow}>
@@ -173,11 +175,11 @@ export function BhqRegistryLookupDrawer({ linkedUids = new Set(), survey, panel,
           <Text selectable numberOfLines={1} style={styles.personName}>{displayName}</Text>
           <Text selectable numberOfLines={1} style={styles.personId}>{id}</Text>
           <Text style={styles.personMeta}>
-            {`${formatAge(item)} · ${decodeRegistrySex(item?.sex)} · ${getPersonStatus(item)}`}
+            {`${formatAge(item, survey)} · ${decodeRegistrySex(item?.sex)} · ${getPersonStatus(item, survey)}`}
           </Text>
         </View>
         <Pressable
-          accessibilityLabel={`Select HDSS person ${displayName}`}
+          accessibilityLabel={formatNativeFormText(survey, "select_hdss_person_name", "Select HDSS person {name}", { name: displayName }, survey?.locale)}
           accessibilityRole="button"
           disabled={alreadyLinked || busy || loadingMore}
           onPress={() => {
@@ -262,7 +264,7 @@ export function BhqRegistryLookupDrawer({ linkedUids = new Set(), survey, panel,
           <View style={styles.resultHeader}>
             <Text style={styles.resultTitle}>{getNativeFormText(survey, "hdss_people", "HDSS people", survey?.locale || "default")}</Text>
             {busy ? <Text style={styles.resultHint}>{getNativeFormText(survey, "searching", "Searching\u2026", survey?.locale || "default")}</Text> : null}
-            {!busy && rows.length ? <Text style={styles.resultHint}>{`${rows.length} shown`}</Text> : null}
+            {!busy && rows.length ? <Text style={styles.resultHint}>{formatNativeFormText(survey, "count_shown", "{count} shown", { count: rows.length }, survey?.locale)}</Text> : null}
           </View>
           {error ? <Text style={styles.error}>{error}</Text> : null}
           {!busy && !error && !rows.length && canSearch ? (

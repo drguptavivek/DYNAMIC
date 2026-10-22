@@ -1,31 +1,37 @@
+import { GROUPED_CHOICE_TEXT, GROUPED_CHOICE_TEXT_KEYS } from "./groupedChoiceText.js";
 import { NATIVE_FORM_POPUP_TEXT } from "./nativeFormPopupText.js";
 import { NATIVE_FORM_DIALOG_TEXT } from "./nativeFormDialogText.js";
-import { NATIVE_FORM_TEXT_EXTRA } from "./nativeFormTextExtra.js";
+import { NATIVE_FORM_TEXT_EXTRA, NATIVE_IMAGE_FORM_TEXT, NATIVE_ANC_IMAGE_FORM_TEXT } from "./nativeFormTextExtra.js";
+
+export const LMP_TIMING_FIELDS = {
+  WQ: "wq_02_reproduction_when_did_your_last_menstrual_period_start",
+  PEF: "pef_lmp_start",
+  PSF: "psf_last_menstrual_period",
+};
+export const LMP_TIMING_TEXT = {
+  date: "Date",
+  relative: "Relative time",
+  days: "Days Ago",
+  weeks: "Weeks Ago",
+  months: "Months Ago",
+  years: "Years Ago",
+  day: "DD",
+  month: "MM",
+  year: "YYYY",
+  relative_value: "Two digit relative time",
+};
 /** Questionnaire content rendered by native widgets outside SurveyJS JSON. */
 export const NATIVE_FORM_TEXT = {
   "PEF": {
-    "how_many_reports_do_you_have": "How many reports do you have?",
-    "date_of_ultrasound": "Date of ultrasound",
-    "please_make_sure_image_is_not_blurr_or_croped_ensure_image_quality": "Please make sure Image is not Blurr or croped. ensure image quality.",
-    "remove": "Remove",
-    "add_image": "Add image",
-    "number_of_ultrasound_reports": "Number of ultrasound reports",
-    "close_full_screen_image": "Close full screen image",
-    "retake": "Retake",
-    "camera": "Camera",
-    "replace": "Replace",
-    "gallery": "Gallery",
-    "please_make_sure_the_image_is_not_blurred_or_cropped_ensure_image_quality": "Please make sure the image is not blurred or cropped. Ensure image quality.",
-    "ultrasound_date_for_report_reportnumber": "Ultrasound date for report {reportNumber}",
-    "report_reportnumber": "Report {reportNumber}",
-    "image_imagenumber": "Image {imageNumber}",
-    "open_image_imagenumber_in_full_screen": "Open Image {imageNumber} in full screen",
+    ...NATIVE_IMAGE_FORM_TEXT,
+    ...NATIVE_ANC_IMAGE_FORM_TEXT,
     "duration_unit": "Duration unit",
     "pregnancy_duration": "Pregnancy duration",
     "weeks": "Weeks",
     "months": "Months",
     "select_weeks_or_months": "Select weeks or months"
   },
+  "PFF": { ...NATIVE_IMAGE_FORM_TEXT, ...NATIVE_ANC_IMAGE_FORM_TEXT },
   "WQ": {
     "transfusion_month": "Month (MM)",
     "transfusion_year": "Year (YYYY)",
@@ -110,6 +116,7 @@ export const NATIVE_FORM_TEXT = {
     "bwq_child_possessive_unknown": "their"
   },
   "HHQ": {
+    ...GROUPED_CHOICE_TEXT,
     "not_captured": "Not captured",
     "capture_gps": "Capture GPS",
     "requesting_location_permission": "Requesting location permission...",
@@ -177,6 +184,9 @@ export const NATIVE_QUESTION_TITLE_OVERRIDES = {
 };
 
 export const NATIVE_QUESTION_TITLE_KEYS = {
+  ...GROUPED_CHOICE_TEXT_KEYS,
+  ...Object.fromEntries(Object.values(LMP_TIMING_FIELDS).map(name =>
+    [name, Object.keys(LMP_TIMING_TEXT).map(key => `${name}_${key}`)])),
   "wq_01_respondent_s_backgr_how_long_have_you_been_living_continuously": [
     "bwq_locality_duration"
   ],
@@ -210,6 +220,12 @@ export const NATIVE_QUESTION_TITLE_KEYS = {
     "bwq_husband_occupation_past"
   ]
 };
+
+for (const [code, name] of Object.entries(LMP_TIMING_FIELDS)) {
+  NATIVE_FORM_TEXT[code] = { ...NATIVE_FORM_TEXT[code],
+    ...Object.fromEntries(Object.entries(LMP_TIMING_TEXT).map(([key, text]) => [`${name}_${key}`, text])),
+  };
+}
 
 // These controls render only in the three questionnaires with generic repeat panels.
 const repeatedEntryText = {

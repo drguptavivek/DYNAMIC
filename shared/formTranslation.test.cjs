@@ -62,3 +62,32 @@ test('prepared overlays do not resurrect intentionally removed descriptions', ()
   prepared.pages[0].elements[0].description = '';
   assert.equal(applyFormTextTranslations(prepared, 'hi', dictionary, raw).pages[0].elements[0].description, '');
 });
+
+test('multiple-text special and unknown choices round-trip their labels without changing answer codes', () => {
+  const form = { pages: [{ name: 'p', elements: [{
+    name: 'duration', type: 'multipletext', title: 'Residence duration',
+    specialChoices: [{ name: 'since_birth', value: 95, text: { default: 'Living since birth', hi: 'Existing birth label' } }],
+    items: [{ name: 'years', title: 'Years', unknownChoice: { value: 9998, text: { default: "Don't know year", hi: '' } } }],
+  }] }] };
+  const original = structuredClone(form);
+  const birthKey = '@text:@page:p/elements/duration/specialChoices/since_birth:text';
+  const unknownKey = '@text:@page:p/elements/duration/items/years/unknownChoice:text';
+  const rows = flattenFormText(form);
+  assert.equal(rows.find(row => row.name === birthKey).title, 'Living since birth');
+  assert.equal(rows.find(row => row.name === unknownKey).title, "Don't know year");
+  assert.equal(rows.length, 4);
+  assert.ok(rows.every(row => row.title && row.title !== 'since_birth'));
+  assert.deepEqual(extractFormTextTranslations(form, 'hi'), { [birthKey]: { title: 'Existing birth label' } });
+
+  const dictionary = { [birthKey]: { title: 'Translated birth label' }, [unknownKey]: { title: 'Translated unknown year' } };
+  const translated = applyFormTextTranslations(form, 'hi', dictionary);
+  assert.deepEqual(extractFormTextTranslations(translated, 'hi'), dictionary);
+  assert.equal(translated.pages[0].elements[0].specialChoices[0].value, 95);
+  assert.equal(translated.pages[0].elements[0].specialChoices[0].name, 'since_birth');
+  assert.equal(translated.pages[0].elements[0].items[0].unknownChoice.value, 9998);
+  assert.deepEqual(form, original);
+
+  const blank = applyFormTextTranslations(form, 'hi', { [birthKey]: { title: ' ' }, [unknownKey]: { title: '' } });
+  assert.deepEqual(blank, original);
+  assert.equal(flattenFormText(blank).find(row => row.name === unknownKey).title, "Don't know year");
+});

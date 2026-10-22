@@ -8,19 +8,16 @@ import {
   setNativeQuestionValue,
 } from "../nativeSurveyModel.js";
 import { QuestionFrame, controlStyles } from "./QuestionFrame.js";
+import { getNativeFormText, LMP_TIMING_TEXT } from "../../../lib/nativeFormText.js";
 
-const RELATIVE_UNITS = [
-  { value: "days", text: "Days Ago" },
-  { value: "weeks", text: "Weeks Ago" },
-  { value: "months", text: "Months Ago" },
-  { value: "years", text: "Years Ago" },
-];
+const RELATIVE_UNITS = ["days", "weeks", "months", "years"];
 
 function digits(value, length) {
   return String(value || "").replace(/\D/g, "").slice(0, length);
 }
 
 export function WqLmpTimingRenderer({ answerData, locale, onChange, question }) {
+  const text = (key) => getNativeFormText(question, `${question.name}_${key}`, LMP_TIMING_TEXT[key], locale);
   const [unitOpen, setUnitOpen] = useState(false);
   const value = getNativeQuestionValue(question, answerData);
   const objectValue = value && typeof value === "object" ? value : {};
@@ -61,13 +58,13 @@ export function WqLmpTimingRenderer({ answerData, locale, onChange, question }) 
   return (
     <QuestionFrame locale={locale} question={question}>
       <View style={controlStyles.options}>
-        {radio("Date", mode === "date", () => selectMode("date"), "date")}
+        {radio(text("date"), mode === "date", () => selectMode("date"), "date")}
         {mode === "date" ? (
           <View style={styles.dateRow}>
             {[
-              ["day", "DD", 2],
-              ["month", "MM", 2],
-              ["year", "YYYY", 4],
+              ["day", text("day"), 2],
+              ["month", text("month"), 2],
+              ["year", text("year"), 4],
             ].map(([field, placeholder, maxLength]) => (
               <TextInput
                 accessibilityLabel={placeholder}
@@ -84,7 +81,7 @@ export function WqLmpTimingRenderer({ answerData, locale, onChange, question }) 
           </View>
         ) : null}
 
-        {radio("Relative time", mode === "relative", () => selectMode("relative"), "relative")}
+        {radio(text("relative"), mode === "relative", () => selectMode("relative"), "relative")}
         {mode === "relative" ? (
           <View style={styles.relativeWrap}>
             <Pressable
@@ -93,7 +90,7 @@ export function WqLmpTimingRenderer({ answerData, locale, onChange, question }) 
               style={styles.dropdown}
             >
               <Text style={styles.dropdownText}>
-                {RELATIVE_UNITS.find((unit) => unit.value === objectValue.unit)?.text || "Days Ago"}
+                {text(RELATIVE_UNITS.includes(objectValue.unit) ? objectValue.unit : "days")}
               </Text>
               <Text style={styles.chevron}>{unitOpen ? "▲" : "▼"}</Text>
             </Pressable>
@@ -101,20 +98,20 @@ export function WqLmpTimingRenderer({ answerData, locale, onChange, question }) 
               <View style={styles.dropdownMenu}>
                 {RELATIVE_UNITS.map((unit) => (
                   <Pressable
-                    key={unit.value}
+                    key={unit}
                     onPress={() => {
                       setUnitOpen(false);
-                      commit({ ...objectValue, mode: "relative", unit: unit.value });
+                      commit({ ...objectValue, mode: "relative", unit });
                     }}
                     style={styles.dropdownItem}
                   >
-                    <Text style={styles.dropdownText}>{unit.text}</Text>
+                    <Text style={styles.dropdownText}>{text(unit)}</Text>
                   </Pressable>
                 ))}
               </View>
             ) : null}
             <TextInput
-              accessibilityLabel="Two digit relative time"
+              accessibilityLabel={text("relative_value")}
               editable={!disabled}
               keyboardType="number-pad"
               maxLength={2}

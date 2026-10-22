@@ -4,6 +4,8 @@ import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { getPreparedSurveyJson } from '../../../../expo/src/modules/questionnaires/questionnaireSurveyJsonTransforms.js';
 import { flattenFormText } from '../../../../shared/formTranslation.cjs';
+import { GROUPED_CHOICE_TEXT_KEYS } from '../../../../expo/src/lib/groupedChoiceText.js';
+import { LMP_TIMING_FIELDS, LMP_TIMING_TEXT } from '../../../../expo/src/lib/nativeFormText.js';
 
 // Render the real page and exercise its event handlers, without a browser or server.
 const bundled = await build({
@@ -270,6 +272,17 @@ try {
     const authoredKeys = definition.elements.filter(element => element.kind !== 'native').map(element => element.name);
     assert.deepEqual(questionnaireKeys.filter(name => authoredKeys.includes(name)), authoredKeys, `${form.form_code}: authored questionnaire order stays intact`);
     if (form.form_code === 'HHQ') assert.ok(questionnaireKeys.includes('@native:household_characteristics_intro'), 'BHQ page instruction stays with questionnaire');
+    const anchoredLabels = form.form_code === 'HHQ' ? GROUPED_CHOICE_TEXT_KEYS : {};
+    const lmpField = LMP_TIMING_FIELDS[form.form_code];
+    if (lmpField) anchoredLabels[lmpField] = Object.keys(LMP_TIMING_TEXT).map(key => `${lmpField}_${key}`);
+    for (const [question, keys] of Object.entries(anchoredLabels)) {
+      const questionIndex = questionnaireKeys.indexOf(question);
+      assert.ok(questionIndex >= 0, `${form.form_code}: native-label question exists`);
+      for (const key of keys) {
+        assert.ok(questionnaireKeys.indexOf(`@native:${key}`) > questionIndex, `${form.form_code}: ${key} stays with its question`);
+        assert.ok(!appKeys.includes(`@native:${key}`), 'Question option labels are not app popups');
+      }
+    }
     if (form.form_code === 'WQ') {
       assert.equal(questionnaireKeys[questionnaireKeys.indexOf('@page:page_02_reproduction') + 1], '@native:reproduction_intro', 'BWQ reproduction instruction follows its section heading');
       const dob = 'wq_01_respondent_s_backgr_in_what_month_and_year_were_you_born';
