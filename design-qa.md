@@ -1,4 +1,4 @@
-﻿# Design QA: DYNAMIC public landing page
+# Design QA: DYNAMIC public landing and login pages
 
 - Date: 22 October 2026 (IST).
 - Source visual truth: `C:/Users/jtndr/.codex/generated_images/01a10fb7-5ebb-7623-82b6-972d927a19a5/exec-5a356cbe-4390-468f-931f-eed462b3d142.png`.
@@ -27,5 +27,15 @@
 - P3: the decorative footer leaf from the generated concept is omitted; footer copy uses the available space.
 - P3: generated illustration details differ slightly from the concept while retaining its composition and palette.
 - QR was not scanned with a physical phone during this check. No signed-in admin workflow or APK code was changed.
+
+## Matching login page
+
+- Theme reference: `C:/Users/jtndr/AppData/Local/Temp/dynamic-selected-landing-s2VEej/landing-1440.png` (deployed selected white/teal design).
+- Implementation evidence: `C:/Users/jtndr/AppData/Local/Temp/dynamic-login-theme-SzQBb3/login-1440.png`; companion `login-1280.png` and `login-390.png` in the same directory.
+- Both desktop images were opened together in the same comparison input at 1440 x 900, scale factor 1. This is a theme adaptation to an authentication page, not a pixel clone of the public hero.
+- Matched the thin teal top border, white surface, logo header, mint status/footer, navy/teal copy, shared illustration, and button styling. The login form is deliberately prominent on the right on desktop and first on mobile. No actionable P0/P1/P2 findings remain.
+- Browser checks at 1440 x 900, 1280 x 720 and emulated 390 x 844: images load, no horizontal overflow, form controls at least 44px tall, and mobile form above the fold.
+- Exercised the real component with mocked authentication: pending/disabled controls, rejected credentials alert, TOTP_REQUIRED transition, numeric six-digit normalization, Back to password, successful verification redirect to dashboard, and unenrolled-user redirect to TOTP setup. No live authentication requests or account modifications were made.
+- Browser exception collection was empty; admin typecheck and production build passed. Authentication submission logic was unchanged.
 
 final result: passed
