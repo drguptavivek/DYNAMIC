@@ -32,6 +32,7 @@ const {
   WQ_STERILIZATION_FIELD,
   attachWqValidation,
   applyWqBiomarkerSiteAccess,
+  applyWqDomesticViolenceSiteAccess,
    applyWqDomesticViolenceCalculations,
   applyWqLmpTimingChecks,
   applyWqSectionTwoCompletion,
@@ -58,6 +59,7 @@ const {
   shouldRecalculateWqPregnancyHistory,
   shouldRecalculateWqReproductionSummary,
   shouldCompleteWqAfterReproduction,
+  shouldCompleteWqInterviewAfterPage,
   shouldPromptWqChildBirthday,
 } = await import("../lib/womanSurveyBehaviors.js");
 const {
@@ -254,15 +256,18 @@ const questionnaireDashboardSource = fs.readFileSync(
   path.resolve(root, "../modules/questionnaires/QuestionnaireDashboard.js"),
   "utf8",
 );
+for (const modelName of ["model", "survey"]) {
+  assert.ok(
+    questionnaireDashboardSource.includes(
+      `applyWqDomesticViolenceSiteAccess(${modelName}, { taskContext, prefillData, user });`,
+    ),
+    `BWQ ${modelName === "model" ? "initialization" : "draft restoration"} must apply Domestic Violence site access`,
+  );
+}
 assert.match(
   questionnaireDashboardSource,
-  /const WQ_FINAL_INTERVIEW_PAGE_NAME = "page_05_domestic_violence";/,
-  "BWQ completion must be triggered only after leaving the final Domestic Violence section",
-);
-assert.match(
-  questionnaireDashboardSource,
-  /options\?\.oldCurrentPage\?\.name === WQ_FINAL_INTERVIEW_PAGE_NAME/,
-  "BWQ final-section completion must use the configured final page",
+  /shouldCompleteWqInterviewAfterPage\(sender, options\?\.oldCurrentPage\?\.name\)/,
+  "BWQ final-section completion must use the final visible interview page",
 );
 
 const dynamicPanelRendererSource = fs.readFileSync(
@@ -2487,6 +2492,99 @@ assert.equal(
 );
 assert.equal(shouldRecalculateWqDomesticViolence(domesticPhysicalSlap), true);
 
+const domesticDraft = {
+  wq_woman_available: 1,
+  wq_consent_study: 1,
+  [WQ_CURRENT_MARITAL_STATUS_FIELD]: 1,
+  wq_pregnancy_tracking_eligible: 1,
+  [domesticPrivacy]: 1,
+  [domesticMaritalCheck]: 1,
+  [domesticJealous]: 1,
+};
+for (const siteId of [1, 2, 3, 4, "4", null]) {
+  const siteModel = createWqModel();
+  siteModel.data = { ...domesticDraft };
+  const siteContext = { taskContext: { site_id: siteId } };
+  const expectedVisible = Number(siteId) === 4;
+  assert.equal(applyWqDomesticViolenceSiteAccess(siteModel, siteContext), expectedVisible);
+  const page = siteModel.getPageByName("page_05_domestic_violence");
+  assert.equal(page.isVisible, expectedVisible, `Domestic Violence site access must match site ${siteId}`);
+  assert.equal(
+    shouldCompleteWqInterviewAfterPage(siteModel, "page_06_biomarkers"),
+    !expectedVisible,
+    `Biomarkers must complete the interview only when site ${siteId} skips Domestic Violence`,
+  );
+  assert.equal(shouldCompleteWqInterviewAfterPage(siteModel, "page_05_domestic_violence"), true);
+  for (const earlierPage of [
+    "page_01_respondent_background", "page_02_reproduction", "page_02b_reproduction_follow_up",
+    "page_03_other_health_issues", "page_04_husband_background_woman_work", "page_outcome", undefined,
+  ]) {
+    assert.equal(
+      shouldCompleteWqInterviewAfterPage(siteModel, earlierPage), false,
+      "Earlier exits and stop outcomes must not mark a full interview complete",
+    );
+  }
+  const gate = page.visibleIf;
+  applyWqDomesticViolenceSiteAccess(siteModel, siteContext);
+  assert.equal(page.visibleIf, gate, "Reapplying the site rule must not duplicate its condition");
+  siteModel.data = { ...domesticDraft };
+  assert.equal(page.isVisible, expectedVisible, "Restoring a draft must not bypass site access");
+  assert.equal(siteModel.getValue(domesticJealous), 1, "Hiding a section must preserve existing draft answers");
+  assert.equal(Object.hasOwn(siteModel.data, "wq_domestic_violence_site_enabled"), false);
+  if (!expectedVisible) {
+    question(siteModel, domesticJealous).isRequired = true;
+    siteModel.setValue(domesticJealous, undefined);
+    for (const visiblePage of siteModel.visiblePages) {
+      for (const item of visiblePage.questions) {
+        item.isRequired = false;
+        item.validators = [];
+      }
+    }
+    assert.equal(siteModel.validate(), true, "Hidden Domestic Violence must not block final validation");
+    const biomarkers = siteModel.getPageByName("page_06_biomarkers");
+    for (const item of biomarkers.questions) item.isRequired = false;
+    siteModel.currentPage = biomarkers;
+    assert.equal(siteModel.nextPage(), true);
+    assert.equal(siteModel.currentPage.name, "page_outcome", "Navigation must skip hidden Domestic Violence");
+    if (shouldCompleteWqInterviewAfterPage(siteModel, biomarkers.name)) {
+      siteModel.setValue("wq_full_interview_completed", 1);
+    }
+    assert.deepEqual(
+      question(siteModel, "wq_result_interview").visibleChoices.map((choice) => choice.value),
+      [1], "Skipping Domestic Violence must still offer only the Completed outcome after biomarkers",
+    );
+  }
+}
+const domesticSiteToggleModel = createWqModel();
+domesticSiteToggleModel.data = { ...domesticDraft };
+const domesticPage = domesticSiteToggleModel.getPageByName("page_05_domestic_violence");
+applyWqDomesticViolenceSiteAccess(domesticSiteToggleModel, {
+  taskContext: { household_id: "2-10-0001-01" }, user: { site_id: 4 },
+});
+assert.equal(domesticPage.isVisible, false, "Household site must override the logged-in user's site");
+applyWqDomesticViolenceSiteAccess(domesticSiteToggleModel, {
+  prefillData: { hhq_household_id: "4-04-0001-01" }, user: { site_id: 1 },
+});
+assert.equal(domesticPage.isVisible, true, "Ayapakkam household context must enable Domestic Violence");
+domesticSiteToggleModel.setValue(domesticPrivacy, 2);
+assert.equal(isVisible(domesticSiteToggleModel, domesticJealous), false, "Ayapakkam privacy checks must still apply");
+domesticSiteToggleModel.setValue(domesticPrivacy, 1);
+assert.equal(isVisible(domesticSiteToggleModel, domesticJealous), true);
+domesticSiteToggleModel.setValue("wq_consent_study", 2);
+assert.equal(domesticPage.isVisible, false, "Site access must retain the consent stop condition");
+domesticSiteToggleModel.setValue("wq_consent_study", 1);
+domesticSiteToggleModel.setValue("wq_pregnancy_tracking_eligible", 2);
+assert.equal(domesticPage.isVisible, false, "Site access must retain eligibility conditions");
+domesticSiteToggleModel.setValue("wq_pregnancy_tracking_eligible", 1);
+domesticSiteToggleModel.setValue(WQ_CURRENT_MARITAL_STATUS_FIELD, 7);
+assert.equal(domesticPage.isVisible, false, "Site access must retain marital-status stop conditions");
+domesticSiteToggleModel.data = { ...domesticDraft };
+applyWqDomesticViolenceSiteAccess(domesticSiteToggleModel, { user: { site_id: 1 } });
+assert.equal(domesticPage.isVisible, false, "Changing site context must hide an already-visible section");
+assert.equal(domesticSiteToggleModel.getValue(domesticJealous), 1);
+applyWqDomesticViolenceSiteAccess(domesticSiteToggleModel, { user: { site_id: 4 } });
+assert.equal(domesticPage.isVisible, true);
+
 const panelModel = createWqModel();
 panelModel.setValue("wq_woman_available", 1);
 panelModel.setValue("wq_consent_study", 1);
@@ -2664,8 +2762,10 @@ assert.equal(
   3,
   "WQ Biomarker access must derive Belagavi from the household identity",
 );
-for (const [siteId, entryEnabled] of [[1, true], [3, true], [2, false], [4, false]]) {
+for (const [siteId, entryEnabled] of [[1, true], [3, false], [2, false], [4, false]]) {
   const siteModel = createWqModel();
+  siteModel.setValue("wq_blood_pressure_measured_site", { systolic: "120", diastolic: "80" });
+  siteModel.setValue("wq_hemoglobin_measured_site", "12.5");
   assert.equal(
     applyWqBiomarkerSiteAccess(siteModel, {
       taskContext: { household_id: `${siteId}-01-0001-01` },
@@ -2685,6 +2785,11 @@ for (const [siteId, entryEnabled] of [[1, true], [3, true], [2, false], [4, fals
       false,
       `${fieldName} must remain displayed at site ${siteId}`,
     );
+  }
+  assert.deepEqual(siteModel.getValue("wq_blood_pressure_measured_site"), { systolic: "120", diastolic: "80" });
+  assert.equal(siteModel.getValue("wq_hemoglobin_measured_site"), "12.5", "Locking biomarkers must preserve existing answers");
+  for (const fieldName of ["wq_height_measured_site_cm", "wq_weight_measured_site_kg"]) {
+    assert.equal(question(siteModel, fieldName).readOnly, false, "Height and weight access must remain unchanged");
   }
 }
 const unknownSiteModel = createWqModel();

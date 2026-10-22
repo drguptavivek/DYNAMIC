@@ -7894,7 +7894,7 @@
           "renderingHint": {
             "render_as": "radio"
           },
-          "skipLogicSource": "Excel 05: domestic violence section is Ayapakkam/Belagavi only, but WQ currently lacks a clean site-id question for safe JSON gating."
+          "skipLogicSource": "Excel 05: domestic violence section is Ayapakkam only; app site access preserves the existing eligibility and privacy conditions."
         },
         {
           "type": "html",
@@ -10408,9 +10408,9 @@
           "section_order": 6,
           "sourceCode": "3",
           "sourceType": "multiple_numeric",
-          "rawText": "Blood pressure - measured on site |_|_|_|/|_|_|_| [Bareilly and Belagavi only]",
+          "rawText": "Blood pressure - measured on site |_|_|_|/|_|_|_| [Bareilly only]",
           "description": {
-            "default": "[Bareilly and Belagavi only]",
+            "default": "[Bareilly only]",
             "hi": "",
             "kn": "",
             "mr": "",
@@ -10481,9 +10481,9 @@
             }
           ],
           "validationRulesSource": [
-            "[Bareilly and Belagavi only]"
+            "[Bareilly only]"
           ],
-          "skipLogicSource": "App rule: blood pressure entry is enabled for Bareilly and Belagavi only; it remains visible but read-only at other sites."
+          "skipLogicSource": "App rule: blood pressure entry is enabled for Bareilly only; it remains visible but read-only at other sites."
         },
         {
           "type": "text",
@@ -10501,9 +10501,9 @@
           "section_order": 6,
           "sourceCode": "4",
           "sourceType": "decimal",
-          "rawText": "Hemoglobin - measured on site |_|_|.|_| grams per deciliter [Bareilly and Belagavi only]",
+          "rawText": "Hemoglobin - measured on site |_|_|.|_| grams per deciliter [Bareilly only]",
           "description": {
-            "default": "grams per deciliter [Bareilly and Belagavi only]",
+            "default": "grams per deciliter [Bareilly only]",
             "hi": "",
             "kn": "",
             "mr": "",
@@ -10534,9 +10534,9 @@
             }
           ],
           "validationRulesSource": [
-            "[Bareilly and Belagavi only]"
+            "[Bareilly only]"
           ],
-          "skipLogicSource": "App rule: hemoglobin entry is enabled for Bareilly and Belagavi only; it remains visible but read-only at other sites."
+          "skipLogicSource": "App rule: hemoglobin entry is enabled for Bareilly only; it remains visible but read-only at other sites."
         }
       ],
       "visibleIf": "({wq_pregnancy_tracking_eligible} = 1) and (({wq_woman_available} empty or {wq_woman_available} = 1) and ({wq_consent_study} empty or {wq_consent_study} = 1) and ({wq_current_marital_status} empty or {wq_current_marital_status} != 7))",

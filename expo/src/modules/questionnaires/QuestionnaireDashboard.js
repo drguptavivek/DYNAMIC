@@ -100,6 +100,8 @@ import {
   applyWqBornAliveProbe,
   applyWqCheck8Confirmation,
   applyWqDomesticViolenceCalculations,
+  applyWqDomesticViolenceSiteAccess,
+  shouldCompleteWqInterviewAfterPage,
   applyWqLmpTimingChecks,
    applyWqPregnancyHistoryCalculations,
    applyWqPregnancyTrackingEligibility,
@@ -129,7 +131,6 @@ const WQ_INTERVIEW_DATE_FIELD = "wq_interview_date";
 const WQ_WOMAN_AVAILABLE_FIELD = "wq_woman_available";
 const WQ_RESULT_INTERVIEW_FIELD = "wq_result_interview";
 const WQ_OUTCOME_PAGE_NAME = "page_outcome";
-const WQ_FINAL_INTERVIEW_PAGE_NAME = "page_05_domestic_violence";
 const WQ_SECTION_TWO_FINAL_PAGE_NAME = "page_02e_reproduction_after_comparison";
 const WQ_REPRODUCTION_COMPARISON_PAGE_NAME = "page_02d_reproduction_comparison";
 const WQ_REPRODUCTION_COMPARISON_FIELD = "wq_reproduction_comparison_table";
@@ -676,6 +677,7 @@ export function QuestionnaireDashboard({
     if (isWomanQuestionnaire(form)) {
       attachWqValidation(model);
       applyWqBiomarkerSiteAccess(model, { taskContext, prefillData, user });
+      applyWqDomesticViolenceSiteAccess(model, { taskContext, prefillData, user });
       applyWqVisitNo(model, taskContext);
       applyWqReproductionSummary(model);
        applyWqPregnancyHistoryCalculations(model);
@@ -773,6 +775,7 @@ export function QuestionnaireDashboard({
       if (
         isPregnancyEnrollmentForm(form) &&
         options.name === PEF_ON_SPOT_UPT_RESULT_FIELD &&
+        sender.getQuestionByName(PEF_ON_SPOT_UPT_RESULT_FIELD)?.isVisible &&
         Number(options.value) === PEF_NEGATIVE_UPT_VALUE
       ) {
         setSaveMessage("UPT result is Negative. Complete the outcome and final-submit this form.");
@@ -1008,12 +1011,12 @@ export function QuestionnaireDashboard({
       setDirty(true);
       setPreviewOpen(false);
       setMemberSummaryOpen(false);
-      // Completing the final Domestic Violence section means the whole interview ran:
+      // Completing the last applicable interview section means the whole interview ran:
       // lock the outcome to Completed with only that option visible.
       if (
         isWomanQuestionnaire(form) &&
         sender.currentPage?.name === WQ_OUTCOME_PAGE_NAME &&
-        options?.oldCurrentPage?.name === WQ_FINAL_INTERVIEW_PAGE_NAME
+        shouldCompleteWqInterviewAfterPage(sender, options?.oldCurrentPage?.name)
       ) {
         sender.setValue(WQ_FULL_INTERVIEW_COMPLETED_FIELD, 1);
         if (
@@ -1217,6 +1220,9 @@ export function QuestionnaireDashboard({
             form,
             mergePrefillIntoBlankValues(restoredData, survey.data || {}),
           );
+          if (isPregnancyEnrollmentForm(form)) {
+            applyPefOnSpotUptSiteVisibility(survey, { taskContext, prefillData, user });
+          }
         } finally {
           draftRestoreInProgressRef.current = false;
         }
@@ -1232,6 +1238,7 @@ export function QuestionnaireDashboard({
           refreshHouseholdRoundsSurveyBehaviors(survey, form);
         }
         if (isWomanQuestionnaire(form)) {
+          applyWqDomesticViolenceSiteAccess(survey, { taskContext, prefillData, user });
           applyWqReproductionSummary(survey);
            applyWqPregnancyHistoryCalculations(survey);
           applyWqLmpTimingChecks(survey);

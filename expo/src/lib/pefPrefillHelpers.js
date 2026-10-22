@@ -240,8 +240,12 @@ export function applyPefOnSpotUptSiteVisibility(
   const question = model?.getQuestionByName?.(PEF_ON_SPOT_UPT_RESULT_FIELD);
   if (!question) return false;
   const visibleAtSite = derivePefSiteId(taskContext, prefillData, user) === BAREILLY_SITE_ID;
-  question.visible = visibleAtSite;
+  question.visibleIf = visibleAtSite ? "{pef_pregnancy_confirmed_upt} = 2" : "false";
+  const pregnancyRank = model.getQuestionByName(PEF_PREGNANCY_RANK_FIELD);
   if (!visibleAtSite) {
+    if (pregnancyRank) {
+      pregnancyRank.visibleIf = "{pef_pregnancy_confirmed_upt} anyof [1,2]";
+    }
     model?.setValue?.(PEF_ON_SPOT_UPT_RESULT_FIELD, undefined);
   }
   return visibleAtSite;
@@ -251,12 +255,17 @@ export function applyPefBiomarkerSiteRequirements(
   model,
   { taskContext, prefillData, user } = {},
 ) {
-  const required = PEF_REQUIRED_BIOMARKER_SITE_IDS.has(
-    derivePefSiteId(taskContext, prefillData, user),
-  );
+  const siteId = derivePefSiteId(taskContext, prefillData, user);
+  const required = PEF_REQUIRED_BIOMARKER_SITE_IDS.has(siteId);
   for (const fieldName of PEF_BIOMARKER_FIELDS) {
     const question = model?.getQuestionByName?.(fieldName);
-    if (question) question.isRequired = required;
+    if (!question) continue;
+    if (fieldName === PEF_BLOOD_PRESSURE_FIELD) {
+      question.isRequired = false;
+      if (siteId !== BAREILLY_SITE_ID) question.readOnly = true;
+    } else {
+      question.isRequired = required;
+    }
   }
   return required;
 }

@@ -33,6 +33,7 @@ import {
   setNativeQuestionValue,
   validateNativeQuestionTree,
 } from "../components/forms/nativeSurveyModel.js";
+import { applyReadOnlyFields } from "../modules/questionnaires/questionnaireReadOnlyFields.js";
 import { getNativeKeyboardType } from "../components/forms/renderers/multipleTextValue.js";
 import { createSurveyModel } from "../polyfills/surveyCoreNative.js";
 import {
@@ -166,7 +167,7 @@ assert.match(
 );
 assert.match(
   pefUltrasoundRendererSource,
-  /accessibilityLabel=\{`Open Image \$\{imageIndex \+ 1\} in full screen`\}[\s\S]*name="plus"[\s\S]*<Modal[\s\S]*resizeMode: "contain"/,
+  /accessibilityLabel=\{formatNativeFormText\(question\.survey, "open_image_imagenumber_in_full_screen"[\s\S]*name="plus"[\s\S]*<Modal[\s\S]*resizeMode: "contain"/,
   "PEF ultrasound previews must provide a plus control and full-screen image preview",
 );
 assert.match(
@@ -352,7 +353,7 @@ assert.equal(
   }),
   true,
 );
-assert.equal(bareillyModel.question.visible, true);
+assert.equal(bareillyModel.question.visibleIf, "{pef_pregnancy_confirmed_upt} = 2");
 const otherSiteModel = createPefVisibilityModel();
 assert.equal(
   applyPefOnSpotUptSiteVisibility(otherSiteModel, {
@@ -360,54 +361,113 @@ assert.equal(
   }),
   false,
 );
-assert.equal(otherSiteModel.question.visible, false);
+assert.equal(otherSiteModel.question.visibleIf, "false");
 assert.equal(otherSiteModel.values[PEF_ON_SPOT_UPT_RESULT_FIELD], undefined);
-function createPefBiomarkerRequirementModel() {
-  const questions = Object.fromEntries(
-    ["pef_weight_kg", "pef_height_cm", "pef_blood_pressure"]
-      .map((name) => [name, { name, isRequired: false }]),
-  );
-  return {
-    questions,
-    getQuestionByName(name) {
-      return questions[name] || null;
-    },
-  };
-}
-for (const siteId of [3, 4]) {
-  const requiredModel = createPefBiomarkerRequirementModel();
-  assert.equal(
-    applyPefBiomarkerSiteRequirements(requiredModel, {
-      taskContext: { household_id: `${siteId}-01-0001-01` },
-    }),
-    true,
-  );
-  assert.equal(
-    Object.values(requiredModel.questions).every((question) => question.isRequired),
-    true,
-    `PEF Q43-Q45 must be required at site ${siteId}`,
-  );
-}
-for (const siteId of [1, 2]) {
-  const optionalModel = createPefBiomarkerRequirementModel();
-  for (const question of Object.values(optionalModel.questions)) question.isRequired = true;
-  assert.equal(
-    applyPefBiomarkerSiteRequirements(optionalModel, {
-      taskContext: { household_id: `${siteId}-01-0001-01` },
-    }),
-    false,
-  );
-  assert.equal(
-    Object.values(optionalModel.questions).every((question) => !question.isRequired),
-    true,
-    `PEF Q43-Q45 must remain optional at site ${siteId}`,
-  );
+for (const siteId of [1, 2, 3, 4]) {
+  for (const prefilled of [false, true]) {
+    const model = createSurveyModel(prepareQuestionnaireSurveyJson(form));
+    const context = { taskContext: { household_id: `${siteId}-01-0001-01` } };
+    const biomarkerValues = {
+      pef_weight_kg: "60.0",
+      pef_height_cm: "160",
+      pef_blood_pressure: { systolic: "120", diastolic: "80" },
+    };
+    if (prefilled) {
+      model.data = biomarkerValues;
+      applyReadOnlyFields(model, Object.keys(biomarkerValues));
+    }
+    assert.equal(applyPefBiomarkerSiteRequirements(model, context), siteId === 3 || siteId === 4);
+    for (const name of ["pef_weight_kg", "pef_height_cm"]) {
+      const question = model.getQuestionByName(name);
+      assert.equal(question.isRequired, siteId === 3 || siteId === 4,
+        `${name} must retain existing site requirements at site ${siteId}`);
+      assert.equal(question.isReadOnly, prefilled,
+        `${name} must retain the source-prefill lock at site ${siteId}`);
+    }
+    const bloodPressure = model.getQuestionByName("pef_blood_pressure");
+    assert.equal(bloodPressure.isVisible, true, `BP must remain visible at site ${siteId}`);
+    assert.equal(bloodPressure.isReadOnly, prefilled || siteId !== 1,
+      `BP must be editable only at Bareilly unless already locked by source prefill`);
+    assert.equal(bloodPressure.isRequired, false,
+      `Locked blank BP must not block site ${siteId}`);
+    validateNativeQuestionTree(bloodPressure);
+    assert.equal(hasNativeValidationProblem(bloodPressure), false,
+      `BP must validate ${prefilled ? "prefilled" : "blank"} values at site ${siteId}`);
+    if (prefilled) {
+      for (const [name, value] of Object.entries(biomarkerValues)) {
+        assert.deepEqual(model.getValue(name), value,
+          `${name} source values must be preserved at site ${siteId}`);
+      }
+    }
+  }
 }
 assert.equal(form.pages[0].elements.find((element) => element.sourceCode === "7").visibleIf, "{pef_pregnancy_confirmed_upt} = 2");
 assert.match(form.pages[0].elements.find((element) => element.sourceCode === "41").visibleIf, /pef_additional_symptoms/);
 assert.equal(isPefNegativeUptAnswers({ [PEF_ON_SPOT_UPT_RESULT_FIELD]: "2" }), true);
 assert.equal(isPefNegativeUptAnswers({ [PEF_ON_SPOT_UPT_RESULT_FIELD]: 1 }), false);
 const preparedPef = prepareQuestionnaireSurveyJson(form);
+for (const siteId of [1, 2, 3, 4]) {
+  const model = createSurveyModel(preparedPef);
+  const context = { taskContext: { household_id: `${siteId}-01-0001-01` } };
+  applyPefOnSpotUptSiteVisibility(model, context);
+  const q7 = model.getQuestionByName(PEF_ON_SPOT_UPT_RESULT_FIELD);
+  const rank = model.getQuestionByName(PEF_PREGNANCY_RANK_FIELD);
+  const outcome = model.pages.find((page) => page.name === PEF_OUTCOME_PAGE_NAME);
+  for (const confirmed of [1, 2, 1, 2]) {
+    model.setValue("pef_pregnancy_confirmed_upt", confirmed);
+    assert.equal(q7.isVisible, siteId === 1 && confirmed === 2,
+      `Q7 must remain restricted to Bareilly after Q6 changes at site ${siteId}`);
+    if (siteId !== 1) {
+      assert.equal(rank.isVisible, true,
+        `Site ${siteId} must proceed to Q8 without on-spot UPT`);
+      validateNativeQuestionTree(q7);
+      assert.equal(hasNativeValidationProblem(q7), false,
+        "Hidden Q7 must not block native navigation or submission");
+    }
+  }
+  const restoredNegativeVisibility = [];
+  model.onValueChanged.add((sender, options) => {
+    if (options.name === PEF_ON_SPOT_UPT_RESULT_FIELD && Number(options.value) === 2) {
+      restoredNegativeVisibility.push(sender.getQuestionByName(PEF_ON_SPOT_UPT_RESULT_FIELD).isVisible);
+    }
+  });
+  if (siteId === 1) {
+    for (const result of [1, 2, 3]) {
+      model.setValue(PEF_ON_SPOT_UPT_RESULT_FIELD, result);
+      assert.equal(rank.isVisible, result !== PEF_NEGATIVE_UPT_VALUE);
+      assert.equal(outcome.isVisible, result === PEF_NEGATIVE_UPT_VALUE);
+    }
+    restoredNegativeVisibility.length = 0;
+    model.data = { pef_pregnancy_confirmed_upt: 2, [PEF_ON_SPOT_UPT_RESULT_FIELD]: 2 };
+    assert.deepEqual(restoredNegativeVisibility, [], "Bulk draft restoration does not emit value-change events");
+    model.clearValue(PEF_ON_SPOT_UPT_RESULT_FIELD);
+    model.setValue(PEF_ON_SPOT_UPT_RESULT_FIELD, 2);
+    applyPefOnSpotUptSiteVisibility(model, context);
+    assert.equal(model.getValue(PEF_ON_SPOT_UPT_RESULT_FIELD), 2);
+    assert.equal(outcome.isVisible, true, "Bareilly negative drafts must retain their outcome");
+    assert.equal(restoredNegativeVisibility.at(-1), true);
+  } else {
+    model.data = {
+      pef_pregnancy_confirmed_upt: 2,
+      [PEF_ON_SPOT_UPT_RESULT_FIELD]: PEF_NEGATIVE_UPT_VALUE,
+    };
+    assert.deepEqual(restoredNegativeVisibility, [], "Bulk draft restoration does not emit value-change events");
+    model.clearValue(PEF_ON_SPOT_UPT_RESULT_FIELD);
+    model.setValue(PEF_ON_SPOT_UPT_RESULT_FIELD, 2);
+    assert.deepEqual(restoredNegativeVisibility, [false],
+      "A hidden negative must not trigger the visible-Q7 outcome navigation guard");
+    applyPefOnSpotUptSiteVisibility(model, context);
+    assert.equal(model.getValue(PEF_ON_SPOT_UPT_RESULT_FIELD), undefined,
+      "A restored hidden on-spot UPT answer must be removed before saving");
+    assert.equal(q7.isVisible, false);
+    assert.equal(rank.isVisible, true);
+    assert.equal(outcome.isVisible, false);
+    assert.equal(model.getQuestionByName("pef_pregnancy_id").isVisible, true);
+  }
+}
+assert.match(dashboardSource,
+  /applyPefOnSpotUptSiteVisibility\(survey, \{ taskContext, prefillData, user \}\);[\s\S]*draftRestoreInProgressRef\.current = false;[\s\S]*answerSnapshotRef\.current =/,
+  "PEF site restrictions must be reapplied after restoring a draft and before snapshotting it");
 const pefMeasurementsModel = createSurveyModel(preparedPef);
 for (const [fieldName, validValues, invalidValues] of [
   ["pef_weight_kg", ["45.6", "121.4"], ["9.5", "121.45", "1234.5"]],

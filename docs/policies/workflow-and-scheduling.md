@@ -48,6 +48,7 @@ Rules:
 - Form-specific field extraction for event payloads belongs in the shared form-submission trigger layer.
 - Backend and Expo callers adapt storage only: response rows, event outbox/domain-event tables, projection tables, task tables, and sync status.
 - Drafts never trigger events.
+- PEF Q7 on-spot UPT is shown only in Bareilly (site 1), when Q6 is `No`. Other sites skip Q7 and continue to Q8; irrelevant Q7 answers are cleared when restoring their drafts.
 - A finalized PEF with Q7 on-spot UPT result `Negative` is an early-stop outcome:
   it does not emit `pregnancy_enrolled`, closes any provisional active pregnancy,
   and restores the woman's previously suspended PSF tasks. If no PSF series

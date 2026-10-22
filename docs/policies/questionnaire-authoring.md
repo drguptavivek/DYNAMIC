@@ -45,6 +45,8 @@ Do question-by-question PDF comparison before questionnaire JSON changes.
 - Forms open from scheduled tasks or valid contextual triggers only.
 - HHQ can create/enroll the baseline household from the mapped frame.
 - WQ opens for HHQ-derived eligible women.
+- WQ Domestic Violence is available only at Ayapakkam (Chennai, site 4). Its existing pregnancy-tracking eligibility, consent, privacy and marital-status conditions still apply; other sites skip the entire section.
+- PEF blood pressure and WQ blood pressure/hemoglobin are editable only at Bareilly (site 1); other sites see locked fields with existing values preserved. Source-prefilled PEF blood pressure remains locked. Do not add a hemoglobin question to PEF.
 - PEF opens from accepted pregnancy detection.
 - PFF/POF/BAF/NFF/CDF/SBF/VA open only through workflow rules and task state.
 

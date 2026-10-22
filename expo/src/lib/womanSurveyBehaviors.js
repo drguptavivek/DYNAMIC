@@ -86,7 +86,7 @@ export const WQ_DV_FORCE_SEX_THREATS_FIELD =
   "wq_05_domestic_violence_force_you_with_threats_or_in_any_other_way";
 export const WQ_BIOMARKER_BLOOD_PRESSURE_FIELD = "wq_blood_pressure_measured_site";
 export const WQ_BIOMARKER_HEMOGLOBIN_FIELD = "wq_hemoglobin_measured_site";
-export const WQ_BIOMARKER_ENTRY_SITE_IDS = [1, 3];
+export const WQ_BIOMARKER_ENTRY_SITE_IDS = [1];
 
 const WQ_REPRODUCTION_SUMMARY_SOURCE_FIELDS = [
   WQ_EVER_GIVEN_BIRTH_FIELD,
@@ -167,6 +167,27 @@ export function applyWqBiomarkerSiteAccess(model, { taskContext, prefillData, us
     if (question) question.readOnly = !entryEnabled;
   }
   return entryEnabled;
+}
+
+export function applyWqDomesticViolenceSiteAccess(model, context = {}) {
+  const entryEnabled = deriveWqBiomarkerSiteId(
+    context.taskContext, context.prefillData, context.user,
+  ) === 4;
+  const page = model?.getPageByName?.("page_05_domestic_violence");
+  if (!page) return entryEnabled;
+  const siteGuard = "{wq_domestic_violence_site_enabled} = true";
+  model.setVariable("wq_domestic_violence_site_enabled", entryEnabled);
+  if (!page.visibleIf.includes(siteGuard)) {
+    page.visibleIf = page.visibleIf ? `(${page.visibleIf}) and (${siteGuard})` : siteGuard;
+  }
+  return entryEnabled;
+}
+
+export function shouldCompleteWqInterviewAfterPage(model, pageName) {
+  return pageName === "page_05_domestic_violence" || (
+    pageName === "page_06_biomarkers" &&
+    model?.getPageByName?.("page_05_domestic_violence")?.isVisible === false
+  );
 }
 
 export function shouldPromptWqChildBirthday(deathAge) {
