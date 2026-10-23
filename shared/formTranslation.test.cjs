@@ -2,6 +2,33 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 const { flattenFormText, extractFormTextTranslations, applyFormTextTranslations } = require('./formTranslation.cjs');
 
+test('English edits apply to default and en without changing other locales, answers or source', () => {
+  const source = { title: 'Original form', nativeText: { save: 'Save' }, pages: [{ name: 'p', title: 'Original heading', elements: [{
+    name: 'q', type: 'radiogroup', title: { default: 'Original question', hi: 'Hindi question' },
+    description: 'Original help', requiredErrorText: 'Original error', visibleIf: '{consent}=1',
+    choices: [{ value: 1, text: { default: 'Original option', hi: 'Hindi option' } }],
+  }] }] };
+  const original = structuredClone(source);
+  const edits = Object.fromEntries(flattenFormText(source).map(row => [row.name, {
+    title: `Edited ${row.title}`, ...(row.description && { description: `Edited ${row.description}` }),
+    ...(row.choices.length && { choices: { 1: 'Edited option' } }),
+  }]));
+  const translated = applyFormTextTranslations(source, 'en', edits);
+  assert.deepEqual(extractFormTextTranslations(translated, 'en'), edits);
+  for (const row of flattenFormText(translated)) {
+    assert.equal(row.title, edits[row.name].title);
+    if (row.description) assert.equal(row.description, edits[row.name].description);
+  }
+  const question = translated.pages[0].elements[0];
+  assert.equal(question.title.en, question.title.default);
+  assert.equal(question.title.hi, 'Hindi question');
+  assert.equal(question.choices[0].text.default, 'Edited option');
+  assert.equal(question.choices[0].text.hi, 'Hindi option');
+  assert.equal(question.choices[0].value, 1);
+  assert.equal(question.visibleIf, '{consent}=1');
+  assert.deepEqual(source, original);
+});
+
 test('all presentation text is inventoried and translated without changing logic or values', () => {
   const form = { title: 'Survey', description: 'Instructions', completeText: 'Finish', nativeText: { camera: 'Camera' }, pages: [{ name: 'one', title: 'Heading', description: 'Section help', elements: [{ name: 'q', type: 'paneldynamic', title: 'Member', description: 'Help', visibleIf: '{x}=1', addPanelText: 'Add member', templateTitle: 'Member {panelIndex}', templateElements: [{ name: 'name', type: 'text', title: 'Name', placeholder: 'Enter name', validators: [{ type: 'regex', regex: '^ok$', text: 'Try again' }] }, { name: 'options', type: 'dropdown', choices: [1, { value: 2, text: { default: 'Two', hi: 'Existing two' } }], items: [{ name: 'name', title: 'Distinct item', text: 'Item text' }] }, { name: 'note', type: 'html', html: '<p>Instructions</p>' }] }] }] };
   const original = structuredClone(form);

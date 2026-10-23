@@ -47,7 +47,11 @@ Form language editor and shared text inventory (no database required, run from t
 ```bash
 node apps/admin/src/tests/validateFormLanguageManagement.mjs
 node --test shared/formTranslation.test.cjs
+npm --workspace @dynamic/api exec -- tsx --test src/lib/formLanguage.effective.test.ts src/lib/formLanguage.test.ts
+node expo/src/tests/validateCanonicalFormTranslations.mjs
 ```
+
+English checks cover portal edit/save and CSV export/import, effective sync definitions/checksums, and default/en native rendering across all forms. These use isolated fixtures and do not write production translations.
 
 Household assignment range, page-selection and assignment refresh checks (no database required):
 

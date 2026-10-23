@@ -102,8 +102,40 @@ for (const entry of catalog) {
 }
 assert.equal(getNativeFormText({ nativeText: { key: { default: "fallback", hi: "हिंदी" } }, locale: "hi" }, "key", "English"), "हिंदी");
 assert.equal(getNativeFormText({ nativeText: { key: { default: "template", hi: "हिंदी" } }, locale: "default" }, "key", "1 entry"), "1 entry", "English caller fallback preserves contextual singular wording");
+for (const locale of ["default", "en"]) {
+  assert.equal(getNativeFormText({ nativeText: { key: { default: "Saved English", en: "Saved English" } }, locale }, "key", "Built-in wording"), "Saved English");
+  assert.equal(getNativeFormText({ nativeText: { key: { default: "template", en: " " } }, locale }, "key", "1 entry"), "1 entry", "blank English override keeps contextual fallback");
+  assert.equal(formatNativeFormText({ nativeText: { key: { en: "Saved {number} entries" } }, locale }, "key", "Report {number}", { number: 3 }), "Saved 3 entries");
+}
 assert.equal(formatNativeFormText({ nativeText: { report: { default: "Report {number}", hi: "रिपोर्ट {number} {unknown}" } }, locale: "hi" }, "report", "Report {number}", { number: 3 }), "रिपोर्ट 3 {unknown}", "only supplied tokens are substituted");
 console.log(`Validated ${catalog.length} canonical mobile questionnaires, headings, native labels, locale replay and unchanged form logic.`);
+
+for (const entry of catalog) {
+  const raw = JSON.parse(fs.readFileSync(new URL(entry.file_name, dataDir), "utf8"));
+  const rows = formTranslation.flattenFormText(getPreparedSurveyJson(raw));
+  const dictionary = Object.fromEntries(rows.map(row => [row.name, {
+    ...(row.title ? { title: `Saved English ${row.title}` } : {}),
+    ...(row.description ? { description: `Saved English ${row.description}` } : {}),
+    choices: Object.fromEntries(row.choices.map(choice => [choice.value, `Saved English ${choice.text}`])),
+  }]));
+  const prepared = getPreparedSurveyJson({ ...raw, native_form_translations: { en: dictionary } });
+  const extracted = formTranslation.extractFormTextTranslations(prepared, "en");
+  for (const row of rows) {
+    if (row.title) assert.ok(extracted[row.name]?.title?.includes("Saved English"), `${entry.form_code}: English ${row.name} survives native preparation`);
+    for (const choice of row.choices) assert.equal(extracted[row.name]?.choices?.[choice.value], dictionary[row.name].choices[choice.value].trim());
+  }
+  const model = createSurveyModel(prepared);
+  for (const locale of ["default", "en"]) {
+    model.locale = locale;
+    assert.ok(model.title.includes("Saved English"), `${entry.form_code}: English form heading at ${locale}`);
+    assert.ok(model.pages[0].title.includes("Saved English"), `${entry.form_code}: English section heading at ${locale}`);
+    for (const row of rows.filter(row => row.kind === "native")) {
+      assert.ok(getNativeFormText(model, row.name.slice("@native:".length), "Built-in wording", locale).includes("Saved English"), `${entry.form_code}: English native label ${row.name} at ${locale}`);
+    }
+  }
+  model.dispose();
+}
+console.log(`Validated saved English headings, choices and native labels across ${catalog.length} questionnaires for default/en locales.`);
 
 // Ordinary question translations and native context variants work independently.
 const wqEntry = catalog.find(entry => entry.form_code === "WQ");
@@ -115,7 +147,7 @@ const deathAgeField = "pregnancy_02_reproduction_if_born_alive_and_now_dead_if_1
 const nameField = "pregnancy_02_reproduction_what_name_was_given_to_the_baby";
 const sexField = "pregnancy_02_reproduction_is_name_a_boy_or_a_girl";
 const outcomeField = "pregnancy_02_reproduction_if_15_i_single_was_the_baby_born_alive_bor";
-for (const nativeOnly of [false, true]) {
+for (const locale of ["hi", "default", "en"]) for (const nativeOnly of [false, true]) {
   const translations = nativeOnly ? {
     "@native:bwq_baby_birth_date": { title: "Translated date for {childName}" },
   } : {
@@ -124,22 +156,22 @@ for (const nativeOnly of [false, true]) {
     [ageField]: { title: "Translated age {childName} {possessive}" },
     [deathAgeField]: { title: "Translated death {childName} {pronoun}" },
   };
-  const model = createSurveyModel(getPreparedSurveyJson({ ...wqRaw, native_form_translations: { hi: translations } }));
-  model.locale = "hi";
+  const model = createSurveyModel(getPreparedSurveyJson({ ...wqRaw, native_form_translations: { [locale === "default" ? "en" : locale]: translations } }));
+  model.locale = locale;
   model.data = { wq_village_study_site: "Dayalpur / Ballabhgarh", wq_pregnancy_history: [{
     [nameField]: "Anu", [sexField]: 1, [outcomeField]: 1,
   }], wq_born_alive_child_followups: [{ [nameField]: "Anu", [sexField]: 1 }] };
   const panel = model.getQuestionByName("wq_pregnancy_history").panels[0];
   const childPanel = model.getQuestionByName("wq_born_alive_child_followups").panels[0];
-  assert.match(getNativeQuestionTitle(panel.getQuestionByName(dateField), "hi"), /Translated date for Anu$/);
+  assert.match(getNativeQuestionTitle(panel.getQuestionByName(dateField), locale), /Translated date for Anu$/);
   if (!nativeOnly) {
-    assert.match(getNativeQuestionTitle(model.getQuestionByName(localityField), "hi"), /Translated locality Dayalpur$/);
-    assert.match(getNativeQuestionTitle(childPanel.getQuestionByName(ageField), "hi"), /Translated age Anu his$/);
-    assert.match(getNativeQuestionTitle(childPanel.getQuestionByName(deathAgeField), "hi"), /Translated death Anu he$/);
+    assert.match(getNativeQuestionTitle(model.getQuestionByName(localityField), locale), /Translated locality Dayalpur$/);
+    assert.match(getNativeQuestionTitle(childPanel.getQuestionByName(ageField), locale), /Translated age Anu his$/);
+    assert.match(getNativeQuestionTitle(childPanel.getQuestionByName(deathAgeField), locale), /Translated death Anu he$/);
     panel.getQuestionByName(sexField).value = undefined;
     childPanel.getQuestionByName(sexField).value = undefined;
-    assert.match(getNativeQuestionTitle(childPanel.getQuestionByName(ageField), "hi"), /Translated age Anu their$/);
-    assert.match(getNativeQuestionTitle(childPanel.getQuestionByName(deathAgeField), "hi"), /Translated death Anu they$/);
+    assert.match(getNativeQuestionTitle(childPanel.getQuestionByName(ageField), locale), /Translated age Anu their$/);
+    assert.match(getNativeQuestionTitle(childPanel.getQuestionByName(deathAgeField), locale), /Translated death Anu they$/);
   }
   panel.getQuestionByName(sexField).value = undefined;
   panel.getQuestionByName(outcomeField).value = undefined;

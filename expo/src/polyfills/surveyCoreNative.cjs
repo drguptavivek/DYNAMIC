@@ -23,6 +23,7 @@ function createSurveyModel(surveyJson) {
   ensureNativeSurveyCorePatch({ Question, SurveyModel });
   const model = new Model(surveyJson);
   model.nativeText = surveyJson?.nativeText || {};
+  model.nativeEnglishQuestionTitles = surveyJson?.nativeEnglishQuestionTitles || [];
   return model;
 }
 

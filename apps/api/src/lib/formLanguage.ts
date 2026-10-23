@@ -307,7 +307,6 @@ export async function getEffectiveFormJson(
   let effectiveJson = cloneJson(formJson);
   const nativeFormTranslations: Record<string, FormTranslations> = {};
   for (const language of SUPPORTED_FORM_LANGUAGES) {
-    if (language.code === "en") continue;
     const translations = await getStoredTranslations(siteId, code, language.code);
     effectiveJson = applyTranslationsToFormJson(effectiveJson, language.code, translations);
     if (Object.keys(translations).length) nativeFormTranslations[language.code] = translations;

@@ -258,7 +258,9 @@ export function getNativeFormText(surveyOrForm, key, fallback = "", locale) {
   const activeLocale = locale || source?.locale || "default";
   if (typeof value === "string") return fallback || value;
   if (!value || typeof value !== "object") return fallback;
-  if (activeLocale === "default" || activeLocale === "en") return fallback || value.default || value.en || "";
+  if (activeLocale === "default" || activeLocale === "en") {
+    return (typeof value.en === "string" && value.en.trim() ? value.en : "") || fallback || value.default || "";
+  }
   const translated = value[activeLocale];
   return (typeof translated === "string" && translated.trim() ? translated : "") || fallback || value.default || value.en || "";
 }

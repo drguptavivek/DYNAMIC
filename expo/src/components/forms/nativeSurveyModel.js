@@ -263,13 +263,16 @@ function renderNativeTitleContext(text, question, locale) {
 }
 
 export function getNativeQuestionTitle(question, locale = "default") {
-  const nativeTitleTranslated = locale !== "default" && locale !== "en" &&
+  const translationLocale = locale === "default" ? "en" : locale;
+  const nativeTitleTranslated =
     (NATIVE_QUESTION_TITLE_KEYS[question?.name] || []).some((key) => {
-      const text = question?.survey?.nativeText?.[key]?.[locale];
+      const text = question?.survey?.nativeText?.[key]?.[translationLocale];
       return typeof text === "string" && text.trim();
     });
-  if (!nativeTitleTranslated && locale !== "default" && locale !== "en" && question?.locTitle?.getLocales?.().includes(locale) && question.locTitle.getLocaleText(locale)?.trim()) {
-    return renderNativeTitleContext(question.locTitle.getLocaleText(locale), question, locale);
+  const hasTranslatedTitle = (translationLocale !== "en" || question?.survey?.nativeEnglishQuestionTitles?.includes(question?.name)) &&
+    question?.locTitle?.getLocales?.().includes(translationLocale) && question.locTitle.getLocaleText(translationLocale)?.trim();
+  if (!nativeTitleTranslated && hasTranslatedTitle) {
+    return renderNativeTitleContext(question.locTitle.getLocaleText(translationLocale), question, locale);
   }
   if (question?.name === WQ_CURRENT_LOCALITY_DURATION_FIELD) {
     const originalTitle = localizedText(question?.locTitle, question?.title || "", locale);
@@ -374,8 +377,6 @@ export function getNativeQuestionTitle(question, locale = "default") {
   }
   const fallbackKey = `title_fallback_${question?.name}`;
   const originalTitle = question?.survey?.nativeText?.[fallbackKey];
-  const hasTranslatedTitle = locale !== "default" && locale !== "en" &&
-    question?.locTitle?.getLocales?.().includes(locale) && question.locTitle.getLocaleText(locale)?.trim();
   const title = originalTitle && !hasTranslatedTitle
     ? getNativeFormText(question.survey, fallbackKey, typeof originalTitle === "string" ? originalTitle : originalTitle.default, locale)
     : localizedText(question?.locTitle, question?.title || question?.name || "", locale);

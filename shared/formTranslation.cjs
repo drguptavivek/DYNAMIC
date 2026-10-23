@@ -108,17 +108,17 @@ function applyFormTextTranslations(form, locale, translations, sourceForm) {
         if (sourceForm && preparedHasPrefix && !title.startsWith(prefix)) title = prefix + title;
         if (!sourceForm && !preparedHasPrefix && title.startsWith(prefix)) title = title.slice(prefix.length);
       }
-      entry.node[entry.titleProp] = { ...localizedObject(entry.node[entry.titleProp]), [locale]: title };
+      entry.node[entry.titleProp] = { ...localizedObject(entry.node[entry.titleProp]), [locale]: title, ...(locale === 'en' ? { default: title } : {}) };
     }
     if (entry.descriptionProp && english(entry.node[entry.descriptionProp]).trim() && typeof item.description === 'string' && item.description.trim()) {
-      entry.node[entry.descriptionProp] = { ...localizedObject(entry.node[entry.descriptionProp]), [locale]: item.description };
+      entry.node[entry.descriptionProp] = { ...localizedObject(entry.node[entry.descriptionProp]), [locale]: item.description, ...(locale === 'en' ? { default: item.description } : {}) };
     }
     entry.choices.forEach((choice, index) => {
       const value = String(isObject(choice) ? choice.value ?? '' : choice ?? '');
       const text = item.choices?.[value];
       if (typeof text !== 'string' || !text.trim()) return;
       const next = isObject(choice) ? choice : { value: choice, text: String(choice ?? '') };
-      next.text = { ...localizedObject(next.text ?? next.value), [locale]: text };
+      next.text = { ...localizedObject(next.text ?? next.value), [locale]: text, ...(locale === 'en' ? { default: text } : {}) };
       entry.node.choices[index] = next;
     });
   });

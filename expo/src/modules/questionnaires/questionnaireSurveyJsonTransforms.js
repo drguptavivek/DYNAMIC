@@ -1553,7 +1553,7 @@ export function prepareQuestionnaireSurveyJson(form) {
     surveyJson = visit(surveyJson);
   }
   surveyJson = { ...surveyJson, nativeText: { ...(NATIVE_FORM_TEXT[form?.form_code] || {}), ...nativeTitleFallbacks } };
-  const locales = new Set(["hi", "kn", "mr", "ta", "te", ...Object.keys(form?.native_form_translations || {})]);
+  const locales = new Set(["en", "hi", "kn", "mr", "ta", "te", ...Object.keys(form?.native_form_translations || {})]);
   for (const locale of locales) {
     const translations = formTranslation.extractFormTextTranslations(form, locale);
     for (const [key, saved] of Object.entries(form?.native_form_translations?.[locale] || {})) {
@@ -1564,5 +1564,8 @@ export function prepareQuestionnaireSurveyJson(form) {
       surveyJson = formTranslation.applyFormTextTranslations(surveyJson, locale, translations, form);
     }
   }
+  surveyJson.nativeEnglishQuestionTitles = Object.keys(form?.native_form_translations?.en || {}).filter(
+    (name) => form.native_form_translations.en[name]?.title?.trim(),
+  );
   return surveyJson;
 }

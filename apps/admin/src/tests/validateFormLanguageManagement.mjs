@@ -36,7 +36,8 @@ const canonicalForms = Object.fromEntries(formIndex.map(form => {
   const prepared = getPreparedSurveyJson(raw);
   return [form.form_code, { form_code: form.form_code, form_version: raw.version, form_checksum: createHash('sha256').update(JSON.stringify(prepared)).digest('hex'), elements: flattenFormText(prepared), can_edit: true }];
 }));
-const canonicalSaved = {}, pendingLoads = new Map();
+const canonicalSaved = {}, englishSaved = {}, pendingLoads = new Map();
+let expectedLanguage = 'hi';
 let canonicalMode = false;
 let pendingSave, saveResponse;
 const requests = [];
@@ -70,11 +71,11 @@ globalThis.languageHarness = {
         forms: formIndex,
         sites: [{ site_id: 2, site_code: '2', site_name: 'Ballabhgarh' }],
         users: [{ user_id: 'manager', username: 'manager', role: 'site_data_manager', site_id: 2 }],
-        languages: [{ code: 'hi', label: 'Hindi' }], permissions: [], can_manage_permissions: true,
+        languages: [{ code: 'hi', label: 'Hindi' }, { code: 'en', label: 'English' }], permissions: [], can_manage_permissions: true,
       };
-      const code = path.match(/^\/form-language-management\/forms\/([A-Z]+)\?site_id=2&language_code=hi/)?.[1];
+      const code = path.match(/^\/form-language-management\/forms\/([A-Z]+)\?site_id=2&language_code=(?:hi|en)/)?.[1];
       assert.ok(code && canonicalForms[code], path);
-      const result = canonicalMode ? { ...canonicalForms[code], translations: structuredClone(canonicalSaved[code] || {}) }
+      const result = canonicalMode ? { ...canonicalForms[code], translations: structuredClone((path.includes('language_code=en') ? englishSaved : canonicalSaved)[code] || {}) }
         : { form_code: code, elements, translations: structuredClone(savedTranslations), form_version: 'current', form_checksum: 'abcdef123456', can_edit: true };
       if (pendingLoads.has(code)) { const gate = pendingLoads.get(code); pendingLoads.delete(code); await gate.promise; }
       return result;
@@ -89,10 +90,10 @@ globalThis.languageHarness = {
       assert.ok(canonicalForms[code], path);
       if (!canonicalMode) assert.equal(code, 'HHQ');
       assert.equal(payload.site_id, 2);
-      assert.equal(payload.language_code, 'hi');
+      assert.equal(payload.language_code, expectedLanguage);
       const gate = pendingSave; pendingSave = undefined;
       if (gate) await gate;
-      if (canonicalMode) canonicalSaved[code] = structuredClone(payload.translations);
+      if (canonicalMode) (payload.language_code === 'en' ? englishSaved : canonicalSaved)[code] = structuredClone(payload.translations);
       else savedTranslations = structuredClone(payload.translations);
       return { form_code: code, site_id: payload.site_id, language_code: payload.language_code, translations: structuredClone(saveResponse || payload.translations) };
     },
@@ -438,6 +439,42 @@ try {
   finishSave(); await settle();
   assert.ok(!text(tree).includes('Stale save before refresh must not appear'), 'A save finishing after a newer refresh cannot replace refreshed translations');
   saveResponse = undefined;
+  expectedLanguage = 'en';
+  const languageSelect = nodes().find(node => node.type === 'select' && node.props.value === 'hi' && nodes(node).some(option => option.type === 'option' && option.props.value === 'en'));
+  assert.ok(languageSelect, 'English is an available translation target');
+  languageSelect.props.onChange({ target: { value: 'en' } }); await settle();
+  const englishEntry = canonicalForms.HHQ.elements.find(element => element.choices.length);
+  button('Edit', article(englishEntry.name)).props.onClick(); await settle();
+  nodes(article(englishEntry.name)).find(node => node.props?.placeholder === 'Translated text').props.onChange({ target: { value: 'Revised English question' } }); await settle();
+  button('Save', article(englishEntry.name)).props.onClick(); await settle();
+  assert.equal(englishSaved.HHQ[englishEntry.name].title, 'Revised English question');
+  button('Export CSV').props.onClick();
+  assert.equal(downloadName, 'BHQ-en-translations.csv');
+  const englishRows = csvRows(await downloadBlob.text());
+  const englishQuestion = englishRows.find(row => row[2] === englishEntry.name && row[3] === 'question');
+  assert.equal(englishQuestion[7], 'English');
+  assert.equal(englishQuestion[8], 'Revised English question');
+  const englishOption = englishRows.find(row => row[2] === englishEntry.name && row[3] === 'option');
+  englishOption[8] = 'Revised English option';
+  await importText(encodeCsv(englishRows));
+  button('Add imported translations').props.onClick(); await settle();
+  assert.equal(englishSaved.HHQ[englishEntry.name].choices[englishOption[4]], 'Revised English option');
+  for (const form of formIndex) {
+    await selectForm(form.form_code);
+    button('Export CSV').props.onClick();
+    const display = { HHQ: 'BHQ', WQ: 'BWQ' }[form.form_code] || form.form_code;
+    assert.equal(downloadName, `${display}-en-translations.csv`);
+    const rows = csvRows(await downloadBlob.text());
+    assert.ok(rows.slice(1).every(row => row[7] === 'English'));
+    const question = rows.find(row => row[3] === 'question');
+    const option = rows.find(row => row[3] === 'option');
+    question[8] = `${form.form_code} English heading`;
+    option[8] = `${form.form_code} English option`;
+    await importText(encodeCsv(rows));
+    button('Add imported translations').props.onClick(); await settle();
+    assert.equal(englishSaved[form.form_code][question[2]].title, question[8]);
+    assert.equal(englishSaved[form.form_code][option[2]].choices[option[4]], option[8]);
+  }
   assert.ok(requests.every(request => request.path.startsWith('/form-language-management')), 'Translation editing must not submit forms or change workflow');
 } finally {
   globalThis.document = originalDocument; globalThis.window = originalWindow;
