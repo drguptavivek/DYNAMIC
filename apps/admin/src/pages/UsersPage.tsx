@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import QRCode from "qrcode";
 import { api } from "../lib/api";
 import { useAuth, type UserRole } from "../lib/auth-context";
@@ -127,7 +127,7 @@ function activeAssignments(assignments: AreaAssignment[]): AreaAssignment[] {
 export default function UsersPage() {
   const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
-  const [assignmentsByUser, setAssignmentsByUser] = useState<Record<string, AreaAssignment[]>>({});
+  const [assignmentsByUser, setAssignmentsByUser] = useState<Record<string, AreaAssignment[] | undefined>>({});
   const [localities, setLocalities] = useState<Locality[]>([]);
   const [sites, setSites] = useState<Site[]>([]);
   const [loading, setLoading] = useState(false);
@@ -137,6 +137,10 @@ export default function UsersPage() {
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [activeFilter, setActiveFilter] = useState<boolean | "">("");
+  const [siteFilter, setSiteFilter] = useState("");
+  const [localityFilter, setLocalityFilter] = useState("");
+  const [deviceFilter, setDeviceFilter] = useState("");
+  const loadRequestId = useRef(0);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [passwordResetUser, setPasswordResetUser] = useState<User | null>(null);
@@ -153,7 +157,7 @@ export default function UsersPage() {
 
   useEffect(() => {
     void loadUsers();
-  }, [search, roleFilter, activeFilter]);
+  }, []);
 
   useEffect(() => {
     void loadMasters();
@@ -173,16 +177,11 @@ export default function UsersPage() {
   }
 
   async function loadUsers() {
+    const requestId = ++loadRequestId.current;
     setLoading(true);
     setError("");
     try {
-      const params = new URLSearchParams();
-      if (search) params.append("search", search);
-      if (roleFilter) params.append("role", roleFilter);
-      if (activeFilter !== "") params.append("active", String(activeFilter));
-
-      const data = await api.get<User[]>(`/users?${params.toString()}`);
-      setUsers(data);
+      const data = await api.get<User[]>("/users");
       const entries = await Promise.all(
         data.map(async (listedUser) => {
           try {
@@ -191,16 +190,78 @@ export default function UsersPage() {
             );
             return [listedUser.user_id, assignments] as const;
           } catch {
-            return [listedUser.user_id, []] as const;
+            return [listedUser.user_id, undefined] as const;
           }
         }),
       );
+      if (requestId !== loadRequestId.current) return;
+      setUsers(data);
       setAssignmentsByUser(Object.fromEntries(entries));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load users");
+      if (requestId === loadRequestId.current) {
+        setError(err instanceof Error ? err.message : "Failed to load users");
+      }
     } finally {
-      setLoading(false);
+      if (requestId === loadRequestId.current) setLoading(false);
     }
+  }
+
+  const siteOptions = useMemo(() => {
+    const ids = new Set(sites.map((site) => site.site_id));
+    for (const listedUser of users) {
+      if (listedUser.site_id != null) ids.add(listedUser.site_id);
+    }
+    return [...ids].sort((a, b) => a - b);
+  }, [sites, users]);
+
+  const localityOptions = useMemo(() => {
+    const options = new Map(localities.map((locality) => [
+      `${locality.site_id}-${locality.locality_code}`, locality,
+    ]));
+    for (const assignments of Object.values(assignmentsByUser)) {
+      for (const assignment of activeAssignments(assignments ?? [])) {
+        const key = `${assignment.site_id}-${assignment.locality_code}`;
+        if (!options.has(key)) options.set(key, { ...assignment, locality_name: assignment.locality_code });
+      }
+    }
+    return [...options.entries()]
+      .filter(([, locality]) => !siteFilter || (siteFilter !== "none" && String(locality.site_id) === siteFilter))
+      .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }));
+  }, [localities, assignmentsByUser, siteFilter]);
+
+  const visibleUsers = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return users.filter((listedUser) => {
+      if (roleFilter && listedUser.role !== roleFilter) return false;
+      if (activeFilter !== "" && listedUser.active !== activeFilter) return false;
+      if (siteFilter === "none" ? listedUser.site_id != null : siteFilter && String(listedUser.site_id) !== siteFilter) return false;
+      if (localityFilter) {
+        const assignments = assignmentsByUser[listedUser.user_id];
+        if (!assignments) return false;
+        const current = activeAssignments(assignments);
+        if (localityFilter === "none" ? current.length > 0 : !current.some((assignment) => `${assignment.site_id}-${assignment.locality_code}` === localityFilter)) return false;
+      }
+      const devices = listedUser.registered_devices ?? [];
+      if (deviceFilter === "unregistered" && devices.length !== 0) return false;
+      if (deviceFilter === "registered" && devices.length === 0) return false;
+      if (deviceFilter === "authorized" && !devices.some((device) => device.authorized)) return false;
+      if (deviceFilter === "deauthorized" && !devices.some((device) => !device.authorized)) return false;
+      return !query || [listedUser.username, listedUser.display_name, listedUser.email,
+        ...devices.flatMap((device) => [device.device_id, device.device_name]),
+      ].some((value) => value?.toLowerCase().includes(query));
+    });
+  }, [users, search, roleFilter, activeFilter, siteFilter, localityFilter, deviceFilter, assignmentsByUser]);
+
+  const assignmentsUnavailable = users.some((listedUser) => assignmentsByUser[listedUser.user_id] === undefined);
+  const hasFilters = Boolean(search || roleFilter || activeFilter !== "" || siteFilter || localityFilter || deviceFilter);
+
+  function clearFilters() {
+    setSearch("");
+    setRoleFilter("");
+    setActiveFilter("");
+    setSiteFilter("");
+    setLocalityFilter("");
+    setDeviceFilter("");
   }
 
   async function handleCreateUser(formData: CreateUserFormData) {
@@ -379,26 +440,66 @@ export default function UsersPage() {
       {error && <div className={styles.error}>{error}</div>}
 
       <div className={styles.filters}>
-        <input
-          type="text"
-          placeholder="Search username or display name..."
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          className={styles.searchInput}
-        />
-        <select value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)} className={styles.filterSelect}>
-          <option value="">All Roles</option>
-          {ROLES.map((role) => <option key={role} value={role}>{role.replace(/_/g, " ")}</option>)}
-        </select>
-        <select
-          value={activeFilter === "" ? "" : String(activeFilter)}
-          onChange={(event) => setActiveFilter(event.target.value === "" ? "" : event.target.value === "true")}
-          className={styles.filterSelect}
-        >
-          <option value="">All Statuses</option>
-          <option value="true">Active</option>
-          <option value="false">Inactive</option>
-        </select>
+        <label className={`${styles.filterField} ${styles.searchField}`}>
+          Search users
+          <input
+            type="search"
+            placeholder="Name, username, email or device..."
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            className={styles.searchInput}
+          />
+        </label>
+        <label className={styles.filterField}>
+          Site
+          <select value={siteFilter} onChange={(event) => { setSiteFilter(event.target.value); setLocalityFilter(""); }} className={styles.filterSelect}>
+            <option value="">All sites</option>
+            <option value="none">No site assigned</option>
+            {siteOptions.map((siteId) => <option key={siteId} value={siteId}>{sitesById.get(siteId)?.site_name ?? `Site ID ${siteId}`}</option>)}
+          </select>
+        </label>
+        <label className={styles.filterField}>
+          Assigned locality
+          <select value={localityFilter} onChange={(event) => setLocalityFilter(event.target.value)} className={styles.filterSelect}>
+            <option value="">All localities</option>
+            <option value="none">No assigned locality</option>
+            {localityOptions.map(([key, locality]) => <option key={key} value={key}>{locality.locality_name} ({locality.locality_code}) - {sitesById.get(locality.site_id)?.site_name ?? `Site ${locality.site_id}`}</option>)}
+          </select>
+        </label>
+        <label className={styles.filterField}>
+          Role
+          <select value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)} className={styles.filterSelect}>
+            <option value="">All Roles</option>
+            {ROLES.map((role) => <option key={role} value={role}>{role.replace(/_/g, " ")}</option>)}
+          </select>
+        </label>
+        <label className={styles.filterField}>
+          Status
+          <select
+            value={activeFilter === "" ? "" : String(activeFilter)}
+            onChange={(event) => setActiveFilter(event.target.value === "" ? "" : event.target.value === "true")}
+            className={styles.filterSelect}
+          >
+            <option value="">All Statuses</option>
+            <option value="true">Active</option>
+            <option value="false">Inactive</option>
+          </select>
+        </label>
+        <label className={styles.filterField}>
+          Device
+          <select value={deviceFilter} onChange={(event) => setDeviceFilter(event.target.value)} className={styles.filterSelect}>
+            <option value="">All devices</option>
+            <option value="unregistered">No registered device</option>
+            <option value="registered">Registered device</option>
+            <option value="authorized">Has authorized device</option>
+            <option value="deauthorized">Has deauthorized device</option>
+          </select>
+        </label>
+        <button type="button" className={styles.secondaryBtn} onClick={clearFilters} disabled={!hasFilters}>Clear filters</button>
+      </div>
+      <div className={styles.filterSummary}>
+        <span role="status">{loading ? "Loading users..." : `Showing ${visibleUsers.length} of ${users.length} users`}</span>
+        {!loading && assignmentsUnavailable && <span className={styles.assignmentWarning}>Some locality assignments could not be loaded; those users are excluded when filtering by locality.</span>}
       </div>
 
       {loading ? <p>Loading...</p> : (
@@ -409,7 +510,8 @@ export default function UsersPage() {
               <th>Assigned Localities</th><th>Registered Device</th><th>Status</th><th>Actions</th>
             </tr></thead>
             <tbody>
-              {users.map((listedUser) => {
+              {visibleUsers.length === 0 && <tr><td colSpan={8} className={styles.emptyState}>{users.length === 0 ? "No users available." : "No users match these filters. Clear or adjust the filters."}</td></tr>}
+              {visibleUsers.map((listedUser) => {
                 const disabledReason = statusDisabledReason(listedUser);
                 return (
                   <tr key={listedUser.user_id}>
@@ -417,7 +519,7 @@ export default function UsersPage() {
                     <td>{listedUser.display_name || "—"}</td>
                     <td>{listedUser.role.replace(/_/g, " ")}</td>
                     <td><SiteName site={listedUser.site_id ? sitesById.get(listedUser.site_id) : undefined} siteId={listedUser.site_id} /></td>
-                    <td><AssignmentBadges assignments={assignmentsByUser[listedUser.user_id] ?? []} localitiesByKey={localitiesByKey} /></td>
+                    <td>{assignmentsByUser[listedUser.user_id] === undefined ? <span className={styles.muted}>Unavailable</span> : <AssignmentBadges assignments={assignmentsByUser[listedUser.user_id]!} localitiesByKey={localitiesByKey} />}</td>
                     <td>
                       <RegisteredDeviceCell
                         devices={listedUser.registered_devices ?? []}

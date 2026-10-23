@@ -63,6 +63,12 @@ npm --workspace @dynamic/api exec -- tsx --test src/lib/operationsDashboard.test
 node apps/admin/src/tests/validateOperationsDashboard.mjs
 ```
 
+Users page filters (no database required):
+
+```bash
+node apps/admin/src/tests/validateUsersPage.mjs
+```
+
 `operationsDashboard.postgres.test.ts` additionally executes the actual grouped SQL against temporary fixture tables on a single connection. It runs only when `DASHBOARD_TEST_DATABASE_URL` points to a local PostgreSQL instance, rolls its temporary fixtures back, and must have one assigned test owner. Never point it at AWS. No reset, schema push or application seed is needed.
 
 HHQ backend integration on full-push test DB:
