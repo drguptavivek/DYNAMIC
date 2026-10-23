@@ -59,7 +59,7 @@ globalThis.assignmentHarness = {
         { user_id: 'worker', username: 'worker-one', display_name: 'Sanjay', role: 'field_worker', site_id: 2 },
         { user_id: 'worker-two', username: 'worker-two', display_name: 'Sanjay', role: 'field_worker', site_id: 2 },
         { user_id: 'unavailable', username: 'unknown-locality', display_name: 'Other worker', role: 'field_worker', site_id: 2 },
-        { user_id: 'unassigned', username: 'no-locality', display_name: 'New worker', role: 'field_worker', site_id: 2 },
+        { user_id: 'unassigned', username: 'no-locality', display_name: ' No-Locality ', role: 'field_worker', site_id: 2 },
       ] : [{ user_id: 'worker', username: 'worker', role: 'field_worker', site_id: 2 }];
       assert.ok(path.startsWith('/field-worker-household-assignments?'), path);
       if (failRefresh) throw new Error('Refresh unavailable');
@@ -142,6 +142,7 @@ await check('Select visible households', true);
 assert.equal(selectedRows().length, 11);
 await click('Assign all selected');
 const workerOption = find(node => node.type === 'label' && text(node).startsWith('worker'), 'bulk worker');
+assert.ok(!nodes(workerOption).some(node => node.props?.className === 'workerUsername'), 'A repeated name must not have a second username line');
 nodes(workerOption).find(node => node.type === 'input').props.onChange(); await settle();
 const modal = find(node => node.props?.className === 'bulkModal', 'bulk modal');
 await nodes(modal).find(node => node.type === 'button' && text(node) === 'Assign').props.onClick(); await settle();
@@ -281,6 +282,7 @@ assert.ok(!text(workerOptions()[0]).includes('future'));
 assert.ok(!text(workerOptions()[0]).includes('other-site'));
 assert.match(text(workerOptions()[2]), /Localities unavailable/);
 assert.match(text(workerOptions()[3]), /No assigned locality/);
+assert.ok(!nodes(workerOptions()[3]).some(node => node.props?.className === 'workerUsername'), 'Repeated usernames are hidden regardless of case or surrounding spaces');
 assert.match(text(workerOptions()[0]), /25/, 'Multiple active localities must remain visible');
 const beforeSearchRequests = requests.length;
 await change(labelled('Search field workers'), ' SANJAY ');

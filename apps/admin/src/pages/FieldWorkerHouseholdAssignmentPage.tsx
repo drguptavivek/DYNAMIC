@@ -109,7 +109,8 @@ export default function FieldWorkerHouseholdAssignmentPage() {
   function workerDetails(worker: User) {
     return <span className={styles.workerDetails}>
       <strong>{workerLabel(worker)}</strong>
-      <span className={styles.workerUsername}>{worker.username}</span>
+      {worker.username.trim().toLowerCase() !== workerLabel(worker).trim().toLowerCase() &&
+        <span className={styles.workerUsername}>{worker.username}</span>}
       <span className={styles.workerLocalities}>Assigned locality: {workerLocalities(worker)}</span>
     </span>;
   }
