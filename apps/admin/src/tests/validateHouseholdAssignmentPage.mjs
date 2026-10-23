@@ -12,6 +12,7 @@ const households = Array.from({ length: 1205 }, (_, index) => ({
 ]);
 const requests = [], slots = [];
 let cursor = 0, dirty = true, effects = [], tree, deferredAll, failRefresh = false, failPost = false;
+let pickerFixtures = false;
 const sameDeps = (a, b) => a && b && a.length === b.length && a.every((value, index) => Object.is(value, b[index]));
 globalThis.assignmentHarness = {
   useState(initial) {
@@ -42,7 +43,24 @@ globalThis.assignmentHarness = {
         { site_id: 2, locality_code: '02', locality_name: 'Locality 02' },
         { site_id: 2, locality_code: '11', locality_name: 'Dayalpur' },
       ];
-      if (path.startsWith('/users?')) return [{ user_id: 'worker', username: 'worker', role: 'field_worker', site_id: 2 }];
+      if (path.endsWith('/area-assignments')) {
+        if (path.includes('/unavailable/')) throw new Error('Localities unavailable');
+        if (path.includes('/unassigned/')) return [];
+        const code = path.includes('/worker-two/') ? '11' : '02';
+        return [
+          { site_id: 2, locality_code: code },
+          { site_id: 2, locality_code: '25' },
+          { site_id: 2, locality_code: code === '02' ? '11' : '02', active_to: '2000-01-01' },
+          { site_id: 2, locality_code: 'future', active_from: '2999-01-01' },
+          { site_id: 1, locality_code: 'other-site' },
+        ];
+      }
+      if (path.startsWith('/users?')) return pickerFixtures ? [
+        { user_id: 'worker', username: 'worker-one', display_name: 'Sanjay', role: 'field_worker', site_id: 2 },
+        { user_id: 'worker-two', username: 'worker-two', display_name: 'Sanjay', role: 'field_worker', site_id: 2 },
+        { user_id: 'unavailable', username: 'unknown-locality', display_name: 'Other worker', role: 'field_worker', site_id: 2 },
+        { user_id: 'unassigned', username: 'no-locality', display_name: 'New worker', role: 'field_worker', site_id: 2 },
+      ] : [{ user_id: 'worker', username: 'worker', role: 'field_worker', site_id: 2 }];
       assert.ok(path.startsWith('/field-worker-household-assignments?'), path);
       if (failRefresh) throw new Error('Refresh unavailable');
       const params = new URLSearchParams(path.split('?')[1]);
@@ -123,7 +141,7 @@ assert.equal(rows().at(-1).key, '2-02-0010-20');
 await check('Select visible households', true);
 assert.equal(selectedRows().length, 11);
 await click('Assign all selected');
-const workerOption = find(node => node.type === 'label' && text(node) === 'worker', 'bulk worker');
+const workerOption = find(node => node.type === 'label' && text(node).startsWith('worker'), 'bulk worker');
 nodes(workerOption).find(node => node.type === 'input').props.onChange(); await settle();
 const modal = find(node => node.props?.className === 'bulkModal', 'bulk modal');
 await nodes(modal).find(node => node.type === 'button' && text(node) === 'Assign').props.onClick(); await settle();
@@ -204,7 +222,7 @@ const rowButton = (id, label) => nodes(rows().find(row => row.key === id))
 async function pickRowWorker(id) {
   nodes(rows().find(row => row.key === id)).find(node => node.props?.role === 'button').props.onClick();
   await settle();
-  find(node => node.type === 'label' && text(node) === 'worker', 'row worker').props.children[0].props.onChange();
+  find(node => node.type === 'label' && text(node).startsWith('worker'), 'row worker').props.children[0].props.onChange();
   await settle();
 }
 await check(`Select household ${lastPageId}`, true);
@@ -220,7 +238,7 @@ assert.ok(nodes(rows().find(row => row.key === lastPageId)).some(node => node.pr
 
 await check(`Select household ${rows()[15].key}`, true);
 await click('Assign all selected');
-nodes(find(node => node.type === 'label' && text(node) === 'worker', 'bulk worker'))
+nodes(find(node => node.type === 'label' && text(node).startsWith('worker'), 'bulk worker'))
   .find(node => node.type === 'input').props.onChange(); await settle();
 await nodes(find(node => node.props?.className === 'bulkModal', 'bulk modal'))
   .find(node => node.type === 'button' && text(node) === 'Assign').props.onClick(); await settle();
@@ -247,4 +265,47 @@ assert.ok(nodes().some(node => node.props?.['aria-label'] === 'Unassign worker')
 failRefresh = true;
 await click('View');
 assert.ok(nodes().some(node => node.props?.['aria-label'] === 'Unassign worker'), 'Failed View retries preserve recorded worker chips');
-console.log('Assignment ranges, scoped selection, stale replies, refreshed chips, consecutive assignments, retained scope/page and failure/retry checks passed.');
+
+// Duplicate names remain distinguishable, and search never loses hidden selections.
+failRefresh = false;
+pickerFixtures = true;
+await click('View');
+await check(`Select household ${rows()[0].key}`, true);
+await click('Assign all selected');
+const workerOptions = () => nodes().filter(node => node.type === 'label' && node.props?.className === 'workerOption');
+assert.equal(workerOptions().length, 4);
+assert.match(text(workerOptions()[0]), /Sanjay.*worker-one.*Locality 02 \(02\)/);
+assert.match(text(workerOptions()[1]), /Sanjay.*worker-two.*Dayalpur \(11\)/);
+assert.ok(!text(workerOptions()[0]).includes('Dayalpur'), 'Expired locality must be excluded');
+assert.ok(!text(workerOptions()[0]).includes('future'));
+assert.ok(!text(workerOptions()[0]).includes('other-site'));
+assert.match(text(workerOptions()[2]), /Localities unavailable/);
+assert.match(text(workerOptions()[3]), /No assigned locality/);
+assert.match(text(workerOptions()[0]), /25/, 'Multiple active localities must remain visible');
+const beforeSearchRequests = requests.length;
+await change(labelled('Search field workers'), ' SANJAY ');
+assert.equal(workerOptions().length, 2);
+nodes(workerOptions()[0]).find(node => node.type === 'input').props.onChange(); await settle();
+await change(labelled('Search field workers'), 'worker-two');
+assert.equal(workerOptions().length, 1);
+assert.match(text(workerOptions()[0]), /Dayalpur/);
+nodes(workerOptions()[0]).find(node => node.type === 'input').props.onChange(); await settle();
+await change(labelled('Search field workers'), 'dayalpur');
+assert.equal(workerOptions().length, 1);
+await change(labelled('Search field workers'), 'not-found');
+assert.equal(workerOptions().length, 0);
+await change(labelled('Search field workers'), '');
+assert.equal(workerOptions().filter(option => nodes(option).find(node => node.type === 'input').props.checked).length, 2);
+assert.equal(requests.length, beforeSearchRequests, 'Worker searches must not refetch');
+const areaGets = requests.filter(request => request.path?.endsWith('/area-assignments')).length;
+await nodes(find(node => node.props?.className === 'bulkModal', 'bulk modal'))
+  .find(node => node.type === 'button' && text(node) === 'Assign').props.onClick(); await settle();
+assert.deepEqual(requests.filter(request => request.method === 'post').at(-1).payload.user_ids, ['worker', 'worker-two']);
+assert.equal(requests.filter(request => request.path?.endsWith('/area-assignments')).length, areaGets,
+  'Post-save refresh must not reload every worker locality');
+nodes(rows()[0]).find(node => node.props?.role === 'button').props.onClick(); await settle();
+assert.equal(labelled('Search field workers').props.value, '', 'Opening a picker resets its search');
+await change(labelled('Search field workers'), 'worker-two');
+assert.equal(workerOptions().length, 1, 'Row picker also supports worker search');
+assert.match(text(workerOptions()[0]), /Sanjay.*worker-two.*Dayalpur/);
+console.log('Assignment ranges, scoped selection, refresh/retry, duplicate-name locality details, worker search and hidden selection checks passed.');

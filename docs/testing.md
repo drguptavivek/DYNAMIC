@@ -56,7 +56,7 @@ node --test shared/householdAssignmentRange.test.cjs
 node apps/admin/src/tests/validateHouseholdAssignmentPage.mjs
 ```
 
-Assignment checks cover refreshed worker chips, clearing completed selections, preserving the selected site/locality/search and page, and retrying failed writes or refreshes. Verify table scroll and visibility of the last assigned household in a browser.
+Assignment checks cover refreshed worker chips, clearing completed selections, preserving the selected site/locality/search and page, and retrying failed writes or refreshes. Worker-picker checks cover duplicate names, usernames, active localities, metadata failures, and preserving selections while searching. Verify table scroll, visibility of the last assigned household, and worker-picker sizing in a browser.
 
 Operational dashboard checks (no database required):
 

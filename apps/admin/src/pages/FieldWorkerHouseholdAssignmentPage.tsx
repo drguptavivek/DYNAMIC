@@ -27,6 +27,13 @@ interface User {
   active?: boolean;
 }
 
+interface AreaAssignment {
+  site_id: number;
+  locality_code: string;
+  active_from?: string;
+  active_to?: string;
+}
+
 interface Household {
   household_id: string;
   site_id: number;
@@ -55,6 +62,8 @@ export default function FieldWorkerHouseholdAssignmentPage() {
   const [householdRangeStart, setHouseholdRangeStart] = useState("");
   const [householdRangeEnd, setHouseholdRangeEnd] = useState("");
   const [fieldWorkers, setFieldWorkers] = useState<User[]>([]);
+  const [workerAreas, setWorkerAreas] = useState<Record<string, AreaAssignment[] | undefined>>({});
+  const [workerSearch, setWorkerSearch] = useState("");
   const [households, setHouseholds] = useState<Household[]>([]);
   const [selectedHouseholdIds, setSelectedHouseholdIds] = useState<string[]>([]);
   const [workerIdsByHouseholdId, setWorkerIdsByHouseholdId] = useState<Record<string, string[]>>({});
@@ -77,6 +86,33 @@ export default function FieldWorkerHouseholdAssignmentPage() {
   const currentFilterKey = useRef(filterKey);
   currentFilterKey.current = filterKey;
   const busy = tableLoading || allSelectionLoading;
+
+  function workerLocalities(worker: User): string {
+    const assignments = workerAreas[worker.user_id];
+    if (!assignments) return "Localities unavailable";
+    const now = new Date();
+    const labels = assignments
+      .filter((area) => area.site_id === worker.site_id &&
+        (!area.active_from || new Date(area.active_from) <= now) &&
+        (!area.active_to || new Date(area.active_to) >= now))
+      .map((area) => {
+        const locality = localities.find((item) => item.site_id === area.site_id && item.locality_code === area.locality_code);
+        return locality ? `${locality.locality_name} (${area.locality_code})` : area.locality_code;
+      });
+    return labels.length ? [...new Set(labels)].join(", ") : "No assigned locality";
+  }
+
+  const matchingWorkers = fieldWorkers.filter((worker) =>
+    [workerLabel(worker), worker.username, workerLocalities(worker)]
+      .join(" ").toLowerCase().includes(workerSearch.trim().toLowerCase()));
+
+  function workerDetails(worker: User) {
+    return <span className={styles.workerDetails}>
+      <strong>{workerLabel(worker)}</strong>
+      <span className={styles.workerUsername}>{worker.username}</span>
+      <span className={styles.workerLocalities}>Assigned locality: {workerLocalities(worker)}</span>
+    </span>;
+  }
 
   const availableLocalities = useMemo(() => {
     if (!selectedSiteId) return localities;
@@ -153,12 +189,14 @@ export default function FieldWorkerHouseholdAssignmentPage() {
     setAllScopeHouseholdIds([]);
     setBulkAssignOpen(false);
     setOpenWorkerMenuFor(null);
+    setWorkerSearch("");
   }, [householdRangeEnd, householdRangeStart, householdSearch, selectedLocalityCode, selectedSiteId]);
 
   useEffect(() => {
     requestVersion.current += 1;
     setHouseholds([]);
     setFieldWorkers([]);
+    setWorkerAreas({});
     setWorkerIdsByHouseholdId({});
     setHasViewed(false);
     setTableLoading(false);
@@ -233,11 +271,20 @@ export default function FieldWorkerHouseholdAssignmentPage() {
       if (householdRangeStart.trim()) params.set("household_start", householdRangeStart.trim());
       if (householdRangeEnd.trim()) params.set("household_end", householdRangeEnd.trim());
 
-      const [householdResult, workerData] = await Promise.all([
+      const [householdResult, workerResult] = await Promise.all([
         api.get<Household[]>(`/field-worker-household-assignments?${params.toString()}`),
         api.get<User[]>(
           `/users?site_id=${encodeURIComponent(selectedSiteId)}&role=field_worker&active=1`,
-        ),
+        ).then(async (workers) => ({
+          workers,
+          areas: options.resetSelection ? Object.fromEntries(await Promise.all(workers.map(async (worker) => {
+            try {
+              return [worker.user_id, await api.get<AreaAssignment[]>(`/users/${encodeURIComponent(worker.user_id)}/area-assignments`)] as const;
+            } catch {
+              return [worker.user_id, undefined] as const;
+            }
+          }))) : undefined,
+        })),
       ]);
 
       if (!isCurrent()) return false;
@@ -272,7 +319,8 @@ export default function FieldWorkerHouseholdAssignmentPage() {
           ]),
         ),
       );
-      setFieldWorkers(workerData);
+      setFieldWorkers(workerResult.workers);
+      if (workerResult.areas) setWorkerAreas(workerResult.areas);
       return true;
     } catch (err) {
       if (!isCurrent()) return false;
@@ -468,6 +516,7 @@ export default function FieldWorkerHouseholdAssignmentPage() {
     setError("");
     setMessage("");
     setBulkWorkerIds([]);
+    setWorkerSearch("");
     setBulkAssignOpen(true);
   }
 
@@ -607,7 +656,7 @@ export default function FieldWorkerHouseholdAssignmentPage() {
             <div className={styles.emptyState}>No households found for the selected filters</div>
           ) : (
             <>
-              <div ref={tableWrapRef} className={styles.tableWrap} aria-busy={busy} style={openWorkerMenuFor ? { paddingBottom: 240 } : undefined}>
+              <div ref={tableWrapRef} className={styles.tableWrap} aria-busy={busy} style={openWorkerMenuFor ? { paddingBottom: 440 } : undefined}>
                 <table className={styles.assignmentTable}>
                   <thead>
                     <tr>
@@ -680,12 +729,15 @@ export default function FieldWorkerHouseholdAssignmentPage() {
                               tabIndex={busy ? -1 : 0}
                               aria-disabled={busy}
                               className={styles.workerPickerButton}
-                              onClick={() =>
-                                !busy && setOpenWorkerMenuFor(isOpen ? null : household.household_id)
-                              }
+                              onClick={() => {
+                                if (busy) return;
+                                setWorkerSearch("");
+                                setOpenWorkerMenuFor(isOpen ? null : household.household_id);
+                              }}
                               onKeyDown={(event) => {
                                 if (!busy && (event.key === "Enter" || event.key === " ")) {
                                   event.preventDefault();
+                                  setWorkerSearch("");
                                   setOpenWorkerMenuFor(isOpen ? null : household.household_id);
                                 }
                               }}
@@ -695,10 +747,16 @@ export default function FieldWorkerHouseholdAssignmentPage() {
                             </div>
                             {isOpen && (
                               <div className={styles.workerMenu}>
+                                <div className={styles.workerSearch}>
+                                  <input type="search" aria-label="Search field workers" placeholder="Search name, username or locality" value={workerSearch} onChange={(event) => setWorkerSearch(event.target.value)} />
+                                </div>
+                                <div className={styles.workerMenuList}>
                                 {fieldWorkers.length === 0 ? (
                                   <p>No active field workers for this site</p>
+                                ) : matchingWorkers.length === 0 ? (
+                                  <p>No field workers match your search</p>
                                 ) : (
-                                  fieldWorkers.map((worker) => (
+                                  matchingWorkers.map((worker) => (
                                     <label key={worker.user_id} className={styles.workerOption}>
                                       <input
                                         type="checkbox"
@@ -708,10 +766,11 @@ export default function FieldWorkerHouseholdAssignmentPage() {
                                           toggleWorkerForHousehold(household.household_id, worker.user_id)
                                         }
                                       />
-                                      <span>{workerLabel(worker)}</span>
+                                      {workerDetails(worker)}
                                     </label>
                                   ))
                                 )}
+                                </div>
                               </div>
                             )}
                           </div>
@@ -770,17 +829,22 @@ export default function FieldWorkerHouseholdAssignmentPage() {
 
       {bulkAssignOpen && (
         <div className={styles.modalBackdrop}>
-          <div className={styles.bulkModal}>
+          <div className={styles.bulkModal} role="dialog" aria-modal="true" aria-labelledby="bulk-assignment-title">
             <div className={styles.bulkModalHeader}>
-              <h2>Assign Selected Households</h2>
-              <button type="button" disabled={busy} onClick={() => setBulkAssignOpen(false)}>x</button>
+              <h2 id="bulk-assignment-title">Assign Selected Households</h2>
+              <button type="button" aria-label="Close assignment dialog" disabled={busy} onClick={() => setBulkAssignOpen(false)}>x</button>
             </div>
-            <p>{selectedHouseholdIds.length} selected household rows</p>
+            <p>{selectedHouseholdIds.length} selected household rows - {bulkWorkerIds.length} field workers selected</p>
+            <div className={styles.workerSearch}>
+              <input type="search" aria-label="Search field workers" placeholder="Search name, username or locality" disabled={busy} value={workerSearch} onChange={(event) => setWorkerSearch(event.target.value)} />
+            </div>
             <div className={styles.bulkWorkerList}>
               {fieldWorkers.length === 0 ? (
                 <div className={styles.emptyState}>No active field workers for this site</div>
+              ) : matchingWorkers.length === 0 ? (
+                <div className={styles.emptyState}>No field workers match your search</div>
               ) : (
-                fieldWorkers.map((worker) => (
+                matchingWorkers.map((worker) => (
                   <label key={worker.user_id} className={styles.workerOption}>
                     <input
                       type="checkbox"
@@ -788,7 +852,7 @@ export default function FieldWorkerHouseholdAssignmentPage() {
                       checked={bulkWorkerIds.includes(worker.user_id)}
                       onChange={() => toggleBulkWorker(worker.user_id)}
                     />
-                    <span>{workerLabel(worker)}</span>
+                    {workerDetails(worker)}
                   </label>
                 ))
               )}
