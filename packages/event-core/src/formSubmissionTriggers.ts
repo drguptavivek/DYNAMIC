@@ -1,3 +1,4 @@
+import { getHhqDwellingExclusion } from "../../../shared/householdDwellingOutcome.cjs";
 import {
   birthAssessmentCompleted,
   childDeathRecorded,
@@ -83,6 +84,7 @@ function requireValue(value: string | null | undefined, label: string): string {
 
 function triggerHhq(input: FormSubmissionTriggerInput): EventPromotionResult<unknown> {
   const answers = input.answers_json ?? {};
+  const exclusion = getHhqDwellingExclusion(answers);
   return fieldEventRegistry.HHQ.promoteEvidence({
     ...input,
     household_number: requireValue(
@@ -96,6 +98,8 @@ function triggerHhq(input: FormSubmissionTriggerInput): EventPromotionResult<unk
       "structure_map_id",
     ),
     baseline_date: dateFrom(input, ["hhq_interview_date", "baseline_date"]),
+    occupancy_status: exclusion?.occupancy_status,
+    enrollment_status: exclusion ? "not_enrolled" : "enrolled",
   });
 }
 

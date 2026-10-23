@@ -66,6 +66,7 @@ export async function rebuildHhqHouseholdProjection(householdId: string): Promis
       structure_map_id: projection.structure_map_id || undefined,
       household_number: projection.household_number || undefined,
       baseline_enrollment_status: projection.enrollment_status,
+      ...(projection.enrollment_status === "not_enrolled" ? { cohort_status: "excluded" } : {}),
       baseline_completed_date: projection.baseline_date || undefined,
       updated_at: new Date(),
     })

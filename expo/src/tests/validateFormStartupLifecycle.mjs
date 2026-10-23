@@ -74,8 +74,8 @@ assert.equal(models.length, 1, "fresh form constructs exactly one model after lo
 assert.equal(models[0].getValue("hhq_locality_code"), "11");
 render();
 assert.equal(models.length, 1, "ordinary rerenders reuse the live model");
-// Resolve a recovered draft, including a member roster, through the unchanged real initializer.
-draftSlot.value = { key, loading: false, draft: { draft_id: "saved", json_payload: { hhq_consent_study_provide_pis_explain_study_adult_member: 1, hhq_household_head_name: "Saved head", hhq_household_members: [{ member_name: "Saved member", member_age_years: 30, member_sex: 2 }] } } };
+// Restore an available, consenting household draft; only that branch exposes the roster.
+draftSlot.value = { key, loading: false, draft: { draft_id: "saved", json_payload: { hhq_competent_respondent_available: 1, hhq_consent_study_provide_pis_explain_study_adult_member: 1, hhq_household_head_name: "Saved head", hhq_household_members: [{ member_name: "Saved member", member_age_years: 30, member_sex: 2 }] } } };
 render();
 assert.equal(models.length, 2);
 assert.equal(models[1].getValue("hhq_household_head_name"), "Saved head");

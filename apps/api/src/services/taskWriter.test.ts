@@ -34,10 +34,16 @@ test("client task keys must exactly match the server workflow for one form", asy
 test("terminated woman cannot gain own tasks; household and child work remain independent", async () => {
   const inserted: string[] = [];
   let womanReads = 0;
+  let householdReads = 0;
   const fakeDb = {
     execute: async () => {},
     select: () => ({ from: (table: unknown) => ({ where: () => ({ limit: async () => {
+      if (table === schema.households) {
+        householdReads++;
+        return [{ baseline_enrollment_status: "enrolled" }];
+      }
       if (table === schema.pregnancies) return [{ woman_id: "woman-1" }];
+      assert.equal(table, schema.eligibleWomen);
       womanReads++;
       return [{ tracking_status: "terminated", current_eligibility_status: "deceased" }];
     } }) }) }),
@@ -57,4 +63,5 @@ test("terminated woman cannot gain own tasks; household and child work remain in
   });
   assert.deepEqual(inserted, ["child", "child-id", "household"]);
   assert.equal(womanReads, 2);
+  assert.equal(householdReads, 1, "household exclusion is checked once per household in a task batch");
 });

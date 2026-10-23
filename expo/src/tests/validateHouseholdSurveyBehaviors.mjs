@@ -1,7 +1,7 @@
 /** Verifies household calculations, cross-field rules, and asynchronous duplicate checks. */
 import assert from "node:assert/strict";
 
-const { attachHouseholdSurveyBehaviors } = await import("../lib/householdSurveyBehaviors.js");
+const { attachHouseholdSurveyBehaviors, refreshHouseholdSurveyBehaviors } = await import("../lib/householdSurveyBehaviors.js");
 
 function createEvent() {
   const handlers = [];
@@ -545,6 +545,27 @@ const legacyObservationModel = createModel({
   hhq_observation_only: ["B", "C"]
 });
 attachHouseholdSurveyBehaviors(legacyObservationModel, { form_code: "HHQ" });
-assert.equal(legacyObservationModel.getValue("hhq_observation_only"), "B");
+assert.deepEqual(legacyObservationModel.getValue("hhq_observation_only"), ["C"]);
+const scalarObservationModel = createModel({ hhq_observation_only: "B" });
+attachHouseholdSurveyBehaviors(scalarObservationModel, { form_code: "HHQ" });
+assert.deepEqual(scalarObservationModel.getValue("hhq_observation_only"), ["B"]);
 
 console.log("Validated HHQ household rules and duplicate checks.");
+
+for (const code of [7, 8, 9]) {
+  const dwellingModel = createModel({
+    hhq_competent_respondent_available: code,
+    hhq_we_like_learn_about_places_that_households_use: 2,
+    hhq_result_interview: 1,
+  });
+  attachHouseholdSurveyBehaviors(dwellingModel, { form_code: "HHQ" });
+  refreshHouseholdSurveyBehaviors(dwellingModel, { form_code: "HHQ" });
+  assert.equal(dwellingModel.getValue("hhq_result_interview"), code);
+  dwellingModel.setValue("hhq_result_interview", 10);
+  for (const handler of dwellingModel.onValueChanged.handlers) await handler(dwellingModel, { name: "hhq_result_interview", value: 10 });
+  assert.equal(dwellingModel.getValue("hhq_result_interview"), code);
+  dwellingModel.setValue("hhq_competent_respondent_available", 2);
+  dwellingModel.clearValue("hhq_we_like_learn_about_places_that_households_use");
+  for (const handler of dwellingModel.onValueChanged.handlers) await handler(dwellingModel, { name: "hhq_competent_respondent_available", value: 2 });
+  assert.equal(dwellingModel.getValue("hhq_result_interview"), undefined);
+}

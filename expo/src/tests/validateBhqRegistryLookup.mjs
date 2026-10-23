@@ -165,6 +165,7 @@ for (const siteId of [1, 2]) {
   attachHouseholdSurveyBehaviors(model, form);
   model.data = {
     hhq_site_id: siteId,
+    hhq_competent_respondent_available: 1,
     hhq_consent_study_provide_pis_explain_study_adult_member: 1,
     hhq_household_head_name: "Interview name",
     hhq_household_members: [{

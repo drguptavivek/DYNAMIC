@@ -363,7 +363,7 @@ for (const husbandPage of [wqHusbandBackgroundPage, staleSyncedWqHusbandBackgrou
   );
   assert.equal(
     alcoholDaysQuestion?.description?.default,
-    "Enter number of days as exactly 2 digits.",
+    "Enter 01 to 30 days as exactly 2 digits.",
     "BWQ Section 4 Q13 must omit the Use 00 through Q15 hint text",
   );
   assert.equal(
@@ -773,14 +773,14 @@ assert.equal(
 );
 assert.equal(competentRespondent.renderAs, "radio");
 assert.equal(competentRespondent.visibleIf, "{hhq_interview_date} notempty");
-assert.equal(competentRespondent.choices.length, 3);
+assert.equal(competentRespondent.choices.length, 6);
 assert.equal(competentRespondent.choices[2].visibleIf, "{hhq_visit_no} < 3");
 assert.equal(consent.visibleIf, "{hhq_competent_respondent_available} = 1");
 assert.ok(outcomeResult.choices.every((choice) => choice.visibleIf));
 assert.equal(surveyJson.clearInvisibleValues, "onHiddenContainer");
 assert.equal(
   surveyJson.pages[1].visibleIf,
-  "{hhq_consent_study_provide_pis_explain_study_adult_member} = 1"
+  "{hhq_competent_respondent_available} = 1 and {hhq_consent_study_provide_pis_explain_study_adult_member} = 1"
 );
 
 const consentModel = new Model(surveyJson);
@@ -794,14 +794,14 @@ assert.deepEqual(
   consentModel
     .getQuestionByName("hhq_competent_respondent_available")
     .visibleChoices.map((choice) => choice.value),
-  [1, 2, 3],
+  [1, 2, 3, 7, 8, 9],
 );
 consentModel.setValue("hhq_visit_no", 3);
 assert.deepEqual(
   consentModel
     .getQuestionByName("hhq_competent_respondent_available")
     .visibleChoices.map((choice) => choice.value),
-  [1, 2],
+  [1, 2, 7, 8, 9],
 );
 consentModel.setValue("hhq_competent_respondent_available", 2);
 assert.equal(
@@ -894,3 +894,27 @@ outcomeModel.setValue("hhq_observation_only", ["A"]);
 assert.deepEqual(outcomeQuestion.visibleChoices.map((choice) => choice.value), [1]);
 
 console.log("Validated questionnaire SurveyJS JSON transforms.");
+
+for (const code of [7, 8, 9]) {
+  const dwellingModel = new Model(surveyJson);
+  dwellingModel.data = {
+    hhq_interview_date: "2026-10-24", hhq_competent_respondent_available: code,
+    hhq_consent_study_provide_pis_explain_study_adult_member: 1,
+    hhq_we_like_learn_about_places_that_households_use: 2,
+    hhq_result_interview: code,
+  };
+  assert.equal(dwellingModel.getPageByName("page_04_outcome").isVisible, true);
+  assert.equal(dwellingModel.getPageByName("page_02_household_schedule").isVisible, false);
+  assert.equal(dwellingModel.getPageByName("page_03_household_characteristics").isVisible, false);
+  const outcome = dwellingModel.getQuestionByName("hhq_result_interview");
+  assert.equal(outcome.isVisible, true);
+  assert.equal(outcome.isReadOnly, true);
+  assert.deepEqual(outcome.visibleChoices.map(c => c.value), [code]);
+  assert.equal(dwellingModel.getQuestionByName("hhq_total_household_members").isVisible, false);
+  assert.equal(dwellingModel.getQuestionByName("hhq_total_eligible_women").isVisible, false);
+  assert.equal(dwellingModel.getQuestionByName("hhq_dwelling_termination_notice").isVisible, true);
+  dwellingModel.setValue("hhq_competent_respondent_available", 1);
+  dwellingModel.clearValue("hhq_result_interview");
+  assert.equal(outcome.isReadOnly, false);
+  assert.equal(dwellingModel.getQuestionByName("hhq_dwelling_termination_notice").isVisible, false);
+}

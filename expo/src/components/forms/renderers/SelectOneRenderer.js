@@ -5,6 +5,7 @@ import { StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-nativ
 import { getNativeQuestionChoices, getNativeQuestionValue, setNativeQuestionValue } from "../nativeSurveyModel.js";
 import { QuestionFrame, controlStyles } from "./QuestionFrame.js";
 import { acceptHhqHighestGradeYearEntry } from "./hhqHighestGrade.js";
+import { getNativeFormText } from "../../../lib/nativeFormText.js";
 
 export function SelectOneRenderer({ answerData, locale, question, onChange }) {
   const value = getNativeQuestionValue(question, answerData);
@@ -77,6 +78,8 @@ export function SelectOneRenderer({ answerData, locale, question, onChange }) {
     usesYearsEntry && selectedValue !== undefined && !choiceValues.includes(String(selectedValue))
       ? String(selectedValue)
       : "";
+  const entryUnitLabel = question?.entryUnitLabel || question?.jsonObj?.entryUnitLabel ||
+    (question?.renderAs === "days_with_special_codes" ? "Days" : "Years");
   if (
     allowYearsOverrideSpecialCodes &&
     selectedValue !== undefined &&
@@ -103,9 +106,9 @@ export function SelectOneRenderer({ answerData, locale, question, onChange }) {
             value={yearsValue}
           />
           <Text style={styles.yearsLabel}>
-            {question?.entryUnitLabel ||
-              question?.jsonObj?.entryUnitLabel ||
-              (question?.renderAs === "days_with_special_codes" ? "Days" : "Years")}
+            {(question?.entryUnitTextKey || question?.jsonObj?.entryUnitTextKey)
+              ? getNativeFormText(question, question?.entryUnitTextKey || question?.jsonObj?.entryUnitTextKey, entryUnitLabel, locale)
+              : entryUnitLabel}
           </Text>
         </View>
       ) : null}

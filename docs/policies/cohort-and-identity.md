@@ -47,6 +47,7 @@ Rules:
 - Baseline HHQ validates/enrolls a household from the mapped frame.
 - A mapped but not enrolled baseline household is outside the longitudinal cohort.
 - Empty, vacant, or not-occupied households at baseline remain outside future follow-up.
+- BHQ Q9 dwelling outcomes 7 (vacant/address not a dwelling), 8 (destroyed), and 9 (not found) go directly to the matching interview outcome and a termination notice. Final submission excludes the household; preserve its submitted evidence, cancel other actionable household tasks, and never generate follow-up tasks from stale roster answers. Draft selection alone does not exclude the household.
 - Future household visits are only for households enrolled at baseline.
 - Household splits keep the original `household_id`. Do not create a split event or new analytic household number.
 - Notes can document field context, but notes are not analysis, routing, eligibility, skip-logic, or cohort-definition inputs.

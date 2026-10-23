@@ -73,7 +73,7 @@ export function planWorkflow(input: {
   event: DomainEventEnvelope<HouseholdBaselineConfirmedPayload>;
   config?: ProtocolConfig;
 }): TaskDescriptor[] {
-  if (noWorkflowForHeldEvent(input.event)) return [];
+  if (noWorkflowForHeldEvent(input.event) || input.event.payload.enrollment_status !== "enrolled") return [];
   const payload = input.event.payload;
   return generateHouseholdBaselineTaskDescriptors({
     household_id: payload.household_id,

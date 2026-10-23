@@ -1,3 +1,4 @@
+import { getHhqDwellingExclusion } from "../../../../shared/householdDwellingOutcome.cjs";
 import { eligibleWomanIdentified, promoteFormSubmission } from "@dynamic/event-core";
 import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
@@ -168,10 +169,6 @@ async function promoteHhqEarlyStop(
 export async function promoteHhq(response: FormResponseRow, answers: FormAnswers): Promise<void> {
   const now = new Date();
   const household = buildHhqHouseholdPromotionValues(response.household_id || "", answers, now);
-  if (isHhqEarlyStopResponse(answers)) {
-    await promoteHhqEarlyStop(response, answers, household);
-    return;
-  }
   const interviewDate = household.baseline_completed_date;
   const priorResponses = await getDb()
     .select()
@@ -226,6 +223,36 @@ export async function promoteHhq(response: FormResponseRow, answers: FormAnswers
       severity: "warning",
       status: "open",
       created_at: now,
+    });
+    return;
+  }
+
+  if (!getHhqDwellingExclusion(answers) && isHhqEarlyStopResponse(answers)) {
+    await promoteHhqEarlyStop(response, answers, household);
+    return;
+  }
+  const exclusion = getHhqDwellingExclusion(answers);
+  if (exclusion) {
+    await getDb().update(schema.formResponses)
+      .set({ response_status: "household_excluded" })
+      .where(eq(schema.formResponses.form_response_id, response.form_response_id));
+    await getDb().insert(schema.households).values(household).onConflictDoUpdate({
+      target: [schema.households.household_id],
+      set: { consent_status: "No", baseline_enrollment_status: "not_enrolled", cohort_status: "excluded",
+        closed_reason: exclusion.reason, result_interview: exclusion.outcome,
+        baseline_completed_date: household.baseline_completed_date, sync_status: "synced", updated_at: now },
+    });
+    await getDb().update(schema.followUpTasks).set({ status: "cancelled", closed_reason: exclusion.reason, updated_at: now })
+      .where(and(eq(schema.followUpTasks.household_id, household.household_id),
+        response.task_id ? ne(schema.followUpTasks.task_id, response.task_id) : undefined,
+        inArray(schema.followUpTasks.status, ["open", "planned", "pending", "due", "overdue", "in_progress", "disabled"])));
+    await getDb().insert(schema.domainEvents).values({
+      event_id: randomUUID(), event_type: "household_baseline_confirmed", site_id: household.site_id,
+      locality_code: household.locality_code, household_id: household.household_id,
+      subject_type: "household", subject_id: household.household_id, task_id: response.task_id,
+      form_response_id: response.form_response_id, event_datetime: response.created_offline_at ?? now,
+      created_offline_at: response.created_offline_at, device_id: response.device_id,
+      sync_status: "synced", apply_status: "applied", created_at: now,
     });
     return;
   }

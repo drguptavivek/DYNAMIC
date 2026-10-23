@@ -34,6 +34,9 @@ const HHQ_HANDWASHING_OBSERVATION_NAME = "hhq_observation_only";
 const HHQ_RESULT_INTERVIEW_NAME = "hhq_result_interview";
 const HHQ_HIGHEST_GRADE_NAME = "member_highest_grade_completed";
 const HHQ_MEMBER_LIVING_SINCE_BIRTH_NAME = "member_living_since_birth";
+const HHQ_DWELLING_Q9_TERMINAL_IF = "({hhq_competent_respondent_available} = 7 or {hhq_competent_respondent_available} = 8 or {hhq_competent_respondent_available} = 9)";
+const HHQ_DWELLING_OUTCOME_TERMINAL_IF = "({hhq_competent_respondent_available} != 2 and {hhq_competent_respondent_available} != 3 and ({hhq_result_interview} = 7 or {hhq_result_interview} = 8 or {hhq_result_interview} = 9))";
+const HHQ_DWELLING_TERMINAL_IF = `(${HHQ_DWELLING_Q9_TERMINAL_IF} or ${HHQ_DWELLING_OUTCOME_TERMINAL_IF})`;
 const HHQ_OUTCOME_COMPLETED_VALUE = 1;
 const HHQ_OUTCOME_OTHER_SPECIFY_VALUE = 10;
 const HHQ_OUTCOME_COMPLETED_VISIBLE_IF =
@@ -143,7 +146,7 @@ const WQ_HUSBAND_Q13_ALCOHOL_DAYS_NAME =
 const WQ_HUSBAND_Q13_ALCOHOL_DAYS_TITLE =
   "13. During the last one month, on how many days did your husband/partner have at least one drink of alcohol?\nIf non-numeric answer, probe to get an estimate. If respondent answers 'every day' or 'almost every day'";
 const WQ_HUSBAND_Q13_ALCOHOL_DAYS_DESCRIPTION =
-  "Enter number of days as exactly 2 digits.";
+  "Enter 01 to 30 days as exactly 2 digits.";
 const WQ_HUSBAND_Q14_ALCOHOL_DRINKS_NAME =
   "wq_04_husband_s_backgroun_we_count_one_drink_of_alcohol_as_one_can_o";
 const WQ_Q20_PAYMENT_KIND_NAME =
@@ -757,22 +760,25 @@ function applyHhqOutcomeChoiceVisibility(surveyJson) {
     return elements.map((element) => {
       const next = { ...element };
       if (next.name === HHQ_RESULT_INTERVIEW_NAME && Array.isArray(next.choices)) {
+        next.enableIf = `!${HHQ_DWELLING_TERMINAL_IF}`;
         next.choices = next.choices.map((choice) => {
           if (choice.value === HHQ_OUTCOME_COMPLETED_VALUE) {
             return {
               ...choice,
-              visibleIf: `(${HHQ_OUTCOME_NORMAL_VISIBLE_IF}) or (${HHQ_OUTCOME_COMPLETED_VISIBLE_IF})`,
+              visibleIf: `!${HHQ_DWELLING_TERMINAL_IF} and ((${HHQ_OUTCOME_NORMAL_VISIBLE_IF}) or (${HHQ_OUTCOME_COMPLETED_VISIBLE_IF}))`,
             };
           }
           if (choice.value === HHQ_OUTCOME_OTHER_SPECIFY_VALUE) {
             return {
               ...choice,
-              visibleIf: `(${HHQ_OUTCOME_NORMAL_VISIBLE_IF}) or (${HHQ_OUTCOME_OTHER_VISIBLE_IF})`,
+              visibleIf: `!${HHQ_DWELLING_TERMINAL_IF} and ((${HHQ_OUTCOME_NORMAL_VISIBLE_IF}) or (${HHQ_OUTCOME_OTHER_VISIBLE_IF}))`,
             };
           }
           return {
             ...choice,
-            visibleIf: HHQ_OUTCOME_NORMAL_VISIBLE_IF,
+            visibleIf: [7, 8, 9].includes(choice.value)
+              ? `({hhq_competent_respondent_available} = ${choice.value}) or (!${HHQ_DWELLING_Q9_TERMINAL_IF} and ${HHQ_DWELLING_OUTCOME_TERMINAL_IF} and {hhq_result_interview} = ${choice.value}) or (!${HHQ_DWELLING_TERMINAL_IF} and ${HHQ_OUTCOME_NORMAL_VISIBLE_IF})`
+              : `!${HHQ_DWELLING_TERMINAL_IF} and ${HHQ_OUTCOME_NORMAL_VISIBLE_IF}`,
           };
         });
       }
@@ -1141,7 +1147,14 @@ function applyWqAlcoholQuestionText(surveyJson) {
 
       const elementsWithoutIntro = page.elements.filter(
         (element) => element.name !== WQ_Q16_ALCOHOL_INTRO_NAME,
-      );
+      ).map(element => {
+        const unit = element.name === "wq_03_other_health_issues_during_the_last_one_month_on_how_many_days"
+          ? "days" : element.name === "wq_03_other_health_issues_we_count_one_drink_of_alcohol_as_one_can_o"
+            ? "drinks" : null;
+        return unit ? { ...element, allowYearsOverrideSpecialCodes: true,
+          entryUnitLabel: unit === "days" ? "Days" : "Drinks",
+          entryUnitTextKey: `wq_alcohol_${unit}_entry` } : element;
+      });
       const alcoholQuestionIndex = elementsWithoutIntro.findIndex(
         (element) => element.name === WQ_Q16_ALCOHOL_NAME,
       );

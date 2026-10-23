@@ -33,6 +33,10 @@ export const NATIVE_FORM_TEXT = {
   },
   "PFF": { ...NATIVE_IMAGE_FORM_TEXT, ...NATIVE_ANC_IMAGE_FORM_TEXT },
   "WQ": {
+    "wq_alcohol_days_entry": "Days",
+    "wq_alcohol_drinks_entry": "Drinks",
+    "wq_pregnancy_lmp_minimum_days": "When currently pregnant, the last menstrual period must be at least 28 days before the interview date.",
+    "wq_pregnancy_lmp_invalid": "Enter a complete valid last menstrual period date or relative time.",
     "transfusion_month": "Month (MM)",
     "transfusion_year": "Year (YYYY)",
     "transfusion_date_invalid": "Enter a valid month and four-digit year, or select Do not remember.",
@@ -184,9 +188,16 @@ export const NATIVE_QUESTION_TITLE_OVERRIDES = {
 };
 
 export const NATIVE_QUESTION_TITLE_KEYS = {
+  "wq_03_other_health_issues_during_the_last_one_month_on_how_many_days": ["wq_alcohol_days_entry"],
+  "wq_03_other_health_issues_we_count_one_drink_of_alcohol_as_one_can_o": ["wq_alcohol_drinks_entry"],
   ...GROUPED_CHOICE_TEXT_KEYS,
   ...Object.fromEntries(Object.values(LMP_TIMING_FIELDS).map(name =>
     [name, Object.keys(LMP_TIMING_TEXT).map(key => `${name}_${key}`)])),
+  [LMP_TIMING_FIELDS.WQ]: [
+    ...Object.keys(LMP_TIMING_TEXT).map(key => `${LMP_TIMING_FIELDS.WQ}_${key}`),
+    "wq_pregnancy_lmp_minimum_days",
+    "wq_pregnancy_lmp_invalid",
+  ],
   "wq_01_respondent_s_backgr_how_long_have_you_been_living_continuously": [
     "bwq_locality_duration"
   ],

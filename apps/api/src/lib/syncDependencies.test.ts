@@ -16,7 +16,7 @@ test("missing/rejected baseline defers BWQ without writing evidence; accepted pa
   };
   await runWithDb(fakeDb as unknown as typeof db, async () => {
     await assert.rejects(requireSyncedHouseholdBaseline("2-02-0010-08"), { message: MISSING_HHQ_SYNC_ERROR });
-    responses = [{ response_status: "invalid_rejected" }, { response_status: "duplicate" }, { response_status: "held_for_review" }, { response_status: "revisit_needed" }, { response_status: "superseded_revisit" }, { response_status: "excluded_after_revisits" }];
+    responses = [{ response_status: "invalid_rejected" }, { response_status: "duplicate" }, { response_status: "held_for_review" }, { response_status: "revisit_needed" }, { response_status: "superseded_revisit" }, { response_status: "excluded_after_revisits" }, { response_status: "household_excluded" }];
     await assert.rejects(requireSyncedHouseholdBaseline("2-02-0010-08"), { message: MISSING_HHQ_SYNC_ERROR });
     for (const status of ["primary", "accepted", null]) {
       responses = [{ response_status: status }];

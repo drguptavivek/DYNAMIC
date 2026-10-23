@@ -1,3 +1,6 @@
+import dwellingOutcome from "../../../../shared/householdDwellingOutcome.cjs";
+const { getHhqDwellingExclusion } = dwellingOutcome;
+
 import { showFormAlert } from "../../lib/nativeFormPopups.js";
 import { getNativeFormText } from "../../lib/nativeFormText.js";
 /**
@@ -198,13 +201,18 @@ function applyHhqContextPrefill(model, taskContext) {
   return prefill;
 }
 
+function isHhqDwellingStop(model) {
+  return Boolean(getHhqDwellingExclusion(model?.data));
+}
+
 function isHhqAvailabilityStop(model) {
   const value = Number(model?.getValue?.(HHQ_COMPETENT_RESPONDENT_FIELD));
-  return value === 2 || value === 3;
+  return value === 2 || value === 3 || isHhqDwellingStop(model);
 }
 
 function getHhqAvailabilityStopMessage(model) {
   if (!isHhqAvailabilityStop(model)) return "";
+  if (isHhqDwellingStop(model)) return "";
   const visitNo = Number(model.getValue(HHQ_VISIT_NO_FIELD));
   const value = Number(model.getValue(HHQ_COMPETENT_RESPONDENT_FIELD));
   return visitNo >= MAX_HHQ_VISIT_NO && value === 2
@@ -443,6 +451,9 @@ export function BaselineHouseholdForm({
         applyHhqVisitNo(sender, taskContext);
       }
       if (options.name === HHQ_COMPETENT_RESPONDENT_FIELD) {
+        if (isHhqDwellingStop(sender)) {
+          goToSurveySection(sender, "page_04_outcome");
+        }
         const stopMessage = getHhqAvailabilityStopMessage(sender);
         setMessage(stopMessage);
         showHhqAvailabilityStopPopup(stopMessage, survey);
@@ -507,7 +518,12 @@ export function BaselineHouseholdForm({
     if (firstRestorePass) {
       postRestoreDraftKeyRef.current = restoreKey;
       const consentDeclined = hasDeclinedHouseholdConsent(model);
-      if (consentDeclined) {
+      if (isHhqDwellingStop(model)) {
+        goToSurveySection(model, "page_04_outcome");
+        setView("form");
+        setFinalReview(false);
+        setMessage("");
+      } else if (consentDeclined) {
         const firstVisiblePageName = model.firstVisiblePage?.name;
         if (firstVisiblePageName) goToSurveySection(model, firstVisiblePageName);
         setView("form");
@@ -520,7 +536,7 @@ export function BaselineHouseholdForm({
         showTransientMessage(`Draft restored from this device (${countDraftAnswers(answerSnapshotRef.current)} answers).`);
       }
 
-      memberSummaryConfirmedRef.current = consentDeclined
+      memberSummaryConfirmedRef.current = consentDeclined || isHhqDwellingStop(model)
         ? false
         : Boolean(draftLookup.draft.completion_state?.memberSummaryConfirmed);
       setMemberSummaryConfirmed(memberSummaryConfirmedRef.current);

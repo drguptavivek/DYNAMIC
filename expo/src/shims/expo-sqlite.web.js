@@ -203,6 +203,19 @@ class WebDatabase {
       return { changes };
     }
 
+    if (/UPDATE follow_up_tasks SET status = 'cancelled', lifecycle_status = 'cancelled', closed_reason = \?, sync_status = 'pending', updated_at = \? WHERE household_id = \?/i.test(normalized)) {
+      const [closed_reason, updated_at, householdId, currentTaskId] = params;
+      let changes = 0;
+      this.state.follow_up_tasks = this.state.follow_up_tasks.map(task => {
+        if (task.household_id !== householdId || (currentTaskId !== null && task.id === currentTaskId) ||
+            !["open", "planned", "pending", "due", "overdue", "in_progress", "disabled"].includes(task.status)) return task;
+        changes += 1;
+        return { ...task, status: "cancelled", lifecycle_status: "cancelled", closed_reason, sync_status: "pending", updated_at };
+      });
+      this.persist();
+      return { changes };
+    }
+
     if (/UPDATE follow_up_tasks SET status = \?, updated_at = \? WHERE id = \?/i.test(normalized)) {
       const [status, updated_at, id] = params;
       let changes = 0;
@@ -363,6 +376,10 @@ class WebDatabase {
 
     if (/SELECT value FROM sync_meta WHERE key = \?/i.test(normalized)) {
       return { value: this.state.sync_meta[params[0]] ?? null };
+    }
+
+    if (/SELECT id FROM form_responses WHERE household_id = \? AND form_code = 'HHQ' AND server_response_status = 'household_excluded' LIMIT 1/i.test(normalized)) {
+      return this.state.form_responses.find(row => row.household_id === params[0] && row.form_code === "HHQ" && row.server_response_status === "household_excluded") || null;
     }
 
     if (/SELECT \* FROM form_responses WHERE id = \?/i.test(normalized)) {

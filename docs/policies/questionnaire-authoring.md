@@ -27,6 +27,7 @@ Do question-by-question PDF comparison before questionnaire JSON changes.
 - Put instructions, probes, skip notes, hints, and auto-fill notes in metadata, description, validation, or app logic.
 - Numeric boxes are numeric/text inputs, not radio choices.
 - `RECORD ALL` / `ANSWER UP TO` fields are checkboxes unless the PDF defines one coded response.
+- BHQ Q62 (cleansing agents observed) records multiple selections: soap/detergent and ash/mud/sand may be selected together; `None` clears other selections, and selecting another answer clears `None`. This does not skip questions or navigate to another page. Restore older single answers as one-item selections and preserve all selected codes through drafts, preview and submission.
 - Auto-filled lineage/core fields are read-only with explicit source metadata.
 - Read-only enforcement must use the SurveyJS model API and include nested panel questions.
 - SurveyJS-compatible JSON is interpreted by headless `survey-core`; Expo-native controls render the model on Android and web.
@@ -47,6 +48,10 @@ Do question-by-question PDF comparison before questionnaire JSON changes.
 - HHQ can create/enroll the baseline household from the mapped frame.
 - WQ opens for HHQ-derived eligible women.
 - WQ Domestic Violence is available only at Ayapakkam (Chennai, site 4). Its existing pregnancy-tracking eligibility, consent, privacy and marital-status conditions still apply; other sites skip the entire section.
+- Selecting Yes for BWQ Q32 automatically fills Q36 as No and Q37 as No, neither sterilized. Both questions retain their existing visibility and the existing eligibility calculation remains authoritative.
+- When BWQ Q32 is Yes, Q33a's reported last menstrual period must be at least 28 days before the interview date (28 is allowed), whether recorded as a calendar date or relative days/weeks/months. Display a localized validation error instead of silently changing the reported period.
+- In BWQ's husband/partner alcohol section, Q13's numeric entry allows at most 30 days and Q14 at most 5 drinks. Retain the existing two-digit entry and special responses (`00`, and Q13's `95` for every day/almost every day); reject excessive numeric entries rather than clamping them.
+- In BWQ's respondent alcohol section, Q17 shows the numeric Days entry first, allowing 1–30 days, followed by the existing None and Every day/almost every day choices. Q18 shows the numeric Drinks entry first, allowing at most 5 drinks, followed by its existing special response. Preserve the special response codes and validate restored entries too.
 - PEF blood pressure and WQ blood pressure/hemoglobin are editable only at Bareilly (site 1); other sites see locked fields with existing values preserved. Source-prefilled PEF blood pressure remains locked. Do not add a hemoglobin question to PEF.
 - PEF opens from accepted pregnancy detection.
 - PFF/POF/BAF/NFF/CDF/SBF/VA open only through workflow rules and task state.

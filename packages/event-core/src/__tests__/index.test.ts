@@ -1009,3 +1009,18 @@ describe("event-core workflow orchestration", () => {
     });
   });
 });
+
+
+describe("excluded household baseline workflow", () => {
+  it.each(["vacant", "not_occupied"] as const)("does not schedule follow-up for %s dwelling", occupancy_status => {
+    const result = householdBaselineConfirmed.promoteEvidence({
+      event_id: "excluded", site_id: 2, locality_code: "11", household_id: "2-11-0001-01",
+      household_number: "01", structure_map_id: "0001", baseline_date: "2026-10-24",
+      recorded_at: "2026-10-24T10:00:00Z", occupancy_status, enrollment_status: "not_enrolled",
+    });
+    expect(result.task_descriptors).toEqual([]);
+    const replayed = householdBaselineConfirmed.reduceEvent({ event: result.event });
+    expect(replayed?.follow_up_enabled).toBe(false);
+    expect(replayed?.enrollment_status).toBe("not_enrolled");
+  });
+});

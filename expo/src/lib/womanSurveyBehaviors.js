@@ -12,6 +12,7 @@ export const WQ_LMP_MORE_THAN_SIX_MONTHS_FIELD =
 export const WQ_NOT_PREGNANT_OR_UNSURE_FIELD = "wq_02_reproduction_check_32_if_not_pregnant_or_unsure";
 export const WQ_HYSTERECTOMY_FIELD = "wq_02_reproduction_some_women_undergo_an_operation_to_remove";
 export const WQ_STERILIZATION_FIELD = "wq_02_reproduction_are_you_or_your_partner_sterilized_probe_w";
+export const WQ_CONTRACEPTION_FIELD = "wq_02_reproduction_are_you_or_your_partner_currently_doing_so";
 export const WQ_PREGNANT_FIELD = "wq_pregnant";
 export const WQ_INTERVIEW_DATE_FIELD = "wq_interview_date";
 export const WQ_BIRTH_MONTH_YEAR_FIELD =
@@ -779,7 +780,53 @@ export function applyWqPregnancyTrackingEligibility(model) {
   question.readOnly = true;
 }
 
+const wqPregnancyDefaultModels = new WeakMap();
+const wqPregnancyLmpMessages = new WeakMap();
+
+function getWqPregnancyLmpMessage(model, value) {
+  if (Number(model.getValue(WQ_PREGNANT_FIELD)) !== 1) return null;
+  if (!value || typeof value !== "object") return null;
+  let valid = false;
+  if (value.mode === "date") {
+    const [day, month, year] = [value.day, value.month, value.year].map(toFiniteNumber);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    valid = [day, month, year].every(Number.isInteger) && year >= 1000 && year <= 9999 &&
+      date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+  } else if (value.mode === "relative") {
+    const amount = toFiniteNumber(value.value);
+    valid = Number.isInteger(amount) && amount >= 0 &&
+      Object.hasOwn(WQ_LMP_RELATIVE_UNIT_DAYS, value.unit);
+  }
+  if (!valid) return getNativeFormText(model, "wq_pregnancy_lmp_invalid",
+    "Enter a complete valid last menstrual period date or relative time.");
+  const daysAgo = wqLmpDaysAgo(value, wqLmpReferenceDate(model.getValue(WQ_INTERVIEW_DATE_FIELD)));
+  if (daysAgo === null || daysAgo >= 28) return null;
+  return getNativeFormText(model, "wq_pregnancy_lmp_minimum_days",
+    "When currently pregnant, the last menstrual period must be at least 28 days before the interview date.");
+}
+
+function applyWqPregnancyDefaults(model) {
+  const pregnant = Number(model?.getValue?.(WQ_PREGNANT_FIELD)) === 1;
+  const previous = wqPregnancyDefaultModels.get(model) || new Map();
+  if (pregnant) wqPregnancyDefaultModels.set(model, previous);
+  else wqPregnancyDefaultModels.delete(model);
+  for (const [field, value] of [[WQ_CONTRACEPTION_FIELD, 2], [WQ_STERILIZATION_FIELD, 4]]) {
+    if (pregnant) {
+      if (Number(model.getValue(field)) !== value && !previous.has(field)) {
+        previous.set(field, model.getValue(field));
+      }
+      setModelValueIfChanged(model, field, value);
+    } else if (previous.has(field) && Number(model.getValue(field)) === value) {
+      // Correcting Q32 restores only answers overwritten by this default.
+      setModelValueIfChanged(model, field, previous.get(field));
+    }
+  }
+}
+
 export function applyWqLmpTimingChecks(model) {
+  applyWqPregnancyDefaults(model);
+  setOrClearQuestionMessage(wqPregnancyLmpMessages, model?.getQuestionByName?.(WQ_LMP_FIELD),
+    getWqPregnancyLmpMessage(model, model.getValue(WQ_LMP_FIELD)));
   const checkQuestion = model?.getQuestionByName?.(WQ_LMP_MORE_THAN_SIX_MONTHS_FIELD);
   if (!checkQuestion) return;
   const answers = {
@@ -977,6 +1024,10 @@ export function validateWqTransfusionTiming(value, referenceDate = new Date()) {
 // above only produces the immediate inline display while the interviewer types.
 export function attachWqValidation(model) {
   model?.onValidateQuestion?.add((sender, options) => {
+    if (options.name === WQ_LMP_FIELD) {
+      const message = getWqPregnancyLmpMessage(sender, options.value);
+      if (message) options.error = message;
+    }
     if (options.name === WQ_TRANSFUSION_TIMING_FIELD) {
       const key = validateWqTransfusionTiming(options.value, wqReferenceDate(sender.getValue(WQ_INTERVIEW_DATE_FIELD)));
       if (key) options.error = getNativeFormText(sender, key,

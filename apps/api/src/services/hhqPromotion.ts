@@ -1,3 +1,4 @@
+import { getHhqDwellingExclusion } from "../../../../shared/householdDwellingOutcome.cjs";
 type HhqAnswers = Record<string, any>;
 
 const CONSENT_LABELS: Record<string, string> = {
@@ -68,6 +69,7 @@ export function buildHhqHouseholdPromotionValues(
   answers: HhqAnswers,
   now = new Date(),
 ) {
+  const exclusion = getHhqDwellingExclusion(answers);
   const householdId = responseHouseholdId || buildHhqHouseholdId(answers);
   const parsed = parseHouseholdId(householdId);
   const siteId =
@@ -114,11 +116,13 @@ export function buildHhqHouseholdPromotionValues(
     address: answers.hhq_household_address || "",
     household_head_name: answers.hhq_household_head_name || "",
     contact_mobile: collectMobileNumbers(answers),
-    consent_status:
+    consent_status: exclusion ? "No" :
       CONSENT_LABELS[String(answers.hhq_consent_study_provide_pis_explain_study_adult_member)] || "",
-    result_interview: answers.hhq_result_interview,
+    result_interview: exclusion?.outcome ?? answers.hhq_result_interview,
     language_questionnaire: answers.hhq_language_questionnaire,
-    baseline_enrollment_status: "enrolled",
+    baseline_enrollment_status: exclusion ? "not_enrolled" : "enrolled",
+    cohort_status: exclusion ? "excluded" : undefined,
+    closed_reason: exclusion?.reason,
     baseline_completed_date: answers.hhq_interview_date || now.toISOString().split("T")[0],
     sync_status: "synced",
     created_at: now,

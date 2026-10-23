@@ -1,7 +1,11 @@
 /**
  * Installs DYNAMIC household-specific validation and display behavior on a Survey Core model.
  */
+import dwellingOutcome from "../../../shared/householdDwellingOutcome.cjs";
+const { getHhqDwellingExclusion } = dwellingOutcome;
+
 const HHQ_CODE = "HHQ";
+const HHQ_RESPONDENT_FIELD = "hhq_competent_respondent_available";
 const HH_MEMBER_PANEL = "hhq_household_members";
 const HHQ_HANDWASHING_PLACE_FIELD = "hhq_we_like_learn_about_places_that_households_use";
 const HHQ_HANDWASHING_OBSERVATION_FIELD = "hhq_observation_only";
@@ -104,6 +108,8 @@ function hasHhqObservationSelections(value) {
 }
 
 function getForcedHhqOutcomeResult(model) {
+  const exclusion = getHhqDwellingExclusion(model.data);
+  if (exclusion) return exclusion.outcome;
   const observationPlace = parseFiniteNumber(model.getValue(HHQ_HANDWASHING_PLACE_FIELD));
   if (observationPlace === 2 || observationPlace === 3) {
     return HHQ_OUTCOME_COMPLETED;
@@ -120,7 +126,18 @@ function getForcedHhqOutcomeResult(model) {
   return null;
 }
 
-function applyForcedHhqOutcomeResult(model) {
+function applyForcedHhqOutcomeResult(model, respondentChanged = false) {
+  if (respondentChanged && ![7, 8, 9].includes(Number(model.getValue(HHQ_RESPONDENT_FIELD)))) {
+    if ([7, 8, 9].includes(Number(model.getValue(HHQ_RESULT_INTERVIEW_FIELD)))) {
+      clearModelValue(model, HHQ_RESULT_INTERVIEW_FIELD);
+    }
+  }
+  const exclusion = getHhqDwellingExclusion(model.data);
+  const outcomeQuestion = model.getQuestionByName?.(HHQ_RESULT_INTERVIEW_FIELD);
+  if (outcomeQuestion) outcomeQuestion.readOnly = Boolean(exclusion);
+  if (exclusion) {
+    clearModelValue(model, "hhq_consent_study_provide_pis_explain_study_adult_member");
+  }
   const forcedResult = getForcedHhqOutcomeResult(model);
   if (forcedResult === null) return;
 
@@ -134,12 +151,15 @@ function applyForcedHhqOutcomeResult(model) {
 
 function normalizeHhqObservationSelection(model) {
   const value = model.getValue(HHQ_HANDWASHING_OBSERVATION_FIELD);
-  if (!Array.isArray(value)) return;
-  if (value.length === 0) {
-    clearModelValue(model, HHQ_HANDWASHING_OBSERVATION_FIELD);
-    return;
+  if (value === undefined || value === null || value === "") return;
+  const selections = Array.isArray(value) ? value : [value];
+  // Native checkbox toggles append the newly selected choice.
+  const normalized = selections.includes("C")
+    ? selections[selections.length - 1] === "C" ? ["C"] : selections.filter((item) => item !== "C")
+    : selections;
+  if (JSON.stringify(value) !== JSON.stringify(normalized)) {
+    model.setValue(HHQ_HANDWASHING_OBSERVATION_FIELD, normalized);
   }
-  model.setValue(HHQ_HANDWASHING_OBSERVATION_FIELD, value[0]);
 }
 
 function applyWaterSourceLocationRule(model, clearManualAnswer = false) {
@@ -629,6 +649,7 @@ export function refreshHouseholdSurveyBehaviors(model, selectedForm) {
   if (selectedForm?.form_code !== HHQ_CODE) return;
   applyMandatoryHhqQuestions(model);
   configureHouseholdRosterQuestion(model);
+  normalizeHhqObservationSelection(model);
   applyForcedHhqOutcomeResult(model);
   updateHouseholdIdCalculation(model);
   updateHouseholdListingCalculations(model);
@@ -789,11 +810,12 @@ export function attachHouseholdSurveyBehaviors(
       setTimeout(() => italicizeVisibleMemberNames(sender), 0);
     }
     if (
+      options.name === HHQ_RESPONDENT_FIELD ||
       options.name === HHQ_HANDWASHING_PLACE_FIELD ||
       options.name === HHQ_HANDWASHING_OBSERVATION_FIELD ||
       options.name === HHQ_RESULT_INTERVIEW_FIELD
     ) {
-      applyForcedHhqOutcomeResult(sender);
+      applyForcedHhqOutcomeResult(sender, options.name === HHQ_RESPONDENT_FIELD);
     }
     if (options.name === HHQ_MAIN_WATER_SOURCE_FIELD) {
       applyWaterSourceLocationRule(sender, true);

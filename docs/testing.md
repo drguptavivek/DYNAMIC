@@ -53,6 +53,27 @@ node expo/src/tests/validateCanonicalFormTranslations.mjs
 
 English checks cover portal edit/save and CSV export/import, effective sync definitions/checksums, and default/en native rendering across all forms. These use isolated fixtures and do not write production translations.
 
+Baseline dwelling exclusions:
+
+```bash
+node --test shared/householdDwellingOutcome.test.cjs
+npm --workspace expo exec -- tsx src/tests/validateHhqDwellingExclusion.mjs
+npm --workspace @dynamic/api exec -- tsx --test src/services/hhqDwellingExclusion.test.ts src/services/hhqPromotion.test.ts src/lib/syncDependencies.test.ts
+```
+
+Check BHQ Q9 values 7/8/9, the direct outcome route and translated termination notice, changing the answer and restoring drafts, no tasks from stale roster answers, and exclusion after offline submission, sync and replay. Preserve normal enrollment and Q9 2/3 revisit behavior.
+
+BWQ pregnancy defaults:
+
+```bash
+node expo/src/tests/validateWqPregnancyDefaults.mjs
+node expo/src/tests/validateWqAlcoholLimits.mjs
+```
+
+Check Q32 Yes automatically sets the coded No answers for Q36/Q37, including draft restoration, while normal No/unsure responses keep the existing behavior. Check Q33a's minimum of 28 days at the 27/28-day boundary for both date and relative entries, including equivalent weeks/months and translated validation text.
+Check husband/partner Q13 at 30/31 days and Q14 at 5/6 drinks, including valid special responses, draft restoration, and translatable validator messages in the codebook.
+Check respondent Q17 shows Days first, accepts 30 and rejects 31, while retaining None and Every day/almost every day and their existing skip behavior. Check Q18 shows Drinks first, accepts 5 and rejects 6, and retains its special response.
+
 Household assignment range, page-selection and assignment refresh checks (no database required):
 
 ```bash

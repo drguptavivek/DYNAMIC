@@ -1,3 +1,4 @@
+import { getHhqDwellingExclusion } from "../../../../shared/householdDwellingOutcome.cjs";
 import { stripHouseholdGpsMetadata } from "../../../../shared/householdGpsStorage.cjs";
 import {
   childDeathRecorded,
@@ -454,7 +455,20 @@ function saveWebPefDerivedWorkflow(pregnancy, tasks) {
   const state = readWebSqliteState(storage);
   state.pregnancies = mergeById([pregnancy], state.pregnancies || [], "pregnancy_id");
   state.follow_up_tasks = mergeById(tasks, state.follow_up_tasks || [], "task_key");
-  storage.setItem(WEB_SQLITE_STORAGE_KEY, JSON.stringify(protectWebTerminatedWomen(state)));
+  storage.setItem(WEB_SQLITE_STORAGE_KEY, JSON.stringify(protectWebExcludedHouseholdTasks(protectWebTerminatedWomen(state))));
+}
+
+function protectWebExcludedHouseholdTasks(state) {
+  const excluded = new Map((state.form_responses || []).filter(row => row.server_response_status === "household_excluded")
+    .map(row => [row.household_id, row]));
+  state.follow_up_tasks = (state.follow_up_tasks || []).map(task => {
+    const row = excluded.get(task.household_id);
+    if (!row || !["open", "planned", "pending", "due", "overdue", "in_progress", "disabled"].includes(task.status)) return task;
+    const answers = typeof row.answers_json === "string" ? JSON.parse(row.answers_json) : row.answers_json;
+    return { ...task, status: "cancelled", lifecycle_status: "cancelled",
+      closed_reason: getHhqDwellingExclusion(answers)?.reason, updated_at: row.submitted_at };
+  });
+  return state;
 }
 
 function saveWebTasks(tasks) {
@@ -462,7 +476,7 @@ function saveWebTasks(tasks) {
   if (!storage || tasks.length === 0) return;
   const state = readWebSqliteState(storage);
   state.follow_up_tasks = mergeById(tasks, state.follow_up_tasks || [], "task_key");
-  storage.setItem(WEB_SQLITE_STORAGE_KEY, JSON.stringify(protectWebTerminatedWomen(state)));
+  storage.setItem(WEB_SQLITE_STORAGE_KEY, JSON.stringify(protectWebExcludedHouseholdTasks(protectWebTerminatedWomen(state))));
 }
 
 async function saveTasks(tasks) {
@@ -583,7 +597,7 @@ export function getHhqGeneratedTaskKeys(response) {
   if (typeof response.answers_json === "string") {
     response = { ...response, answers_json: JSON.parse(response.answers_json) };
   }
-  if (response.form_code !== "HHQ" || !response.household_id || isHhqEarlyStopResponse(response)) return [];
+  if (response.form_code !== "HHQ" || !response.household_id || response.server_response_status === "duplicate" || isHhqEarlyStopResponse(response) || getHhqDwellingExclusion(response.answers_json)) return [];
   const record = extractHouseholdRegistryFields(response.answers_json || {});
   const promotion = buildHhqPromotion(response, record);
   return [...new Set([
@@ -613,6 +627,37 @@ function buildHhqPromotion(response, record) {
 
 async function promoteHhqLocally(response) {
   if (response.form_code !== "HHQ" || !response.household_id) return;
+  if (response.server_response_status === "duplicate") return;
+  const exclusion = getHhqDwellingExclusion(response.answers_json);
+  if (exclusion) {
+    const [siteId, localityCode, structureNumber, householdNumber] = response.household_id.split("-");
+    const record = { ...extractHouseholdRegistryFields(response.answers_json || {}),
+      household_id: response.household_id, site_id: Number(siteId), locality_code: localityCode,
+      structure_number: structureNumber, household_number: householdNumber,
+      result_interview: exclusion.outcome, consent_status: "No", members: [],
+      baseline_enrollment_status: "not_enrolled", cohort_status: "excluded", closed_reason: exclusion.reason,
+      sync_status: "pending", updated_at: response.submitted_at };
+    let taskRepository = null;
+    try { taskRepository = await import("../tasks/taskRepository.js"); } catch { /* Node tests use web storage. */ }
+    if (taskRepository?.excludeLocalHousehold) {
+      taskRepository.excludeLocalHousehold({ householdId: response.household_id, currentTaskId: response.task_id,
+        reason: exclusion.reason, timestamp: response.submitted_at });
+      const householdRepository = await import("../households/householdRepository.js");
+      await householdRepository.saveHousehold(record);
+    } else {
+      saveWebPromotedHousehold(record);
+      const storage = getStorage();
+      const state = readWebSqliteState(storage);
+      state.follow_up_tasks = (state.follow_up_tasks || []).map(task =>
+        task.household_id === response.household_id && task.id !== response.task_id &&
+        ["open", "planned", "pending", "due", "overdue", "in_progress", "disabled"].includes(task.status)
+          ? { ...task, status: "cancelled", lifecycle_status: "cancelled", closed_reason: exclusion.reason,
+            sync_status: "pending", updated_at: response.submitted_at } : task);
+      storage.setItem(WEB_SQLITE_STORAGE_KEY, JSON.stringify(state));
+    }
+    await saveDomainEvent(buildHhqPromotion(response, record).event, response.submitted_at);
+    return;
+  }
   if (isHhqEarlyStopResponse(response)) return;
   const sourceFields = {
     sync_status: "pending",
@@ -1267,6 +1312,18 @@ export async function saveQuestionnaireSubmission({
     userId,
     submittedAt: now,
   });
+  if (response.form_code === "HHQ") {
+    const previous = taskRepository?.listFormResponses
+      ? taskRepository.listFormResponses({ form_code: "HHQ", household_id: response.household_id })
+      : (readWebSqliteState(storage).form_responses || []).filter(row => row.form_code === "HHQ" && row.household_id === response.household_id);
+    const priorBaseline = previous.some(row => {
+      if (row.id === response.id) return false;
+      if (["duplicate", "revisit_needed", "superseded_revisit", "excluded_after_revisits", "invalid_rejected", "held_for_review"].includes(row.server_response_status)) return false;
+      const answers = typeof row.answers_json === "string" ? JSON.parse(row.answers_json) : row.answers_json || {};
+      return ![2, 3].includes(Number(answers[HHQ_COMPETENT_RESPONDENT_FIELD]));
+    });
+    response.server_response_status = priorBaseline ? "duplicate" : getHhqDwellingExclusion(response.answers_json) ? "household_excluded" : null;
+  }
   const submission = { ...response };
 
   if (finalizedUltrasoundReports) {

@@ -139,9 +139,10 @@ assert.doesNotMatch(staleQ23Title, /PREGNANCY OUTCOME =/);
 setNativeQuestionValue(site, 1);
 assert.equal(site.value, 1);
 assert.equal(model.data.hhq_site_id, 1);
+setNativeQuestionValue(model.getQuestionByName("hhq_competent_respondent_available"), 1);
 setNativeQuestionValue(consent, 1);
 assert.equal(model.data.hhq_consent_study_provide_pis_explain_study_adult_member, 1);
-assert.equal(model.visiblePages.length, 3);
+assert.equal(model.visiblePages.length, 4);
 
 const roster = model.getQuestionByName("hhq_household_members");
 assert.equal(roster.dynamicAutoOpenFirstEntry, true);
@@ -491,3 +492,64 @@ assert.equal(setNativeQuestionValue(readOnlyHouseholdHead, "Should not write"), 
 assert.notEqual(readOnlyHouseholdHead.value, "Should not write");
 
 console.log("Validated native Survey Core model adapter for HHQ.");
+
+for (const code of [7, 8, 9]) {
+  const terminal = new Model(prepareQuestionnaireSurveyJson(hhq));
+  terminal.data = {
+    hhq_site_id: 2, hhq_residence_area_type: 2, hhq_locality_code: "02",
+    hhq_structure_map_id: "0001", hhq_household_number: "01",
+    hhq_household_head_name: "Household head", hhq_household_address: "Address",
+    hhq_interview_date: "2026-10-24", hhq_visit_no: 1,
+    hhq_competent_respondent_available: code,
+  };
+  attachHouseholdSurveyBehaviors(terminal, hhq);
+  refreshHouseholdSurveyBehaviors(terminal, hhq);
+  assert.equal(terminal.getValue("hhq_result_interview"), code);
+  assert.equal(terminal.getQuestionByName("hhq_consent_study_provide_pis_explain_study_adult_member").isVisible, false);
+  assert.equal(terminal.getQuestionByName("hhq_gps_latitude").isVisible, false);
+  assert.equal(terminal.getQuestionByName("hhq_household_members").page.isVisible, false);
+  assert.equal(terminal.validate(), true, terminal.getAllQuestions().filter(q => q.errors.length).map(q => q.name).join(", "));
+  assert.ok(buildNativeSurveyPreview(terminal).length > 0);
+  assert.notEqual(terminal.state, "completed", "Selecting a dwelling outcome must not submit the form");
+}
+const observationModel = createOutcomeModel();
+observationModel.setValue("hhq_we_like_learn_about_places_that_households_use", 1);
+const observation = observationModel.getQuestionByName("hhq_observation_only");
+assert.equal(observation.getType(), "checkbox");
+setNativeQuestionValue(observation, ["A", "B"]);
+assert.deepEqual(observationModel.getValue("hhq_observation_only"), ["A", "B"]);
+assert.equal(observationModel.getValue("hhq_result_interview"), 1);
+observationModel.currentPage = observation.page;
+const observationPage = observationModel.currentPage;
+const visibleBeforeNone = observationModel.getAllQuestions().filter(question => question.isVisible).map(question => question.name);
+setNativeQuestionValue(observation, ["A", "B", "C"]);
+assert.deepEqual(observationModel.getValue("hhq_observation_only"), ["C"]);
+assert.equal(observationModel.currentPage, observationPage, "Q62 None must not navigate or skip questions");
+assert.deepEqual(observationModel.getAllQuestions().filter(question => question.isVisible).map(question => question.name), visibleBeforeNone, "Q62 None only clears other selections");
+setNativeQuestionValue(observation, ["C", "A"]);
+assert.deepEqual(observationModel.getValue("hhq_observation_only"), ["A"]);
+setNativeQuestionValue(observation, ["C", "B"]);
+assert.deepEqual(observationModel.getValue("hhq_observation_only"), ["B"]);
+setNativeQuestionValue(observation, ["B", "A"]);
+assert.deepEqual(observationModel.getValue("hhq_observation_only"), ["B", "A"]);
+const reopenedObservation = createOutcomeModel();
+reopenedObservation.data = JSON.parse(JSON.stringify(observationModel.data));
+refreshHouseholdSurveyBehaviors(reopenedObservation, hhq);
+assert.deepEqual(reopenedObservation.getValue("hhq_observation_only"), ["B", "A"]);
+reopenedObservation.setValue("hhq_competent_respondent_available", 8);
+assert.equal(reopenedObservation.getValue("hhq_result_interview"), 8);
+
+const legacyDwelling = createOutcomeModel();
+legacyDwelling.setValue("hhq_result_interview", 7);
+refreshHouseholdSurveyBehaviors(legacyDwelling, hhq);
+assert.equal(legacyDwelling.getQuestionByName("hhq_dwelling_termination_notice").isVisible, true);
+assert.equal(legacyDwelling.getPageByName("page_04_outcome").isVisible, true);
+assert.equal(legacyDwelling.getValue("hhq_result_interview"), 7);
+assert.deepEqual(getOutcomeVisibleValues(legacyDwelling), [7]);
+legacyDwelling.setValue("hhq_competent_respondent_available", 2);
+assert.equal(legacyDwelling.getValue("hhq_result_interview"), undefined);
+assert.equal(legacyDwelling.getPageByName("page_04_outcome").isVisible, false);
+const scalarObservation = createOutcomeModel();
+scalarObservation.data = { ...observationModel.data, hhq_observation_only: "B" };
+refreshHouseholdSurveyBehaviors(scalarObservation, hhq);
+assert.deepEqual(scalarObservation.getValue("hhq_observation_only"), ["B"]);

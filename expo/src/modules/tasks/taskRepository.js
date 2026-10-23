@@ -20,6 +20,12 @@ export function getLocalPregnancyWomanId(pregnancyId) {
 }
 
 function protectWomanTask(db, task, now) {
+  const excluded = db.getFirstSync(
+    "SELECT id FROM form_responses WHERE household_id = ? AND form_code = 'HHQ' AND server_response_status = 'household_excluded' LIMIT 1",
+    [task.household_id]);
+  if (excluded && ["open", "planned", "pending", "due", "overdue", "in_progress", "disabled"].includes(task.status || "open")) {
+    return { ...task, status: "cancelled", lifecycle_status: "cancelled", closed_reason: "household_excluded", updated_at: now };
+  }
   if (task.child_id || ["child", "household"].includes(task.subject_type) || task.task_type === "HHQ") return task;
   const pregnancy = db.getFirstSync("SELECT * FROM pregnancies WHERE pregnancy_id = ?",
     [task.pregnancy_id || task.subject_id]);
@@ -50,6 +56,14 @@ export function terminateLocalWoman({ womanId, pregnancyId, householdId, timesta
     db.runSync("ROLLBACK");
     throw error;
   }
+}
+
+export function excludeLocalHousehold({ householdId, currentTaskId, reason, timestamp }) {
+  getDb().runSync(`UPDATE follow_up_tasks SET status = 'cancelled', lifecycle_status = 'cancelled',
+    closed_reason = ?, sync_status = 'pending', updated_at = ?
+    WHERE household_id = ? AND (? IS NULL OR id <> ?)
+      AND status IN ('open', 'planned', 'pending', 'due', 'overdue', 'in_progress', 'disabled')`,
+    [reason, timestamp, householdId, currentTaskId ?? null, currentTaskId ?? null]);
 }
 
 export function listTasks(filters = {}) {

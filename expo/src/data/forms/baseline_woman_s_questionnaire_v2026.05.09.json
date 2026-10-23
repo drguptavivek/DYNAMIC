@@ -5929,6 +5929,15 @@
         {
           "type": "radiogroup",
           "name": "wq_03_other_health_issues_during_the_last_one_month_on_how_many_days",
+          "maxLength": 2,
+          "preserveString": true,
+          "validators": [
+            {
+              "type": "regex",
+              "regex": "^(?:0|0[0-9]|[12][0-9]|30|95)$",
+              "text": "Enter 01 to 30 days, or select no drinks or every day/almost every day."
+            }
+          ],
           "title": {
             "default": "During the last one month, on how many days did you have at least one drink of alcohol?\nIf non-numeric answer, probe to get an estimate. If respondent answers 'every day' or 'almost every day', code 95",
             "hi": "",
@@ -5944,7 +5953,7 @@
           "sourceType": "select_one",
           "rawText": "During the last one month, on how many days did you have at least one drink of alcohol?\nIf non-numeric answer, probe to get an estimate. If respondent answers 'every day' or 'almost every day', code 95 00 Did not have even one drink SKIP TO next section",
           "description": {
-            "default": "Did not have even one drink SKIP TO next section",
+            "default": "Enter 01 to 30 days as exactly 2 digits. No drinks skips to the next section.",
             "hi": "",
             "kn": "",
             "mr": "",
@@ -5979,10 +5988,10 @@
             }
           ],
           "renderingHint": {
-            "render_as": "radio"
+            "render_as": "days_with_special_codes"
           },
           "validationRulesSource": [
-            "SKIP TO next section"
+            "Enter 01 to 30 days; 0 skips to the next section; 95 = every day/almost every day."
           ],
           "visibleIf": "{wq_03_other_health_issues_now_i_would_like_to_ask_you_some_questions_2} = 1",
           "visibleIfSourceResolved": "Excel 03 row 71: Q16 no skips to next section."
@@ -5990,6 +5999,16 @@
         {
           "type": "radiogroup",
           "name": "wq_03_other_health_issues_we_count_one_drink_of_alcohol_as_one_can_o",
+          "maxLength": 2,
+          "preserveString": true,
+          "description": "Enter 01 to 05 drinks as exactly 2 digits. Use the special option for less than one standard drink.",
+          "validators": [
+            {
+              "type": "regex",
+              "regex": "^(?:0|0[0-5])$",
+              "text": "Enter 01 to 05 drinks, or select less than one standard drink."
+            }
+          ],
           "title": {
             "default": "We count one drink of alcohol as one can or bottle of beer, one glass of wine, one shot of spirits, or one cup of [ADD OTHER LOCAL EXAMPLES]. In the last one month, on the days that you drank alcohol, how many drinks did you usually have per day?",
             "hi": "",
@@ -6019,7 +6038,7 @@
             }
           ],
           "renderingHint": {
-            "render_as": "radio"
+            "render_as": "years_with_special_codes"
           },
           "visibleIf": "{wq_03_other_health_issues_now_i_would_like_to_ask_you_some_questions_2} = 1 and {wq_03_other_health_issues_during_the_last_one_month_on_how_many_days} notempty and {wq_03_other_health_issues_during_the_last_one_month_on_how_many_days} != 0",
           "visibleIfSourceResolved": "Excel 03 rows 71-72: Q16 no skips to next section; Q17 00 also skips to next section."
@@ -6844,6 +6863,13 @@
         {
           "type": "radiogroup",
           "name": "wq_04_husband_s_backgroun_during_the_last_one_month_on_how_many_days",
+          "validators": [
+            {
+              "type": "regex",
+              "regex": "^(?:0[0-9]|[12][0-9]|30|95)$",
+              "text": "Enter 01 to 30 days, or select 00 for no drinks or 95 for every day/almost every day."
+            }
+          ],
           "title": {
             "default": "During the last one month, on how many days did your husband/partner have at least one drink of alcohol?\nIf non-numeric answer, probe to get an estimate. If respondent answers 'every day' or 'almost every day', code 95",
             "hi": "",
@@ -6859,7 +6885,7 @@
           "sourceType": "integer_with_special_codes",
           "rawText": "During the last one month, on how many days did your husband/partner have at least one drink of alcohol?\nIf non-numeric answer, probe to get an estimate. If respondent answers 'every day' or 'almost every day', code 95 00 Did not have even one drink SKIP TO 15",
           "description": {
-            "default": "Enter number of days as exactly 2 digits. Use 00 if he did not have even one drink; use 95 for every day/almost every day. 00 skips to Q15.",
+            "default": "Enter 01 to 30 days as exactly 2 digits. Use 00 if he did not have even one drink; use 95 for every day/almost every day. 00 skips to Q15.",
             "hi": "",
             "kn": "",
             "mr": "",
@@ -6907,6 +6933,13 @@
         {
           "type": "radiogroup",
           "name": "wq_04_husband_s_backgroun_we_count_one_drink_of_alcohol_as_one_can_o",
+          "validators": [
+            {
+              "type": "regex",
+              "regex": "^0[0-5]$",
+              "text": "Enter 01 to 05 drinks, or select 00 for less than one standard drink."
+            }
+          ],
           "title": {
             "default": "We count one drink of alcohol as one can or bottle of beer, one glass of wine, one shot of spirits, or one cup of [ADD OTHER LOCAL EXAMPLES]. In the last one month, on the days that your husband/partner drank alcohol, how many drinks did he usually have per day?",
             "hi": "",
@@ -6941,7 +6974,7 @@
           "visibleIf": "({wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 1 or {wq_04_husband_s_backgroun_check_answer_to_marital_status_on_01_respo} = 2) and {wq_04_husband_s_backgroun_during_the_last_one_month_on_how_many_days} notempty and {wq_04_husband_s_backgroun_during_the_last_one_month_on_how_many_days} != 0 and {wq_04_husband_s_backgroun_during_the_last_one_month_on_how_many_days} != '00'",
           "visibleIfSourceResolved": "Excel 04: ask husband drinks only for currently married and Q13 is answered non-zero/non-00.",
           "description": {
-            "default": "Enter number of drinks as exactly 2 digits. Use 00 for less than one standard drink.",
+            "default": "Enter 01 to 05 drinks as exactly 2 digits. Use 00 for less than one standard drink.",
             "hi": "",
             "kn": "",
             "mr": "",

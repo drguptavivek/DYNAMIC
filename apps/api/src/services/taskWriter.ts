@@ -63,9 +63,18 @@ export async function isWomanTerminated(womanId: string | null): Promise<boolean
 
 export async function writeTasksFromDescriptors(descriptors: TaskDescriptor[]): Promise<void> {
   if (descriptors.length === 0) return;
+  const householdExclusions = new Map<string, boolean>();
 
   for (const descriptor of descriptors) {
     checkGeneratedTaskKey(descriptor.task_key);
+    if (!householdExclusions.has(descriptor.household_id)) {
+      const [household] = await getDb().select({ cohort_status: schema.households.cohort_status,
+        baseline_enrollment_status: schema.households.baseline_enrollment_status })
+        .from(schema.households).where(eq(schema.households.household_id, descriptor.household_id)).limit(1);
+      householdExclusions.set(descriptor.household_id,
+        household?.cohort_status === "excluded" || household?.baseline_enrollment_status === "not_enrolled");
+    }
+    if (householdExclusions.get(descriptor.household_id)) continue;
     const womanId = await resolveTaskWomanId(descriptor);
     if (womanId) {
       await getDb().execute(sql`select pg_advisory_xact_lock(hashtextextended(${`woman-pathway|${descriptor.household_id}|${womanId}`}, 0))`);

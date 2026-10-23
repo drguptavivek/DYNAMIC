@@ -507,7 +507,7 @@
           "renderingHint": {
             "render_as": "radio"
           },
-          "rawText": "Is a competent household member available to answer questions 1 Yes 2 No household member at home or no competent respondent at home at time of visit 3 Postponed",
+          "rawText": "Is a competent household member available to answer questions 1 Yes 2 No household member at home or no competent respondent at home at time of visit 3 Postponed 7 Dwelling vacant or address not a dwelling 8 Dwelling destroyed 9 Dwelling not found",
           "visibleIf": "{hhq_interview_date} notempty",
           "choices": [
             {
@@ -546,6 +546,42 @@
                 "ur": ""
               },
               "visibleIf": "{hhq_visit_no} < 3"
+            },
+            {
+              "value": 7,
+              "text": {
+                "default": "Dwelling vacant or address not a dwelling",
+                "hi": "आवास खाली है अथवा पता आवास नहीं है",
+                "kn": "",
+                "mr": "",
+                "ta": "",
+                "te": "",
+                "ur": ""
+              }
+            },
+            {
+              "value": 8,
+              "text": {
+                "default": "Dwelling destroyed",
+                "hi": "आवास नष्ट हो गया",
+                "kn": "",
+                "mr": "",
+                "ta": "",
+                "te": "",
+                "ur": ""
+              }
+            },
+            {
+              "value": 9,
+              "text": {
+                "default": "Dwelling not found",
+                "hi": "आवास नहीं मिला",
+                "kn": "",
+                "mr": "",
+                "ta": "",
+                "te": "",
+                "ur": ""
+              }
             }
           ],
           "validationRulesSource": [
@@ -789,7 +825,7 @@
     {
       "name": "page_02_household_schedule",
       "order": 2,
-      "visibleIf": "{hhq_consent_study_provide_pis_explain_study_adult_member} = 1",
+      "visibleIf": "{hhq_competent_respondent_available} = 1 and {hhq_consent_study_provide_pis_explain_study_adult_member} = 1",
       "title": {
         "default": "02-HOUSEHOLD SCHEDULE",
         "hi": "02-घरेलू अनुसूची",
@@ -1014,45 +1050,85 @@
             {
               "type": "text",
               "name": "member_registry_name",
-              "title": { "default": "", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
+              "title": {
+                "default": "",
+                "hi": "",
+                "kn": "",
+                "mr": "",
+                "ta": "",
+                "te": "",
+                "ur": ""
+              },
               "order": 2,
               "section_order": 2,
               "sourceCode": "APP_CALC",
               "sourceType": "app_calculated",
-              "renderingHint": { "render_as": "background" },
+              "renderingHint": {
+                "render_as": "background"
+              },
               "rawText": "Hidden name snapshot from the linked Ballabgarh HDSS registry person."
             },
             {
               "type": "text",
               "name": "member_registry_age_years",
-              "title": { "default": "", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
+              "title": {
+                "default": "",
+                "hi": "",
+                "kn": "",
+                "mr": "",
+                "ta": "",
+                "te": "",
+                "ur": ""
+              },
               "order": 2,
               "section_order": 2,
               "sourceCode": "APP_CALC",
               "sourceType": "app_calculated",
-              "renderingHint": { "render_as": "background" },
+              "renderingHint": {
+                "render_as": "background"
+              },
               "rawText": "Hidden age snapshot from the linked Ballabgarh HDSS registry person."
             },
             {
               "type": "text",
               "name": "member_registry_sex",
-              "title": { "default": "", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
+              "title": {
+                "default": "",
+                "hi": "",
+                "kn": "",
+                "mr": "",
+                "ta": "",
+                "te": "",
+                "ur": ""
+              },
               "order": 2,
               "section_order": 2,
               "sourceCode": "APP_CALC",
               "sourceType": "app_calculated",
-              "renderingHint": { "render_as": "background" },
+              "renderingHint": {
+                "render_as": "background"
+              },
               "rawText": "Hidden sex snapshot from the linked Ballabgarh HDSS registry person."
             },
             {
               "type": "text",
               "name": "member_registry_domicile",
-              "title": { "default": "", "hi": "", "kn": "", "mr": "", "ta": "", "te": "", "ur": "" },
+              "title": {
+                "default": "",
+                "hi": "",
+                "kn": "",
+                "mr": "",
+                "ta": "",
+                "te": "",
+                "ur": ""
+              },
               "order": 2,
               "section_order": 2,
               "sourceCode": "APP_CALC",
               "sourceType": "app_calculated",
-              "renderingHint": { "render_as": "background" },
+              "renderingHint": {
+                "render_as": "background"
+              },
               "rawText": "Hidden domicile snapshot from the linked Ballabgarh HDSS registry person."
             },
             {
@@ -2379,7 +2455,7 @@
     {
       "name": "page_03_household_characteristics",
       "order": 3,
-      "visibleIf": "{hhq_consent_study_provide_pis_explain_study_adult_member} = 1",
+      "visibleIf": "{hhq_competent_respondent_available} = 1 and {hhq_consent_study_provide_pis_explain_study_adult_member} = 1",
       "title": {
         "default": "03-HOUSEHOLD CHARACTERISTICS",
         "hi": "03-घरेलू लक्षण",
@@ -7444,7 +7520,7 @@
           "visibleIf": "{hhq_we_like_learn_about_places_that_households_use} = 1"
         },
         {
-          "type": "radiogroup",
+          "type": "checkbox",
           "name": "hhq_observation_only",
           "title": {
             "default": "OBSERVATION ONLY: Observe presence of soap, detergent, or other cleansing aget. RECORD ALL MENTIONED",
@@ -7458,9 +7534,9 @@
           "order": 62,
           "section_order": 3,
           "sourceCode": "62",
-          "sourceType": "select_one",
+          "sourceType": "select_multiple",
           "renderingHint": {
-            "render_as": "radio"
+            "render_as": "checkbox"
           },
           "rawText": "OBSERVATION ONLY: Observe presence of soap, detergent, or other cleansing aget. RECORD ALL MENTIONED A Soap or detergent (bar, liquid, powder, paste) B Ash, mud, sand C None",
           "choices": [
@@ -7502,7 +7578,7 @@
             }
           ],
           "validationRulesSource": [
-            "single coded option"
+            "multiple coded options; None is exclusive"
           ],
           "description": {
             "default": "Observation only. Record all mentioned.",
@@ -7529,7 +7605,7 @@
         "te": "",
         "ur": ""
       },
-      "visibleIf": "{hhq_competent_respondent_available} = 1 and {hhq_consent_study_provide_pis_explain_study_adult_member} = 1",
+      "visibleIf": "({hhq_competent_respondent_available} = 1 and {hhq_consent_study_provide_pis_explain_study_adult_member} = 1) or (({hhq_competent_respondent_available} = 7 or {hhq_competent_respondent_available} = 8 or {hhq_competent_respondent_available} = 9) or ({hhq_competent_respondent_available} != 2 and {hhq_competent_respondent_available} != 3 and ({hhq_result_interview} = 7 or {hhq_result_interview} = 8 or {hhq_result_interview} = 9)))",
       "elements": [
         {
           "type": "text",
@@ -7583,7 +7659,8 @@
           ],
           "calculationSource": "Count household member rows in 02-HOUSEHOLD SCHEDULE.",
           "section": "Outcome",
-          "calculated": true
+          "calculated": true,
+          "visibleIf": "{hhq_competent_respondent_available} = 1 and {hhq_consent_study_provide_pis_explain_study_adult_member} = 1"
         },
         {
           "type": "text",
@@ -7637,12 +7714,13 @@
           ],
           "calculationSource": "Count household members who are female, age 18-49, and ever-married in 02-HOUSEHOLD SCHEDULE.",
           "section": "Outcome",
-          "calculated": true
+          "calculated": true,
+          "visibleIf": "{hhq_competent_respondent_available} = 1 and {hhq_consent_study_provide_pis_explain_study_adult_member} = 1"
         },
         {
           "type": "radiogroup",
           "name": "hhq_result_interview",
-          "visibleIf": "{hhq_competent_respondent_available} = 1 and {hhq_consent_study_provide_pis_explain_study_adult_member} = 1",
+          "visibleIf": "({hhq_competent_respondent_available} = 1 and {hhq_consent_study_provide_pis_explain_study_adult_member} = 1) or (({hhq_competent_respondent_available} = 7 or {hhq_competent_respondent_available} = 8 or {hhq_competent_respondent_available} = 9) or ({hhq_competent_respondent_available} != 2 and {hhq_competent_respondent_available} != 3 and ({hhq_result_interview} = 7 or {hhq_result_interview} = 8 or {hhq_result_interview} = 9)))",
           "title": {
             "default": "Outcome of Interview",
             "hi": "",
@@ -7737,7 +7815,7 @@
               "value": 7,
               "text": {
                 "default": "Dwelling vacant or address not a dwelling",
-                "hi": "आवास नष्ट हो गया",
+                "hi": "आवास खाली है अथवा पता आवास नहीं है",
                 "kn": "",
                 "mr": "",
                 "ta": "",
@@ -7748,8 +7826,8 @@
             {
               "value": 8,
               "text": {
-                "default": "Dweling destroyed",
-                "hi": "आवास नहीं मिला)",
+                "default": "Dwelling destroyed",
+                "hi": "आवास नष्ट हो गया",
                 "kn": "",
                 "mr": "",
                 "ta": "",
@@ -7760,8 +7838,8 @@
             {
               "value": 9,
               "text": {
-                "default": "Dwelling not found)",
-                "hi": "अन्य (बताएँ)",
+                "default": "Dwelling not found",
+                "hi": "आवास नहीं मिला",
                 "kn": "",
                 "mr": "",
                 "ta": "",
@@ -7784,7 +7862,8 @@
           ],
           "validationRulesSource": [
             "single coded option"
-          ]
+          ],
+          "enableIf": "!({hhq_competent_respondent_available} = 7 or {hhq_competent_respondent_available} = 8 or {hhq_competent_respondent_available} = 9)"
         },
         {
           "type": "text",
@@ -7833,6 +7912,21 @@
             "te": "",
             "ur": ""
           }
+        },
+        {
+          "type": "html",
+          "name": "hhq_dwelling_termination_notice",
+          "html": {
+            "default": "Submitting this form will terminate this household from the study. No further tasks will be created for this household.",
+            "hi": "",
+            "kn": "",
+            "mr": "",
+            "ta": "",
+            "te": "",
+            "ur": ""
+          },
+          "visibleIf": "({hhq_competent_respondent_available} = 7 or {hhq_competent_respondent_available} = 8 or {hhq_competent_respondent_available} = 9) or ({hhq_competent_respondent_available} != 2 and {hhq_competent_respondent_available} != 3 and ({hhq_result_interview} = 7 or {hhq_result_interview} = 8 or {hhq_result_interview} = 9))",
+          "readOnly": true
         }
       ]
     }
