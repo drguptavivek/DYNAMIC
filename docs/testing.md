@@ -49,12 +49,14 @@ node apps/admin/src/tests/validateFormLanguageManagement.mjs
 node --test shared/formTranslation.test.cjs
 ```
 
-Household assignment range and page-selection checks (no database required):
+Household assignment range, page-selection and assignment refresh checks (no database required):
 
 ```bash
 node --test shared/householdAssignmentRange.test.cjs
 node apps/admin/src/tests/validateHouseholdAssignmentPage.mjs
 ```
+
+Assignment checks cover refreshed worker chips, clearing completed selections, preserving the selected site/locality/search and page, and retrying failed writes or refreshes. Verify table scroll and visibility of the last assigned household in a browser.
 
 Operational dashboard checks (no database required):
 

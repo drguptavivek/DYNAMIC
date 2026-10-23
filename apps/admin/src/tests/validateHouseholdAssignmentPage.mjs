@@ -11,7 +11,7 @@ const households = Array.from({ length: 1205 }, (_, index) => ({
   { household_id: '2-11-0010-15', site_id: 2, locality_code: '11', household_number: '15' },
 ]);
 const requests = [], slots = [];
-let cursor = 0, dirty = true, effects = [], tree, deferredAll;
+let cursor = 0, dirty = true, effects = [], tree, deferredAll, failRefresh = false, failPost = false;
 const sameDeps = (a, b) => a && b && a.length === b.length && a.every((value, index) => Object.is(value, b[index]));
 globalThis.assignmentHarness = {
   useState(initial) {
@@ -44,6 +44,7 @@ globalThis.assignmentHarness = {
       ];
       if (path.startsWith('/users?')) return [{ user_id: 'worker', username: 'worker', role: 'field_worker', site_id: 2 }];
       assert.ok(path.startsWith('/field-worker-household-assignments?'), path);
+      if (failRefresh) throw new Error('Refresh unavailable');
       const params = new URLSearchParams(path.split('?')[1]);
       if (deferredAll && !params.has('household_start') && !params.has('household_end')) {
         const deferred = deferredAll; deferredAll = undefined;
@@ -54,7 +55,14 @@ globalThis.assignmentHarness = {
       });
       return households.filter(row => isHouseholdInAssignmentRange(row, range));
     },
-    async post(path, payload) { requests.push({ method: 'post', path, payload: structuredClone(payload) }); return {}; },
+    async post(path, payload) {
+      requests.push({ method: 'post', path, payload: structuredClone(payload) });
+      if (failPost) throw new Error('Assignment unavailable');
+      for (const row of households) {
+        if (payload.household_ids.includes(row.household_id)) row.assigned_user_ids = [...payload.user_ids];
+      }
+      return {};
+    },
     async delete() { assert.fail('These checks must never clear actual assignments'); },
   },
 };
@@ -120,6 +128,8 @@ nodes(workerOption).find(node => node.type === 'input').props.onChange(); await 
 const modal = find(node => node.props?.className === 'bulkModal', 'bulk modal');
 await nodes(modal).find(node => node.type === 'button' && text(node) === 'Assign').props.onClick(); await settle();
 assert.deepEqual(requests.find(request => request.method === 'post').payload.household_ids, rows().map(row => row.key));
+assert.equal(selectedRows().length, 0, 'Completed assignments must clear selected checkboxes');
+assert.ok(nodes(rows()[0]).some(node => node.props?.['aria-label'] === 'Unassign worker'), 'Refetched assignment must appear in the table');
 
 await change(labelled('Household range start'), '');
 await change(labelled('Household range end'), '');
@@ -177,4 +187,64 @@ await change(find(node => node.props?.id === 'assignment-site', 'site'), '1');
 releaseAll(); await settle();
 assert.equal(rows().length, 0, 'Late old-scope replies must not restore households');
 assert.ok(!text(tree).includes('1206 selected'), 'Late old-scope replies must not restore selected IDs');
-console.log('Assignment full-ID/numeric ranges, page-only selection, scoped select-all, stale replies and exact assignment payload passed.');
+
+// Keep the manager in the same scope and page across consecutive assignments.
+await change(find(node => node.props?.id === 'assignment-site', 'site'), '2');
+await change(find(node => node.props?.id === 'assignment-locality', 'locality'), '02');
+await change(labelled('Household range start'), '');
+await change(labelled('Household range end'), '');
+await click('View');
+await change(input('Search household'), '2-02-0010-');
+await click('View');
+await check('Select household 2-02-0010-01', true);
+await click('Next');
+const lastPageId = rows()[12].key;
+const rowButton = (id, label) => nodes(rows().find(row => row.key === id))
+  .find(node => node.type === 'button' && text(node) === label);
+async function pickRowWorker(id) {
+  nodes(rows().find(row => row.key === id)).find(node => node.props?.role === 'button').props.onClick();
+  await settle();
+  find(node => node.type === 'label' && text(node) === 'worker', 'row worker').props.children[0].props.onChange();
+  await settle();
+}
+await check(`Select household ${lastPageId}`, true);
+await pickRowWorker(lastPageId);
+await rowButton(lastPageId, 'Assign').props.onClick(); await settle();
+assert.match(text(tree), /Page 2 of 2/);
+assert.equal(find(node => node.props?.id === 'assignment-site', 'site').props.value, '2');
+assert.equal(find(node => node.props?.id === 'assignment-locality', 'locality').props.value, '02');
+assert.equal(input('Search household').props.value, '2-02-0010-');
+assert.equal(selectedRows().length, 0);
+assert.match(text(tree), /1 selected/, 'Unrelated selections on another page remain selected');
+assert.ok(nodes(rows().find(row => row.key === lastPageId)).some(node => node.props?.['aria-label'] === 'Unassign worker'));
+
+await check(`Select household ${rows()[15].key}`, true);
+await click('Assign all selected');
+nodes(find(node => node.type === 'label' && text(node) === 'worker', 'bulk worker'))
+  .find(node => node.type === 'input').props.onChange(); await settle();
+await nodes(find(node => node.props?.className === 'bulkModal', 'bulk modal'))
+  .find(node => node.type === 'button' && text(node) === 'Assign').props.onClick(); await settle();
+assert.match(text(tree), /Page 2 of 2/, 'Cross-page bulk assignment anchors the last displayed assigned household');
+assert.match(text(tree), /0 selected/);
+
+const retryId = rows()[13].key;
+await check(`Select household ${retryId}`, true);
+await pickRowWorker(retryId);
+failPost = true;
+await rowButton(retryId, 'Assign').props.onClick(); await settle();
+assert.match(text(tree), /Assignment unavailable/);
+assert.equal(selectedRows().length, 1, 'Failed writes retain selection for retry');
+failPost = false;
+failRefresh = true;
+await rowButton(retryId, 'Assign').props.onClick(); await settle();
+assert.ok(rows().length > 0, 'A refresh failure must retain the current table');
+assert.match(text(tree), /Refresh unavailable/);
+assert.match(text(tree), /saved|assigned/i);
+assert.match(text(tree), /Page 2 of 2/);
+failRefresh = false;
+await click('View');
+assert.ok(nodes().some(node => node.props?.['aria-label'] === 'Unassign worker'), 'View can retry the refresh');
+failRefresh = true;
+await click('View');
+assert.ok(nodes().some(node => node.props?.['aria-label'] === 'Unassign worker'), 'Failed View retries preserve recorded worker chips');
+console.log('Assignment ranges, scoped selection, stale replies, refreshed chips, consecutive assignments, retained scope/page and failure/retry checks passed.');

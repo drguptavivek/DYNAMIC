@@ -70,6 +70,8 @@ export default function FieldWorkerHouseholdAssignmentPage() {
   const [message, setMessage] = useState("");
   const [allScopeHouseholdIds, setAllScopeHouseholdIds] = useState<string[]>([]);
   const [allSelectionLoading, setAllSelectionLoading] = useState(false);
+  const tableWrapRef = useRef<HTMLDivElement>(null);
+  const pendingScrollHouseholdId = useRef<string | null>(null);
   const requestVersion = useRef(0);
   const filterKey = JSON.stringify([selectedSiteId, selectedLocalityCode, householdRangeStart, householdRangeEnd, householdSearch]);
   const currentFilterKey = useRef(filterKey);
@@ -128,6 +130,24 @@ export default function FieldWorkerHouseholdAssignmentPage() {
     allScopeHouseholdIds.every((id) => selectedHouseholdIdSet.has(id));
 
   useEffect(() => {
+    if (tableLoading || !pendingScrollHouseholdId.current) return;
+    const wrap = tableWrapRef.current;
+    const row = wrap && Array.from(wrap.querySelectorAll<HTMLTableRowElement>("tbody tr"))
+      .find((item) => item.dataset.householdId === pendingScrollHouseholdId.current);
+    if (wrap && row) {
+      const bounds = wrap.getBoundingClientRect();
+      const rowBounds = row.getBoundingClientRect();
+      const headerHeight = wrap.querySelector("thead")?.getBoundingClientRect().height ?? 0;
+      if (rowBounds.top < bounds.top + headerHeight) {
+        wrap.scrollTop += rowBounds.top - bounds.top - headerHeight;
+      } else if (rowBounds.bottom > bounds.bottom) {
+        wrap.scrollTop += rowBounds.bottom - bounds.bottom;
+      }
+    }
+    pendingScrollHouseholdId.current = null;
+  }, [households, householdPage, tableLoading]);
+
+  useEffect(() => {
     setHouseholdPage(1);
     setSelectedHouseholdIds([]);
     setAllScopeHouseholdIds([]);
@@ -179,7 +199,7 @@ export default function FieldWorkerHouseholdAssignmentPage() {
     return () => document.removeEventListener("mousedown", closeWorkerMenu);
   }, []);
 
-  async function loadAssignmentTable(options: { resetSelection: boolean }) {
+  async function loadAssignmentTable(options: { resetSelection: boolean; anchorHouseholdIds?: string[] }) {
     const version = ++requestVersion.current;
     const requestedFilterKey = filterKey;
     const isCurrent = () => version === requestVersion.current && requestedFilterKey === currentFilterKey.current;
@@ -188,11 +208,11 @@ export default function FieldWorkerHouseholdAssignmentPage() {
     setHasViewed(true);
     if (options.resetSelection) {
       setSelectedHouseholdIds([]);
-      setWorkerIdsByHouseholdId({});
+      setHouseholdPage(1);
+      pendingScrollHouseholdId.current = null;
     }
     setOpenWorkerMenuFor(null);
     setBulkAssignOpen(false);
-    setHouseholdPage(1);
 
     if (!selectedSiteId) {
       setError("Select a site before viewing households");
@@ -220,7 +240,26 @@ export default function FieldWorkerHouseholdAssignmentPage() {
         ),
       ]);
 
-      if (!isCurrent()) return;
+      if (!isCurrent()) return false;
+
+      if (options.anchorHouseholdIds) {
+        const anchorIds = new Set(options.anchorHouseholdIds);
+        // Anchor by displayed order, which can differ from checkbox selection order.
+        const query = householdSearch.trim().toLowerCase();
+        const refreshedRows = householdResult.filter((household) =>
+          (!rangeResult.range || isHouseholdInAssignmentRange(household, rangeResult.range)) &&
+          (!query || [household.household_id, String(household.site_id), household.locality_code,
+            household.household_number].join(" ").toLowerCase().includes(query)),
+        );
+        let anchorIndex = -1;
+        refreshedRows.forEach((household, index) => {
+          if (anchorIds.has(household.household_id)) anchorIndex = index;
+        });
+        if (anchorIndex >= 0) {
+          setHouseholdPage(Math.floor(anchorIndex / HOUSEHOLD_PAGE_SIZE) + 1);
+          pendingScrollHouseholdId.current = refreshedRows[anchorIndex].household_id;
+        }
+      }
 
       setHouseholds(householdResult);
       setWorkerIdsByHouseholdId(
@@ -234,11 +273,12 @@ export default function FieldWorkerHouseholdAssignmentPage() {
         ),
       );
       setFieldWorkers(workerData);
+      return true;
     } catch (err) {
-      if (!isCurrent()) return;
-      setError(err instanceof Error ? err.message : "Failed to load assignment table");
-      setHouseholds([]);
-      setFieldWorkers([]);
+      if (!isCurrent()) return false;
+      const detail = err instanceof Error ? err.message : "Failed to load assignment table";
+      setError(options.resetSelection ? detail : `Changes saved, but the table could not refresh: ${detail}. Click View to retry.`);
+      return false;
     } finally {
       if (version === requestVersion.current) setTableLoading(false);
     }
@@ -328,15 +368,9 @@ export default function FieldWorkerHouseholdAssignmentPage() {
           household_ids: householdBatch,
         });
       }
-      await loadAssignmentTable({ resetSelection: false });
-      setWorkerIdsByHouseholdId((current) => {
-        const next = { ...current };
-        selectedHouseholdIds.forEach((householdId) => {
-          next[householdId] = [];
-        });
-        return next;
-      });
-      setSelectedHouseholdIds([]);
+      const completedIds = new Set(selectedHouseholdIds);
+      setSelectedHouseholdIds((current) => current.filter((id) => !completedIds.has(id)));
+      if (!await loadAssignmentTable({ resetSelection: false, anchorHouseholdIds: selectedHouseholdIds })) return;
       setMessage(
         `${selectedHouseholdIds.length} household${selectedHouseholdIds.length === 1 ? "" : "s"} cleared`,
       );
@@ -367,11 +401,7 @@ export default function FieldWorkerHouseholdAssignmentPage() {
         household_ids: [householdId],
         user_ids: [worker.user_id],
       });
-      setWorkerIdsByHouseholdId((current) => {
-        const selected = current[householdId] ?? [];
-        return { ...current, [householdId]: selected.filter((userId) => userId !== worker.user_id) };
-      });
-      await loadAssignmentTable({ resetSelection: false });
+      if (!await loadAssignmentTable({ resetSelection: false, anchorHouseholdIds: [householdId] })) return;
       setMessage(`${workerLabel(worker)} unassigned from ${householdId}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to unassign field worker");
@@ -421,7 +451,9 @@ export default function FieldWorkerHouseholdAssignmentPage() {
       }
       setBulkAssignOpen(false);
       setBulkWorkerIds([]);
-      await loadAssignmentTable({ resetSelection: false });
+      const completedIds = new Set(householdIds);
+      setSelectedHouseholdIds((current) => current.filter((id) => !completedIds.has(id)));
+      if (!await loadAssignmentTable({ resetSelection: false, anchorHouseholdIds: householdIds })) return;
       setMessage(
         `${householdIds.length} household${householdIds.length === 1 ? "" : "s"} assigned to ${uniqueUserIds.length} field worker${uniqueUserIds.length === 1 ? "" : "s"}`,
       );
@@ -568,13 +600,14 @@ export default function FieldWorkerHouseholdAssignmentPage() {
 
           {allSelectionLoading && <div role="status">Selecting all households in the selected site/locality...</div>}
 
-          {tableLoading ? (
-            <div className={styles.emptyState}>Loading households...</div>
-          ) : searchedHouseholds.length === 0 ? (
+          {tableLoading && <div className={styles.tableStatus} role="status">Refreshing households...</div>}
+
+          {searchedHouseholds.length === 0 ? (
+            tableLoading ? <div className={styles.emptyState}>Loading households...</div> :
             <div className={styles.emptyState}>No households found for the selected filters</div>
           ) : (
             <>
-              <div className={styles.tableWrap} style={openWorkerMenuFor ? { paddingBottom: 240 } : undefined}>
+              <div ref={tableWrapRef} className={styles.tableWrap} aria-busy={busy} style={openWorkerMenuFor ? { paddingBottom: 240 } : undefined}>
                 <table className={styles.assignmentTable}>
                   <thead>
                     <tr>
@@ -602,7 +635,7 @@ export default function FieldWorkerHouseholdAssignmentPage() {
                     const pickedWorkers = selectedWorkers(fieldWorkers, selectedWorkerIds);
                     const isOpen = openWorkerMenuFor === household.household_id;
                     return (
-                      <tr key={household.household_id}>
+                      <tr key={household.household_id} data-household-id={household.household_id}>
                         <td>
                           <input
                             type="checkbox"
@@ -711,7 +744,7 @@ export default function FieldWorkerHouseholdAssignmentPage() {
                     type="button"
                     className={styles.secondaryButton}
                     onClick={() => setHouseholdPage((page) => Math.max(1, page - 1))}
-                    disabled={currentHouseholdPage <= 1}
+                    disabled={busy || currentHouseholdPage <= 1}
                   >
                     Previous
                   </button>
@@ -724,7 +757,7 @@ export default function FieldWorkerHouseholdAssignmentPage() {
                     onClick={() =>
                       setHouseholdPage((page) => Math.min(totalHouseholdPages, page + 1))
                     }
-                    disabled={currentHouseholdPage >= totalHouseholdPages}
+                    disabled={busy || currentHouseholdPage >= totalHouseholdPages}
                   >
                     Next
                   </button>
@@ -740,7 +773,7 @@ export default function FieldWorkerHouseholdAssignmentPage() {
           <div className={styles.bulkModal}>
             <div className={styles.bulkModalHeader}>
               <h2>Assign Selected Households</h2>
-              <button type="button" onClick={() => setBulkAssignOpen(false)}>x</button>
+              <button type="button" disabled={busy} onClick={() => setBulkAssignOpen(false)}>x</button>
             </div>
             <p>{selectedHouseholdIds.length} selected household rows</p>
             <div className={styles.bulkWorkerList}>
@@ -751,6 +784,7 @@ export default function FieldWorkerHouseholdAssignmentPage() {
                   <label key={worker.user_id} className={styles.workerOption}>
                     <input
                       type="checkbox"
+                      disabled={busy}
                       checked={bulkWorkerIds.includes(worker.user_id)}
                       onChange={() => toggleBulkWorker(worker.user_id)}
                     />
@@ -763,6 +797,7 @@ export default function FieldWorkerHouseholdAssignmentPage() {
               <button
                 type="button"
                 className={styles.secondaryButton}
+                disabled={busy}
                 onClick={() => setBulkAssignOpen(false)}
               >
                 Cancel
