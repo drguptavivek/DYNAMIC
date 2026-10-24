@@ -1,3 +1,4 @@
+import { getHhqDwellingExclusion } from "../../../../shared/householdDwellingOutcome.cjs";
 import {
   promoteFormSubmission,
   reduceHouseholdProjectionEvents,
@@ -36,6 +37,7 @@ export async function rebuildHhqHouseholdProjection(householdId: string): Promis
   }
 
   const envelopes: DomainEventEnvelope[] = [];
+  const exclusionsByResponse = new Map<string, ReturnType<typeof getHhqDwellingExclusion>>();
   for (const event of events) {
     if (!event.form_response_id) {
       continue;
@@ -50,6 +52,7 @@ export async function rebuildHhqHouseholdProjection(householdId: string): Promis
       continue;
     }
 
+    exclusionsByResponse.set(response.form_response_id, getHhqDwellingExclusion(response.answers_json as FormAnswers));
     envelopes.push(toHhqProjectionEvent(event, response));
   }
 
@@ -58,6 +61,7 @@ export async function rebuildHhqHouseholdProjection(householdId: string): Promis
     return { rebuilt: 0, skipped: 1 };
   }
 
+  const exclusion = exclusionsByResponse.get(projection.source_response_id || "");
   await getDb()
     .update(schema.households)
     .set({
@@ -66,7 +70,8 @@ export async function rebuildHhqHouseholdProjection(householdId: string): Promis
       structure_map_id: projection.structure_map_id || undefined,
       household_number: projection.household_number || undefined,
       baseline_enrollment_status: projection.enrollment_status,
-      ...(projection.enrollment_status === "not_enrolled" ? { cohort_status: "excluded" } : {}),
+      ...(projection.enrollment_status === "not_enrolled" ? { cohort_status: "excluded",
+        closed_reason: exclusion?.reason_text ?? exclusion?.reason, result_interview: exclusion?.outcome } : {}),
       baseline_completed_date: projection.baseline_date || undefined,
       updated_at: new Date(),
     })

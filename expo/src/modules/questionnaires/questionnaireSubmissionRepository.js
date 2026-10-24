@@ -466,7 +466,7 @@ function protectWebExcludedHouseholdTasks(state) {
     if (!row || !["open", "planned", "pending", "due", "overdue", "in_progress", "disabled"].includes(task.status)) return task;
     const answers = typeof row.answers_json === "string" ? JSON.parse(row.answers_json) : row.answers_json;
     return { ...task, status: "cancelled", lifecycle_status: "cancelled",
-      closed_reason: getHhqDwellingExclusion(answers)?.reason, updated_at: row.submitted_at };
+      closed_reason: getHhqDwellingExclusion(answers)?.reason_text ?? getHhqDwellingExclusion(answers)?.reason, updated_at: row.submitted_at };
   });
   return state;
 }
@@ -635,13 +635,13 @@ async function promoteHhqLocally(response) {
       household_id: response.household_id, site_id: Number(siteId), locality_code: localityCode,
       structure_number: structureNumber, household_number: householdNumber,
       result_interview: exclusion.outcome, consent_status: "No", members: [],
-      baseline_enrollment_status: "not_enrolled", cohort_status: "excluded", closed_reason: exclusion.reason,
+      baseline_enrollment_status: "not_enrolled", cohort_status: "excluded", closed_reason: exclusion.reason_text ?? exclusion.reason,
       sync_status: "pending", updated_at: response.submitted_at };
     let taskRepository = null;
     try { taskRepository = await import("../tasks/taskRepository.js"); } catch { /* Node tests use web storage. */ }
     if (taskRepository?.excludeLocalHousehold) {
       taskRepository.excludeLocalHousehold({ householdId: response.household_id, currentTaskId: response.task_id,
-        reason: exclusion.reason, timestamp: response.submitted_at });
+        reason: exclusion.reason_text ?? exclusion.reason, timestamp: response.submitted_at });
       const householdRepository = await import("../households/householdRepository.js");
       await householdRepository.saveHousehold(record);
     } else {
@@ -651,7 +651,7 @@ async function promoteHhqLocally(response) {
       state.follow_up_tasks = (state.follow_up_tasks || []).map(task =>
         task.household_id === response.household_id && task.id !== response.task_id &&
         ["open", "planned", "pending", "due", "overdue", "in_progress", "disabled"].includes(task.status)
-          ? { ...task, status: "cancelled", lifecycle_status: "cancelled", closed_reason: exclusion.reason,
+          ? { ...task, status: "cancelled", lifecycle_status: "cancelled", closed_reason: exclusion.reason_text ?? exclusion.reason,
             sync_status: "pending", updated_at: response.submitted_at } : task);
       storage.setItem(WEB_SQLITE_STORAGE_KEY, JSON.stringify(state));
     }
@@ -1226,6 +1226,10 @@ export async function saveQuestionnaireSubmission({
     throw new Error("This excluded form is no longer within the 10-minute correction period.");
   }
   let finalPayload = stripHouseholdGpsMetadata(payload || {});
+  const dwellingExclusion = String(formCode || "").toUpperCase() === "HHQ" ? getHhqDwellingExclusion(finalPayload) : null;
+  if (dwellingExclusion?.outcome === 12 && (!dwellingExclusion.reason_text || dwellingExclusion.reason_text.length > 120)) {
+    throw new Error("Specify the other dwelling reason (1 to 120 characters).");
+  }
   let finalizedUltrasoundReports = null;
   let finalizedAncCardImage = null;
   let finalizedPffFirstUltrasoundImage = null;

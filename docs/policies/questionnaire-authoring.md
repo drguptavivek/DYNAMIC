@@ -28,6 +28,7 @@ Do question-by-question PDF comparison before questionnaire JSON changes.
 - Numeric boxes are numeric/text inputs, not radio choices.
 - `RECORD ALL` / `ANSWER UP TO` fields are checkboxes unless the PDF defines one coded response.
 - BHQ Q62 (cleansing agents observed) records multiple selections: soap/detergent and ash/mud/sand may be selected together; `None` clears other selections, and selecting another answer clears `None`. This does not skip questions or navigate to another page. Restore older single answers as one-item selections and preserve all selected codes through drafts, preview and submission.
+- BHQ Q9's shifted-dwelling and Other exclusions use codes 11/12 without renumbering existing outcomes. The Other specification is entered at Q9, validated before navigation, and copied read-only to Outcome; it must not trigger navigation on the first typed character. Include both options, reason labels/validation and the Outcome supervisor notice in BHQ translation editing and translation spreadsheet export/import/save.
 - Auto-filled lineage/core fields are read-only with explicit source metadata.
 - Read-only enforcement must use the SurveyJS model API and include nested panel questions.
 - SurveyJS-compatible JSON is interpreted by headless `survey-core`; Expo-native controls render the model on Android and web.

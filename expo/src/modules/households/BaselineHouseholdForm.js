@@ -7,7 +7,7 @@ import { getNativeFormText } from "../../lib/nativeFormText.js";
  * Composes the native baseline household interview, confirmation gate, and final preview flow.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, AppState, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { Alert, AppState, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
 import { NativeSurveyRenderer } from "../../components/forms/NativeSurveyRenderer.js";
@@ -451,7 +451,7 @@ export function BaselineHouseholdForm({
         applyHhqVisitNo(sender, taskContext);
       }
       if (options.name === HHQ_COMPETENT_RESPONDENT_FIELD) {
-        if (isHhqDwellingStop(sender)) {
+        if (isHhqDwellingStop(sender) && Number(options.value) !== 12) {
           goToSurveySection(sender, "page_04_outcome");
         }
         const stopMessage = getHhqAvailabilityStopMessage(sender);
@@ -518,7 +518,7 @@ export function BaselineHouseholdForm({
     if (firstRestorePass) {
       postRestoreDraftKeyRef.current = restoreKey;
       const consentDeclined = hasDeclinedHouseholdConsent(model);
-      if (isHhqDwellingStop(model)) {
+      if (isHhqDwellingStop(model) && Number(model.getValue(HHQ_COMPETENT_RESPONDENT_FIELD)) !== 12) {
         goToSurveySection(model, "page_04_outcome");
         setView("form");
         setFinalReview(false);
@@ -668,6 +668,13 @@ export function BaselineHouseholdForm({
   async function openPreview({ final = false } = {}) {
     applyHhqVisitNo(model, taskContext);
     refreshHouseholdSurveyBehaviors(model, form);
+    if (getHhqDwellingExclusion(model.data)?.outcome === 12 &&
+      !model.getQuestionByName("hhq_competent_respondent_other_specify")?.validate()) {
+      goToSurveySection(model, "page_01_identification");
+      setView("form");
+      setMessage("Complete the highlighted required fields before final review.");
+      return;
+    }
     if (!(await saveDraft({ silent: true }))) return;
     setPreviewSignature(JSON.stringify(model.data || {}));
     setFinalReview(final);
@@ -915,7 +922,11 @@ export function BaselineHouseholdForm({
               showCompactTrigger={false}
             />
             {view === "member-summary" ? (
-              <View style={styles.specialView}>
+              <ScrollView
+                style={styles.memberSummaryScroll}
+                contentContainerStyle={styles.memberSummaryContent}
+                keyboardShouldPersistTaps="handled"
+              >
                 <DisplayRenderer
                   title="02B-Household Member Summary"
                   subtitle={`${memberRows.length} ${memberRows.length === 1 ? "member" : "members"} added. Confirm name, age, and sex before check listing.`}
@@ -979,7 +990,7 @@ export function BaselineHouseholdForm({
                     <Text style={styles.secondaryButtonText}>Edit roster</Text>
                   </Pressable>
                 </View>
-              </View>
+              </ScrollView>
             ) : (
               <View style={styles.specialView}>
                 {finalReview && previewHouseholdId ? (
@@ -1018,6 +1029,8 @@ const styles = StyleSheet.create({
   body: { flex: 1, position: "relative", gap: 10, padding: 12 },
   message: { padding: 9, borderRadius: 7, color: "#1f4d7a", backgroundColor: "#eef6ff", fontSize: 13, fontWeight: "700" },
   specialView: { flex: 1, gap: 10, minHeight: 0 },
+  memberSummaryScroll: { flex: 1, minHeight: 0 },
+  memberSummaryContent: { gap: 10, paddingBottom: 16 },
   reviewHouseholdBanner: { gap: 2, padding: 12, borderWidth: 1, borderColor: "#b9d6f2", borderRadius: 8, backgroundColor: "#f4f9ff" },
   reviewHouseholdLabel: { color: "#475467", fontSize: 12, fontWeight: "800", textTransform: "uppercase" },
   reviewHouseholdValue: { color: "#18202a", fontSize: 20, fontWeight: "800" },

@@ -552,15 +552,17 @@ assert.deepEqual(scalarObservationModel.getValue("hhq_observation_only"), ["B"])
 
 console.log("Validated HHQ household rules and duplicate checks.");
 
-for (const code of [7, 8, 9]) {
+for (const code of [7, 8, 9, 11, 12]) {
   const dwellingModel = createModel({
     hhq_competent_respondent_available: code,
     hhq_we_like_learn_about_places_that_households_use: 2,
     hhq_result_interview: 1,
+    ...(code === 12 ? { hhq_competent_respondent_other_specify: "Moved permanently" } : {}),
   });
   attachHouseholdSurveyBehaviors(dwellingModel, { form_code: "HHQ" });
   refreshHouseholdSurveyBehaviors(dwellingModel, { form_code: "HHQ" });
   assert.equal(dwellingModel.getValue("hhq_result_interview"), code);
+  if (code === 12) assert.equal(dwellingModel.getValue("hhq_dwelling_other_specify"), "Moved permanently");
   dwellingModel.setValue("hhq_result_interview", 10);
   for (const handler of dwellingModel.onValueChanged.handlers) await handler(dwellingModel, { name: "hhq_result_interview", value: 10 });
   assert.equal(dwellingModel.getValue("hhq_result_interview"), code);
@@ -568,4 +570,6 @@ for (const code of [7, 8, 9]) {
   dwellingModel.clearValue("hhq_we_like_learn_about_places_that_households_use");
   for (const handler of dwellingModel.onValueChanged.handlers) await handler(dwellingModel, { name: "hhq_competent_respondent_available", value: 2 });
   assert.equal(dwellingModel.getValue("hhq_result_interview"), undefined);
+  assert.equal(dwellingModel.getValue("hhq_competent_respondent_other_specify"), undefined);
+  assert.equal(dwellingModel.getValue("hhq_dwelling_other_specify"), undefined);
 }

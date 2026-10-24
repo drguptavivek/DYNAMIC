@@ -6,6 +6,8 @@ const { getHhqDwellingExclusion } = dwellingOutcome;
 
 const HHQ_CODE = "HHQ";
 const HHQ_RESPONDENT_FIELD = "hhq_competent_respondent_available";
+const HHQ_RESPONDENT_OTHER_FIELD = "hhq_competent_respondent_other_specify";
+const HHQ_DWELLING_OTHER_FIELD = "hhq_dwelling_other_specify";
 const HH_MEMBER_PANEL = "hhq_household_members";
 const HHQ_HANDWASHING_PLACE_FIELD = "hhq_we_like_learn_about_places_that_households_use";
 const HHQ_HANDWASHING_OBSERVATION_FIELD = "hhq_observation_only";
@@ -127,8 +129,10 @@ function getForcedHhqOutcomeResult(model) {
 }
 
 function applyForcedHhqOutcomeResult(model, respondentChanged = false) {
-  if (respondentChanged && ![7, 8, 9].includes(Number(model.getValue(HHQ_RESPONDENT_FIELD)))) {
-    if ([7, 8, 9].includes(Number(model.getValue(HHQ_RESULT_INTERVIEW_FIELD)))) {
+  const respondent = Number(model.getValue(HHQ_RESPONDENT_FIELD));
+  if (respondentChanged && respondent !== 12) clearModelValue(model, HHQ_RESPONDENT_OTHER_FIELD);
+  if (respondentChanged && ![7, 8, 9, 11, 12].includes(respondent)) {
+    if ([7, 8, 9, 11, 12].includes(Number(model.getValue(HHQ_RESULT_INTERVIEW_FIELD)))) {
       clearModelValue(model, HHQ_RESULT_INTERVIEW_FIELD);
     }
   }
@@ -139,10 +143,17 @@ function applyForcedHhqOutcomeResult(model, respondentChanged = false) {
     clearModelValue(model, "hhq_consent_study_provide_pis_explain_study_adult_member");
   }
   const forcedResult = getForcedHhqOutcomeResult(model);
+  if (forcedResult !== 12) clearModelValue(model, HHQ_DWELLING_OTHER_FIELD);
   if (forcedResult === null) return;
 
   if (model.getValue(HHQ_RESULT_INTERVIEW_FIELD) !== forcedResult) {
     model.setValue(HHQ_RESULT_INTERVIEW_FIELD, forcedResult);
+  }
+  if (forcedResult === 12 && respondent === 12) {
+    const reason = model.getValue(HHQ_RESPONDENT_OTHER_FIELD);
+    if (model.getValue(HHQ_DWELLING_OTHER_FIELD) !== reason) {
+      model.setValue(HHQ_DWELLING_OTHER_FIELD, reason);
+    }
   }
   if (forcedResult !== HHQ_OUTCOME_OTHER_SPECIFY) {
     clearModelValue(model, HHQ_RESULT_INTERVIEW_OTHER_SPECIFY_FIELD);
@@ -811,6 +822,8 @@ export function attachHouseholdSurveyBehaviors(
     }
     if (
       options.name === HHQ_RESPONDENT_FIELD ||
+      options.name === HHQ_RESPONDENT_OTHER_FIELD ||
+      options.name === HHQ_DWELLING_OTHER_FIELD ||
       options.name === HHQ_HANDWASHING_PLACE_FIELD ||
       options.name === HHQ_HANDWASHING_OBSERVATION_FIELD ||
       options.name === HHQ_RESULT_INTERVIEW_FIELD

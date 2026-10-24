@@ -9,6 +9,10 @@ import * as masters from "../lib/householdMasterChoices.js";
 import * as behavior from "../lib/householdSurveyBehaviors.js";
 import * as transforms from "../modules/questionnaires/questionnaireSurveyJsonTransforms.js";
 import * as taskPrefill from "../modules/households/hhqTaskPrefill.js";
+import * as navigation from "../modules/questionnaires/surveyNavigation.js";
+import * as memberSummary from "../modules/questionnaires/householdMemberSummary.js";
+import * as householdIds from "../modules/households/householdIds.js";
+import dwellingOutcome from "../../../shared/householdDwellingOutcome.cjs";
 
 // Load the real prefill helpers without importing native task storage in Node.
 const prefillContext = { exports: {}, require: (id) => id.endsWith("/householdGpsRepository.js") ? { getSavedHouseholdGps: () => null } : {} };
@@ -41,7 +45,14 @@ const react = {
 react.useCallback = (callback, deps) => react.useMemo(() => callback, deps);
 const imports = {
   react,
-  "react-native": { useWindowDimensions: () => ({ width: 400 }), StyleSheet: { create: (styles) => styles }, View: "View", Text: "Text" },
+  "../../../../shared/householdDwellingOutcome.cjs": dwellingOutcome,
+  "react-native": { useWindowDimensions: () => ({ width: 400 }), StyleSheet: { create: (styles) => styles }, View: "View", Text: "Text", ScrollView: "ScrollView", Pressable: "Pressable" },
+  "../../components/forms/NativeSurveyRenderer.js": { NativeSurveyRenderer: "NativeSurveyRenderer" },
+  "../../components/forms/renderers/DisplayRenderer.js": { DisplayRenderer: "DisplayRenderer" },
+  "../questionnaires/surveyNavigation.js": navigation,
+  "../questionnaires/householdMemberSummary.js": memberSummary,
+  "./householdIds.js": householdIds,
+  "../../lib/nativeFormText.js": { getNativeFormText: (_model, _key, fallback) => fallback },
   "../../lib/householdMasterChoices.js": masters,
   "../../lib/prefillMapper.js": prefill,
   "../../lib/householdSurveyBehaviors.js": behavior,
@@ -60,7 +71,7 @@ const imports = {
 const context = { exports: {}, setTimeout, clearTimeout, require: (id) => imports[id] || {} };
 vm.runInNewContext(transformSync(source, { babelrc: false, configFile: false, plugins: ["@babel/plugin-transform-react-jsx", "@babel/plugin-transform-modules-commonjs"] }).code, context);
 const props = { form, locale: "default", user: { user_id: "worker", site_id: 2, area_assignments: [{ site_id: 2, locality_code: "11" }] }, localities: [{ site_id: 2, locality_code: "11", locality_name: "Dayalpur" }], selectedLocalityCode: "11" };
-const render = () => { cursor = 0; context.exports.BaselineHouseholdForm(props); };
+const render = () => { cursor = 0; return context.exports.BaselineHouseholdForm(props); };
 render();
 assert.equal(models.length, 0, "initial unresolved draft must not construct a throwaway model");
 const draftSlot = slots.find((slot) => slot?.value?.key === "" && slot.value.loading === true);
@@ -82,6 +93,85 @@ assert.equal(models[1].getValue("hhq_household_head_name"), "Saved head");
 assert.equal(models[1].getQuestionByName("hhq_household_members").panels[0].getQuestionByName("member_name").value, "Saved member");
 render();
 assert.equal(models.length, 2, "restored draft rerenders retain the same model and answers");
+
+// Exercise the summary and checklist handlers in the same mobile component harness.
+slots.find((slot) => slot?.value === "loading").value = "locked";
+const rosterModel = models[1];
+rosterModel.setValue("hhq_household_members", Array.from({ length: 20 }, (_, index) => ({
+  member_name: `Member ${index + 1}`, member_age_years: 30, member_sex: 2,
+})));
+const descendants = (node) => !node || typeof node !== "object" ? [] :
+  [node, ...(node.props?.children || []).flat(Infinity).flatMap(descendants)];
+const findNode = (tree, type) => descendants(tree).find((node) => node.type === type);
+const textContent = (node) => (node?.props?.children || []).flat(Infinity).map((child) =>
+  typeof child === "object" ? textContent(child) : String(child ?? "")).join("");
+const button = (tree, label) => descendants(tree).find((node) => node.type === "Pressable" && textContent(node) === label);
+const openSummary = () => {
+  const renderer = findNode(render(), "NativeSurveyRenderer");
+  assert.equal(renderer.props.onNextRequested(rosterModel, rosterModel.getPageByName("page_02_household_schedule")), true);
+  const summary = findNode(render(), "ScrollView");
+  assert.ok(summary, "member summary must scroll vertically instead of clipping its checklist below a long roster");
+  assert.notEqual(summary.props.horizontal, true);
+  assert.equal(summary.props.style.flex, 1);
+  assert.equal(summary.props.style.minHeight, 0);
+  assert.ok(summary.props.contentContainerStyle.paddingBottom > 0);
+  assert.equal(summary.props.keyboardShouldPersistTaps, "handled");
+  const rows = findNode(summary, "DisplayRenderer").props.rows;
+  assert.equal(rows.length, 20, "all members remain in the scroll content");
+  assert.equal(rows[19].memberName, "Member 20");
+  assert.ok(button(summary, "Edit roster"), "roster editing stays within the reachable scroll content");
+  assert.ok(button(summary, "Yes, add member"));
+  return summary;
+};
+let summary = openSummary();
+await button(summary, "Yes, add member").props.onPress();
+assert.equal(rosterModel.currentPage.name, "page_02_household_schedule");
+assert.ok(rosterModel.getQuestionByName("hhq_household_members").dynamicAddRequestToken);
+summary = openSummary();
+button(summary, "Edit roster").props.onPress();
+assert.equal(rosterModel.currentPage.name, "page_02_household_schedule");
+assert.ok(findNode(render(), "NativeSurveyRenderer"));
+
+
+summary = openSummary();
+button(summary, "No").props.onPress();
+summary = findNode(render(), "ScrollView");
+assert.match(textContent(summary), /B\) Are there other people/);
+assert.ok(button(summary, "No, go to Section 3"), "checklist B continuation stays inside the vertical scroll");
+// Existing schedule validation is tested separately; isolate navigation after a valid schedule.
+const schedule = rosterModel.getPageByName("page_02_household_schedule");
+const getScheduleQuestions = schedule.getAllQuestions;
+schedule.getAllQuestions = () => [];
+await button(summary, "No, go to Section 3").props.onPress();
+schedule.getAllQuestions = getScheduleQuestions;
+assert.equal(rosterModel.currentPage.name, "page_03_household_characteristics");
+assert.ok(findNode(render(), "NativeSurveyRenderer"));
+
+// A new Other reason is entered at Q9 before navigation, including restored blank drafts.
+draftSlot.value = { key, loading: false, draft: { draft_id: "terminal", json_payload: {
+  hhq_site_id: 2, hhq_residence_area_type: 2, hhq_locality_code: "11",
+  hhq_structure_map_id: "0001", hhq_household_number: "01",
+  hhq_household_head_name: "Household head", hhq_household_address: "Address",
+  hhq_interview_date: "2026-10-24", hhq_visit_no: 1,
+  hhq_competent_respondent_available: 12,
+} } };
+render();
+const terminalModel = models.at(-1);
+await findNode(render(), "NativeSurveyRenderer").props.onPreviewRequested();
+assert.ok(findNode(render(), "NativeSurveyRenderer"), "blank restored Other reason must block preview");
+assert.equal(terminalModel.currentPage.name, "page_01_identification");
+assert.ok(terminalModel.getQuestionByName("hhq_competent_respondent_other_specify").errors.length);
+terminalModel.setValue("hhq_competent_respondent_available", 11);
+assert.equal(terminalModel.currentPage.name, "page_04_outcome", "shifted dwelling goes directly to Outcome");
+navigation.goToSurveySection(terminalModel, "page_01_identification");
+terminalModel.setValue("hhq_competent_respondent_available", 12);
+assert.equal(terminalModel.currentPage.name, "page_01_identification", "Other must remain at Q9 for reason entry");
+terminalModel.setValue("hhq_competent_respondent_other_specify", "M");
+assert.equal(terminalModel.currentPage.name, "page_01_identification", "typing the first character must not navigate");
+terminalModel.setValue("hhq_competent_respondent_other_specify", "Moved permanently");
+assert.equal(terminalModel.nextPage(), true);
+assert.equal(terminalModel.currentPage.name, "page_04_outcome");
+assert.equal(terminalModel.getValue("hhq_dwelling_other_specify"), "Moved permanently");
 
 // Execute the actual browse effect, proving opening HHQ does not query an invisible list.
 const householdSource = fs.readFileSync(new URL("../modules/households/HouseholdModule.js", import.meta.url), "utf8").replaceAll("\r\n", "\n");

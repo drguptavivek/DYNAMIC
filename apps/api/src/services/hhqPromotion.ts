@@ -122,7 +122,7 @@ export function buildHhqHouseholdPromotionValues(
     language_questionnaire: answers.hhq_language_questionnaire,
     baseline_enrollment_status: exclusion ? "not_enrolled" : "enrolled",
     cohort_status: exclusion ? "excluded" : undefined,
-    closed_reason: exclusion?.reason,
+    closed_reason: exclusion?.reason_text ?? exclusion?.reason,
     baseline_completed_date: answers.hhq_interview_date || now.toISOString().split("T")[0],
     sync_status: "synced",
     created_at: now,

@@ -55,9 +55,10 @@ function fixture(prior: Row[] = []) {
   return { rows, modules, taskWrites: () => taskWrites, promote: exports.promoteHhq };
 }
 
-for (const outcome of [7, 8, 9]) test(`terminal dwelling outcome ${outcome} excludes without downstream workflow`, async () => {
+for (const outcome of [7, 8, 9, 11, 12]) test(`terminal dwelling outcome ${outcome} excludes without downstream workflow`, async () => {
   const { rows, promote, taskWrites } = fixture();
   const answers = { hhq_competent_respondent_available: outcome, hhq_result_interview: 1,
+    hhq_competent_respondent_other_specify: outcome === 12 ? "  Specified exclusion reason  " : undefined,
     hhq_consent_study_provide_pis_explain_study_adult_member: 1, hhq_household_members: [{ member_age_years: 25, member_sex: 2 }] };
   await promote({ form_response_id: "current", task_id: "current-task", household_id: "2-11-0001-01" }, answers);
   assert.equal(rows.formResponses.at(-1)!.response_status, "household_excluded");
@@ -65,6 +66,10 @@ for (const outcome of [7, 8, 9]) test(`terminal dwelling outcome ${outcome} excl
   assert.equal(rows.households[0].cohort_status, "excluded");
   assert.equal(rows.households[0].consent_status, "No");
   assert.equal(rows.households[0].result_interview, outcome);
+  if (outcome === 12) {
+    assert.equal(rows.households[0].closed_reason, answers.hhq_competent_respondent_other_specify);
+    assert.equal(rows.followUpTasks[1].closed_reason, answers.hhq_competent_respondent_other_specify);
+  }
   assert.equal(rows.followUpTasks[0].status, "open", "sync handler completes submitted task later");
   assert.equal(rows.followUpTasks[1].status, "cancelled");
   assert.equal(rows.followUpTasks[2].status, "completed");
@@ -73,13 +78,13 @@ for (const outcome of [7, 8, 9]) test(`terminal dwelling outcome ${outcome} excl
   assert.equal(rows.eligibleWomen.length, 0);
   const projection = buildHhqBaselinePayload(buildHhqHouseholdPromotionValues("2-11-0001-01", answers));
   assert.equal(projection.enrollment_status, "not_enrolled", "replay retains exclusion");
-  assert.equal(projection.occupancy_status, outcome === 7 ? "vacant" : "not_occupied");
+  assert.equal(projection.occupancy_status, outcome === 7 ? "vacant" : outcome === 12 ? "other_unknown" : "not_occupied");
 });
 
-test("terminal duplicate preserves prior accepted household and task history", async () => {
+for (const outcome of [7, 8, 9, 11, 12]) test(`terminal duplicate ${outcome} preserves prior accepted household and task history`, async () => {
   const { rows, promote } = fixture([{ form_response_id: "first", household_id: "2-11-0001-01", form_code: "HHQ", response_status: "primary" }]);
   rows.households[0] = { household_id: "2-11-0001-01", baseline_enrollment_status: "enrolled", consent_status: "Yes" };
-  await promote({ form_response_id: "current", task_id: "current-task", household_id: "2-11-0001-01" }, { hhq_competent_respondent_available: 8 });
+  await promote({ form_response_id: "current", task_id: "current-task", household_id: "2-11-0001-01" }, { hhq_competent_respondent_available: outcome, hhq_competent_respondent_other_specify: "reason" });
   assert.equal(rows.formResponses.at(-1)!.response_status, "duplicate");
   assert.equal(rows.households[0].baseline_enrollment_status, "enrolled");
   assert.equal(rows.households[0].consent_status, "Yes");
@@ -106,9 +111,10 @@ test("shared task writer suppresses every task descriptor for excluded household
 });
 
 
-test("actual household replay retains terminal baseline exclusion", async () => {
+for (const outcome of [7, 8, 9, 11, 12]) test(`actual household replay retains terminal baseline exclusion ${outcome}`, async () => {
   const { rows, modules } = fixture();
-  rows.formResponses.at(-1)!.answers_json = { hhq_competent_respondent_available: 9, hhq_interview_date: "2026-10-24" };
+  rows.formResponses.at(-1)!.answers_json = { hhq_competent_respondent_available: outcome, hhq_interview_date: "2026-10-24",
+    hhq_competent_respondent_other_specify: outcome === 12 ? "  Exact replay reason  " : undefined };
   rows.domainEvents.push({ event_id: "event", event_type: "household_baseline_confirmed", household_id: "2-11-0001-01",
     form_response_id: "current", site_id: 2, locality_code: "11", apply_status: "applied", created_at: new Date() });
   modules["@dynamic/event-core"] = { reduceHouseholdProjectionEvents };
@@ -122,4 +128,33 @@ test("actual household replay retains terminal baseline exclusion", async () => 
   assert.equal(result.rebuilt, 1);
   assert.equal(rows.households[0].baseline_enrollment_status, "not_enrolled");
   assert.equal(rows.households[0].cohort_status, "excluded");
+  assert.equal(rows.households[0].result_interview, outcome);
+  if (outcome === 12) assert.equal(rows.households[0].closed_reason, "  Exact replay reason  ");
+});
+
+
+for (const reason of [undefined, '', '  ', 'a'.repeat(121)]) test(`invalid Other reason ${String(reason).length} never excludes or creates work`, async () => {
+  const { rows, promote } = fixture();
+  const before = JSON.stringify(rows.households);
+  await promote({ form_response_id: "current", task_id: "current-task", household_id: "2-11-0001-01" }, {
+    hhq_competent_respondent_available: 12, hhq_competent_respondent_other_specify: reason,
+    hhq_result_interview_other_specify: "legacy reason must not substitute",
+  });
+  assert.equal(rows.formResponses.at(-1)!.response_status, "invalid_rejected");
+  assert.equal(JSON.stringify(rows.households), before);
+  assert.equal(rows.followUpTasks[1].status, "open");
+  assert.equal(rows.domainEvents.length, 0);
+  assert.equal(rows.dataQualityFlags[0].flag_type, "invalid_form_answers");
+});
+
+
+test("a rejected missing Other reason does not block a later valid corrected submission", async () => {
+  const { rows, promote } = fixture([{ form_response_id: "invalid", household_id: "2-11-0001-01", form_code: "HHQ", response_status: "invalid_rejected" }]);
+  await promote({ form_response_id: "current", task_id: "current-task", household_id: "2-11-0001-01" }, {
+    hhq_competent_respondent_available: 12, hhq_competent_respondent_other_specify: "Corrected reason",
+  });
+  assert.equal(rows.formResponses[0].response_status, "invalid_rejected", "retain the rejected evidence");
+  assert.equal(rows.formResponses.at(-1)!.response_status, "household_excluded");
+  assert.equal(rows.households[0].closed_reason, "Corrected reason");
+  assert.equal(rows.followUpTasks[1].status, "cancelled");
 });

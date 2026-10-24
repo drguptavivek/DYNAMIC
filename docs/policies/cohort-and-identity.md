@@ -47,7 +47,7 @@ Rules:
 - Baseline HHQ validates/enrolls a household from the mapped frame.
 - A mapped but not enrolled baseline household is outside the longitudinal cohort.
 - Empty, vacant, or not-occupied households at baseline remain outside future follow-up.
-- BHQ Q9 dwelling outcomes 7 (vacant/address not a dwelling), 8 (destroyed), and 9 (not found) go directly to the matching interview outcome and a termination notice. Final submission excludes the household; preserve its submitted evidence, cancel other actionable household tasks, and never generate follow-up tasks from stale roster answers. Draft selection alone does not exclude the household.
+- BHQ Q9 dwelling outcomes 7 (vacant/address not a dwelling), 8 (destroyed), 9 (not found), 11 (shifted within the area), and 12 (Other, specify) use the matching interview outcome and a termination notice. Other requires a nonblank reason of at most 120 characters before continuing; preserve the exact entered reason on Outcome and in submitted evidence. Outcomes 11/12 also show `Please report to site supervisor for adding new household`. Final submission excludes the household, cancels other actionable household tasks, and never generates follow-up tasks from stale roster answers. Draft selection alone does not exclude the household. Legacy Outcome 10 remains ordinary Other and does not gain this exclusion behavior.
 - Future household visits are only for households enrolled at baseline.
 - Household splits keep the original `household_id`. Do not create a split event or new analytic household number.
 - Notes can document field context, but notes are not analysis, routing, eligibility, skip-logic, or cohort-definition inputs.

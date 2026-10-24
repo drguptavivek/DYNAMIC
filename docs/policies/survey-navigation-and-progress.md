@@ -57,3 +57,5 @@ Draft resume may restore the last active section, but progress itself is recompu
 Cross-form final preview should appear as a synthetic navigation section when active or required.
 
 Form-specific review sections are allowed when they protect data quality. HHQ member-summary review is one such section and is separate from the final preview gate.
+
+HHQ member-summary review must scroll vertically with the complete member list, checklist and continuation/edit controls inside the scrollable area, so large households remain usable on small screens. Preserve horizontal table scrolling.

@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Model } from "survey-core";
+import formTranslation from "../../../shared/formTranslation.cjs";
 
 const {
   getQuestionnairePageIntro,
@@ -773,7 +774,7 @@ assert.equal(
 );
 assert.equal(competentRespondent.renderAs, "radio");
 assert.equal(competentRespondent.visibleIf, "{hhq_interview_date} notempty");
-assert.equal(competentRespondent.choices.length, 6);
+assert.equal(competentRespondent.choices.length, 8);
 assert.equal(competentRespondent.choices[2].visibleIf, "{hhq_visit_no} < 3");
 assert.equal(consent.visibleIf, "{hhq_competent_respondent_available} = 1");
 assert.ok(outcomeResult.choices.every((choice) => choice.visibleIf));
@@ -794,14 +795,14 @@ assert.deepEqual(
   consentModel
     .getQuestionByName("hhq_competent_respondent_available")
     .visibleChoices.map((choice) => choice.value),
-  [1, 2, 3, 7, 8, 9],
+  [1, 2, 3, 7, 8, 9, 11, 12],
 );
 consentModel.setValue("hhq_visit_no", 3);
 assert.deepEqual(
   consentModel
     .getQuestionByName("hhq_competent_respondent_available")
     .visibleChoices.map((choice) => choice.value),
-  [1, 2, 7, 8, 9],
+  [1, 2, 7, 8, 9, 11, 12],
 );
 consentModel.setValue("hhq_competent_respondent_available", 2);
 assert.equal(
@@ -895,7 +896,7 @@ assert.deepEqual(outcomeQuestion.visibleChoices.map((choice) => choice.value), [
 
 console.log("Validated questionnaire SurveyJS JSON transforms.");
 
-for (const code of [7, 8, 9]) {
+for (const code of [7, 8, 9, 11, 12]) {
   const dwellingModel = new Model(surveyJson);
   dwellingModel.data = {
     hhq_interview_date: "2026-10-24", hhq_competent_respondent_available: code,
@@ -913,8 +914,32 @@ for (const code of [7, 8, 9]) {
   assert.equal(dwellingModel.getQuestionByName("hhq_total_household_members").isVisible, false);
   assert.equal(dwellingModel.getQuestionByName("hhq_total_eligible_women").isVisible, false);
   assert.equal(dwellingModel.getQuestionByName("hhq_dwelling_termination_notice").isVisible, true);
+  assert.equal(dwellingModel.getQuestionByName("hhq_supervisor_household_notice").isVisible, code === 11 || code === 12);
   dwellingModel.setValue("hhq_competent_respondent_available", 1);
   dwellingModel.clearValue("hhq_result_interview");
   assert.equal(outcome.isReadOnly, false);
   assert.equal(dwellingModel.getQuestionByName("hhq_dwelling_termination_notice").isVisible, false);
+}
+
+const bhqRows = formTranslation.flattenFormText(surveyJson);
+for (const name of ["hhq_competent_respondent_available", "hhq_result_interview"]) {
+  const row = bhqRows.find(row => row.name === name);
+  assert.equal(row.choices.find(choice => choice.value === "11").text, "Dwelling shifted within the area");
+  assert.equal(row.choices.find(choice => choice.value === "12").text, "Other (specify)");
+}
+for (const name of ["hhq_competent_respondent_other_specify", "hhq_dwelling_other_specify"]) {
+  assert.equal(bhqRows.find(row => row.name === name).title, "Specify other response");
+  assert.equal(formTranslation.flattenFormText(prepareQuestionnaireSurveyJson(wq)).some(row => row.name === name), false);
+}
+const newTextRows = bhqRows.filter(row => row.name.includes("hhq_competent_respondent_other_specify") || row.name.includes("hhq_dwelling_other_specify") || row.name.includes("hhq_supervisor_household_notice"));
+assert.ok(newTextRows.some(row => row.title === "Please report to site supervisor for adding new household"));
+assert.ok(newTextRows.some(row => row.title === "Specify the other response."));
+assert.ok(newTextRows.some(row => row.title === "Specify the other response in 120 characters or fewer."));
+const newTranslations = Object.fromEntries([...newTextRows, ...bhqRows.filter(row => ["hhq_competent_respondent_available", "hhq_result_interview"].includes(row.name))].map(row => [row.name, {
+  title: `Translated ${row.title}`, ...(row.choices.length ? { choices: Object.fromEntries(row.choices.map(choice => [choice.value, `Translated ${choice.text}`])) } : {}),
+}]));
+const translatedBhq = formTranslation.applyFormTextTranslations(surveyJson, "hi", newTranslations);
+const extractedNewTranslations = formTranslation.extractFormTextTranslations(translatedBhq, "hi");
+for (const [name, translation] of Object.entries(newTranslations)) {
+  assert.deepEqual(extractedNewTranslations[name], translation, `${name} must round trip through the shared admin/mobile translation inventory`);
 }

@@ -507,7 +507,7 @@
           "renderingHint": {
             "render_as": "radio"
           },
-          "rawText": "Is a competent household member available to answer questions 1 Yes 2 No household member at home or no competent respondent at home at time of visit 3 Postponed 7 Dwelling vacant or address not a dwelling 8 Dwelling destroyed 9 Dwelling not found",
+          "rawText": "Is a competent household member available to answer questions 1 Yes 2 No household member at home or no competent respondent at home at time of visit 3 Postponed 7 Dwelling vacant or address not a dwelling 8 Dwelling destroyed 9 Dwelling not found 11 Dwelling shifted within the area 12 Other (specify)",
           "visibleIf": "{hhq_interview_date} notempty",
           "choices": [
             {
@@ -582,12 +582,96 @@
                 "te": "",
                 "ur": ""
               }
+            },
+            {
+              "value": 11,
+              "text": {
+                "default": "Dwelling shifted within the area",
+                "hi": "",
+                "kn": "",
+                "mr": "",
+                "ta": "",
+                "te": "",
+                "ur": ""
+              }
+            },
+            {
+              "value": 12,
+              "text": {
+                "default": "Other (specify)",
+                "hi": "",
+                "kn": "",
+                "mr": "",
+                "ta": "",
+                "te": "",
+                "ur": ""
+              }
             }
           ],
           "validationRulesSource": [
             "single coded option"
           ],
           "sourceCode": "9"
+        },
+        {
+          "type": "text",
+          "name": "hhq_competent_respondent_other_specify",
+          "title": {
+            "default": "Specify other response",
+            "hi": "",
+            "kn": "",
+            "mr": "",
+            "ta": "",
+            "te": "",
+            "ur": ""
+          },
+          "visibleIf": "{hhq_competent_respondent_available} = 12",
+          "isRequired": true,
+          "sourceCode": "9_specifyother",
+          "sourceType": "text_other_specify",
+          "order": 11.1,
+          "section_order": 1,
+          "renderingHint": {
+            "render_as": "input"
+          },
+          "validators": [
+            {
+              "type": "regex",
+              "regex": "[\\s\\S]*\\S[\\s\\S]*",
+              "text": {
+                "default": "Specify the other response.",
+                "hi": "",
+                "kn": "",
+                "mr": "",
+                "ta": "",
+                "te": "",
+                "ur": ""
+              }
+            },
+            {
+              "type": "text",
+              "maxLength": 120,
+              "text": {
+                "default": "Specify the other response in 120 characters or fewer.",
+                "hi": "",
+                "kn": "",
+                "mr": "",
+                "ta": "",
+                "te": "",
+                "ur": ""
+              }
+            }
+          ],
+          "maxLength": 120,
+          "requiredErrorText": {
+            "default": "Specify the other response.",
+            "hi": "",
+            "kn": "",
+            "mr": "",
+            "ta": "",
+            "te": "",
+            "ur": ""
+          }
         },
         {
           "type": "radiogroup",
@@ -7605,7 +7689,7 @@
         "te": "",
         "ur": ""
       },
-      "visibleIf": "({hhq_competent_respondent_available} = 1 and {hhq_consent_study_provide_pis_explain_study_adult_member} = 1) or (({hhq_competent_respondent_available} = 7 or {hhq_competent_respondent_available} = 8 or {hhq_competent_respondent_available} = 9) or ({hhq_competent_respondent_available} != 2 and {hhq_competent_respondent_available} != 3 and ({hhq_result_interview} = 7 or {hhq_result_interview} = 8 or {hhq_result_interview} = 9)))",
+      "visibleIf": "({hhq_competent_respondent_available} = 1 and {hhq_consent_study_provide_pis_explain_study_adult_member} = 1) or (({hhq_competent_respondent_available} = 7 or {hhq_competent_respondent_available} = 8 or {hhq_competent_respondent_available} = 9 or {hhq_competent_respondent_available} = 11 or {hhq_competent_respondent_available} = 12) or ({hhq_competent_respondent_available} != 2 and {hhq_competent_respondent_available} != 3 and ({hhq_result_interview} = 7 or {hhq_result_interview} = 8 or {hhq_result_interview} = 9 or {hhq_result_interview} = 11 or {hhq_result_interview} = 12)))",
       "elements": [
         {
           "type": "text",
@@ -7720,7 +7804,7 @@
         {
           "type": "radiogroup",
           "name": "hhq_result_interview",
-          "visibleIf": "({hhq_competent_respondent_available} = 1 and {hhq_consent_study_provide_pis_explain_study_adult_member} = 1) or (({hhq_competent_respondent_available} = 7 or {hhq_competent_respondent_available} = 8 or {hhq_competent_respondent_available} = 9) or ({hhq_competent_respondent_available} != 2 and {hhq_competent_respondent_available} != 3 and ({hhq_result_interview} = 7 or {hhq_result_interview} = 8 or {hhq_result_interview} = 9)))",
+          "visibleIf": "({hhq_competent_respondent_available} = 1 and {hhq_consent_study_provide_pis_explain_study_adult_member} = 1) or (({hhq_competent_respondent_available} = 7 or {hhq_competent_respondent_available} = 8 or {hhq_competent_respondent_available} = 9 or {hhq_competent_respondent_available} = 11 or {hhq_competent_respondent_available} = 12) or ({hhq_competent_respondent_available} != 2 and {hhq_competent_respondent_available} != 3 and ({hhq_result_interview} = 7 or {hhq_result_interview} = 8 or {hhq_result_interview} = 9 or {hhq_result_interview} = 11 or {hhq_result_interview} = 12)))",
           "title": {
             "default": "Outcome of Interview",
             "hi": "",
@@ -7737,7 +7821,7 @@
           "renderingHint": {
             "render_as": "radio"
           },
-          "rawText": "Outcome of Interview (4 and 5 are temporary states only to remind the interviewers that these HH have to be revisited and in a reasonable frame of time these will have to change to 1 or 6) 1 Completed 2 No household member at home or no competent respondent at home despite 3 visits 3 Entire household absent for extended period of time 4 Postponed ( no competent member but visit 2 or 3 is pending or, comptent person is present but busy and interviewer has been asked to return later ) 5 Incomplete (consent provided but had to stop interview in between asked to return later) 6 Refused (consent or, refused during interview) 7 Dwelling vacant or address not a dwelling 8 Dweling destroyed 9 Dwelling not found) 10 Other (specify)",
+          "rawText": "Outcome of Interview (4 and 5 are temporary states only to remind the interviewers that these HH have to be revisited and in a reasonable frame of time these will have to change to 1 or 6) 1 Completed 2 No household member at home or no competent respondent at home despite 3 visits 3 Entire household absent for extended period of time 4 Postponed ( no competent member but visit 2 or 3 is pending or, comptent person is present but busy and interviewer has been asked to return later ) 5 Incomplete (consent provided but had to stop interview in between asked to return later) 6 Refused (consent or, refused during interview) 7 Dwelling vacant or address not a dwelling 8 Dweling destroyed 9 Dwelling not found) 10 Other (specify) 11 Dwelling shifted within the area 12 Other (specify)",
           "choices": [
             {
               "value": 1,
@@ -7858,12 +7942,36 @@
                 "te": "",
                 "ur": ""
               }
+            },
+            {
+              "value": 11,
+              "text": {
+                "default": "Dwelling shifted within the area",
+                "hi": "",
+                "kn": "",
+                "mr": "",
+                "ta": "",
+                "te": "",
+                "ur": ""
+              }
+            },
+            {
+              "value": 12,
+              "text": {
+                "default": "Other (specify)",
+                "hi": "",
+                "kn": "",
+                "mr": "",
+                "ta": "",
+                "te": "",
+                "ur": ""
+              }
             }
           ],
           "validationRulesSource": [
             "single coded option"
           ],
-          "enableIf": "!({hhq_competent_respondent_available} = 7 or {hhq_competent_respondent_available} = 8 or {hhq_competent_respondent_available} = 9)"
+          "enableIf": "!({hhq_competent_respondent_available} = 7 or {hhq_competent_respondent_available} = 8 or {hhq_competent_respondent_available} = 9 or {hhq_competent_respondent_available} = 11 or {hhq_competent_respondent_available} = 12)"
         },
         {
           "type": "text",
@@ -7914,6 +8022,25 @@
           }
         },
         {
+          "type": "text",
+          "name": "hhq_dwelling_other_specify",
+          "title": {
+            "default": "Specify other response",
+            "hi": "",
+            "kn": "",
+            "mr": "",
+            "ta": "",
+            "te": "",
+            "ur": ""
+          },
+          "visibleIf": "{hhq_result_interview} = 12",
+          "readOnly": true,
+          "sourceCode": "3_dwelling_specifyother",
+          "sourceType": "text_other_specify",
+          "order": 3.2,
+          "section_order": 4
+        },
+        {
           "type": "html",
           "name": "hhq_dwelling_termination_notice",
           "html": {
@@ -7925,7 +8052,22 @@
             "te": "",
             "ur": ""
           },
-          "visibleIf": "({hhq_competent_respondent_available} = 7 or {hhq_competent_respondent_available} = 8 or {hhq_competent_respondent_available} = 9) or ({hhq_competent_respondent_available} != 2 and {hhq_competent_respondent_available} != 3 and ({hhq_result_interview} = 7 or {hhq_result_interview} = 8 or {hhq_result_interview} = 9))",
+          "visibleIf": "({hhq_competent_respondent_available} = 7 or {hhq_competent_respondent_available} = 8 or {hhq_competent_respondent_available} = 9 or {hhq_competent_respondent_available} = 11 or {hhq_competent_respondent_available} = 12) or ({hhq_competent_respondent_available} != 2 and {hhq_competent_respondent_available} != 3 and ({hhq_result_interview} = 7 or {hhq_result_interview} = 8 or {hhq_result_interview} = 9 or {hhq_result_interview} = 11 or {hhq_result_interview} = 12))",
+          "readOnly": true
+        },
+        {
+          "type": "html",
+          "name": "hhq_supervisor_household_notice",
+          "html": {
+            "default": "Please report to site supervisor for adding new household",
+            "hi": "",
+            "kn": "",
+            "mr": "",
+            "ta": "",
+            "te": "",
+            "ur": ""
+          },
+          "visibleIf": "({hhq_competent_respondent_available} = 11 or {hhq_competent_respondent_available} = 12) or ({hhq_competent_respondent_available} != 2 and {hhq_competent_respondent_available} != 3 and ({hhq_result_interview} = 11 or {hhq_result_interview} = 12))",
           "readOnly": true
         }
       ]

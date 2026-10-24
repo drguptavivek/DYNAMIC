@@ -493,7 +493,7 @@ assert.notEqual(readOnlyHouseholdHead.value, "Should not write");
 
 console.log("Validated native Survey Core model adapter for HHQ.");
 
-for (const code of [7, 8, 9]) {
+for (const code of [7, 8, 9, 11, 12]) {
   const terminal = new Model(prepareQuestionnaireSurveyJson(hhq));
   terminal.data = {
     hhq_site_id: 2, hhq_residence_area_type: 2, hhq_locality_code: "02",
@@ -501,16 +501,39 @@ for (const code of [7, 8, 9]) {
     hhq_household_head_name: "Household head", hhq_household_address: "Address",
     hhq_interview_date: "2026-10-24", hhq_visit_no: 1,
     hhq_competent_respondent_available: code,
+    ...(code === 12 ? { hhq_competent_respondent_other_specify: "  Household moved away  " } : {}),
   };
   attachHouseholdSurveyBehaviors(terminal, hhq);
   refreshHouseholdSurveyBehaviors(terminal, hhq);
   assert.equal(terminal.getValue("hhq_result_interview"), code);
+  assert.equal(terminal.getQuestionByName("hhq_supervisor_household_notice").isVisible, code === 11 || code === 12);
+  if (code === 12) {
+    const reason = terminal.getQuestionByName("hhq_competent_respondent_other_specify");
+    const copy = terminal.getQuestionByName("hhq_dwelling_other_specify");
+    assert.equal(copy.isReadOnly, true);
+    assert.equal(copy.value, "  Household moved away  ", "preserve the exact typed reason at Outcome");
+    assert.equal(setNativeQuestionValue(copy, "Should not replace"), false);
+    for (const invalid of ["", "   ", "\n\t", "x".repeat(121)]) {
+      terminal.setValue(reason.name, invalid);
+      assert.equal(terminal.validate(), false, "Other requires a nonblank reason of at most 120 characters, including after restore");
+    }
+    terminal.setValue(reason.name, "  Household moved away  ");
+    assert.equal(copy.value, "  Household moved away  ");
+    assert.equal(terminal.getValue("hhq_result_interview_other_specify"), undefined, "legacy outcome 10 retains its separate field");
+  }
   assert.equal(terminal.getQuestionByName("hhq_consent_study_provide_pis_explain_study_adult_member").isVisible, false);
   assert.equal(terminal.getQuestionByName("hhq_gps_latitude").isVisible, false);
   assert.equal(terminal.getQuestionByName("hhq_household_members").page.isVisible, false);
   assert.equal(terminal.validate(), true, terminal.getAllQuestions().filter(q => q.errors.length).map(q => q.name).join(", "));
   assert.ok(buildNativeSurveyPreview(terminal).length > 0);
   assert.notEqual(terminal.state, "completed", "Selecting a dwelling outcome must not submit the form");
+  if (code === 12) {
+    terminal.setValue("hhq_competent_respondent_available", 11);
+    assert.equal(terminal.getValue("hhq_competent_respondent_other_specify"), undefined);
+    assert.equal(terminal.getValue("hhq_dwelling_other_specify"), undefined);
+    terminal.setValue("hhq_competent_respondent_available", 1);
+    assert.equal(terminal.getValue("hhq_result_interview"), undefined);
+  }
 }
 const observationModel = createOutcomeModel();
 observationModel.setValue("hhq_we_like_learn_about_places_that_households_use", 1);

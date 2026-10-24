@@ -53,6 +53,8 @@ node expo/src/tests/validateCanonicalFormTranslations.mjs
 
 English checks cover portal edit/save and CSV export/import, effective sync definitions/checksums, and default/en native rendering across all forms. These use isolated fixtures and do not write production translations.
 
+For BHQ member-summary scrolling, run `node expo/src/tests/validateFormStartupLifecycle.mjs`. Check a 20-member roster on a narrow viewport: scroll to checklist A/B, continue to Section 3, and return to edit/add members. Keep the table's horizontal scrolling available.
+
 Baseline dwelling exclusions:
 
 ```bash
@@ -61,7 +63,7 @@ npm --workspace expo exec -- tsx src/tests/validateHhqDwellingExclusion.mjs
 npm --workspace @dynamic/api exec -- tsx --test src/services/hhqDwellingExclusion.test.ts src/services/hhqPromotion.test.ts src/lib/syncDependencies.test.ts
 ```
 
-Check BHQ Q9 values 7/8/9, the direct outcome route and translated termination notice, changing the answer and restoring drafts, no tasks from stale roster answers, and exclusion after offline submission, sync and replay. Preserve normal enrollment and Q9 2/3 revisit behavior.
+Check BHQ Q9 values 7/8/9/11/12, the matching Outcome and translated notices, changing the answer and restoring drafts, no tasks from stale roster answers, and exclusion after offline submission, sync and replay. Other must remain editable at Q9 while typing, reject blank/whitespace/over-120-character reasons, and copy the exact reason read-only to Outcome. Verify the supervisor notice is last, new text round-trips through BHQ translation export/import/save, and reasons persist in submitted data exports and replay. Invalid API evidence must not change household/tasks or block a later corrected response. Preserve normal enrollment, legacy Outcome 10, Q9 2/3 revisit behavior, and the pending member-summary scrolling fix.
 
 BWQ pregnancy defaults:
 

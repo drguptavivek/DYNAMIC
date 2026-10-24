@@ -378,7 +378,7 @@ class WebDatabase {
       return { value: this.state.sync_meta[params[0]] ?? null };
     }
 
-    if (/SELECT id FROM form_responses WHERE household_id = \? AND form_code = 'HHQ' AND server_response_status = 'household_excluded' LIMIT 1/i.test(normalized)) {
+    if (/SELECT id, answers_json FROM form_responses WHERE household_id = \? AND form_code = 'HHQ' AND server_response_status = 'household_excluded' LIMIT 1/i.test(normalized)) {
       return this.state.form_responses.find(row => row.household_id === params[0] && row.form_code === "HHQ" && row.server_response_status === "household_excluded") || null;
     }
 

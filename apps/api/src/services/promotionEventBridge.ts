@@ -1,3 +1,4 @@
+import { getHhqDwellingExclusion } from "../../../../shared/householdDwellingOutcome.cjs";
 import type {
   DomainEventEnvelope,
   HouseholdBaselineConfirmedPayload,
@@ -22,7 +23,7 @@ export function buildHhqBaselinePayload(
     household_number: household.household_number,
     structure_map_id: household.structure_map_id,
     baseline_date: household.baseline_completed_date,
-    occupancy_status: household.result_interview === 7 ? "vacant" : [8, 9].includes(Number(household.result_interview)) ? "not_occupied" : "occupied",
+    occupancy_status: getHhqDwellingExclusion({ hhq_result_interview: household.result_interview })?.occupancy_status ?? "occupied",
     enrollment_status: household.baseline_enrollment_status === "not_enrolled" ? "not_enrolled" : "enrolled",
   };
 }

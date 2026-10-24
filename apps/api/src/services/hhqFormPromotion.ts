@@ -182,7 +182,7 @@ export async function promoteHhq(response: FormResponseRow, answers: FormAnswers
   const primaryResponse = priorResponses.find(
     (candidate) =>
       candidate.form_response_id !== response.form_response_id &&
-      !["duplicate", "revisit_needed", "superseded_revisit", "excluded_after_revisits"].includes(
+      !["duplicate", "invalid_rejected", "revisit_needed", "superseded_revisit", "excluded_after_revisits"].includes(
         candidate.response_status || "",
       ),
   );
@@ -233,16 +233,29 @@ export async function promoteHhq(response: FormResponseRow, answers: FormAnswers
   }
   const exclusion = getHhqDwellingExclusion(answers);
   if (exclusion) {
+    if (exclusion.outcome === 12 && (!exclusion.reason_text || exclusion.reason_text.length > 120)) {
+      await getDb().update(schema.formResponses).set({ response_status: "invalid_rejected" })
+        .where(eq(schema.formResponses.form_response_id, response.form_response_id));
+      await getDb().insert(schema.dataQualityFlags).values({
+        flag_id: `invalid_dwelling_reason:${response.form_response_id}`, site_id: household.site_id,
+        flag_type: "invalid_form_answers", subject_type: "household", subject_id: household.household_id,
+        task_id: response.task_id, duplicate_response_id: response.form_response_id,
+        severity: "warning", status: "open", created_at: now,
+        review_note: "Other dwelling exclusion requires a reason of 1 to 120 characters.",
+      });
+      return;
+    }
+    const closedReason = exclusion.reason_text ?? exclusion.reason;
     await getDb().update(schema.formResponses)
       .set({ response_status: "household_excluded" })
       .where(eq(schema.formResponses.form_response_id, response.form_response_id));
     await getDb().insert(schema.households).values(household).onConflictDoUpdate({
       target: [schema.households.household_id],
       set: { consent_status: "No", baseline_enrollment_status: "not_enrolled", cohort_status: "excluded",
-        closed_reason: exclusion.reason, result_interview: exclusion.outcome,
+        closed_reason: closedReason, result_interview: exclusion.outcome,
         baseline_completed_date: household.baseline_completed_date, sync_status: "synced", updated_at: now },
     });
-    await getDb().update(schema.followUpTasks).set({ status: "cancelled", closed_reason: exclusion.reason, updated_at: now })
+    await getDb().update(schema.followUpTasks).set({ status: "cancelled", closed_reason: closedReason, updated_at: now })
       .where(and(eq(schema.followUpTasks.household_id, household.household_id),
         response.task_id ? ne(schema.followUpTasks.task_id, response.task_id) : undefined,
         inArray(schema.followUpTasks.status, ["open", "planned", "pending", "due", "overdue", "in_progress", "disabled"])));

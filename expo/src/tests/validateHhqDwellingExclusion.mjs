@@ -13,10 +13,11 @@ function seed() {
     { ...task, id: "history", task_key: "history", status: "completed" },
     { ...task, id: "other", task_key: "other", household_id: "2-11-0002-01" }], form_responses: [] }));
 }
-for (const outcome of [7, 8, 9]) {
+for (const outcome of [7, 8, 9, 11, 12]) {
   seed();
   const response = await saveQuestionnaireSubmission({ formCode: "HHQ", formVersion: "test", taskId: "current", taskContext: task,
     payload: { hhq_competent_respondent_available: outcome, hhq_result_interview: 1,
+      hhq_competent_respondent_other_specify: outcome === 12 ? "  Exact offline reason  " : undefined,
       hhq_consent_study_provide_pis_explain_study_adult_member: 1, hhq_household_members: staleRoster } });
   const state = JSON.parse(store.get(key));
   assert.equal(response.server_response_status, "household_excluded");
@@ -32,11 +33,24 @@ for (const outcome of [7, 8, 9]) {
   assert.equal(households[0].household_id, householdId, "task identity survives missing question IDs");
   assert.equal(households[0].result_interview, outcome);
   assert.equal(households[0].consent_status, "No");
+  if (outcome === 12) {
+    assert.equal(response.answers_json.hhq_competent_respondent_other_specify, "  Exact offline reason  ");
+    assert.equal(households[0].closed_reason, "  Exact offline reason  ");
+    assert.equal(state.follow_up_tasks.find(row => row.id === "next").closed_reason, "  Exact offline reason  ");
+  }
   assert.deepEqual(JSON.parse(store.get("dynamic_household_members_v4")), []);
   const duplicate = await saveQuestionnaireSubmission({ formCode: "HHQ", formVersion: "test", taskContext: task,
     payload: { hhq_competent_respondent_available: 1, hhq_result_interview: 1, hhq_household_members: staleRoster } });
   assert.equal(duplicate.server_response_status, "duplicate");
   assert.equal(JSON.parse(store.get("dynamic_households_v4"))[0].result_interview, outcome);
+}
+for (const reason of [undefined, "", "  ", "a".repeat(121)]) {
+  seed();
+  const before = store.get(key);
+  await assert.rejects(saveQuestionnaireSubmission({ formCode: "HHQ", formVersion: "test", taskContext: task,
+    payload: { hhq_competent_respondent_available: 12, hhq_competent_respondent_other_specify: reason,
+      hhq_result_interview_other_specify: "legacy other10reason" } }), /Specify the other dwelling reason/);
+  assert.equal(store.get(key), before, "invalid reason cannot write immutable evidence or change any tasks");
 }
 seed();
 const initial = JSON.parse(store.get(key));
@@ -63,15 +77,16 @@ const repository = require("../modules/tasks/taskRepository.js");
 const nativeTask = id => ({ ...task, id, task_key: id, status: id === "history" ? "completed" : "open" });
 repository.saveTaskBatch([nativeTask("current"), nativeTask("next"), nativeTask("history")]);
 repository.saveFormResponse({ id: "excluded", form_code: "HHQ", form_version: "test", household_id: householdId, task_id: "current",
-  server_response_status: "household_excluded", answers_json: { hhq_competent_respondent_available: 8 }, submitted_at: new Date().toISOString() });
-repository.excludeLocalHousehold({ householdId, currentTaskId: "current", reason: "dwelling_destroyed", timestamp: new Date().toISOString() });
+  server_response_status: "household_excluded", answers_json: { hhq_competent_respondent_available: 12, hhq_competent_respondent_other_specify: "  Stored exact reason  " }, submitted_at: new Date().toISOString() });
+repository.excludeLocalHousehold({ householdId, currentTaskId: "current", reason: "  Stored exact reason  ", timestamp: new Date().toISOString() });
 assert.equal(db.getFirstSync("SELECT status FROM follow_up_tasks WHERE id = ?", ["next"]).status, "cancelled");
 assert.equal(db.getFirstSync("SELECT status FROM follow_up_tasks WHERE id = ?", ["history"]).status, "completed");
 repository.saveTask(nativeTask("next"));
 repository.saveTaskBatch([nativeTask("new-task")]);
 assert.equal(db.getFirstSync("SELECT status FROM follow_up_tasks WHERE id = ?", ["next"]).status, "cancelled");
 assert.equal(db.getFirstSync("SELECT status FROM follow_up_tasks WHERE id = ?", ["new-task"]).status, "cancelled");
-repository.excludeLocalHousehold({ householdId, reason: "dwelling_destroyed", timestamp: new Date().toISOString() });
+assert.equal(db.getFirstSync("SELECT closed_reason FROM follow_up_tasks WHERE id = ?", ["new-task"]).closed_reason, "  Stored exact reason  ");
+repository.excludeLocalHousehold({ householdId, reason: "  Stored exact reason  ", timestamp: new Date().toISOString() });
 assert.equal(db.getFirstSync("SELECT status FROM follow_up_tasks WHERE id = ?", ["current"]).status, "completed");
 sqlite.close();
 const { openDatabaseSync } = await import("../shims/expo-sqlite.web.js");
@@ -79,13 +94,14 @@ seed();
 const webDb = openDatabaseSync();
 for (const method of ["runSync", "getFirstSync", "getAllSync"]) db[method] = webDb[method].bind(webDb);
 repository.saveFormResponse({ id: "excluded-web", form_code: "HHQ", form_version: "test", household_id: householdId, task_id: "current",
-  server_response_status: "household_excluded", answers_json: { hhq_competent_respondent_available: 8 } });
-repository.excludeLocalHousehold({ householdId, currentTaskId: "current", reason: "dwelling_destroyed", timestamp: new Date().toISOString() });
+  server_response_status: "household_excluded", answers_json: { hhq_competent_respondent_available: 12, hhq_competent_respondent_other_specify: "  Stored exact reason  " } });
+repository.excludeLocalHousehold({ householdId, currentTaskId: "current", reason: "  Stored exact reason  ", timestamp: new Date().toISOString() });
 assert.equal(webDb.state.follow_up_tasks.find(row => row.id === "next").status, "cancelled");
 repository.saveTask(nativeTask("next"));
 repository.saveTaskBatch([nativeTask("new-web-task")]);
 assert.equal(webDb.state.follow_up_tasks.find(row => row.id === "next").status, "cancelled");
 assert.equal(webDb.state.follow_up_tasks.find(row => row.id === "new-web-task").status, "cancelled");
+assert.equal(webDb.state.follow_up_tasks.find(row => row.id === "new-web-task").closed_reason, "  Stored exact reason  ");
 assert.equal(webDb.state.follow_up_tasks.find(row => row.id === "current").status, "completed");
 assert.equal(webDb.state.follow_up_tasks.find(row => row.id === "history").status, "completed");
 console.log("Validated all terminal HHQ outcomes, offline evidence, native SQL cancellation, duplicate protection and task resurrection guards.");

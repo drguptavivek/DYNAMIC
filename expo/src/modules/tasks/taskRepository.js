@@ -1,3 +1,4 @@
+import { getHhqDwellingExclusion } from "../../../../shared/householdDwellingOutcome.cjs";
 import { stripHouseholdGpsMetadata } from "../../../../shared/householdGpsStorage.cjs";
 import { getAssignedHouseholdIds, householdScopePredicate } from "../sync/householdAssignmentScope.js";
 import { getDb } from "./taskSchema.js";
@@ -21,10 +22,13 @@ export function getLocalPregnancyWomanId(pregnancyId) {
 
 function protectWomanTask(db, task, now) {
   const excluded = db.getFirstSync(
-    "SELECT id FROM form_responses WHERE household_id = ? AND form_code = 'HHQ' AND server_response_status = 'household_excluded' LIMIT 1",
+    "SELECT id, answers_json FROM form_responses WHERE household_id = ? AND form_code = 'HHQ' AND server_response_status = 'household_excluded' LIMIT 1",
     [task.household_id]);
   if (excluded && ["open", "planned", "pending", "due", "overdue", "in_progress", "disabled"].includes(task.status || "open")) {
-    return { ...task, status: "cancelled", lifecycle_status: "cancelled", closed_reason: "household_excluded", updated_at: now };
+    const answers = typeof excluded.answers_json === "string" ? JSON.parse(excluded.answers_json) : excluded.answers_json;
+    const exclusion = getHhqDwellingExclusion(answers);
+    return { ...task, status: "cancelled", lifecycle_status: "cancelled",
+      closed_reason: exclusion?.reason_text ?? exclusion?.reason ?? "household_excluded", updated_at: now };
   }
   if (task.child_id || ["child", "household"].includes(task.subject_type) || task.task_type === "HHQ") return task;
   const pregnancy = db.getFirstSync("SELECT * FROM pregnancies WHERE pregnancy_id = ?",
