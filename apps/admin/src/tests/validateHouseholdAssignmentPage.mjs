@@ -13,6 +13,7 @@ const households = Array.from({ length: 1205 }, (_, index) => ({
 const requests = [], slots = [];
 let cursor = 0, dirty = true, effects = [], tree, deferredAll, failRefresh = false, failPost = false;
 let pickerFixtures = false;
+let filterFixtures = false;
 const sameDeps = (a, b) => a && b && a.length === b.length && a.every((value, index) => Object.is(value, b[index]));
 globalThis.assignmentHarness = {
   useState(initial) {
@@ -44,6 +45,8 @@ globalThis.assignmentHarness = {
         { site_id: 2, locality_code: '11', locality_name: 'Dayalpur' },
       ];
       if (path.endsWith('/area-assignments')) {
+        if (path.includes('/other-site/')) return [{ site_id: 1, locality_code: '02' }];
+        if (path.includes('/expired/')) return [{ site_id: 2, locality_code: '02', active_to: '2000-01-01' }];
         if (path.includes('/unavailable/')) throw new Error('Localities unavailable');
         if (path.includes('/unassigned/')) return [];
         const code = path.includes('/worker-two/') ? '11' : '02';
@@ -60,6 +63,11 @@ globalThis.assignmentHarness = {
         { user_id: 'worker-two', username: 'worker-two', display_name: 'Sanjay', role: 'field_worker', site_id: 2 },
         { user_id: 'unavailable', username: 'unknown-locality', display_name: 'Other worker', role: 'field_worker', site_id: 2 },
         { user_id: 'unassigned', username: 'no-locality', display_name: ' No-Locality ', role: 'field_worker', site_id: 2 },
+        ...(filterFixtures ? [
+          { user_id: 'zero', username: 'zero', display_name: 'No households', role: 'field_worker', site_id: 2 },
+          { user_id: 'expired', username: 'expired', role: 'field_worker', site_id: 2 },
+          { user_id: 'other-site', username: 'other-site', role: 'field_worker', site_id: 1 },
+        ] : []),
       ] : [{ user_id: 'worker', username: 'worker', role: 'field_worker', site_id: 2 }];
       assert.ok(path.startsWith('/field-worker-household-assignments?'), path);
       if (failRefresh) throw new Error('Refresh unavailable');
@@ -81,7 +89,14 @@ globalThis.assignmentHarness = {
       }
       return {};
     },
-    async delete() { assert.fail('These checks must never clear actual assignments'); },
+    async delete(path, payload) {
+      assert.equal(filterFixtures, true, 'Only explicit filter fixtures may be cleared');
+      requests.push({ method: 'delete', path, payload: structuredClone(payload) });
+      for (const row of households) if (payload.household_ids.includes(row.household_id)) {
+        row.assigned_user_ids = (row.assigned_user_ids || []).filter(id => payload.user_ids && !payload.user_ids.includes(id));
+      }
+      return {};
+    },
   },
 };
 globalThis.document = { addEventListener() {}, removeEventListener() {} };
@@ -310,4 +325,70 @@ assert.equal(labelled('Search field workers').props.value, '', 'Opening a picker
 await change(labelled('Search field workers'), 'worker-two');
 assert.equal(workerOptions().length, 1, 'Row picker also supports worker search');
 assert.match(text(workerOptions()[0]), /Sanjay.*worker-two.*Dayalpur/);
+
+// Worker counts cover the whole locality, including assignments below page one and outside the range.
+filterFixtures = true;
+globalThis.window = { confirm: () => true };
+households.forEach(row => { row.assigned_user_ids = []; });
+households[0].assigned_user_ids = ['worker'];
+households[1004].assigned_user_ids = ['worker-two'];
+households[1100].assigned_user_ids = ['worker', 'worker-two'];
+households[10].assigned_user_ids = ['inactive'];
+households[10].assigned_field_worker_usernames = ['inactive-worker'];
+await change(input('Search household'), '');
+await click('View');
+const filterOptions = () => nodes(labelled('Assigned field worker')).filter(node => node.type === 'option');
+assert.ok(filterOptions().some(option => option.props.value === 'worker' && /Sanjay \(worker-one\).*2 households/.test(text(option))));
+assert.ok(filterOptions().some(option => option.props.value === 'worker-two' && /Sanjay \(worker-two\).*2 households/.test(text(option))), 'A household owner remains visible even outside their current locality');
+assert.ok(filterOptions().some(option => option.props.value === 'inactive' && /inactive-worker.*1 household/.test(text(option))), 'Inactive owners omitted from the active picker remain findable');
+assert.ok(filterOptions().some(option => option.props.value === 'zero' && /0 households/.test(text(option))));
+for (const id of ['unassigned', 'expired', 'other-site']) assert.ok(!filterOptions().some(option => option.props.value === id));
+assert.match(text(tree), /3 workers have assigned households in this locality/);
+await check('Select visible households', true);
+const beforeFilter = requests.length;
+await change(labelled('Assigned field worker'), 'worker-two');
+assert.equal(requests.length, beforeFilter, 'Changing the worker filter must not refetch');
+assert.deepEqual(rows().map(row => row.key), [households[1004].household_id, households[1100].household_id]);
+assert.equal(selectedRows().length, 0, 'Worker filter changes clear hidden selections');
+await change(labelled('Assigned field worker'), 'zero');
+assert.equal(rows().length, 0);
+assert.match(text(tree), /No households found for the selected filters/);
+await change(labelled('Assigned field worker'), 'worker-two');
+await change(labelled('Household range start'), '10');
+await change(labelled('Household range end'), '20');
+await click('View');
+assert.equal(rows().length, 0);
+assert.ok(filterOptions().some(option => option.props.value === 'worker-two' && /2 households/.test(text(option))), 'Counts must ignore range and search');
+await check('Select all households in selected site/locality', true);
+assert.match(text(tree), /2 selected/, 'Whole-scope selection respects the selected worker while ignoring range');
+await click('Clear all selected');
+assert.deepEqual(requests.filter(request => request.method === 'delete').at(-1).payload, {
+  household_ids: [households[1004].household_id, households[1100].household_id], user_ids: ['worker-two'],
+});
+assert.deepEqual(households[1100].assigned_user_ids, ['worker'], 'Clearing one worker must preserve a co-assigned worker');
+assert.equal(labelled('Assigned field worker').props.value, 'worker-two');
+assert.ok(filterOptions().some(option => option.props.value === 'worker-two' && /0 households/.test(text(option))));
+assert.equal(rows().length, 0, 'Removing the last assignment retains the empty worker filter');
+await change(labelled('Household range start'), '');
+await change(labelled('Household range end'), '');
+await change(labelled('Assigned field worker'), 'inactive');
+assert.equal(rows().length, 1);
+await check('Select visible households', true);
+await click('Clear all selected');
+assert.equal(labelled('Assigned field worker').props.value, 'inactive');
+assert.ok(filterOptions().some(option => option.props.value === 'inactive' && /0 households/.test(text(option))), 'A removed inactive owner keeps an explicit empty selected option');
+
+// A pending whole-scope response cannot restore a selection from a previously selected worker.
+await change(labelled('Assigned field worker'), 'worker');
+let releaseWorkerSelection;
+deferredAll = { promise: new Promise(resolve => { releaseWorkerSelection = resolve; }) };
+labelled('Select all households in selected site/locality').props.onChange({ target: { checked: true } });
+await settle();
+await change(labelled('Assigned field worker'), 'zero');
+releaseWorkerSelection(); await settle();
+assert.equal(selectedRows().length, 0);
+assert.match(text(tree), /0 selected/);
+await change(find(node => node.props?.id === 'assignment-locality', 'locality'), '11');
+await click('View');
+assert.equal(labelled('Assigned field worker').props.value, '', 'Changing locality resets the worker filter');
 console.log('Assignment ranges, scoped selection, refresh/retry, duplicate-name locality details, worker search and hidden selection checks passed.');

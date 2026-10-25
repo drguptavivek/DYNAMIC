@@ -171,6 +171,25 @@
   flex: 1 1 220px;
 }
 
+.assignedWorkerFilter {
+  display: flex;
+  flex: 1 1 260px;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.assignedWorkerFilter label {
+  color: #111827;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.assignedWorkerFilter small {
+  color: #64748b;
+  font-size: 0.75rem;
+}
+
 .selectAllLabel {
   align-items: center;
   display: flex;
@@ -180,7 +199,8 @@
   color: #111827;
 }
 
-.tableSearchBar input {
+.tableSearchBar input,
+.assignedWorkerFilter select {
   background: white;
   border: 1px solid #d1d5db;
   border-radius: 4px;
@@ -191,7 +211,8 @@
   width: 100%;
 }
 
-.tableSearchBar input:focus {
+.tableSearchBar input:focus,
+.assignedWorkerFilter select:focus {
   border-color: #2563eb;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
   outline: none;
@@ -548,6 +569,7 @@
 
   .tableSummary,
   .tableSearchBar,
+  .assignedWorkerFilter,
   .toolbarActions {
     flex-basis: auto;
   }

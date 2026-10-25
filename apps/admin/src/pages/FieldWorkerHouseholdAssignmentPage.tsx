@@ -48,6 +48,10 @@ function workerLabel(worker: User): string {
   return worker.display_name || worker.username;
 }
 
+function workerFilterLabel(worker: User): string {
+  return workerLabel(worker) + (worker.username.trim().toLowerCase() !== workerLabel(worker).trim().toLowerCase() ? ` (${worker.username})` : "");
+}
+
 function selectedWorkers(fieldWorkers: User[], selectedIds: string[]): User[] {
   return selectedIds
     .map((userId) => fieldWorkers.find((worker) => worker.user_id === userId))
@@ -71,6 +75,7 @@ export default function FieldWorkerHouseholdAssignmentPage() {
   const [bulkAssignOpen, setBulkAssignOpen] = useState(false);
   const [bulkWorkerIds, setBulkWorkerIds] = useState<string[]>([]);
   const [householdSearch, setHouseholdSearch] = useState("");
+  const [assignedWorkerId, setAssignedWorkerId] = useState("");
   const [householdPage, setHouseholdPage] = useState(1);
   const [hasViewed, setHasViewed] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -81,8 +86,9 @@ export default function FieldWorkerHouseholdAssignmentPage() {
   const [allSelectionLoading, setAllSelectionLoading] = useState(false);
   const tableWrapRef = useRef<HTMLDivElement>(null);
   const pendingScrollHouseholdId = useRef<string | null>(null);
+  const selectedAssignedWorkerLabel = useRef("");
   const requestVersion = useRef(0);
-  const filterKey = JSON.stringify([selectedSiteId, selectedLocalityCode, householdRangeStart, householdRangeEnd, householdSearch]);
+  const filterKey = JSON.stringify([selectedSiteId, selectedLocalityCode, householdRangeStart, householdRangeEnd, householdSearch, assignedWorkerId]);
   const currentFilterKey = useRef(filterKey);
   currentFilterKey.current = filterKey;
   const busy = tableLoading || allSelectionLoading;
@@ -120,6 +126,38 @@ export default function FieldWorkerHouseholdAssignmentPage() {
     return localities.filter((locality) => String(locality.site_id) === selectedSiteId);
   }, [localities, selectedSiteId]);
 
+  const assignedHouseholdCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    households.forEach((household) => new Set(household.assigned_user_ids || []).forEach((id) =>
+      counts.set(id, (counts.get(id) || 0) + 1)));
+    return counts;
+  }, [households]);
+
+  const knownWorkers = useMemo(() => {
+    const workers = new Map(fieldWorkers.map((worker) => [worker.user_id, worker]));
+    households.forEach((household) => (household.assigned_user_ids || []).forEach((id, index) => {
+      if (!workers.has(id)) workers.set(id, {
+        user_id: id, username: household.assigned_field_worker_usernames?.[index] || id,
+        role: "field_worker", site_id: household.site_id,
+      });
+    }));
+    return [...workers.values()];
+  }, [fieldWorkers, households]);
+
+  const localityWorkers = useMemo(() => {
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+    return knownWorkers.filter((worker) => assignedHouseholdCounts.has(worker.user_id) ||
+      worker.user_id === assignedWorkerId || (workerAreas[worker.user_id] || []).some((area) =>
+        String(area.site_id) === selectedSiteId && (!selectedLocalityCode || area.locality_code === selectedLocalityCode) &&
+        (!area.active_from || area.active_from <= today) && (!area.active_to || area.active_to >= today)))
+      .sort((left, right) => (assignedHouseholdCounts.get(right.user_id) || 0) - (assignedHouseholdCounts.get(left.user_id) || 0) ||
+        workerLabel(left).localeCompare(workerLabel(right)) || left.username.localeCompare(right.username));
+  }, [knownWorkers, assignedHouseholdCounts, workerAreas, selectedSiteId, selectedLocalityCode, assignedWorkerId]);
+
+  function matchesAssignedWorker(household: Household) {
+    return !assignedWorkerId || household.assigned_user_ids?.includes(assignedWorkerId);
+  }
+
   const rangeResult = useMemo(() => {
     try {
       return { range: parseHouseholdAssignmentRange(householdRangeStart, householdRangeEnd, {
@@ -132,8 +170,8 @@ export default function FieldWorkerHouseholdAssignmentPage() {
   }, [householdRangeEnd, householdRangeStart, selectedSiteId, selectedLocalityCode]);
 
   const visibleHouseholds = useMemo(() => rangeResult.range
-    ? households.filter((household) => isHouseholdInAssignmentRange(household, rangeResult.range!))
-    : [], [households, rangeResult]);
+    ? households.filter((household) => matchesAssignedWorker(household) && isHouseholdInAssignmentRange(household, rangeResult.range!))
+    : [], [households, rangeResult, assignedWorkerId]);
 
   const searchedHouseholds = useMemo(() => {
     const query = householdSearch.trim().toLowerCase();
@@ -191,13 +229,15 @@ export default function FieldWorkerHouseholdAssignmentPage() {
     setBulkAssignOpen(false);
     setOpenWorkerMenuFor(null);
     setWorkerSearch("");
-  }, [householdRangeEnd, householdRangeStart, householdSearch, selectedLocalityCode, selectedSiteId]);
+  }, [householdRangeEnd, householdRangeStart, householdSearch, selectedLocalityCode, selectedSiteId, assignedWorkerId]);
 
   useEffect(() => {
     requestVersion.current += 1;
     setHouseholds([]);
     setFieldWorkers([]);
     setWorkerAreas({});
+    setAssignedWorkerId("");
+    selectedAssignedWorkerLabel.current = "";
     setWorkerIdsByHouseholdId({});
     setHasViewed(false);
     setTableLoading(false);
@@ -269,8 +309,6 @@ export default function FieldWorkerHouseholdAssignmentPage() {
     try {
       const params = new URLSearchParams({ site_id: selectedSiteId });
       if (selectedLocalityCode) params.set("locality_code", selectedLocalityCode);
-      if (householdRangeStart.trim()) params.set("household_start", householdRangeStart.trim());
-      if (householdRangeEnd.trim()) params.set("household_end", householdRangeEnd.trim());
 
       const [householdResult, workerResult] = await Promise.all([
         api.get<Household[]>(`/field-worker-household-assignments?${params.toString()}`),
@@ -295,6 +333,7 @@ export default function FieldWorkerHouseholdAssignmentPage() {
         // Anchor by displayed order, which can differ from checkbox selection order.
         const query = householdSearch.trim().toLowerCase();
         const refreshedRows = householdResult.filter((household) =>
+          matchesAssignedWorker(household) &&
           (!rangeResult.range || isHouseholdInAssignmentRange(household, rangeResult.range)) &&
           (!query || [household.household_id, String(household.site_id), household.locality_code,
             household.household_number].join(" ").toLowerCase().includes(query)),
@@ -373,7 +412,7 @@ export default function FieldWorkerHouseholdAssignmentPage() {
       if (selectedLocalityCode) params.set("locality_code", selectedLocalityCode);
       const rows = await api.get<Household[]>(`/field-worker-household-assignments?${params.toString()}`);
       if (requestedFilterKey !== currentFilterKey.current) return;
-      const ids = rows.map((household) => household.household_id);
+      const ids = rows.filter(matchesAssignedWorker).map((household) => household.household_id);
       setAllScopeHouseholdIds(ids);
       setSelectedHouseholdIds(ids);
     } catch (err) {
@@ -415,6 +454,7 @@ export default function FieldWorkerHouseholdAssignmentPage() {
         );
         await api.delete<{ cleared: number }>("/field-worker-household-assignments", {
           household_ids: householdBatch,
+          ...(assignedWorkerId ? { user_ids: [assignedWorkerId] } : {}),
         });
       }
       const completedIds = new Set(selectedHouseholdIds);
@@ -623,11 +663,29 @@ export default function FieldWorkerHouseholdAssignmentPage() {
                 placeholder="Search household"
               />
             </div>
+            <div className={styles.assignedWorkerFilter}>
+              <label htmlFor="assigned-worker-filter">Assigned field worker</label>
+              <select id="assigned-worker-filter" aria-label="Assigned field worker" value={assignedWorkerId}
+                disabled={busy} onChange={(event) => {
+                  const worker = knownWorkers.find((item) => item.user_id === event.target.value);
+                  selectedAssignedWorkerLabel.current = worker ? workerFilterLabel(worker) : "";
+                  setAssignedWorkerId(event.target.value);
+                }}>
+                <option value="">All households</option>
+                {assignedWorkerId && !localityWorkers.some((worker) => worker.user_id === assignedWorkerId) &&
+                  <option value={assignedWorkerId}>{selectedAssignedWorkerLabel.current || "Selected worker"} — 0 households</option>}
+                {localityWorkers.map((worker) => <option key={worker.user_id} value={worker.user_id}>
+                  {workerFilterLabel(worker)}
+                  {` — ${assignedHouseholdCounts.get(worker.user_id) || 0} ${assignedHouseholdCounts.get(worker.user_id) === 1 ? "household" : "households"}`}
+                </option>)}
+              </select>
+              <small>{assignedHouseholdCounts.size} {assignedHouseholdCounts.size === 1 ? "worker has" : "workers have"} assigned households in this {selectedLocalityCode ? "locality" : "site"}</small>
+            </div>
             <div className={styles.toolbarActions}>
               <label className={styles.selectAllLabel}>
                 <input type="checkbox" aria-label="Select all households in selected site/locality" checked={allScopeSelected} disabled={busy || !selectedSiteId}
                   onChange={(event) => void selectAllInScope(event.target.checked)} />
-                Select all households in selected site/locality (ignores range and search)
+                {assignedWorkerId ? "Select all this worker's households in selected site/locality" : "Select all households in selected site/locality"} (ignores range and search)
               </label>
               <button
                 type="button"
@@ -682,7 +740,7 @@ export default function FieldWorkerHouseholdAssignmentPage() {
                   <tbody>
                     {pagedHouseholds.map((household) => {
                     const selectedWorkerIds = workerIdsByHouseholdId[household.household_id] ?? [];
-                    const pickedWorkers = selectedWorkers(fieldWorkers, selectedWorkerIds);
+                    const pickedWorkers = selectedWorkers(knownWorkers, selectedWorkerIds);
                     const isOpen = openWorkerMenuFor === household.household_id;
                     return (
                       <tr key={household.household_id} data-household-id={household.household_id}>

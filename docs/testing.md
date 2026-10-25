@@ -85,6 +85,8 @@ node apps/admin/src/tests/validateHouseholdAssignmentPage.mjs
 
 Assignment checks cover refreshed worker chips, clearing completed selections, preserving the selected site/locality/search and page, and retrying failed writes or refreshes. Worker-picker checks cover duplicate names, usernames, active localities, metadata failures, and preserving selections while searching. Verify table scroll, visibility of the last assigned household, and worker-picker sizing in a browser.
 
+The assignment worker filter must count persisted assignments across the entire selected site/locality, including households beyond page one and outside the current range/search. Include locality workers with zero households and any existing household owners. Verify filtering before pagination, empty results for zero assignments, refreshed counts after assignment/removal, and worker-scoped bulk selection without selecting hidden workers' households. Changing the worker clears selection; changing site/locality resets the worker filter.
+
 Operational dashboard checks (no database required):
 
 ```bash
