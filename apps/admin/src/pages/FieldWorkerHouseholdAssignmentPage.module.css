@@ -17,39 +17,43 @@
 }
 
 .container h1 {
-  margin: 0 0 1.5rem;
+  margin: 0 0 4px;
   color: #333;
+  font-size: 22px;
+  line-height: 1.2;
 }
 
 .filterBox {
   display: flex;
   align-items: flex-end;
-  gap: 1rem;
+  gap: 8px;
   flex-wrap: wrap;
   background: white;
   border: 1px solid #ddd;
   border-radius: 8px;
-  padding: 1.5rem;
+  padding: 8px 10px;
 }
 
 .fieldGroup {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 4px;
   min-width: 0;
   flex: 1 1 220px;
 }
 
 .fieldGroup label {
   color: #333;
-  font-size: 0.875rem;
+  font-size: 12px;
+  line-height: 14px;
   font-weight: 600;
 }
 
 .fieldGroup select,
 .fieldGroup input {
   width: 100%;
-  padding: 0.75rem;
+  min-height: 32px;
+  padding: 5px 8px;
   border: 1px solid #ddd;
   border-radius: 4px;
   background: white;
@@ -72,7 +76,7 @@
 .rangeFields {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 0.75rem;
+  gap: 8px;
 }
 
 .viewButton {
@@ -83,8 +87,8 @@
   cursor: pointer;
   font-size: 0.875rem;
   font-weight: 600;
-  min-height: 42px;
-  padding: 0.75rem 1.5rem;
+  min-height: 32px;
+  padding: 5px 16px;
 }
 
 .viewButton:hover:not(:disabled) {
@@ -104,28 +108,28 @@
 .error {
   background-color: #fee2e2;
   color: #dc2626;
-  padding: 1rem;
+  padding: 8px 10px;
   border-radius: 4px;
-  margin-bottom: 1rem;
+  margin-bottom: 8px;
 }
 
 .success {
   background-color: #dcfce7;
   color: #166534;
-  padding: 1rem;
+  padding: 8px 10px;
   border-radius: 4px;
-  margin-bottom: 1rem;
+  margin-bottom: 8px;
 }
 
 .tableCard {
   background: white;
   border: 1px solid #ddd;
   border-radius: 8px;
-  margin-top: 1rem;
+  margin-top: 4px;
   overflow: hidden;
   display: flex;
   flex: 1;
-  min-height: 160px;
+  min-height: 520px;
   flex-direction: column;
 }
 
@@ -133,69 +137,73 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 8px;
   flex-wrap: wrap;
-  padding: 1rem 1.5rem;
+  padding: 3px 10px;
   border-bottom: 1px solid #e5e7eb;
 }
 
 .tableSummary {
   min-width: 0;
-  flex: 1 1 200px;
+  flex: 0.7 1 140px;
 }
 
 .tableToolbar h2 {
   color: #111827;
-  font-size: 1.125rem;
+  font-size: 15px;
   margin: 0;
 }
 
 .tableToolbar p {
   color: #64748b;
-  font-size: 0.875rem;
-  margin: 0.25rem 0 0;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 2px 0 0;
 }
 
 .toolbarActions {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 6px;
   flex-wrap: wrap;
   justify-content: flex-end;
   min-width: 0;
-  flex: 2 1 560px;
+  flex: 1.8 1 420px;
 }
 
 .tableSearchBar {
   min-width: 0;
-  flex: 1 1 220px;
+  flex: 1 1 160px;
 }
 
 .assignedWorkerFilter {
   display: flex;
-  flex: 1 1 260px;
+  flex: 1.15 1 220px;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
   min-width: 0;
 }
 
 .assignedWorkerFilter label {
   color: #111827;
-  font-size: 0.875rem;
+  font-size: 12px;
+  line-height: 14px;
   font-weight: 600;
 }
 
 .assignedWorkerFilter small {
   color: #64748b;
-  font-size: 0.75rem;
+  font-size: 12px;
+  line-height: 14px;
 }
 
 .selectAllLabel {
   align-items: center;
   display: flex;
-  gap: 0.5rem;
-  max-width: 310px;
-  font-size: 0.875rem;
+  gap: 5px;
+  max-width: 210px;
+  font-size: 12px;
+  line-height: 16px;
   color: #111827;
 }
 
@@ -206,8 +214,8 @@
   border-radius: 4px;
   color: #111827;
   font-size: 0.875rem;
-  min-height: 40px;
-  padding: 0.65rem 0.75rem;
+  min-height: 32px;
+  padding: 5px 8px;
   width: 100%;
 }
 
@@ -263,13 +271,15 @@
 .assignmentTable td {
   border-bottom: 1px solid #e5e7eb;
   color: #111827;
-  font-size: 0.875rem;
-  padding: 0.85rem 1rem;
+  font-size: 13px;
+  line-height: 18px;
+  padding: 3px 8px;
   text-align: left;
   vertical-align: middle;
 }
 
 .assignmentTable th {
+  padding-block: 5px;
   background: #f8fafc;
   font-weight: 700;
   position: sticky;
@@ -291,9 +301,10 @@
   display: flex;
   font-size: 0.875rem;
   justify-content: space-between;
-  min-height: 38px;
+  min-height: 30px;
   min-width: 240px;
-  padding: 0.6rem;
+  padding: 4px 8px;
+  line-height: 18px;
   width: 100%;
 }
 
@@ -324,9 +335,9 @@
   border-radius: 999px;
   color: #1e3a8a;
   display: inline-flex;
-  font-size: 0.78rem;
+  font-size: 13px;
   gap: 0.35rem;
-  max-width: 180px;
+  white-space: nowrap;
   padding: 0.2rem 0.35rem 0.2rem 0.55rem;
 }
 
@@ -525,9 +536,9 @@
   flex-wrap: wrap;
   min-width: 0;
   font-size: 0.875rem;
-  gap: 1rem;
+  gap: 8px;
   justify-content: space-between;
-  padding: 1rem 1.5rem;
+  padding: 4px 10px;
 }
 
 .paginationActions {
@@ -535,7 +546,16 @@
   display: flex;
   flex-wrap: wrap;
   min-width: 0;
-  gap: 0.75rem;
+  gap: 8px;
+}
+
+.tableToolbar button,
+.assignmentTable .assignButton,
+.paginationActions button {
+  min-height: 30px;
+  padding: 4px 8px;
+  font-size: 13px;
+  line-height: 18px;
 }
 
 .paginationActions button:disabled {
@@ -544,6 +564,10 @@
 }
 
 @media (max-width: 640px) {
+  .tableCard {
+    min-height: 1090px;
+  }
+
   .filterBox {
     padding: 1rem;
   }
@@ -559,6 +583,18 @@
 
   .viewButton {
     width: 100%;
+  }
+
+  .fieldGroup select,
+  .fieldGroup input,
+  .viewButton,
+  .tableSearchBar input,
+  .assignedWorkerFilter select,
+  .tableToolbar button,
+  .assignmentTable .assignButton,
+  .workerPickerButton,
+  .paginationActions button {
+    min-height: 44px;
   }
 
   .tableToolbar {

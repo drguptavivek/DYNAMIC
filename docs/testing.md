@@ -87,6 +87,8 @@ Assignment checks cover refreshed worker chips, clearing completed selections, p
 
 The assignment worker filter must count persisted assignments across the entire selected site/locality, including households beyond page one and outside the current range/search. Include locality workers with zero households and any existing household owners. Verify filtering before pagination, empty results for zero assignments, refreshed counts after assignment/removal, and worker-scoped bulk selection without selecting hidden workers' households. Changing the worker clears selection; changing site/locality resets the worker filter.
 
+Check assignment-table density inside the real admin layout and global CSS, including the sidebar, top bar and content padding. At the 1920×880 desktop viewport, at least ten complete ordinary household rows must be visible without scrolling the table. Larger screens must expand the table and show more rows; ten is not a cap. Keep readable text, usable controls, sticky headers and responsive small-screen scrolling.
+
 Operational dashboard checks (no database required):
 
 ```bash
