@@ -97,7 +97,7 @@ export function getDraftComparableIds(draft) {
       draft?.draft_key,
       draft?.subject_id,
       getDraftSubjectId(draft),
-      getDraftHouseholdId(draft),
+      String(draft?.form_code || "").toUpperCase() === "HHQ" ? getDraftHouseholdId(draft) : null,
     ]
       .map(normalizeId)
       .filter(Boolean),
@@ -110,11 +110,19 @@ export function draftMatchesTask(draft, task) {
     return false;
   }
   const draftIds = getDraftComparableIds(draft);
+  const householdForm = String(draft.form_code || "").toUpperCase() === "HHQ";
+  const subjectId = normalizeId(task.subject_id);
+  if (!householdForm && subjectId) {
+    const draftSubjectIds = [draft.subject_id || getDraftSubjectId(draft),
+      String(draft.form_code || "").toUpperCase() === "WQ" ? getDraftSubjectId(draft) : null,
+    ].map(normalizeId).filter(Boolean);
+    if (draftSubjectIds.some((id) => id !== subjectId)) return false;
+  }
   return [
     task.id,
     task.task_id,
     task.task_key,
-    task.household_id,
+    householdForm ? task.household_id : null,
     task.subject_id,
   ].some((value) => draftIds.has(normalizeId(value)));
 }
@@ -127,12 +135,15 @@ export function filterDraftsForTaskCandidates(drafts = [], tasks = []) {
     const formCode = String(task.task_type || "").toUpperCase();
     let taskIds = taskIdsByForm.get(formCode);
     if (!taskIds) {
-      taskIds = new Set();
+      taskIds = new Map();
       taskIdsByForm.set(formCode, taskIds);
     }
-    for (const value of [task.id, task.task_id, task.task_key, task.household_id, task.subject_id]) {
+    for (const value of [task.id, task.task_id, task.task_key, formCode === "HHQ" ? task.household_id : null, task.subject_id]) {
       const id = normalizeId(value);
-      if (id) taskIds.add(id);
+      if (id) {
+        if (!taskIds.has(id)) taskIds.set(id, []);
+        taskIds.get(id).push(task);
+      }
     }
   }
   return drafts.filter((draft) => {
@@ -140,7 +151,7 @@ export function filterDraftsForTaskCandidates(drafts = [], tasks = []) {
     const taskIds = taskIdsByForm.get(String(draft.form_code || "").toUpperCase());
     if (!taskIds) return false;
     for (const id of getDraftComparableIds(draft)) {
-      if (taskIds.has(id)) return true;
+      if (taskIds.get(id)?.some((task) => draftMatchesTask(draft, task))) return true;
     }
     return false;
   });

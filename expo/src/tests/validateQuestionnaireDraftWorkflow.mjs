@@ -192,7 +192,7 @@ const reopenedByPreferredDraftId = await getActiveQuestionnaireDraft({
   subjectId: "different-subject",
   preferredDraftId: draftWithoutGeneratedHouseholdId.draft_id,
 });
-assert.equal(reopenedByPreferredDraftId.draft_id, draftWithoutGeneratedHouseholdId.draft_id);
+assert.equal(reopenedByPreferredDraftId, null, "a preferred ID cannot override the task household");
 await markQuestionnaireDraftSubmitted({ draftId: draftWithoutGeneratedHouseholdId.draft_id });
 
 const mixedSiteDrafts = [
@@ -213,7 +213,6 @@ const wqDraft = {
 assert.equal(getDraftSubjectId(wqDraft), "2-02-0003-01-01");
 assert.equal(getDraftHouseholdId(wqDraft), "2-02-0003-01");
 assert.deepEqual([...getDraftComparableIds(wqDraft)].sort(), [
-  "2-02-0003-01",
   "2-02-0003-01-01",
   "task-wq-1",
   "wq-draft",
@@ -231,6 +230,9 @@ const orphanDraft = {
   json_payload: { hhq_household_id: "2-00-0000-00" },
 };
 assert.equal(draftMatchesTask(wqDraft, wqTaskCandidate), true);
+assert.equal(draftMatchesTask(wqDraft, { ...wqTaskCandidate, id: "task-wq-2", subject_id: "2-02-0003-01-02" }), false);
+assert.equal(draftMatchesTask({ ...wqDraft, subject_id: "2-02-0003-01-02" }, wqTaskCandidate), false,
+  "a stale task ID cannot override a different participant");
 assert.deepEqual(
   filterDraftsForTaskCandidates([wqDraft, orphanDraft], [wqTaskCandidate]).map(
     (draft) => draft.draft_id,
@@ -450,3 +452,26 @@ assert.deepEqual(gpsSync.json_payload, gpsDraft.json_payload);
 assert.deepEqual(gpsSync.completion_state, { prefill: { keep: 1 } });
 assert.equal(legacyGps.json_payload.hhq_gps_accuracy_m, 10);
 console.log("Validated questionnaire draft workflow helpers.");
+
+const womanContext = { ...context, formCode: "WQ", subjectType: "person",
+  householdId: "2-02-0098-01", subjectId: "2-02-0098-01-02", taskId: "wq-woman-a" };
+const womanA = await saveQuestionnaireDraft({ ...womanContext,
+  payload: { wq_enter_structure_id_woman: womanContext.subjectId, woman_name: "Woman A" } });
+const otherWomanContext = { ...womanContext, subjectId: "2-02-0098-01-03", taskId: "wq-woman-b" };
+assert.equal(await getActiveQuestionnaireDraft({ ...otherWomanContext, preferredDraftId: womanA.draft_id }), null);
+await assert.rejects(saveQuestionnaireDraft({ ...otherWomanContext,
+  payload: { wq_enter_structure_id_woman: womanContext.subjectId } }), /does not match/);
+const womanB = await saveQuestionnaireDraft({ ...otherWomanContext,
+  payload: { wq_enter_structure_id_woman: otherWomanContext.subjectId, woman_name: "Woman B" } });
+assert.notEqual(womanA.draft_id, womanB.draft_id);
+assert.equal((await getActiveQuestionnaireDraft(womanContext)).json_payload.woman_name, "Woman A");
+assert.equal((await getActiveQuestionnaireDraft(otherWomanContext)).json_payload.woman_name, "Woman B");
+assert.equal((await listActiveQuestionnaireDrafts()).filter((row) => [womanA.draft_id, womanB.draft_id].includes(row.draft_id)).length, 2);
+await markQuestionnaireDraftSubmitted({ draftId: womanA.draft_id, submittedFormResponseId: "woman-a-response" });
+assert.equal((await getActiveQuestionnaireDraft(otherWomanContext)).draft_id, womanB.draft_id);
+assert.equal(await getActiveQuestionnaireDraft({ ...otherWomanContext, userId: "other-user", preferredDraftId: womanB.draft_id }), null);
+const damagedRows = JSON.parse(store.get("dynamic_questionnaire_drafts_v1"));
+damagedRows.find((row) => row.draft_id === womanB.draft_id).json_payload.wq_enter_structure_id_woman = womanContext.subjectId;
+store.set("dynamic_questionnaire_drafts_v1", JSON.stringify(damagedRows));
+assert.equal(await getActiveQuestionnaireDraft({ ...otherWomanContext, preferredDraftId: womanB.draft_id }), null,
+  "legacy drafts with another woman's readonly ID must remain stored but never restore");

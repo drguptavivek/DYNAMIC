@@ -27,13 +27,18 @@ function exercise() {
     household_id: "household", subject_type: "person", subject_id: "woman", task_type: "WQ",
     source_form_response_id: "baseline-response" };
   saveTask(task);
+  const otherWoman = { ...task, id: "other-woman-task", task_key: "household|other-woman|WQ|baseline",
+    subject_id: "other-woman", status: "open", lifecycle_status: "open" };
+  saveTask(otherWoman);
   saveFormResponse({ id: "wq-response", task_id: task.id, task_key: task.task_key,
     form_code: "WQ", form_version: "test", answers_json: {
       consent: 1, hhq_gps_accuracy_m: 12, hhq_gps_captured_at: "old",
     }, device_id: "device" });
   assert.equal(getTask(task.id).status, "completed");
+  assert.equal(getTask(otherWoman.id).status, "open",
+    "submitting one BWQ must leave the other woman in the same household open");
   assert.equal(getTask(task.id).source_form_response_id, "baseline-response");
-  assert.deepEqual(getGeneratedTaskKeys("baseline-response"), [task.task_key]);
+  assert.deepEqual(getGeneratedTaskKeys("baseline-response"), [otherWoman.task_key, task.task_key].sort());
   // Pull replaces the provisional task ID with the authoritative server ID.
   saveTask({ ...task, id: "server-id", sync_status: "synced" });
   assert.equal(getTask(task.id), null);

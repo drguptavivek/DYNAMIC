@@ -985,6 +985,27 @@ function applyWqFinalSectionOrder(surveyJson) {
   return { ...surveyJson, pages };
 }
 
+function applyWqPregnantInterviewContinuation(surveyJson) {
+  const followupPages = new Set([
+    WQ_HEALTH_PAGE_NAME, WQ_HUSBAND_BACKGROUND_PAGE_NAME,
+    WQ_DOMESTIC_VIOLENCE_PAGE_NAME, WQ_BIOMARKERS_PAGE_NAME,
+  ]);
+  return {
+    ...surveyJson,
+    pages: surveyJson.pages.map((page) => ({
+      ...page,
+      // Current pregnancy still requires the interview, independently of PSF eligibility.
+      visibleIf: followupPages.has(page.name)
+        ? page.visibleIf.replace("{wq_pregnancy_tracking_eligible} = 1",
+          "({wq_pregnancy_tracking_eligible} = 1 or {wq_pregnant} = 1)")
+        : page.visibleIf,
+      elements: page.elements.map((element) => element.name === "wq_pregnancy_tracking_eligible"
+        ? { ...element, renderAs: "radio" }
+        : element),
+    })),
+  };
+}
+
 function applyWqBiomarkerEntryFormats(surveyJson) {
   const formats = {
     [WQ_BIOMARKER_HEIGHT_NAME]: {
@@ -1516,6 +1537,7 @@ export function prepareQuestionnaireSurveyJson(form) {
     surveyJson = applyMandatoryHhqSurveyJson(surveyJson);
   }
   if (isWqForm(form)) {
+    surveyJson = applyWqPregnantInterviewContinuation(surveyJson);
     surveyJson = applyWqFinalSectionOrder(surveyJson);
     surveyJson = applyWqBiomarkerEntryFormats(surveyJson);
     surveyJson = applyWqMobileNumberConstraints(surveyJson);

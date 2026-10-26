@@ -31,6 +31,8 @@ user_id
 
 `device_id` is retained as provenance but is not part of the cross-device recovery identity. The same user's latest draft for one workflow context must converge across registered devices.
 
+Participant forms must match the complete subject ID, never only the household. A preferred draft ID is a lookup hint, not permission to restore another participant's answers. Keep separate women's drafts separate during save, resume, deduplication and sync, and reject restoration when stored participant identity conflicts with the selected task.
+
 Draft fields should include:
 
 ```text

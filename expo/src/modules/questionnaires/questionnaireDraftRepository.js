@@ -2,7 +2,7 @@ import { stripHouseholdGpsMetadata } from "../../../../shared/householdGpsStorag
 /**
  * Persists mutable questionnaire drafts in browser storage or the shared native SQLite database.
  */
-import { deriveDraftIndexFields, getDraftHouseholdId } from "./draftPendingForms.js";
+import { deriveDraftIndexFields, getDraftHouseholdId, getDraftSubjectId } from "./draftPendingForms.js";
 
 const DRAFT_STORAGE_KEY = "dynamic_questionnaire_drafts_v1";
 
@@ -299,7 +299,9 @@ function buildDraftIdentityKey({
   payload,
   householdId: columnHouseholdId,
 }) {
-  const householdId = getPayloadHouseholdId(payload, subjectId, columnHouseholdId);
+  const householdId = String(formCode || "").toUpperCase() === "HHQ"
+    ? getPayloadHouseholdId(payload, subjectId, columnHouseholdId)
+    : subjectId || getDraftSubjectId({ json_payload: payload });
   return [
     formCode,
     formVersion,
@@ -317,7 +319,9 @@ function buildDraftHouseholdUserKey({
   payload,
   householdId: columnHouseholdId,
 }) {
-  const householdId = getPayloadHouseholdId(payload, subjectId, columnHouseholdId);
+  const householdId = String(formCode || "").toUpperCase() === "HHQ"
+    ? getPayloadHouseholdId(payload, subjectId, columnHouseholdId)
+    : subjectId || getDraftSubjectId({ json_payload: payload });
   return [
     formCode,
     formVersion,
@@ -458,14 +462,14 @@ export async function getActiveQuestionnaireDraft(context) {
   if (storage) {
     const rows = await readRows();
     const preferredDraft = preferredDraftId
-      ? rows.find((row) => row.draft_id === preferredDraftId && row.draft_status === "active")
+      ? rows.find((row) => row.draft_id === preferredDraftId && row.draft_status === "active" && isQuestionnaireDraftForContext(row, context))
       : null;
     const draftKey = buildDraftKey(context);
     let matches = rows.filter((row) => row.draft_key === draftKey && row.draft_status === "active");
 
     if (context?.strictDraftKey) {
       const strictMatches = matches.length ? matches : preferredDraft ? [preferredDraft] : [];
-      return sortNewestFirst(strictMatches)[0] || null;
+      return selectContextDraft(strictMatches, context);
     }
 
     if (matches.length === 0 && context?.keyTaskId !== undefined) {
@@ -493,7 +497,7 @@ export async function getActiveQuestionnaireDraft(context) {
     }
 
     const sortedMatches = sortNewestFirst(matches.length ? matches : preferredDraft ? [preferredDraft] : []);
-    return sortedMatches[0] || null;
+    return selectContextDraft(sortedMatches, context);
   }
 
   const draftKey = buildDraftKey(context);
@@ -508,7 +512,7 @@ export async function getActiveQuestionnaireDraft(context) {
       matches.length === 0 && preferredDraftId
         ? await queryFirstRow("draft_id = ? AND draft_status = 'active'", [preferredDraftId])
         : null;
-    return sortNewestFirst(matches.length ? matches : preferredDraft ? [preferredDraft] : [])[0] || null;
+    return selectContextDraft(matches.length ? matches : preferredDraft ? [preferredDraft] : [], context);
   }
 
   if (matches.length === 0 && context?.keyTaskId !== undefined) {
@@ -544,7 +548,29 @@ export async function getActiveQuestionnaireDraft(context) {
   }
 
   const sortedMatches = sortNewestFirst(matches.length ? matches : preferredDraft ? [preferredDraft] : []);
-  return sortedMatches[0] || null;
+  return selectContextDraft(sortedMatches, context);
+}
+
+// A preferred ID or stale index must never restore another participant's answers.
+export function isQuestionnaireDraftForContext(draft, context) {
+  if (!draft || draft.draft_status !== "active" ||
+    normalizePart(draft.form_code) !== normalizePart(context?.formCode) ||
+    normalizePart(draft.form_version) !== normalizePart(context?.formVersion) ||
+    normalizePart(draft.user_id) !== normalizePart(context?.userId)) return false;
+  if (String(context?.formCode || "").toUpperCase() === "HHQ") {
+    return getDraftHouseholdUserKey(draft) === buildDraftHouseholdUserKey(context);
+  }
+  const subjectId = String(context?.subjectId || "").trim();
+  if (!subjectId) return false;
+  const identities = [draft.subject_id || getDraftSubjectId(draft),
+    ...(String(context.formCode || "").toUpperCase() === "WQ" ? [getDraftSubjectId(draft),
+      getDraftSubjectId({ json_payload: draft.json_payload })] : []),
+  ].filter(Boolean).map(String);
+  return identities.length > 0 && identities.every((id) => id.trim() === subjectId);
+}
+
+function selectContextDraft(drafts, context) {
+  return sortNewestFirst(drafts.filter((draft) => isQuestionnaireDraftForContext(draft, context)))[0] || null;
 }
 
 export async function getQuestionnaireDraftById(draftId) {
@@ -897,6 +923,12 @@ export async function saveQuestionnaireDraft({
       null;
   }
 
+  if (existing && !isQuestionnaireDraftForContext({ ...existing, draft_status: "active" }, {
+    formCode, formVersion, subjectId, userId, payload, householdId,
+  })) {
+    throw new Error("This draft belongs to a different participant. Open the correct task before saving.");
+  }
+
   const draft = {
     draft_id: existing?.draft_id || draftId || createDraftId(formCode),
     draft_key: draftKey,
@@ -914,6 +946,12 @@ export async function saveQuestionnaireDraft({
     created_at: existing?.created_at || timestamp,
     updated_at: timestamp,
   };
+
+  if (String(formCode || "").toUpperCase() === "WQ" && !isQuestionnaireDraftForContext(draft, {
+    formCode, formVersion, subjectId, userId,
+  })) {
+    throw new Error("The woman's ID in these answers does not match the selected task.");
+  }
 
   await persistDraft(draft);
   if (!strictDraftKey) {

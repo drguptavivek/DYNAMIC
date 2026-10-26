@@ -404,6 +404,11 @@ const TaskRow = memo(function TaskRow({ task, onPress, onLongPress, onViewHouseh
   const showVisitBadge = String(task.task_type || "").toUpperCase() === "HHQ";
   const isOutdatedDisplay = task.worklist_display_stage === "outdated";
   const displayName = task.woman_name || task.household_head_name || "";
+  const individualId = !task.child_id && task.subject_type !== "child" &&
+    task.subject_type !== "household"
+    ? task.woman_id || task.household_member_id ||
+      (["person", "woman"].includes(task.subject_type) ? task.subject_id : "")
+    : "";
 
   return (
     <View
@@ -447,9 +452,12 @@ const TaskRow = memo(function TaskRow({ task, onPress, onLongPress, onViewHouseh
             {isDisabled && <Text style={styles.lockIcon}>🔒</Text>}
             </View>
         </View>
-        <Text style={styles.taskSubjectName} numberOfLines={1}>
-          {task.household_id || task.subject_name}
+        <Text style={styles.taskSubjectName}>
+          {individualId ? `Individual ID: ${individualId}` : `Household ID: ${task.household_id || "-"}`}
         </Text>
+        {individualId && task.household_id ? (
+          <Text style={styles.taskHouseholdDetails}>{`Household ID: ${task.household_id}`}</Text>
+        ) : null}
         {detailLine ? (
           <Text style={styles.taskHouseholdDetails}>
             {detailLine}

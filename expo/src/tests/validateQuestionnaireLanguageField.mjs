@@ -50,7 +50,16 @@ for (const file of formFiles) {
   const form = loadForm(file);
   const model = new Model(prepareQuestionnaireSurveyJson(form));
   for (const language of QUESTIONNAIRE_LANGUAGES) {
-    const context = { formCode: form.form_code, formVersion: form.version, taskId: `language-${form.form_code}-${language.code}`, userId: "language-test" };
+    const householdId = "1-01-0001-01";
+    const subjectType = ["HHQ", "HRF"].includes(form.form_code) ? "household"
+      : ["WQ", "PEF", "PSF"].includes(form.form_code) ? "person"
+        : ["NFF", "CDF", "VA"].includes(form.form_code) ? "child" : "pregnancy";
+    const subjectId = subjectType === "household" ? householdId
+      : subjectType === "person" ? `${householdId}-02`
+        : subjectType === "pregnancy" ? `${householdId}-02-1` : `${householdId}-02-1-B1`;
+    const context = { formCode: form.form_code, formVersion: form.version,
+      taskId: `language-${form.form_code}-${language.code}`, userId: "language-test",
+      subjectType, subjectId, householdId };
     await saveQuestionnaireDraft({ ...context, payload: {}, completionState: { locale: language.code } });
     const restored = await getActiveQuestionnaireDraft(context);
     assert.equal(getDraftFormLocale(restored, model, "te"), language.code, `${form.form_code} resume must preserve its declared locale, regardless of device preference`);

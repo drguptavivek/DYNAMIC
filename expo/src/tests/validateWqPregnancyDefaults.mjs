@@ -4,15 +4,23 @@ import { createSurveyModel } from "../polyfills/surveyCoreNative.js";
 import { getPreparedSurveyJson } from "../modules/questionnaires/questionnaireSurveyJsonTransforms.js";
 import { NATIVE_FORM_TEXT, NATIVE_QUESTION_TITLE_KEYS } from "../lib/nativeFormText.js";
 import formTranslation from "../../../shared/formTranslation.cjs";
+import { getNativeRendererKind, getNativeQuestionChoices } from "../components/forms/nativeSurveyModel.js";
 import {
+  WQ_AGE_FIELD,
   WQ_CONTRACEPTION_FIELD,
   WQ_CURRENT_MARITAL_STATUS_FIELD,
   WQ_INTERVIEW_DATE_FIELD,
   WQ_LMP_FIELD,
   WQ_PREGNANT_FIELD,
   WQ_STERILIZATION_FIELD,
+  WQ_PREGNANCY_TRACKING_ELIGIBLE_FIELD,
   applyWqLmpTimingChecks,
+  applyWqPregnancyTrackingEligibility,
+  applyWqDomesticViolenceSiteAccess,
+  applyWqBiomarkerSiteAccess,
   attachWqValidation,
+  shouldCompleteWqInterviewAfterPage,
+  shouldRecalculateWqPregnancyTrackingEligibility,
   shouldRecalculateWqLmpTimingChecks,
 } from "../lib/womanSurveyBehaviors.js";
 
@@ -25,9 +33,11 @@ function createModel(answers = {}) {
   model.data = { [WQ_CURRENT_MARITAL_STATUS_FIELD]: 1, ...answers };
   // These are the same initialization and Q32-change hooks used by the dashboard.
   applyWqLmpTimingChecks(model);
+  applyWqPregnancyTrackingEligibility(model);
   attachWqValidation(model);
   model.onValueChanged.add((sender, options) => {
     if (shouldRecalculateWqLmpTimingChecks(options.name)) applyWqLmpTimingChecks(sender);
+    if (shouldRecalculateWqPregnancyTrackingEligibility(options.name)) applyWqPregnancyTrackingEligibility(sender);
   });
   return model;
 }
@@ -172,3 +182,54 @@ for (const code of [993, 994, 995, 996]) {
   assert.equal(model.getQuestionByName(WQ_LMP_FIELD).validate(), true, "Existing special response unchanged");
 }
 console.log("BWQ pregnancy defaults and inclusive 28-day LMP minimum passed.");
+
+// Exercise Survey Core's real Next navigation, including restored drafts with Q38=2.
+for (const siteId of [1, 2, 3, 4]) {
+  for (const age of [30, 46]) {
+    for (const lmp of [
+      { mode: "relative", unit: "days", value: "30" },
+      { mode: "date", day: "15", month: "09", year: "2026" },
+    ]) {
+      const answers = {
+        [WQ_AGE_FIELD]: age, [WQ_PREGNANT_FIELD]: 1,
+        [WQ_STERILIZATION_FIELD]: 4,
+        [WQ_LMP_FIELD]: lmp,
+        [WQ_INTERVIEW_DATE_FIELD]: "2026-10-26",
+        wq_woman_available: 1, wq_consent_study: 1,
+      };
+      const original = createModel(answers);
+      for (const model of [original, createModel(structuredClone(original.data))]) {
+        const context = { taskContext: { site_id: siteId } };
+        applyWqDomesticViolenceSiteAccess(model, context);
+        applyWqBiomarkerSiteAccess(model, context);
+        const eligibility = model.getQuestionByName(WQ_PREGNANCY_TRACKING_ELIGIBLE_FIELD);
+        assert.equal(eligibility.value, age === 30 ? 1 : 2, "Keep actual Q38 eligibility codes");
+        assert.equal(getNativeRendererKind(eligibility), "select-one");
+        assert.equal(getNativeQuestionChoices(eligibility, "en")
+          .find(choice => choice.value === eligibility.value).text,
+        age === 30 ? "Yes, eligible" : "No, not eligible", "Show the choice label instead of a bare code");
+        // Isolate routing from unrelated required interview answers.
+        model.checkErrorsMode = "onComplete";
+        model.currentPage = eligibility.page;
+        const expectedPages = ["page_03_other_health_issues", "page_04_husband_background_woman_work",
+          "page_06_biomarkers", ...(siteId === 4 ? ["page_05_domestic_violence"] : []), "page_outcome"];
+        for (const page of expectedPages) {
+          const previous = model.currentPage.name;
+          assert.equal(model.nextPage(), true);
+          assert.equal(model.currentPage.name, page, `Site ${siteId}, age ${age}: Next must not skip ${page}`);
+          assert.equal(shouldCompleteWqInterviewAfterPage(model, previous), page === "page_outcome",
+            "Only the last applicable section marks the full interview complete");
+        }
+        assert.equal(model.getQuestionByName("wq_blood_pressure_measured_site").readOnly, siteId !== 1);
+        assert.equal(model.getQuestionByName("wq_hemoglobin_measured_site").readOnly, siteId !== 1);
+        model.setValue(WQ_PREGNANT_FIELD, 2);
+        assert.equal(model.getPageByName("page_03_other_health_issues").isVisible, age === 30);
+        model.setValue(WQ_PREGNANT_FIELD, 1);
+        assert.equal(model.getPageByName("page_06_biomarkers").isVisible, true);
+        model.setValue("wq_consent_study", 2);
+        assert.equal(model.getPageByName("page_06_biomarkers").isVisible, false, "Consent stop still applies");
+      }
+    }
+  }
+}
+console.log("BWQ pregnant interview navigation, draft restoration, Q38 labels and site restrictions passed.");

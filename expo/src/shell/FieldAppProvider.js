@@ -10,10 +10,7 @@ import * as authStore from "../modules/auth/authStore.js";
 import { initializeHouseholdRepository, listLocalities } from "../modules/households/householdRepository.js";
 import {
   getActiveQuestionnaireDraft,
-  getQuestionnaireDraftById,
-  listActiveQuestionnaireDraftSummaries,
 } from "../modules/questionnaires/questionnaireDraftRepository.js";
-import { draftMatchesTask } from "../modules/questionnaires/draftPendingForms.js";
 import * as syncService from "../modules/sync/syncService.js";
 import { initTaskDb } from "../modules/tasks/taskSchema.js";
 import { getTask } from "../modules/tasks/taskRepository.js";
@@ -283,20 +280,15 @@ export function FieldAppProvider({ children }) {
 
   const resolveActiveDraftForTask = useCallback(async (task) => {
     if (!task) return null;
-    const existingDraft = await getQuestionnaireDraftById(task.active_draft_id);
-    if (existingDraft) return existingDraft;
-    const currentUserId = String(user?.user_id || user?.id || user?.username || "dev-user");
-    const matchingDraft = (await listActiveQuestionnaireDraftSummaries()).find(
-      (draft) => String(draft.user_id || "") === currentUserId && draftMatchesTask(draft, task),
-    );
-    if (matchingDraft) return matchingDraft;
     return getActiveQuestionnaireDraft({
       formCode: task.task_type,
       formVersion: task.form_version || task.questionnaire_version || "9 MAY 2026",
       taskId: task.id || task.task_id || task.task_key || null,
-      keyTaskId: null,
+      keyTaskId: String(task.task_type || "").toUpperCase() === "HHQ" ? null : undefined,
       subjectType: task.subject_type || (task.household_id ? "household" : "locality"),
-      subjectId: task.household_id || task.subject_id || task.task_key || "unselected",
+      subjectId: task.subject_id || task.household_id || task.task_key || "unselected",
+      householdId: task.household_id,
+      preferredDraftId: task.active_draft_id,
       deviceId: user?.device_id || "dev-device",
       userId: user?.user_id || user?.id || user?.username || "dev-user",
     });
@@ -320,7 +312,7 @@ export function FieldAppProvider({ children }) {
     });
     const taskForOpen = {
       ...freshTask,
-      active_draft_id: activeDraft?.draft_id || task.active_draft_id || null,
+      active_draft_id: activeDraft?.draft_id || null,
     };
     if (taskForOpen.household_id) {
       try {

@@ -588,4 +588,22 @@ for (const sql of allSelects) {
   assert.match(sql, /WHERE/i, `SELECT without WHERE clause: ${sql}`);
 }
 
+const womanContext = { formCode: "WQ", formVersion: "v1", taskId: "woman-a-task",
+  subjectType: "person", subjectId: "2-30-0010C-01-02", householdId: "2-30-0010C-01",
+  deviceId: "woman-device", userId: "woman-worker" };
+const womanA = await saveQuestionnaireDraft({ ...womanContext,
+  payload: { wq_enter_structure_id_woman: womanContext.subjectId, woman_name: "Woman A" } });
+const secondWoman = { ...womanContext, taskId: "woman-b-task", subjectId: "2-30-0010C-01-03" };
+assert.equal(await getActiveQuestionnaireDraft({ ...secondWoman, preferredDraftId: womanA.draft_id }), null);
+const womanB = await saveQuestionnaireDraft({ ...secondWoman,
+  payload: { wq_enter_structure_id_woman: secondWoman.subjectId, woman_name: "Woman B" } });
+assert.notEqual(womanA.draft_id, womanB.draft_id);
+assert.equal((await getActiveQuestionnaireDraft(womanContext)).json_payload.woman_name, "Woman A");
+assert.equal((await getActiveQuestionnaireDraft(secondWoman)).json_payload.woman_name, "Woman B");
+assert.equal((await listActiveQuestionnaireDrafts()).filter((row) => [womanA.draft_id, womanB.draft_id].includes(row.draft_id)).length, 2);
+await markQuestionnaireDraftSubmitted({ draftId: womanA.draft_id, submittedFormResponseId: "woman-a-response" });
+assert.equal((await getActiveQuestionnaireDraft(secondWoman)).draft_id, womanB.draft_id);
+await assert.rejects(saveQuestionnaireDraft({ ...secondWoman, draftId: womanA.draft_id,
+  payload: { wq_enter_structure_id_woman: secondWoman.subjectId } }), /different participant/);
+
 console.log("Validated questionnaire draft repository native SQLite path.");

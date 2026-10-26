@@ -73,6 +73,7 @@ node expo/src/tests/validateWqAlcoholLimits.mjs
 ```
 
 Check Q32 Yes automatically sets the coded No answers for Q36/Q37, including draft restoration, while normal No/unsure responses keep the existing behavior. Check Q33a's minimum of 28 days at the 27/28-day boundary for both date and relative entries, including equivalent weeks/months and translated validation text.
+For pregnant women, exercise actual Next navigation through health, husband background and biomarkers before Outcome, plus Domestic Violence only at site 4. Cover ages 30 and 46, including Q38=2, fresh/restored drafts and pregnancy toggles. Q38 must show its read-only choice label without changing the eligibility code; consent stops and site biomarker locks still apply.
 Check husband/partner Q13 at 30/31 days and Q14 at 5/6 drinks, including valid special responses, draft restoration, and translatable validator messages in the codebook.
 Check respondent Q17 shows Days first, accepts 30 and rejects 31, while retaining None and Every day/almost every day and their existing skip behavior. Check Q18 shows Drinks first, accepts 5 and rejects 6, and retains its special response.
 
@@ -119,6 +120,9 @@ TEST_DATABASE_URL=postgresql://dynamic:dynamic_dev_password@localhost:55432/dyna
 - Expo local workflow or questionnaire behavior changes: `npm --workspace expo test`.
 - Sync, HHQ ingest/replay, or DB shape changes: dev DB order plus HHQ backend integration.
 - UI-affecting changes: run the relevant tests and verify in the browser/app path.
+
+For participant draft isolation, run `validateQuestionnaireDraftWorkflow.mjs`, `validateQuestionnaireDraftRepositoryNative.mjs`, `validateQuestionnaireSubmissionWorkflow.mjs` and `validateFormResponseTaskProvenance.mjs` through the Expo test runner. Use several eligible women in the same household: distinct IDs/tasks/drafts, correct preferred-draft ownership, independent save/resume and sync, and submission of only one woman leaving the others open. Preserve a legacy draft with conflicting participant IDs without restoring its answers into another woman's form.
+Run `node expo/src/tests/validateWorklistPersonIds.mjs` for the actual worklist card. Show separately labelled individual and household IDs for woman tasks; never present a pregnancy ID or a child's mother's ID as the task's individual ID. On narrow screens, retain the full distinguishing member suffix instead of truncating it.
 
 ## Known DB Push Constraint
 

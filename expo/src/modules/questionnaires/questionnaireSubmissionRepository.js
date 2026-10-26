@@ -1226,6 +1226,11 @@ export async function saveQuestionnaireSubmission({
     throw new Error("This excluded form is no longer within the 10-minute correction period.");
   }
   let finalPayload = stripHouseholdGpsMetadata(payload || {});
+  if (String(formCode || "").toUpperCase() === "WQ" && taskContext?.subject_id &&
+    finalPayload.wq_enter_structure_id_woman &&
+    String(finalPayload.wq_enter_structure_id_woman).trim() !== String(taskContext.subject_id).trim()) {
+    throw new Error("The woman's ID in these answers does not match the selected task. Reopen the correct woman's form.");
+  }
   const dwellingExclusion = String(formCode || "").toUpperCase() === "HHQ" ? getHhqDwellingExclusion(finalPayload) : null;
   if (dwellingExclusion?.outcome === 12 && (!dwellingExclusion.reason_text || dwellingExclusion.reason_text.length > 120)) {
     throw new Error("Specify the other dwelling reason (1 to 120 characters).");

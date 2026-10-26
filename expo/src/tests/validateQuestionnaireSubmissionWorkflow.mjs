@@ -662,4 +662,44 @@ assert.ok(afterPositivePsf.follow_up_tasks.filter((task) =>
   task.task_type === "PSF" && task.subject_id === psfWomanId && task.id !== firstPsfTask.id,
 ).every((task) => task.status === "cancelled" && task.closed_reason === "pregnancy_detected"));
 
+const multipleWomenPayload = { ...hhqPayload, hhq_structure_map_id: "0097",
+  hhq_household_members: [0, 1, 2].map((index) => ({ member_line_number: index + 1,
+    member_name: `Woman ${index + 1}`, member_sex: 2, member_age_years: 25 + index,
+    member_marital_status: 1, member_woman_questionnaire_eligible: 1 })) };
+await saveQuestionnaireSubmission({ formCode: "HHQ", formVersion: "test",
+  payload: multipleWomenPayload, deviceId: "device-1", userId: "fieldworker-1" });
+const beforeWomen = JSON.parse(window.localStorage.getItem("dynamic_web_sqlite_v2"));
+const womenTasks = beforeWomen.follow_up_tasks.filter((task) => task.task_type === "WQ" && task.household_id === "1-02-0097-03");
+assert.equal(womenTasks.length, 3);
+assert.equal(new Set(womenTasks.map((task) => task.subject_id)).size, 3);
+assert.equal(new Set(womenTasks.map((task) => task.task_key)).size, 3);
+const { saveQuestionnaireDraft, getActiveQuestionnaireDraft, markQuestionnaireDraftSubmitted } =
+  await import("../modules/questionnaires/questionnaireDraftRepository.js");
+const draftContextForWoman = (task) => ({ formCode: "WQ", formVersion: "test", taskId: task.id,
+  subjectType: task.subject_type, subjectId: task.subject_id, householdId: task.household_id,
+  deviceId: "device-1", userId: "fieldworker-1" });
+const womenDrafts = [];
+for (const task of womenTasks) womenDrafts.push(await saveQuestionnaireDraft({ ...draftContextForWoman(task),
+  payload: { wq_enter_structure_id_woman: task.subject_id, wq_interview_date: testToday } }));
+assert.equal(new Set(womenDrafts.map((draft) => draft.draft_id)).size, 3);
+const selectedWoman = womenTasks[0];
+const selectedDraft = await getActiveQuestionnaireDraft(draftContextForWoman(selectedWoman));
+await assert.rejects(saveQuestionnaireSubmission({ formCode: "WQ", formVersion: "test",
+  taskId: womenTasks[1].id, taskContext: womenTasks[1], payload: selectedDraft.json_payload,
+  deviceId: "device-1", userId: "fieldworker-1" }), /does not match the selected task/);
+assert.equal(JSON.parse(window.localStorage.getItem("dynamic_web_sqlite_v2")).form_responses.length,
+  beforeWomen.form_responses.length, "mismatched answers must fail before saving any evidence or completing any task");
+const selectedSubmission = await saveQuestionnaireSubmission({ formCode: "WQ", formVersion: "test",
+  taskId: selectedWoman.id, taskContext: selectedWoman, payload: selectedDraft.json_payload,
+  deviceId: "device-1", userId: "fieldworker-1" });
+await markQuestionnaireDraftSubmitted({ draftId: selectedDraft.draft_id,
+  submittedFormResponseId: selectedSubmission.submission_id });
+const afterWomen = JSON.parse(window.localStorage.getItem("dynamic_web_sqlite_v2"));
+assert.equal(afterWomen.follow_up_tasks.find((task) => task.id === selectedWoman.id).status, "completed");
+for (const task of womenTasks.slice(1)) {
+  assert.equal(afterWomen.follow_up_tasks.find((row) => row.id === task.id).status, "open");
+  assert.equal((await getActiveQuestionnaireDraft(draftContextForWoman(task))).json_payload.wq_enter_structure_id_woman, task.subject_id);
+}
+assert.equal(fetchCalls, 0);
+
 console.log("Validated questionnaire final submission workflow.");
