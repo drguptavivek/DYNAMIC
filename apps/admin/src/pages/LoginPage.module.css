@@ -38,6 +38,7 @@
 .notice { margin:22px 0 0; padding-top:20px; border-top:1px solid #e5efed; color:#58718a; font-size:11px; line-height:1.6; text-align:center; }
 .footer { padding:18px 24px; background:#eaf8f5; color:#58718a; text-align:center; font-size:11px; line-height:1.6; }
 .footer > span { margin:0 8px; }
+.credit { display:block; margin-top:4px; font-size:11px; }
 @media(min-width:901px) and (max-height:800px) {
   .topBar { padding-top:18px; padding-bottom:10px; }
   .topBrand img { width:60px; height:60px; }

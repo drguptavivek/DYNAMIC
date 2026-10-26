@@ -13,6 +13,8 @@ const ROLE_COLORS: Record<string, string> = {
   us_collaborator: "orange",
 };
 
+const DEVELOPER_CREDIT = "Designed and Developed by Jitender Kumar";
+
 export default function Layout() {
   const { user, logout } = useAuth();
   const location = useLocation();
@@ -59,6 +61,7 @@ export default function Layout() {
             </Link>
           ))}
         </nav>
+        <footer className={styles.credit}>{DEVELOPER_CREDIT}</footer>
       </aside>
 
       <div className={styles.main}>
@@ -82,6 +85,7 @@ export default function Layout() {
         <main className={styles.content}>
           <Outlet />
         </main>
+        <footer className={`${styles.credit} ${styles.mobileCredit}`}>{DEVELOPER_CREDIT}</footer>
       </div>
     </div>
   );

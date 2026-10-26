@@ -69,7 +69,7 @@ export default function LoginPage() {
         <p className={styles.notice}>Protected with encrypted authentication and TOTP</p>
         </section>
       </div>
-      <footer className={styles.footer}>Study management platform <span aria-hidden="true">&middot;</span> Research &middot; Fieldwork &middot; Evidence</footer>
+      <footer className={styles.footer}>Study management platform <span aria-hidden="true">&middot;</span> Research &middot; Fieldwork &middot; Evidence<small className={styles.credit}>Designed and Developed by Jitender Kumar</small></footer>
     </main>
   );
 }

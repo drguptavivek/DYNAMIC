@@ -506,6 +506,7 @@ function LoginScreen() {
         </View>
         <Text style={styles.demoText}>Use credentials issued for this study device</Text>
       </View>
+      <Text style={styles.developerCredit}>Designed and Developed by Jitender Kumar</Text>
       <Modal
         animationType="slide"
         visible={scannerOpen}
@@ -1018,6 +1019,14 @@ const styles = StyleSheet.create({
     marginTop: 14,
     color: "#667085",
     fontSize: 13,
+  },
+  developerCredit: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    color: "#667085",
+    fontSize: 11,
+    lineHeight: 16,
+    textAlign: "center",
   },
   scannerHeader: {
     minHeight: 60,
