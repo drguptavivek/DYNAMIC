@@ -33,7 +33,10 @@ function handlers(file, names, bindings) {
   }
   visit(parse(source, { sourceType: "module", plugins: ["jsx"] }));
   assert.equal(found.size, names.length);
-  const context = { ...navigation, findFirstNativeValidationQuestion, ...bindings, exports: {} };
+  const context = { ...navigation, findFirstNativeValidationQuestion,
+    finalConfirmationPendingRef: { current: false }, hasPreviewedRef: { current: true },
+    previewSignatureRef: { current: "reviewed" }, getDataSignature: () => "reviewed",
+    ...bindings, exports: {} };
   vm.runInNewContext([...found.values()].join("\n") + `\nexports = {${names.join(",")}}`, context);
   return context.exports;
 }
@@ -84,7 +87,7 @@ assert.equal(request.question, fourthQuestion);
 assert.equal(request.sequence, 2, "Repeated requests must still reopen and scroll the same question");
 
 fourthQuestion.value = "Child 4";
-assert.equal(generic.requestCompleteFromModel(model), true);
+assert.equal(generic.requestCompleteFromModel(model, true), true);
 assert.equal(completed, 1, "Valid answers still reach the existing completion/preview gate");
 
 for (const formCode of ["HHQ", "HRF", "WQ", "PEF", "PFF", "PSF", "POF", "UF", "BAF", "NFF", "CDF", "SBF"]) {
@@ -126,7 +129,7 @@ assert.equal(compositeSaves, 0, "Preview must not bypass child-save or compariso
 pendingChildren = true;
 composite.getQuestionByName("wq_born_alive_child_followups").visible = false;
 composite.getQuestionByName("wq_reproduction_comparison_table").visible = false;
-assert.equal(compositeHandlers.requestCompleteFromModel(composite), true, "Hidden stop-branch history cannot block final submission");
+assert.equal(compositeHandlers.requestCompleteFromModel(composite, true), true, "Hidden stop-branch history cannot block final submission");
 composite.dispose();
 
 const pendingSave = new Model({ pages: [

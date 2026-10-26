@@ -189,7 +189,7 @@ export function PefUltrasoundReportsRenderer({
 
   async function chooseImage(reportIndex, imageIndex, source) {
     setError("");
-    beginAppLockMediaActivity();
+    beginAppLockMediaActivity("image-picker");
     try {
       const permission = source === "camera"
         ? await ImagePicker.requestCameraPermissionsAsync()
@@ -225,7 +225,7 @@ export function PefUltrasoundReportsRenderer({
     } catch (storageError) {
       setError(storageError?.message || getNativeFormText(question.survey, "could_not_save_image", "Could not save the image on this device.", locale));
     } finally {
-      endAppLockMediaActivity();
+      endAppLockMediaActivity("image-picker");
     }
   }
 

@@ -1102,6 +1102,30 @@ assert.equal(
   "wq_02_reproduction_read_the_list_of_pregnancy_outcomes_in_ord",
   "Q22b must begin the next page"
 );
+assert.equal(preparedQ22bPageJson.elements[0].isRequired, true, "Q22b must require an explicit answer");
+const olderOptionalWq = structuredClone(wq);
+olderOptionalWq.pages.flatMap((page) => page.elements || [])
+  .find((element) => element.name === preparedQ22bPageJson.elements[0].name).isRequired = false;
+const restoredConfirmationPage = prepareQuestionnaireSurveyJson(olderOptionalWq).pages
+  .find((page) => page.name === preparedQ22bPageJson.name);
+assert.equal(restoredConfirmationPage.elements[0].isRequired, true, "Older synced forms must also require Q22b");
+const confirmationModel = createSurveyModel({
+  pages: [restoredConfirmationPage, preparedComparisonPageJson],
+});
+confirmationModel.setValue("wq_02_reproduction_check_12", 1);
+const confirmationQuestion = confirmationModel.getQuestionByName(preparedQ22bPageJson.elements[0].name);
+assert.equal(confirmationQuestion.isVisible, true);
+assert.equal(confirmationQuestion.value, undefined, "Q22b must not receive an automatic answer");
+assert.equal(confirmationModel.nextPage(), false, "Blank Q22b must block Next");
+assert.equal(confirmationModel.currentPage.name, restoredConfirmationPage.name);
+assert.equal(confirmationModel.validate(), false, "Blank Q22b must block final submission");
+confirmationQuestion.value = 1;
+assert.equal(confirmationModel.validate(), true, "Explicit agreement must allow validation");
+assert.equal(confirmationModel.nextPage(), true, "Explicit agreement must allow Next");
+confirmationQuestion.value = undefined;
+confirmationModel.setValue("wq_02_reproduction_check_12", 2);
+assert.equal(confirmationQuestion.isVisible, false);
+assert.equal(confirmationModel.validate(), true, "Q22b must not block interviews with no pregnancy history");
 assert.deepEqual(
   preparedComparisonPageJson.elements.map((element) => element.name),
   [

@@ -14,7 +14,7 @@ import { QuestionFrame, controlStyles } from "./QuestionFrame.js";
 export function CameraRenderer({ locale, question, onChange }) {
   const images = Array.isArray(question.value) ? question.value : [];
   async function captureImage() {
-    beginAppLockMediaActivity();
+    beginAppLockMediaActivity("image-picker");
     try {
       const permission = await ImagePicker.requestCameraPermissionsAsync();
       if (!permission.granted) return;
@@ -24,7 +24,7 @@ export function CameraRenderer({ locale, question, onChange }) {
       setNativeQuestionValue(question, [{ name: asset.fileName || "camera.jpg", type: asset.mimeType || "image/jpeg", uri: asset.uri }]);
       onChange?.();
     } finally {
-      endAppLockMediaActivity();
+      endAppLockMediaActivity("image-picker");
     }
   }
   return (

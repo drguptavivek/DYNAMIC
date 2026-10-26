@@ -1,5 +1,5 @@
 import { getNativeFormText } from "./nativeFormText.js";
-import { NATIVE_FORM_POPUP_TEXT } from "./nativeFormPopupText.js";
+import { FINAL_SUBMISSION_POPUP_TRANSLATIONS, NATIVE_FORM_POPUP_TEXT } from "./nativeFormPopupText.js";
 
 // Only trusted, authored templates are matched; unknown/server messages stay unchanged.
 const popupTemplates = [...new Map(Object.values(NATIVE_FORM_POPUP_TEXT)
@@ -19,7 +19,8 @@ export function translateFormPopupText(survey, text) {
   for (const template of popupTemplates) {
     const match = template.regex.exec(text);
     if (!match) continue;
-    const translated = getNativeFormText(survey, template.key, template.text);
+    const fallback = FINAL_SUBMISSION_POPUP_TRANSLATIONS[survey?.locale]?.[template.key] || template.text;
+    const translated = getNativeFormText(survey, template.key, fallback);
     return translated.replace(/\{([A-Za-z][A-Za-z0-9_]*)\}/g, (token, name) => {
       const index = template.names.indexOf(name);
       return index >= 0 ? match[index + 1] : token;

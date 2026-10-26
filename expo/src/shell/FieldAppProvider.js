@@ -5,7 +5,12 @@ import { Alert, AppState } from "react-native";
 import { getHouseholdContextSync } from "../lib/householdSync.js";
 import { buildPrefillForTask } from "../lib/prefillMapper.js";
 import * as appLockStore from "../modules/auth/appLockStore.js";
-import { isAppLockMediaActivityActive } from "../modules/auth/appLockMediaActivity.js";
+import {
+  clearAppLockMediaActivityReturnGrace,
+  getAppLockMediaActivityGraceMs,
+  markAppLockMediaActivityBackground,
+  subscribeAppLockMediaActivity,
+} from "../modules/auth/appLockMediaActivity.js";
 import * as authStore from "../modules/auth/authStore.js";
 import { initializeHouseholdRepository, listLocalities } from "../modules/households/householdRepository.js";
 import {
@@ -23,7 +28,6 @@ import * as Application from "expo-application";
 import { refreshSameSessionUser, stabilizeClockGuard } from "./fieldAppProviderStability.js";
 
 const FieldAppContext = createContext(null);
-const APP_LOCK_MEDIA_PICKER_GRACE_MS = 60 * 1000;
 
 export function FieldAppProvider({ children }) {
   const router = useRouter();
@@ -396,33 +400,36 @@ export function FieldAppProvider({ children }) {
         appLockTimerRef.current = null;
       }
     };
+    const scheduleBackgroundAppLock = () => {
+      cancelPendingAppLock();
+      if (appStateRef.current === "active" || !user || !appLockConfigured) return;
+      const mediaGraceMs = getAppLockMediaActivityGraceMs();
+      if (mediaGraceMs > 0) {
+        appLockTimerRef.current = setTimeout(() => {
+          appLockTimerRef.current = null;
+          if (appStateRef.current !== "active") setAppLocked(true);
+        }, mediaGraceMs);
+        return;
+      }
+      setAppLocked(true);
+    };
     const subscription = AppState.addEventListener("change", (nextState) => {
       appStateRef.current = nextState;
       if (nextState === "active") {
         cancelPendingAppLock();
+        clearAppLockMediaActivityReturnGrace();
         // Coming back from Settings is exactly when the date may have changed.
         refreshClockGuard();
         return;
       }
-      if (!user || !appLockConfigured) return;
-
-      cancelPendingAppLock();
-      if (isAppLockMediaActivityActive()) {
-        // Only an explicitly active external camera/gallery/file picker gets
-        // time to return. Ordinary backgrounding locks immediately.
-        appLockTimerRef.current = setTimeout(() => {
-          appLockTimerRef.current = null;
-          if (appStateRef.current !== "active") {
-            setAppLocked(true);
-          }
-        }, APP_LOCK_MEDIA_PICKER_GRACE_MS);
-        return;
-      }
-      setAppLocked(true);
+      markAppLockMediaActivityBackground();
+      scheduleBackgroundAppLock();
     });
+    const unsubscribeMediaActivity = subscribeAppLockMediaActivity(scheduleBackgroundAppLock);
     return () => {
       cancelPendingAppLock();
       subscription.remove();
+      unsubscribeMediaActivity();
     };
   }, [user, appLockConfigured, refreshClockGuard]);
 

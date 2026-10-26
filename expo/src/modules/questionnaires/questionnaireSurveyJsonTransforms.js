@@ -1415,7 +1415,9 @@ function applyWqReproductionComparisonTable(surveyJson) {
     pages: surveyJson.pages.flatMap((page) => {
       const q29Index = page.elements.findIndex((element) => element.name === WQ_Q29_NAME);
       if (q29Index < 0) return [page];
-      const elements = [...page.elements];
+      const elements = page.elements.map((element) => element.name === WQ_Q22B_NAME
+        ? { ...element, isRequired: true }
+        : element);
       elements.splice(q29Index, 0, {
         type: "html",
         name: WQ_REPRODUCTION_COMPARISON_NAME,

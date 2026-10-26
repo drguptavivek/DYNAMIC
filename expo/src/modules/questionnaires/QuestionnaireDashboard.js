@@ -1,4 +1,5 @@
 import { showFormAlert } from "../../lib/nativeFormPopups.js";
+import { requestFinalSubmissionConfirmation, waitForSubmissionAcknowledgement } from "../households/finalSubmissionAlerts.js";
 import { getNativeFormText } from "../../lib/nativeFormText.js";
 import { getFormDisplayCode } from "../../lib/formDisplayCodes.js";
 import { shouldShowPffOutcomeReminder } from "../../lib/pffOutcomeReminder.js";
@@ -400,6 +401,7 @@ export function QuestionnaireDashboard({
   const dirtyRef = useRef(false);
   const hasPreviewedRef = useRef(false);
   const previewSignatureRef = useRef("");
+  const finalConfirmationPendingRef = useRef(false);
   const memberSummaryConfirmedRef = useRef(false);
   const pefSearchPromptedRef = useRef(false);
   const draftRestoreInProgressRef = useRef(false);
@@ -459,8 +461,8 @@ export function QuestionnaireDashboard({
     return true;
   }
 
-  function requestCompleteFromModel(model) {
-    if (!model) return false;
+  function requestCompleteFromModel(model, confirmed = false) {
+    if (!model || model.state === "completed" || (!confirmed && finalConfirmationPendingRef.current)) return false;
     if (!model.validate()) {
       revealValidationError(model);
       return false;
@@ -478,6 +480,24 @@ export function QuestionnaireDashboard({
         revealValidationError(model, comparison);
         return false;
       }
+    }
+    if (!hasPreviewedRef.current || previewSignatureRef.current !== getDataSignature(model.data)) {
+      openPreviewFromModel(model);
+      setSaveMessage("Preview the saved draft before final save");
+      return false;
+    }
+    if (!confirmed) {
+      finalConfirmationPendingRef.current = true;
+      requestFinalSubmissionConfirmation({
+        showAlert: Alert.alert,
+        survey: model,
+        onCancel: () => { finalConfirmationPendingRef.current = false; },
+        onConfirm: () => {
+          finalConfirmationPendingRef.current = false;
+          requestCompleteFromModel(model, true);
+        },
+      });
+      return false;
     }
     model.doComplete();
     return true;
@@ -1094,7 +1114,10 @@ export function QuestionnaireDashboard({
       }
     });
 
+    let submissionStarted = false;
     model.onComplete.add(async (sender) => {
+      if (submissionStarted) return;
+      submissionStarted = true;
       const endSubmit = startTiming("submission.save", { form: form.form_code });
       let submission;
       try {
@@ -1109,6 +1132,8 @@ export function QuestionnaireDashboard({
           correctionResponseId: correctionContext?.responseId,
         });
       } catch (error) {
+        submissionStarted = false;
+        sender.clear(false, false);
         const message = error?.message || "The form could not be finalized.";
         endSubmit({ error: message });
         setSaveMessage(message);
@@ -1124,6 +1149,7 @@ export function QuestionnaireDashboard({
         onDraftSaved?.();
       }
       setSaveMessage(`Finalized ${submission.submission_id}`);
+      await waitForSubmissionAcknowledgement(Alert.alert, sender);
       if (isPregnancySurveillanceForm(form) && sender.data?.psf_tracking_disposition === "stopped") {
         showFormAlert(model, Alert.alert, "Thank you. This woman has exited from the study.", "", [
           { text: "OK", onPress: () => navigateTo(ROUTES.completedForms) },

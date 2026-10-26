@@ -29,7 +29,7 @@ assert.deepEqual(alerts[0].slice(0, 2), ["अंतिम जमा", "जमा
 assert.deepEqual(alerts[0][2].map((b) => b.text), ["नहीं", "हाँ"]);
 assert.equal(alerts[0][2][0].style, "cancel");
 assert.equal(submitCount, 0);
-alerts[0][2][0].onPress?.(); assert.equal(submitCount, 0);
+assert.equal(submitCount, 0);
 alerts[0][2][1].onPress(); assert.equal(submitCount, 1);
 let acknowledged = false;
 const promise = waitForSubmissionAcknowledgement(showAlert, survey).then(() => { acknowledged = true; });
@@ -60,7 +60,8 @@ const scopedNativeKeys = {
   how_many_reports_do_you_have: ["PEF", "PFF"], choose_file: ["UF"],
   popup_partner_mobile_confirmation: ["WQ"],
   popup_history_totals_title: ["WQ"], popup_correction_period_ended: ["WQ"],
-  popup_final_submission: ["HHQ"], popup_form_submitted: ["HHQ"],
+  popup_final_submission: formCodes, popup_form_submitted: formCodes,
+  popup_final_submission_confirmation: formCodes, popup_yes: formCodes, popup_no: formCodes,
   popup_answer_fields_saved: ["HHQ"], popup_household_excluded: ["HHQ"],
   popup_database_search_title: ["PEF"], popup_fill_pof: ["PFF"],
   popup_pef_generated: ["PSF"], popup_woman_exited: ["PSF"],

@@ -19,6 +19,10 @@ import {
   beginAppLockMediaActivity,
   endAppLockMediaActivity,
   isAppLockMediaActivityActive,
+  getAppLockMediaActivityGraceMs,
+  clearAppLockMediaActivityReturnGrace,
+  markAppLockMediaActivityBackground,
+  subscribeAppLockMediaActivity,
   resetAppLockMediaActivityForTests,
 } from "../modules/auth/appLockMediaActivity.js";
 
@@ -33,12 +37,8 @@ const mediaRendererSources = [
   "../components/forms/renderers/CameraRenderer.js",
   "../components/forms/renderers/FilePickerRenderer.js",
   "../components/forms/renderers/PefUltrasoundReportsRenderer.js",
+  "../components/forms/renderers/PefAncCardImageRenderer.js",
 ].map((path) => readFileSync(new URL(path, import.meta.url), "utf8"));
-assert.match(
-  fieldAppProviderSource,
-  /APP_LOCK_MEDIA_PICKER_GRACE_MS = 60 \* 1000/,
-  "external media picker must allow one minute to return",
-);
 assert.match(
   fieldAppProviderSource,
   /nextState === "active"[\s\S]*cancelPendingAppLock\(\)/,
@@ -46,12 +46,12 @@ assert.match(
 );
 assert.match(
   fieldAppProviderSource,
-  /isAppLockMediaActivityActive\(\)[\s\S]*setTimeout\([\s\S]*APP_LOCK_MEDIA_PICKER_GRACE_MS/,
+  /getAppLockMediaActivityGraceMs\(\)[\s\S]*setTimeout\([\s\S]*mediaGraceMs/,
   "the grace period must be restricted to an active external media picker",
 );
 assert.match(
   fieldAppProviderSource,
-  /if \(isAppLockMediaActivityActive\(\)\)[\s\S]*return;[\s\S]*setAppLocked\(true\)/,
+  /if \(mediaGraceMs > 0\)[\s\S]*return;[\s\S]*setAppLocked\(true\)/,
   "ordinary app backgrounding must lock immediately",
 );
 assert.doesNotMatch(
@@ -65,10 +65,10 @@ assert.match(
   "authenticated content must be hidden before asynchronous PIN state lookup",
 );
 for (const source of mediaRendererSources) {
-  assert.match(source, /beginAppLockMediaActivity\(\)/, "media picker must begin its lock exception");
+  assert.match(source, /beginAppLockMediaActivity\((?:"image-picker")?\)/, "media picker must begin its lock exception");
   assert.match(
     source,
-    /finally\s*\{[\s\S]*endAppLockMediaActivity\(\)/,
+    /finally\s*\{[\s\S]*endAppLockMediaActivity\((?:"image-picker")?\)/,
     "media picker must always end its lock exception",
   );
 }
@@ -93,14 +93,15 @@ let changeAppState;
 let locked = false;
 const pendingLocks = new Map();
 let timerId = 0;
+let lastLockDelay;
 new Function("AppState", "appLockTimerRef", "appStateRef", "user", "appLockConfigured",
-  "isAppLockMediaActivityActive", "setTimeout", "clearTimeout", "setAppLocked",
-  "refreshClockGuard", "APP_LOCK_MEDIA_PICKER_GRACE_MS",
+  "getAppLockMediaActivityGraceMs", "clearAppLockMediaActivityReturnGrace", "markAppLockMediaActivityBackground", "subscribeAppLockMediaActivity", "setTimeout", "clearTimeout", "setAppLocked",
+  "refreshClockGuard",
   fieldAppProviderSource.slice(listenerStart, listenerEnd))(
   { addEventListener: (_event, listener) => { changeAppState = listener; } },
-  { current: null }, { current: "active" }, user, true, isAppLockMediaActivityActive,
-  (callback, delay) => { assert.equal(delay, 60000); pendingLocks.set(++timerId, callback); return timerId; },
-  (id) => pendingLocks.delete(id), (value) => { locked = value; }, () => {}, 60000,
+  { current: null }, { current: "active" }, user, true, getAppLockMediaActivityGraceMs, clearAppLockMediaActivityReturnGrace, markAppLockMediaActivityBackground, subscribeAppLockMediaActivity,
+  (callback, delay) => { lastLockDelay = delay; pendingLocks.set(++timerId, callback); return timerId; },
+  (id) => pendingLocks.delete(id), (value) => { locked = value; }, () => {},
 );
 let grantPermission;
 let watchStarted = false;
@@ -116,6 +117,7 @@ await new Promise((resolve) => setImmediate(resolve));
 changeAppState("inactive");
 assert.equal(locked, false, "location permission prompt must not immediately open PIN lock");
 assert.equal(pendingLocks.size, 1, "permission prompt uses the existing bounded grace");
+assert.equal(lastLockDelay, 60000, "GPS permission retains its one-minute bound");
 changeAppState("active");
 assert.equal(pendingLocks.size, 0, "returning from permission prompt cancels pending PIN lock");
 assert.equal(locked, false);
@@ -143,6 +145,115 @@ await stalledCancelled;
 grantPermission({ granted: true });
 await new Promise((resolve) => setImmediate(resolve));
 assert.equal(isAppLockMediaActivityActive(), false);
+
+// Execute the real ANC handler, including permission, persistence and finally cleanup.
+const ancSource = readFileSync(new URL("../components/forms/renderers/PefAncCardImageRenderer.js", import.meta.url), "utf8");
+const chooseStart = ancSource.indexOf("async function chooseImage(source) {");
+const chooseEnd = ancSource.indexOf("async function removeImage()", chooseStart);
+assert(chooseStart > 0 && chooseEnd > chooseStart);
+const createAncPicker = new Function("beginAppLockMediaActivity", "endAppLockMediaActivity",
+  "ImagePicker", "setError", "getNativeFormText", "question", "locale", "image", "Crypto",
+  "persistPefAncCardImage", "removePersistedPefAncCardImage", "commit", "restoreUploadFocus",
+  ancSource.slice(chooseStart, chooseEnd) + ";return chooseImage;");
+const realNow = Date.now;
+let cameraNow = 100000;
+Date.now = () => cameraNow;
+try {
+  for (const outcome of ["success", "success-foreground-first", "cancel", "error", "denied", "storage-error"]) {
+    resetAppLockMediaActivityForTests();
+    pendingLocks.clear();
+    locked = false;
+    cameraNow = 100000;
+    changeAppState("active");
+    let finishPicker;
+    let recordedImage;
+    let lastError = "";
+    let pickerCalls = 0;
+    const choose = createAncPicker(beginAppLockMediaActivity, endAppLockMediaActivity, {
+      requestCameraPermissionsAsync: async () => ({ granted: outcome !== "denied" }),
+      launchCameraAsync: () => { pickerCalls++; return new Promise((resolve, reject) => {
+        finishPicker = outcome === "error" ? () => reject(new Error("Camera unavailable")) : resolve;
+      }); },
+    }, (error) => { lastError = error; }, (_survey, _key, fallback) => fallback,
+    { name: "pef_anc_card_image", survey: {} }, "hi", null, { randomUUID: () => "attachment-1" },
+    async () => { if (outcome === "storage-error") throw new Error("Storage unavailable"); return { local_uri: "file:///saved-anc-card.jpg" }; }, async () => {},
+    (value) => { recordedImage = value; }, () => {});
+    const operation = choose("camera");
+    changeAppState("inactive");
+    assert.equal(locked, false, "opening ANC permission/camera must retain the questionnaire");
+    assert.equal(lastLockDelay, 600000, "camera operation receives its bounded capture window");
+    await new Promise((resolve) => setImmediate(resolve));
+    if (outcome !== "denied") {
+      cameraNow += 61000;
+      changeAppState("background");
+      assert.equal(locked, false, "taking longer than one minute must not open PIN");
+      assert.equal(lastLockDelay, 539000, "lifecycle events must not renew the ten-minute deadline");
+      if (outcome === "success-foreground-first") changeAppState("active");
+      finishPicker(outcome.startsWith("success") || outcome === "storage-error" ? { canceled: false, assets: [{ uri: "file:///camera.jpg" }] } : { canceled: true });
+    }
+    await operation;
+    if (outcome.startsWith("success")) assert.equal(recordedImage.local_uri, "file:///saved-anc-card.jpg");
+    if (outcome === "error" || outcome === "denied" || outcome === "storage-error") assert(lastError);
+    if (outcome === "denied") assert.equal(pickerCalls, 0);
+    if (outcome === "success-foreground-first") {
+      assert.equal(isAppLockMediaActivityActive(), false, "actual handler finally must not rearm grace after foreground return");
+      changeAppState("background");
+      assert.equal(locked, true, "Home after foreground-first ANC return must lock immediately");
+      continue;
+    }
+    // Reproduce the native promise resolving before the queued AppState foreground event.
+    changeAppState("background");
+    assert.equal(locked, false, "late picker background event must not close the form");
+    assert.equal(lastLockDelay, 2000, "only a short return settling window survives completion");
+    changeAppState("active");
+    assert.equal(pendingLocks.size, 0);
+    assert.equal(isAppLockMediaActivityActive(), false, "return must release success/cancel/error/denied exceptions");
+    changeAppState("background");
+    assert.equal(locked, true, "normal backgrounding after camera return must lock immediately");
+  }
+  // Foreground-before-result must not rearm a grace period in finally.
+  resetAppLockMediaActivityForTests();
+  pendingLocks.clear();
+  locked = false;
+  changeAppState("active");
+  beginAppLockMediaActivity("image-picker");
+  changeAppState("background");
+  changeAppState("active");
+  endAppLockMediaActivity("image-picker");
+  assert.equal(isAppLockMediaActivityActive(), false, "already returned picker must not rearm its return grace");
+  changeAppState("background");
+  assert.equal(locked, true, "Home after a foreground-first picker completion locks immediately");
+  // No subsequent AppState event must still shrink the old long picker timer.
+  resetAppLockMediaActivityForTests();
+  locked = false;
+  changeAppState("active");
+  beginAppLockMediaActivity("image-picker");
+  changeAppState("background");
+  endAppLockMediaActivity("image-picker");
+  assert.equal(lastLockDelay, 2000, "picker completion replaces the long pending lock even without an AppState event");
+  for (const callback of pendingLocks.values()) callback();
+  pendingLocks.clear();
+  assert.equal(locked, true, "an absent foreground event locks after the short settling lease");
+  resetAppLockMediaActivityForTests();
+  cameraNow = 100000;
+  locked = false;
+  changeAppState("active");
+  beginAppLockMediaActivity("image-picker");
+  changeAppState("background");
+  cameraNow += 600000;
+  for (const callback of pendingLocks.values()) callback();
+  pendingLocks.clear();
+  assert.equal(locked, true, "an abandoned picker must still lock after ten minutes");
+  assert.equal(isAppLockMediaActivityActive(), false, "expired capture cannot renew its exception");
+  resetAppLockMediaActivityForTests();
+  beginAppLockMediaActivity("image-picker");
+  endAppLockMediaActivity("image-picker");
+  cameraNow += 2001;
+  assert.equal(isAppLockMediaActivityActive(), false, "missing foreground event cannot leak the return exception");
+} finally {
+  Date.now = realNow;
+  resetAppLockMediaActivityForTests();
+}
 
 await clearLockForTests();
 

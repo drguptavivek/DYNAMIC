@@ -3324,6 +3324,7 @@
         {
           "type": "radiogroup",
           "name": "wq_02_reproduction_read_the_list_of_pregnancy_outcomes_in_ord",
+          "isRequired": true,
           "title": {
             "default": "READ THE LIST OF PREGNANCY OUTCOMES IN ORDER TO THE RESPONDENT AND ASK IF THEY ARE ALL THAT SHE HAS EVER HAD, AND IF THEY ARE LISTED IN ORDER STARTED FROM THE FIRST ONE.\n\nDOES THE RESPONDENT AGREE? \nIF NOT, PROBE FOR THE CORRECT INFORMATION AND REVISE THE PREGNANCY HISTORY ACCORDINGLY.",
             "hi": "",

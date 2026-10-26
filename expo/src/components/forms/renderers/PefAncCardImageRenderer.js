@@ -44,7 +44,7 @@ export function PefAncCardImageRenderer({
 
   async function chooseImage(source) {
     setError("");
-    beginAppLockMediaActivity();
+    beginAppLockMediaActivity("image-picker");
     try {
       const permission = source === "camera"
         ? await ImagePicker.requestCameraPermissionsAsync()
@@ -85,7 +85,7 @@ export function PefAncCardImageRenderer({
         : getNativeFormText(question.survey, "could_not_save_report_image", "Could not save the report image on this device.", locale)));
       restoreUploadFocus();
     } finally {
-      endAppLockMediaActivity();
+      endAppLockMediaActivity("image-picker");
     }
   }
 

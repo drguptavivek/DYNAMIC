@@ -30,6 +30,10 @@ Final submission is blocked unless:
 3. required SurveyJS/runtime validation passes
 4. the user confirms final submission from the preview surface
 
+Every form must show a separate final-submission confirmation before writing evidence. Cancelling keeps the preview and answers available. After successful persistence, show a submission acknowledgement and wait for the user to dismiss it before leaving the form or showing any form-specific follow-up notice. Failed saves must not show a success acknowledgement.
+
+Confirmation and acknowledgement titles, messages and buttons follow the questionnaire's selected language. Their translation entries belong to each form's app-popup inventory in the admin editor and translation CSV export/import.
+
 Any answer change after preview clears preview confirmation and requires preview again.
 
 ## Preview Contents
