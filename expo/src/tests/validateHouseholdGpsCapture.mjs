@@ -1,10 +1,14 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { build } from "esbuild";
 import { fileURLToPath } from "node:url";
 import { startHouseholdGpsCapture } from "../lib/gpsCapture.js";
 import { readHouseholdGps, buildHouseholdMapsUrl } from "../lib/householdGps.js";
 import { NATIVE_FORM_TEXT } from "../lib/nativeFormText.js";
 import { createSurveyModel } from "../polyfills/surveyCoreNative.js";
+import { prepareQuestionnaireSurveyJson } from "../modules/questionnaires/questionnaireSurveyJsonTransforms.js";
+import { attachHouseholdSurveyBehaviors } from "../lib/householdSurveyBehaviors.js";
+import { setNativeQuestionValue } from "../components/forms/nativeSurveyModel.js";
 import { beginAppLockMediaActivity, endAppLockMediaActivity, isAppLockMediaActivityActive,
   resetAppLockMediaActivityForTests } from "../modules/auth/appLockMediaActivity.js";
 
@@ -224,8 +228,8 @@ globalThis.gpsHarness = {
   servicesEnabled: true,
   alert: (...args) => alerts.push(args),
 };
-const question = { name: "hhq_gps_latitude", survey: { data: { unrelated_answer: "keep", ...saved }, nativeText: {
-  gps_open_google_maps: { hi: "Hindi maps" } }, mergeData(values) { Object.assign(this.data, values); } }, value: 0 };
+let question = { name: "hhq_gps_latitude", survey: { data: { unrelated_answer: "keep", ...saved }, nativeText: {
+  gps_open_google_maps: { hi: "Hindi maps" } }, setValue(name, value) { this.data[name] = value; }, mergeData(values) { Object.assign(this.data, values); } }, value: 0 };
 function nodes(node) { return Array.isArray(node) ? node.flatMap(nodes) : node && typeof node === "object" ? [node, ...nodes(node.props?.children)] : []; }
 function render() { cursor = 0; return nodes(module.exports.GpsRenderer({ question, locale: "hi", onChange: () => changes++ })); }
 const buttons = () => render().filter(n => n.type === "Pressable");
@@ -301,6 +305,43 @@ assert.equal(render().filter(n => n.type === "ActivityIndicator").length, 0, "Ca
 assert.equal(buttons()[0].props.disabled, false);
 assert.deepEqual(question.survey.data, saved, "Cancelled retry preserves existing coordinates");
 cleanup();
+
+// Reproduce the recorded failure in the real BHQ, including its consent visibility rules.
+hooks = []; cleanup = null;
+const rawBhq = JSON.parse(readFileSync(new URL("../data/forms/baseline_household_questionnaire_v2026.05.09.json", import.meta.url), "utf8"));
+const bhq = createSurveyModel(prepareQuestionnaireSurveyJson(rawBhq));
+attachHouseholdSurveyBehaviors(bhq, rawBhq);
+const consentField = "hhq_consent_study_provide_pis_explain_study_adult_member";
+setNativeQuestionValue(bhq.getQuestionByName("hhq_competent_respondent_available"), 1);
+setNativeQuestionValue(bhq.getQuestionByName(consentField), 1);
+setNativeQuestionValue(bhq.getQuestionByName("hhq_household_head_name"), "Recorded household head");
+question = bhq.getQuestionByName("hhq_gps_latitude");
+assert.equal(question.isVisible, true);
+const gpsAnswerChanges = [];
+bhq.onValueChanged.add((_sender, options) => gpsAnswerChanges.push(options.name));
+globalThis.gpsHarness.servicesEnabled = false;
+await buttons()[0].props.onPress();
+assert.equal(bhq.getValue(consentField), 1, "The Location-off warning must preserve consent");
+assert.equal(question.isVisible, true);
+assert.deepEqual(gpsAnswerChanges, []);
+globalThis.gpsHarness.servicesEnabled = true;
+const bhqCapture = buttons()[0].props.onPress(); await flush();
+callback({ timestamp: Date.now(), coords: { latitude: 28.4, longitude: 77.3, accuracy: 15 } });
+await bhqCapture;
+assert.equal(bhq.getValue(consentField), 1, "GPS capture must not clear the household consent answer");
+assert.equal(question.isVisible, true, "The GPS section must remain visible after successful capture");
+assert.equal(bhq.getValue("hhq_household_head_name"), "Recorded household head");
+assert.deepEqual(readHouseholdGps(bhq.data), { latitude: 28.4, longitude: 77.3 });
+assert.deepEqual(gpsAnswerChanges, ["hhq_gps_longitude", "hhq_gps_latitude"], "GPS must notify draft tracking for its two answers without reloading unrelated questions");
+assert.equal(render().filter(n => n.type === "ActivityIndicator").length, 0);
+const lateCapture = buttons()[0].props.onPress(); await flush();
+bhq.setValue(consentField, 2);
+assert.equal(question.isVisible, false);
+const declinedData = JSON.stringify(bhq.data);
+callback({ timestamp: Date.now(), coords: { latitude: 29.4, longitude: 78.3, accuracy: 15 } });
+await lateCapture;
+assert.equal(JSON.stringify(bhq.data), declinedData, "A late GPS fix cannot change answers after consent is withdrawn");
+cleanup(); bhq.dispose();
 for (const key of ["gps_latitude", "gps_longitude", "gps_waiting_for_accuracy", "gps_timeout",
   "gps_services_disabled", "gps_capture_failed", "gps_capture_cancelled", "gps_cancel_capture", "gps_open_google_maps",
   "gps_maps_unavailable", "capture_gps", "gps_capturing", "gps_checking_services", "gps_precise_location_required", "not_captured", "location_permission_was_not_granted", "requesting_location_permission"]) {

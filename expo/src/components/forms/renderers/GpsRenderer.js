@@ -33,10 +33,10 @@ export function GpsRenderer({ locale, question, onChange }) {
     activeCapture.current = operation;
     try {
       const result = await operation.promise;
-      if (!mounted.current || question.isReadOnly || question.readOnly) return;
-      // Set the complete fix together so drafts never observe a partial location.
-      question.survey.mergeData({
-        hhq_gps_latitude: result.latitude, hhq_gps_longitude: result.longitude });
+      if (!mounted.current || question.isReadOnly || question.readOnly || question.isVisible === false) return;
+      // Update only GPS answers in one synchronous turn; bulk merges reload every question and bypass draft events.
+      question.survey.setValue("hhq_gps_longitude", result.longitude);
+      question.survey.setValue("hhq_gps_latitude", result.latitude);
       setStatus("gps_captured_from_this_device");
       onChange?.();
     } catch (error) {

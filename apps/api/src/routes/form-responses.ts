@@ -129,6 +129,10 @@ router.get("/export", requireDataAccess("can_access_raw_crfs"), async (req: Requ
       : [];
     const submitterById = new Map(submitters.map((user) => [user.user_id, user]));
     const fields = collectExportFields(formJson);
+    // GPS controls are injected by the BHQ app and are absent from the raw form definition.
+    if (formCode === "HHQ") {
+      for (const key of ["hhq_gps_latitude", "hhq_gps_longitude"]) fields.push({ key, choices: new Map() });
+    }
     const uniqueFields = [...new Map(fields.map((field) => [field.key, field])).values()];
     const headers = [
       "form_response_id",

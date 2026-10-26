@@ -88,6 +88,40 @@ assert.equal(models.length, 1, "fresh form constructs exactly one model after lo
 assert.equal(models[0].getValue("hhq_locality_code"), "11");
 render();
 assert.equal(models.length, 1, "ordinary rerenders reuse the live model");
+// Device settings/context refreshes must not restore the original draft over live answers.
+const liveModel = models[0];
+const consentField = "hhq_consent_study_provide_pis_explain_study_adult_member";
+liveModel.setValue("hhq_competent_respondent_available", 1);
+liveModel.setValue(consentField, 1);
+liveModel.setValue("hhq_household_head_name", "Live household head");
+liveModel.setValue("hhq_contact_mobile_numbers", [{ mobile_holder_name: "Live household head", mobile_number: "9876543210" }]);
+liveModel.setValue("hhq_gps_longitude", 77.3);
+liveModel.setValue("hhq_gps_latitude", 28.4);
+function assertContextRefreshRetainsInterview(liveModel) {
+  const count = models.length;
+  const liveAnswers = JSON.stringify(liveModel.data);
+  const livePage = liveModel.currentPage;
+  const liveSnapshotRef = slots.find((slot) => slot?.current?.hhq_gps_latitude === 28.4);
+  assert.ok(liveSnapshotRef, "Coordinate writes must reach the host's draft snapshot");
+  const liveSnapshot = liveSnapshotRef.current;
+  for (const refresh of [
+    () => { props.user = structuredClone(props.user); },
+    () => { props.localities = structuredClone(props.localities); },
+    () => { props.taskContext = {}; },
+    () => { props.form = structuredClone(props.form); },
+  ]) {
+    refresh(); render();
+    assert.equal(models.length, count, "Same-interview context refresh must retain the live Survey Core model");
+    assert.equal(models.at(-1), liveModel);
+    assert.equal(liveModel.getValue(consentField), 1);
+    assert.equal(liveModel.getQuestionByName("hhq_gps_latitude").isVisible, true);
+    assert.equal(liveModel.getQuestionByName("hhq_contact_mobile_numbers").isVisible, true);
+    assert.equal(JSON.stringify(liveModel.data), liveAnswers);
+    assert.equal(liveModel.currentPage, livePage);
+    assert.equal(liveSnapshotRef.current, liveSnapshot, "A context refresh must retain the unsaved draft snapshot");
+  }
+}
+assertContextRefreshRetainsInterview(liveModel);
 // Restore an available, consenting household draft; only that branch exposes the roster.
 draftSlot.value = { key, loading: false, draft: { draft_id: "saved", json_payload: { hhq_competent_respondent_available: 1, hhq_consent_study_provide_pis_explain_study_adult_member: 1, hhq_household_head_name: "Saved head", hhq_household_members: [{ member_name: "Saved member", member_age_years: 30, member_sex: 2 }] } } };
 render();
@@ -193,6 +227,20 @@ rosterModel.setValue("hhq_household_members", twentyMembers);
 rosterModel.locale = "default";
 viewSlot.value = "form";
 
+// Resume a draft saved before consent, then keep the newly entered consent/GPS after refresh.
+draftSlot.value = { key, loading: false, draft: { draft_id: "before-consent", json_payload: {
+  hhq_competent_respondent_available: 1, hhq_household_head_name: "Draft household head",
+} } };
+render();
+const resumedModel = models.at(-1);
+assert.equal(resumedModel.getValue(consentField), undefined);
+assert.equal(resumedModel.getQuestionByName("hhq_gps_latitude").isVisible, false);
+resumedModel.setValue(consentField, 1);
+resumedModel.setValue("hhq_contact_mobile_numbers", [{ mobile_holder_name: "Draft household head", mobile_number: "9876543210" }]);
+resumedModel.setValue("hhq_gps_longitude", 77.3);
+resumedModel.setValue("hhq_gps_latitude", 28.4);
+assertContextRefreshRetainsInterview(resumedModel);
+
 // A new Other reason is entered at Q9 before navigation, including restored blank drafts.
 draftSlot.value = { key, loading: false, draft: { draft_id: "terminal", json_payload: {
   hhq_site_id: 2, hhq_residence_area_type: 2, hhq_locality_code: "11",
@@ -234,5 +282,25 @@ browseContext.showForm = false;
 vm.runInNewContext(effectBody, browseContext);
 assert.equal(browseCalls, 1, "returning to browsing loads the household list");
 assert.match(householdSource, /useEffect\(\(\) => \{\n    if \(showForm\) return undefined;\n    let active = true;/, "hidden member search is gated too");
+// New interview identities still wait for their own draft and construct a fresh model.
+for (const changeInterview of [
+  () => { props.selectedLocalityCode = "12"; },
+  () => { props.user = { ...props.user, user_id: "another-worker" }; },
+  () => { props.taskContext = { id: "another-task", household_id: "2-11-0002-01" }; },
+  () => { props.form = { ...props.form, version: "another-version" }; },
+]) {
+  const previousModel = models.at(-1);
+  previousModel.setValue(consentField, 1);
+  const count = models.length;
+  changeInterview(); render();
+  assert.equal(models.length, count, "A different interview must wait for its draft lookup");
+  const nextKey = slots.find((slot) => typeof slot?.value === "string" && slot.value.includes('"formCode":"HHQ"')).value;
+  assert.notEqual(nextKey, draftSlot.value.key);
+  draftSlot.value = { key: nextKey, loading: false, draft: null };
+  render();
+  assert.equal(models.length, count + 1);
+  assert.notEqual(models.at(-1), previousModel);
+  assert.equal(models.at(-1).getValue(consentField), undefined, "Consent must not leak into another interview");
+}
 models.forEach((model) => model.dispose());
 console.log(`HHQ startup lifecycle passed: 3 initial model builds reduced to 1; host model construction ${timings.map((time) => time.toFixed(1)).join(", ")} ms. No hidden household query during interview.`);

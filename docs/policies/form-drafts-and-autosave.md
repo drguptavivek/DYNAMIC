@@ -79,6 +79,7 @@ Rules:
 - Form navigation actions save the current local draft after the destination section/page has been resolved.
 - App backgrounding, navigation away, or form close should save dirty drafts before leaving.
 - Failed local draft save must be visible to the field user.
+- Refreshing equivalent user, locality, questionnaire or task-context objects must preserve the live interview model and unsaved answers. Reinitialize only when the draft/interview identity changes; never restore the initial draft over ongoing entry because a context object was refreshed.
 - Sync uploads local active and terminal draft states through the dedicated draft channel.
 - Sync returns only active drafts owned by the authenticated user and within that user's current area scope.
 - Server-backed drafts remain mutable recovery data and must never enter finalized-response processing.

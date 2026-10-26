@@ -344,6 +344,7 @@ export function BaselineHouseholdForm({
     };
   }, [draftContext, draftLookupKey]);
 
+  // Refreshed context objects must not replace the live interview with its initial draft.
   const model = useMemo(() => {
     // Resolve recovery data before constructing the expensive Survey Core model.
     if (draftLookup.key !== draftLookupKey || draftLookup.loading) return null;
@@ -485,7 +486,7 @@ export function BaselineHouseholdForm({
     survey.onCurrentPageChanged.add(() => setRevision((value) => value + 1));
     endOpen({ questions: survey.getAllQuestions().length });
     return survey;
-  }, [draftLookup, draftLookupKey, form, user, localities, selectedLocalityCode, taskContext]);
+  }, [draftLookup, draftLookupKey]);
 
   useEffect(() => {
     if (draftLookup.key !== draftLookupKey || draftLookup.loading) return;
