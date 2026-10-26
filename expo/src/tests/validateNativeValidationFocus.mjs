@@ -8,6 +8,7 @@ import * as native from "../components/forms/nativeSurveyModel.js";
 import * as focus from "../components/forms/nativeValidationFocus.js";
 import * as memo from "../components/forms/questionRenderMemo.js";
 import * as navigation from "../modules/questionnaires/surveyNavigation.js";
+import * as nativeText from "../lib/nativeFormText.js";
 
 const source = fs.readFileSync(new URL("../components/forms/NativeSurveyRenderer.js", import.meta.url), "utf8");
 const compiled = transformSync(source, { babelrc: false, configFile: false,
@@ -42,6 +43,7 @@ function mount(model, { width = 390, compactPager = false, validationFocusReques
     "./nativeSurveyModel.js": native, "./nativeValidationFocus.js": focus,
     "./questionRenderMemo.js": memo, "./renderers/NativeQuestionRenderer.js": { NativeQuestionRenderer: "Question" },
     "./SectionNavigator.js": { SectionNavigator: "Sections" }, "../../modules/questionnaires/surveyNavigation.js": navigation,
+    "../../lib/nativeFormText.js": nativeText,
   };
   const context = { exports: {}, require: (id) => { assert.ok(id in imports, `Unexpected import ${id}`); return imports[id]; },
     requestAnimationFrame: (callback) => { frames.push(callback); return frames.length; }, cancelAnimationFrame() {},
@@ -171,4 +173,18 @@ await finalRenderer.next();
 assert.equal(submissions, 0, "Failed final validation cannot complete the form");
 assert.equal(completing.currentPage.name, "children");
 assert.equal(finalRenderer.request().question, completing.getQuestionByName("children").panels[2].getQuestionByName("detail"));
-console.log("Compound-field, empty-repeat and final-validation focus cases passed.");
+const localized = fourChildren();
+localized.locale = "hi";
+localized.nativeText = {
+  section_position: { default: "Section {current} of {total}", hi: "खंड {current} / {total}" },
+  question_position: { default: "Question {current} of {total}", hi: "प्रश्न {current} / {total}" },
+  bhq_member_summary_heading: { default: "Summary", hi: "सदस्य सारांश" },
+};
+const localizedRenderer = mount(localized, { compactPager: true });
+localizedRenderer.update({ locale: "hi" });
+const captions = localizedRenderer.nodes().filter(node => node.type === "Text").flatMap(node => node.props.children.flat(Infinity));
+assert.ok(captions.includes("खंड 1 / 2"), "Section counter uses the selected translation and substitutes counts");
+assert.ok(captions.includes("प्रश्न 1 / 2"), "Question counter uses the selected translation");
+assert.equal(navigation.buildSurveySections(localized, { includeHouseholdMemberSummary: true })
+  .find(section => section.name === navigation.HOUSEHOLD_MEMBER_SUMMARY_SECTION_NAME).title, "सदस्य सारांश");
+console.log("Compound-field, empty-repeat, final-validation focus and translated section captions passed.");

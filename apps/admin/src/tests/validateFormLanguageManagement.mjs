@@ -272,7 +272,26 @@ try {
     assert.ok(appKeys.every(name => definition.elements.find(element => element.name === name)?.kind === 'native'));
     const authoredKeys = definition.elements.filter(element => element.kind !== 'native').map(element => element.name);
     assert.deepEqual(questionnaireKeys.filter(name => authoredKeys.includes(name)), authoredKeys, `${form.form_code}: authored questionnaire order stays intact`);
-    if (form.form_code === 'HHQ') assert.ok(questionnaireKeys.includes('@native:household_characteristics_intro'), 'BHQ page instruction stays with questionnaire');
+    if (form.form_code === 'HHQ') {
+      assert.ok(questionnaireKeys.includes('@native:household_characteristics_intro'), 'BHQ page instruction stays with questionnaire');
+      for (const key of ['bhq_member_summary_heading', 'bhq_member_summary_one', 'bhq_member_summary_many',
+        'bhq_summary_count', 'bhq_summary_name', 'bhq_summary_age', 'bhq_summary_sex',
+        'bhq_check_listing_heading', 'bhq_check_listing_intro', 'bhq_check_listing_a', 'bhq_check_listing_b',
+        'bhq_yes_add_member', 'bhq_no', 'bhq_no_go_section_3', 'bhq_edit_roster']) {
+        assert.ok(questionnaireKeys.indexOf(`@native:${key}`) > questionnaireKeys.indexOf('hhq_household_members'), `${key}: roster text stays in questionnaire order`);
+        assert.ok(!appKeys.includes(`@native:${key}`));
+      }
+      for (const key of ['bhq_confirm_roster_before_section_03', 'bhq_roster_confirmed', 'bhq_add_member_required',
+        'bhq_add_missing_child', 'bhq_add_other_resident', 'bhq_complete_roster_fields']) {
+        assert.ok(appKeys.includes(`@native:${key}`), `${key}: BHQ notices are editable in the app messages box`);
+      }
+      for (const name of ['@page:page_03_household_characteristics', 'member_highest_grade_completed', 'hhq_total_eligible_women']) {
+        assert.ok(questionnaireKeys.includes(name), `${name}: screenshot questionnaire text is editable`);
+      }
+      assert.ok(questionnaireKeys.some(name => name.endsWith('/hhq_household_members:addPanelText')), 'Add household member is editable in the questionnaire');
+      assert.deepEqual(definition.elements.find(element => element.name === 'member_highest_grade_completed').choices.map(choice => String(choice.value)), ['0', '98'], 'Both education special responses are exported for translation without changing their codes');
+    } else assert.ok(!definition.elements.some(element => element.name.startsWith('@native:bhq_')), 'BHQ-only text does not leak into other forms');
+    for (const key of ['section_position', 'question_position']) assert.ok(appKeys.includes(`@native:${key}`));
     const anchoredLabels = form.form_code === 'HHQ' ? GROUPED_CHOICE_TEXT_KEYS : {};
     const lmpField = LMP_TIMING_FIELDS[form.form_code];
     if (lmpField) anchoredLabels[lmpField] = Object.keys(LMP_TIMING_TEXT).map(key => `${lmpField}_${key}`);
@@ -288,6 +307,10 @@ try {
       assert.equal(questionnaireKeys[questionnaireKeys.indexOf('@page:page_02_reproduction') + 1], '@native:reproduction_intro', 'BWQ reproduction instruction follows its section heading');
       const dob = 'wq_01_respondent_s_backgr_in_what_month_and_year_were_you_born';
       assert.equal(questionnaireKeys[questionnaireKeys.indexOf(dob) + 1], '@native:bwq_dob', 'Native question wording stays next to its questionnaire field');
+    }
+    if (['HHQ', 'WQ'].includes(form.form_code)) {
+      const grade = form.form_code === 'HHQ' ? 'member_highest_grade_completed' : 'wq_01_respondent_s_backgr_what_is_the_highest_grade_you_completed';
+      assert.equal(questionnaireKeys[questionnaireKeys.indexOf(grade) + 1], '@native:entry_years', 'Years follows the education question in the selected form');
     }
     const expected = definition.elements.flatMap(element => [
       [element.name, 'question', '', element.title || element.name],

@@ -2,7 +2,7 @@ import dwellingOutcome from "../../../../shared/householdDwellingOutcome.cjs";
 const { getHhqDwellingExclusion } = dwellingOutcome;
 
 import { showFormAlert } from "../../lib/nativeFormPopups.js";
-import { getNativeFormText } from "../../lib/nativeFormText.js";
+import { formatNativeFormText, getNativeFormText } from "../../lib/nativeFormText.js";
 /**
  * Composes the native baseline household interview, confirmation gate, and final preview flow.
  */
@@ -479,7 +479,7 @@ export function BaselineHouseholdForm({
       ) {
         options.allow = false;
         setView("member-summary");
-        setMessage("Confirm the household roster before Section 03.");
+        setMessage(getNativeFormText(sender, "bhq_confirm_roster_before_section_03", "Confirm the household roster before Section 03."));
       }
     });
     survey.onCurrentPageChanged.add(() => setRevision((value) => value + 1));
@@ -693,7 +693,7 @@ export function BaselineHouseholdForm({
     setFinalReview(false);
     setView("member-summary");
     setMemberChecklistStep("a");
-    setMessage("Confirm the household roster before Section 03.");
+    setMessage(getNativeFormText(model, "bhq_confirm_roster_before_section_03", "Confirm the household roster before Section 03."));
   }
 
   function revealValidationError(question = getSurveyValidationQuestion(model)) {
@@ -724,7 +724,7 @@ export function BaselineHouseholdForm({
       goToSurveySection(model, HOUSEHOLD_SCHEDULE_PAGE_NAME);
       setView("form");
       revealValidationError(getSurveyValidationQuestion(model, HOUSEHOLD_SCHEDULE_PAGE_NAME));
-      setMessage("Complete the highlighted household roster fields before confirming.");
+      setMessage(getNativeFormText(model, "bhq_complete_roster_fields", "Complete the highlighted household roster fields before confirming."));
       setRevision((value) => value + 1);
       return;
     }
@@ -732,7 +732,7 @@ export function BaselineHouseholdForm({
     setMemberSummaryConfirmed(true);
     goToSurveySection(model, HOUSEHOLD_CHARACTERISTICS_PAGE_NAME);
     setView("form");
-    setMessage("Household roster confirmed.");
+    setMessage(getNativeFormText(model, "bhq_roster_confirmed", "Household roster confirmed."));
     setRevision((value) => value + 1);
     await saveDraft({ silent: true });
   }
@@ -924,7 +924,7 @@ export function BaselineHouseholdForm({
                 setFinalReview(false);
                 setView("member-summary");
                 setMemberChecklistStep("a");
-                setMessage("Confirm the household roster before Section 03.");
+                setMessage(getNativeFormText(model, "bhq_confirm_roster_before_section_03", "Confirm the household roster before Section 03."));
                 return true;
               }
               return false;
@@ -949,53 +949,53 @@ export function BaselineHouseholdForm({
                 keyboardShouldPersistTaps="handled"
               >
                 <DisplayRenderer
-                  title="02B-Household Member Summary"
-                  subtitle={`${memberRows.length} ${memberRows.length === 1 ? "member" : "members"} added. Confirm name, age, and sex before check listing.`}
+                  title={getNativeFormText(model, "bhq_member_summary_heading", "02B-Household Member Summary")}
+                  subtitle={formatNativeFormText(model, memberRows.length === 1 ? "bhq_member_summary_one" : "bhq_member_summary_many", memberRows.length === 1 ? "{count} member added. Confirm name, age, and sex before check listing." : "{count} members added. Confirm name, age, and sex before check listing.", { count: memberRows.length })}
                   rows={memberRows}
                   columns={[
-                    { key: "sr", title: "Count", width: 54 },
-                    { key: "memberName", title: "Name", width: 110 },
-                    { key: "age", title: "Age", width: 42 },
-                    { key: "sex", title: "Sex", width: 70 },
+                    { key: "sr", title: getNativeFormText(model, "bhq_summary_count", "Count"), width: 54 },
+                    { key: "memberName", title: getNativeFormText(model, "bhq_summary_name", "Name"), width: 110 },
+                    { key: "age", title: getNativeFormText(model, "bhq_summary_age", "Age"), width: 42 },
+                    { key: "sex", title: getNativeFormText(model, "bhq_summary_sex", "Sex"), width: 70 },
                   ]}
                 />
                 {memberRows.length ? (
                   <View style={styles.checkListingCard}>
-                    <Text style={styles.checkListingCode}>CHECK LISTING</Text>
+                    <Text style={styles.checkListingCode}>{getNativeFormText(model, "bhq_check_listing_heading", "CHECK LISTING")}</Text>
                     <Text style={styles.checkListingTitle}>
-                      Just to make sure that I have a complete household listing.
+                      {getNativeFormText(model, "bhq_check_listing_intro", "Just to make sure that I have a complete household listing.")}
                     </Text>
                     {memberChecklistStep === "a" ? (
                       <>
                         <Text style={styles.checkListingQuestion}>
-                          A) Are there any other persons such as small children or infants that we have not listed?
+                          {getNativeFormText(model, "bhq_check_listing_a", "A) Are there any other persons such as small children or infants that we have not listed?")}
                         </Text>
                         <View style={styles.checkListingActions}>
                           <Pressable
-                            onPress={() => requestAdditionalHouseholdMember("Add the missing small child or infant, then review the listing again.")}
+                            onPress={() => requestAdditionalHouseholdMember(getNativeFormText(model, "bhq_add_missing_child", "Add the missing small child or infant, then review the listing again."))}
                             style={styles.secondaryButton}
                           >
-                            <Text style={styles.secondaryButtonText}>Yes, add member</Text>
+                            <Text style={styles.secondaryButtonText}>{getNativeFormText(model, "bhq_yes_add_member", "Yes, add member")}</Text>
                           </Pressable>
                           <Pressable onPress={continueToChecklistB} style={styles.primaryButton}>
-                            <Text style={styles.primaryButtonText}>No</Text>
+                            <Text style={styles.primaryButtonText}>{getNativeFormText(model, "bhq_no", "No")}</Text>
                           </Pressable>
                         </View>
                       </>
                     ) : (
                       <>
                         <Text style={styles.checkListingQuestion}>
-                          B) Are there other people who may not be members of your family such as domestic servants, lodgers or friends who usually live here?
+                          {getNativeFormText(model, "bhq_check_listing_b", "B) Are there other people who may not be members of your family such as domestic servants, lodgers or friends who usually live here?")}
                         </Text>
                         <View style={styles.checkListingActions}>
                           <Pressable
-                            onPress={() => requestAdditionalHouseholdMember("Add the other usual resident, then review the listing again.")}
+                            onPress={() => requestAdditionalHouseholdMember(getNativeFormText(model, "bhq_add_other_resident", "Add the other usual resident, then review the listing again."))}
                             style={styles.secondaryButton}
                           >
-                            <Text style={styles.secondaryButtonText}>Yes, add member</Text>
+                            <Text style={styles.secondaryButtonText}>{getNativeFormText(model, "bhq_yes_add_member", "Yes, add member")}</Text>
                           </Pressable>
                           <Pressable onPress={confirmMemberSummary} style={styles.primaryButton}>
-                            <Text style={styles.primaryButtonText}>No, go to Section 3</Text>
+                            <Text style={styles.primaryButtonText}>{getNativeFormText(model, "bhq_no_go_section_3", "No, go to Section 3")}</Text>
                           </Pressable>
                         </View>
                       </>
@@ -1003,12 +1003,12 @@ export function BaselineHouseholdForm({
                   </View>
                 ) : (
                   <View style={styles.checkListingCard}>
-                    <Text style={styles.checkListingTitle}>Add at least one household member before continuing.</Text>
+                    <Text style={styles.checkListingTitle}>{getNativeFormText(model, "bhq_add_member_required", "Add at least one household member before continuing.")}</Text>
                   </View>
                 )}
                 <View style={styles.footerActions}>
                   <Pressable onPress={() => { goToSurveySection(model, HOUSEHOLD_SCHEDULE_PAGE_NAME); setView("form"); }} style={styles.secondaryButton}>
-                    <Text style={styles.secondaryButtonText}>Edit roster</Text>
+                    <Text style={styles.secondaryButtonText}>{getNativeFormText(model, "bhq_edit_roster", "Edit roster")}</Text>
                   </Pressable>
                 </View>
               </ScrollView>

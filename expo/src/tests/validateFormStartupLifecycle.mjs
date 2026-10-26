@@ -13,6 +13,7 @@ import * as navigation from "../modules/questionnaires/surveyNavigation.js";
 import * as memberSummary from "../modules/questionnaires/householdMemberSummary.js";
 import * as nativeModel from "../components/forms/nativeSurveyModel.js";
 import * as householdIds from "../modules/households/householdIds.js";
+import * as nativeFormText from "../lib/nativeFormText.js";
 import dwellingOutcome from "../../../shared/householdDwellingOutcome.cjs";
 
 // Load the real prefill helpers without importing native task storage in Node.
@@ -54,7 +55,7 @@ const imports = {
   "../questionnaires/surveyNavigation.js": navigation,
   "../questionnaires/householdMemberSummary.js": memberSummary,
   "./householdIds.js": householdIds,
-  "../../lib/nativeFormText.js": { getNativeFormText: (_model, _key, fallback) => fallback },
+  "../../lib/nativeFormText.js": nativeFormText,
   "../../lib/householdMasterChoices.js": masters,
   "../../lib/prefillMapper.js": prefill,
   "../../lib/householdSurveyBehaviors.js": behavior,
@@ -148,6 +149,49 @@ await button(summary, "No, go to Section 3").props.onPress();
 schedule.getAllQuestions = getScheduleQuestions;
 assert.equal(rosterModel.currentPage.name, "page_03_household_characteristics");
 assert.ok(findNode(render(), "NativeSurveyRenderer"));
+
+// Saved target-language text must reach the custom BHQ roster host, not just SurveyJS questions.
+const translatedHostKeys = [
+  "bhq_member_summary_heading", "bhq_member_summary_one", "bhq_member_summary_many",
+  "bhq_summary_count", "bhq_summary_name", "bhq_summary_age", "bhq_summary_sex",
+  "bhq_check_listing_heading", "bhq_check_listing_intro", "bhq_check_listing_a", "bhq_check_listing_b",
+  "bhq_yes_add_member", "bhq_no", "bhq_no_go_section_3", "bhq_edit_roster",
+  "bhq_confirm_roster_before_section_03", "bhq_roster_confirmed", "bhq_add_member_required",
+  "bhq_add_missing_child", "bhq_add_other_resident", "bhq_complete_roster_fields",
+];
+rosterModel.nativeText = Object.fromEntries(translatedHostKeys.map((name) => [name, {
+  default: nativeFormText.NATIVE_FORM_TEXT.HHQ[name], hi: `हिन्दी ${name}${name.includes("summary_one") || name.includes("summary_many") ? " {count}" : ""}`,
+}]));
+rosterModel.locale = "hi";
+const viewSlot = slots.find((slot) => slot?.value === "form");
+const checklistSlot = slots.find((slot) => slot?.value === "b");
+viewSlot.value = "member-summary";
+checklistSlot.value = "a";
+let translatedSummary = findNode(render(), "ScrollView");
+let translatedDisplay = findNode(translatedSummary, "DisplayRenderer");
+assert.equal(translatedDisplay.props.title, "हिन्दी bhq_member_summary_heading");
+assert.equal(translatedDisplay.props.subtitle, "हिन्दी bhq_member_summary_many 20");
+assert.deepEqual(Array.from(translatedDisplay.props.columns, (column) => column.title),
+  ["count", "name", "age", "sex"].map((name) => `हिन्दी bhq_summary_${name}`));
+for (const key of ["bhq_check_listing_heading", "bhq_check_listing_intro", "bhq_check_listing_a", "bhq_edit_roster"]) {
+  assert.ok(textContent(translatedSummary).includes(`हिन्दी ${key}`), `${key} uses saved Hindi text`);
+}
+button(translatedSummary, "हिन्दी bhq_no").props.onPress();
+translatedSummary = findNode(render(), "ScrollView");
+assert.ok(textContent(translatedSummary).includes("हिन्दी bhq_check_listing_b"));
+schedule.getAllQuestions = () => [];
+await button(translatedSummary, "हिन्दी bhq_no_go_section_3").props.onPress();
+schedule.getAllQuestions = getScheduleQuestions;
+assert.equal(findNode(render(), "NativeSurveyRenderer").props.notice, "हिन्दी bhq_roster_confirmed");
+const twentyMembers = rosterModel.getValue("hhq_household_members");
+rosterModel.setValue("hhq_household_members", twentyMembers.slice(0, 1));
+viewSlot.value = "member-summary";
+assert.equal(findNode(render(), "DisplayRenderer").props.subtitle, "हिन्दी bhq_member_summary_one 1");
+rosterModel.setValue("hhq_household_members", []);
+assert.ok(textContent(findNode(render(), "ScrollView")).includes("हिन्दी bhq_add_member_required"));
+rosterModel.setValue("hhq_household_members", twentyMembers);
+rosterModel.locale = "default";
+viewSlot.value = "form";
 
 // A new Other reason is entered at Q9 before navigation, including restored blank drafts.
 draftSlot.value = { key, loading: false, draft: { draft_id: "terminal", json_payload: {

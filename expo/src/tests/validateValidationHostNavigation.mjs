@@ -7,6 +7,7 @@ import { Model } from "survey-core";
 import * as navigation from "../modules/questionnaires/surveyNavigation.js";
 import { hasNativeValidationProblem, validateNativeQuestionTree } from "../components/forms/nativeSurveyModel.js";
 import { findFirstNativeValidationQuestion } from "../components/forms/nativeValidationFocus.js";
+import { getNativeFormText } from "../lib/nativeFormText.js";
 
 function handlers(file, names, bindings) {
   const source = fs.readFileSync(new URL(file, import.meta.url), "utf8");
@@ -185,7 +186,7 @@ const household = handlers("../modules/households/BaselineHouseholdForm.js",
     memberSummaryConfirmedRef: { current: true },
     isHhqAvailabilityStop: () => false, hasDeclinedHouseholdConsent: () => false,
     HOUSEHOLD_SCHEDULE_PAGE_NAME: "page_02_household_schedule",
-    hasNativeValidationProblem, validateNativeQuestionTree,
+    hasNativeValidationProblem, validateNativeQuestionTree, getNativeFormText,
     saveDraft: async () => ({}), previewSignature: JSON.stringify(householdModel.data),
     saveQuestionnaireSubmission: async () => { savedResponses++; },
   });

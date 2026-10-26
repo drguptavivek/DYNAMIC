@@ -16,6 +16,7 @@ import { findFirstNativeValidationQuestion, getValidationPanelIndex } from "./na
 import { NativeQuestionRenderer } from "./renderers/NativeQuestionRenderer.js";
 import { SectionNavigator } from "./SectionNavigator.js";
 import { getLogicalSurveySectionPosition } from "../../modules/questionnaires/surveyNavigation.js";
+import { formatNativeFormText } from "../../lib/nativeFormText.js";
 
 export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
   model,
@@ -386,7 +387,7 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
           )}
         </Text>
         <Text style={styles.pageCount}>
-          {`Section ${logicalSectionPosition.index + 1} of ${logicalSectionPosition.total}`}
+          {formatNativeFormText(model, "section_position", "Section {current} of {total}", { current: logicalSectionPosition.index + 1, total: logicalSectionPosition.total }, locale)}
         </Text>
     </View>
   );
@@ -420,7 +421,7 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
       {resolvedPageIntro ? <Text style={styles.pageIntro}>{resolvedPageIntro}</Text> : null}
       {useCompactPager ? (
         <Text style={styles.questionCounter}>
-          {`Question ${activeQuestionIndex + 1} of ${visibleQuestions.length}`}
+          {formatNativeFormText(model, "question_position", "Question {current} of {total}", { current: activeQuestionIndex + 1, total: visibleQuestions.length }, locale)}
         </Text>
       ) : null}
     </View>

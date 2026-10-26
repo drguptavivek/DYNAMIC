@@ -13,5 +13,7 @@ export const NATIVE_FORM_DIALOG_TEXT = {
   section_close_navigator: "Close section navigator",
   section_close: "Close",
   section_progress_description: "{number}. {title}. {status}",
+  section_position: "Section {current} of {total}",
+  question_position: "Question {current} of {total}",
   preview_row: "Row {number}",
 };

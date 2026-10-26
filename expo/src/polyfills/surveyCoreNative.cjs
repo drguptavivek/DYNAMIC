@@ -24,6 +24,18 @@ function createSurveyModel(surveyJson) {
   const model = new Model(surveyJson);
   model.nativeText = surveyJson?.nativeText || {};
   model.nativeEnglishQuestionTitles = surveyJson?.nativeEnglishQuestionTitles || [];
+  // Text-backed numeric controls still offer coded special choices. SurveyJS
+  // does not retain radiogroup metadata on a text question or its panel clones.
+  model.nativeQuestionChoices = {};
+  const retainTextChoices = (node) => {
+    if (node?.type === "text" && Array.isArray(node.choices)) {
+      model.nativeQuestionChoices[node.name] = node.choices;
+    }
+    for (const field of ["pages", "elements", "templateElements"]) {
+      for (const child of node?.[field] || []) retainTextChoices(child);
+    }
+  };
+  retainTextChoices(surveyJson);
   return model;
 }
 

@@ -79,7 +79,7 @@ export function SelectOneRenderer({ answerData, locale, question, onChange }) {
       ? String(selectedValue)
       : "";
   const entryUnitLabel = question?.entryUnitLabel || question?.jsonObj?.entryUnitLabel ||
-    (question?.renderAs === "days_with_special_codes" ? "Days" : "Years");
+    (question?.renderAs === "days_with_special_codes" ? "Days" : getNativeFormText(question.survey, "entry_years", "Years", locale));
   if (
     allowYearsOverrideSpecialCodes &&
     selectedValue !== undefined &&

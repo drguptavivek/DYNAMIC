@@ -5,7 +5,14 @@ import { Model } from "survey-core";
 import {
   hasNativeValidationProblem,
   setNativeQuestionValue,
+  getNativeQuestionTitle,
+  getNativeQuestionChoices,
+  getPanelCommitLabel,
 } from "../components/forms/nativeSurveyModel.js";
+import { createSurveyModel } from "../polyfills/surveyCoreNative.js";
+import { attachHouseholdSurveyBehaviors, refreshHouseholdSurveyBehaviors } from "../lib/householdSurveyBehaviors.js";
+import { getNativeFormText } from "../lib/nativeFormText.js";
+import formTranslation from "../../../shared/formTranslation.cjs";
 import {
   acceptHhqHighestGradeYearEntry,
   isHhqHighestGradeYearEntry,
@@ -17,6 +24,42 @@ const form = JSON.parse(
   fs.readFileSync("src/data/forms/baseline_household_questionnaire_v2026.05.09.json", "utf8")
 );
 const model = new Model(prepareQuestionnaireSurveyJson(form));
+const addMemberTextKey = formTranslation.flattenFormText(prepareQuestionnaireSurveyJson(form))
+  .find(row => row.name.endsWith("/hhq_household_members:addPanelText")).name;
+// Persisted editor translations must survive preparation, native model creation,
+// and BHQ behavior refresh, including text-backed special coded choices.
+const localizedModel = createSurveyModel(prepareQuestionnaireSurveyJson({
+  ...form,
+  native_form_translations: { hi: {
+    member_highest_grade_completed: {
+      title: "कक्षा {panel.member_name}",
+      choices: { 0: "एक वर्ष से कम", 98: "पता नहीं" },
+    },
+    [addMemberTextKey]: { title: "सदस्य जोड़ें" },
+    hhq_total_eligible_women: { title: "पात्र महिलाएं" },
+    "@page:page_03_household_characteristics": { title: "घरेलू विशेषताएं" },
+    "@native:entry_years": { title: "वर्ष" },
+  } },
+}));
+localizedModel.locale = "hi";
+localizedModel.setValue("hhq_competent_respondent_available", 1);
+localizedModel.setValue("hhq_consent_study_provide_pis_explain_study_adult_member", 1);
+attachHouseholdSurveyBehaviors(localizedModel, form);
+const localizedRoster = localizedModel.getQuestionByName("hhq_household_members");
+localizedRoster.value = [{ member_name: "सीता" }, { member_name: "गीता" }];
+refreshHouseholdSurveyBehaviors(localizedModel, form);
+localizedRoster.panels.forEach((panel, index) => {
+  const question = panel.getQuestionByName("member_highest_grade_completed");
+  assert.equal(getNativeQuestionTitle(question, "hi"), `12_i. कक्षा ${index === 0 ? "सीता" : "गीता"}`);
+  assert.deepEqual(getNativeQuestionChoices(question, "hi").map(({ value, text }) => ({ value, text })), [
+    { value: 0, text: "एक वर्ष से कम" }, { value: 98, text: "पता नहीं" },
+  ]);
+  assert.equal(getNativeFormText(question, "entry_years", "Years", "hi"), "वर्ष");
+});
+assert.equal(getPanelCommitLabel(localizedRoster, localizedRoster.panels[0], "add", false), "सदस्य जोड़ें");
+assert.equal(getNativeQuestionTitle(localizedModel.getQuestionByName("hhq_total_eligible_women"), "hi"), "2. पात्र महिलाएं");
+assert.equal(localizedModel.getPageByName("page_03_household_characteristics").title, "घरेलू विशेषताएं");
+localizedModel.dispose();
 const roster = model.getQuestionByName("hhq_household_members");
 roster.value = [{
   member_name: "Ajay",

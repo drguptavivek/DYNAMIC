@@ -150,7 +150,11 @@ function interpolateSurveyValues(text, question) {
   if (!text) return text;
   let rendered = String(text);
   if (question?.survey && rendered.includes("{")) {
-    rendered = rendered.replace(/\{([A-Za-z0-9_]+)\}/g, (match, fieldName) => {
+    rendered = rendered.replace(/\{(panel\.)?([A-Za-z0-9_]+)\}/g, (match, panelPrefix, fieldName) => {
+      if (panelPrefix) {
+        const value = question?.parent?.getQuestionByName?.(fieldName)?.value;
+        return value === undefined || value === null ? match : String(value);
+      }
       const value = getQuestionValueForInterpolation(question, fieldName);
       if (value === undefined) return match;
       return String(value);
@@ -403,6 +407,7 @@ export function getNativeQuestionChoices(question, locale = "default") {
     question?.visibleChoices ||
     question?.choices ||
     question?.jsonObj?.choices ||
+    question?.survey?.nativeQuestionChoices?.[question?.name] ||
     (question?.name === "member_highest_grade_completed"
       ? [
           { value: 0, text: "Less than one year completed" },
@@ -415,7 +420,7 @@ export function getNativeQuestionChoices(question, locale = "default") {
     const directAnswer = choice.directAnswer ? ` — ${choice.directAnswer}` : "";
     return {
       value: choice.value,
-      text: `${localizedText(choice.locText, defaultText || choice.text || choice.value, locale) || defaultText || String(choice.value ?? "")}${directAnswer}`,
+      text: `${localizedText(choice.locText, (typeof choice.text === "object" ? choice.text?.[locale === "default" ? "en" : locale] : "") || defaultText || String(choice.value ?? ""), locale) || defaultText || String(choice.value ?? "")}${directAnswer}`,
       disabled: choice.disabled === true,
     };
   });

@@ -112,6 +112,7 @@ const location = {
 };
 const capture = startHouseholdGpsCapture(location, { schedule: () => 1, unschedule() {} });
 const cancelled = assert.rejects(capture.promise, /gps_capture_cancelled/);
+await new Promise((resolve) => setImmediate(resolve));
 changeAppState("inactive");
 assert.equal(locked, false, "location permission prompt must not immediately open PIN lock");
 assert.equal(pendingLocks.size, 1, "permission prompt uses the existing bounded grace");
@@ -130,6 +131,7 @@ await cancelled;
 locked = false;
 const stalledCapture = startHouseholdGpsCapture(location, { schedule: () => 1, unschedule() {} });
 const stalledCancelled = assert.rejects(stalledCapture.promise, /gps_capture_cancelled/);
+await new Promise((resolve) => setImmediate(resolve));
 changeAppState("inactive");
 assert.equal(locked, false);
 assert.equal(pendingLocks.size, 1);

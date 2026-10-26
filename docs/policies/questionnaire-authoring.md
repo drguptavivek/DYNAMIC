@@ -41,6 +41,7 @@ Do question-by-question PDF comparison before questionnaire JSON changes.
 - Repeated sections show the entry count and allow a specific entry to be selected, edited, or deleted subject to the definition's minimum-row rule.
 - Every new interview requires a language declaration before questionnaire inputs appear. Apply it to the Survey Core locale and language answer, then lock it through filling and preview. Drafts preserve and restore the declared locale; device preferences cannot change an ongoing interview.
 - Keep database checks, section state, roster confirmation, generated-ID display, and preview as named app capabilities around generic field renderers.
+- BHQ roster-summary headings, counts, column labels and completeness-check questions/buttons are translatable alongside the roster. Keep roster notices in the separate app-messages group. Runtime wording and special-code inputs must preserve saved titles, choice labels and add-member text; resolve `{panel.member_name}` against the current member without changing answers.
 
 ## Form Flow
 

@@ -131,7 +131,7 @@ function groupEditorElements(elements: FormElement[]) {
   const nativeAnchors = new Map<string, string>([
     ["household_characteristics_intro", "hhq_household_characteristics_intro"],
     ["reproduction_intro", "@page:page_02_reproduction"],
-    ...Object.entries(NATIVE_QUESTION_TITLE_KEYS).flatMap(([question, keys]) =>
+    ...Object.entries(NATIVE_QUESTION_TITLE_KEYS).filter(([question]) => questionnaire.some(element => element.name === question)).flatMap(([question, keys]) =>
       (keys as string[]).map((key): [string, string] => [key, question]),
     ),
   ]);

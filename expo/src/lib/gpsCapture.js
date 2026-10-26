@@ -3,12 +3,13 @@ import { beginAppLockMediaActivity, endAppLockMediaActivity } from "../modules/a
 
 /** A fresh GPS watch works offline; only an acceptable fix completes capture. */
 export function startHouseholdGpsCapture(location, { now = Date.now, schedule = setTimeout,
-  unschedule = clearTimeout, onWaiting = () => {} } = {}) {
+  unschedule = clearTimeout, onWaiting = () => {}, onRequestingPermission = () => {} } = {}) {
   let finished = false;
   let subscription;
   let resolveResult;
   let rejectResult;
   let permissionPromptActive = false;
+  let servicesTimer;
   const started = now();
   const promise = new Promise((resolve, reject) => { resolveResult = resolve; rejectResult = reject; });
   function endPermissionPrompt() {
@@ -21,12 +22,23 @@ export function startHouseholdGpsCapture(location, { now = Date.now, schedule = 
     finished = true;
     endPermissionPrompt();
     unschedule(timer);
+    if (servicesTimer !== undefined) unschedule(servicesTimer);
     subscription?.remove();
     if (code) rejectResult(new Error(code));
     else resolveResult(gps);
   }
   const timer = schedule(() => finish("gps_timeout"), 60000);
+  async function checkServices() {
+    const enabled = await location.hasServicesEnabledAsync();
+    if (finished) return;
+    if (!enabled) return finish("gps_services_disabled");
+    servicesTimer = schedule(() => checkServices().catch(() => finish("gps_capture_failed")), 2000);
+  }
   (async () => {
+    const enabled = await location.hasServicesEnabledAsync();
+    if (finished) return;
+    if (!enabled) return finish("gps_services_disabled");
+    onRequestingPermission();
     // Android's location permission dialog can temporarily background the app.
     beginAppLockMediaActivity();
     permissionPromptActive = true;
@@ -38,10 +50,12 @@ export function startHouseholdGpsCapture(location, { now = Date.now, schedule = 
     }
     if (finished) return;
     if (!permission.granted) return finish("location_permission_was_not_granted");
-    const enabled = await location.hasServicesEnabledAsync();
+    if (permission.android?.accuracy === "coarse") return finish("gps_precise_location_required");
+    const stillEnabled = await location.hasServicesEnabledAsync();
     if (finished) return;
-    if (!enabled) return finish("gps_services_disabled");
+    if (!stillEnabled) return finish("gps_services_disabled");
     onWaiting();
+    servicesTimer = schedule(() => checkServices().catch(() => finish("gps_capture_failed")), 2000);
     const watch = await location.watchPositionAsync({ accuracy: location.Accuracy.BestForNavigation,
       timeInterval: 1000, distanceInterval: 0, mayShowUserSettingsDialog: false }, (position) => {
       if (finished || !Number.isFinite(position?.timestamp) || position.timestamp < started - 1000 ||

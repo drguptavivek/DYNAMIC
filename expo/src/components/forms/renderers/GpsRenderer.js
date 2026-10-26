@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Linking, Pressable, Text } from "react-native";
+import { ActivityIndicator, Alert, Linking, Pressable, Text } from "react-native";
 import * as Location from "expo-location";
 
 import { getNativeFormText, NATIVE_FORM_TEXT } from "../../../lib/nativeFormText.js";
@@ -25,8 +25,9 @@ export function GpsRenderer({ locale, question, onChange }) {
   async function capture() {
     if (readOnly || activeCapture.current) return;
     setCapturing(true);
-    setStatus("requesting_location_permission");
+    setStatus("gps_checking_services");
     const operation = startHouseholdGpsCapture(Location, {
+      onRequestingPermission: () => { if (mounted.current) setStatus("requesting_location_permission"); },
       onWaiting: () => { if (mounted.current) setStatus("gps_waiting_for_accuracy"); },
     });
     activeCapture.current = operation;
@@ -39,7 +40,14 @@ export function GpsRenderer({ locale, question, onChange }) {
       setStatus("gps_captured_from_this_device");
       onChange?.();
     } catch (error) {
-      if (mounted.current) setStatus(NATIVE_FORM_TEXT.HHQ[error.message] ? error.message : "gps_capture_failed");
+      if (mounted.current) {
+        setStatus(NATIVE_FORM_TEXT.HHQ[error.message] ? error.message : "gps_capture_failed");
+        if (["gps_services_disabled", "gps_precise_location_required"].includes(error.message)) {
+          Alert.alert(text("capture_gps"), text(error.message), [
+            { text: getNativeFormText(question.survey, "popup_ok", "OK", locale) },
+          ]);
+        }
+      }
     } finally {
       activeCapture.current = null;
       if (mounted.current) setCapturing(false);
@@ -61,8 +69,9 @@ export function GpsRenderer({ locale, question, onChange }) {
       </> : <Text>{question.value === undefined || question.value === null ? text("not_captured") : String(question.value)}</Text>}
       {isCaptureControl && !readOnly ? (
         <Pressable onPress={capture} disabled={capturing} accessibilityRole="button"
-          accessibilityState={{ disabled: capturing }} style={controlStyles.button}>
-          <Text style={controlStyles.buttonText}>{text("capture_gps")}</Text>
+          accessibilityState={{ disabled: capturing, busy: capturing }} style={[controlStyles.button, { flexDirection: "row", gap: 8 }]}>
+          {capturing ? <ActivityIndicator color="#ffffff" /> : null}
+          <Text style={controlStyles.buttonText}>{text(capturing ? "gps_capturing" : "capture_gps")}</Text>
         </Pressable>
       ) : null}
       {capturing ? <Pressable accessibilityRole="button" onPress={() => activeCapture.current?.cancel()} style={controlStyles.button}>

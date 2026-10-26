@@ -2,6 +2,7 @@
  * Derives section navigation, applicability, progress, and preview state from Survey Core.
  */
 import { findFirstNativeValidationQuestion } from "../../components/forms/nativeValidationFocus.js";
+import { getNativeFormText } from "../../lib/nativeFormText.js";
 
 export const HOUSEHOLD_MEMBER_SUMMARY_SECTION_NAME = "hhq_household_member_summary";
 export const HOUSEHOLD_MEMBER_SUMMARY_SECTION_TITLE = "02B-HOUSEHOLD MEMBER SUMMARY";
@@ -191,7 +192,7 @@ export function buildSurveySections(model, options = {}) {
     const summarySection = {
       index: insertAfterIndex >= 0 ? insertAfterIndex + 0.5 : sections.length,
       name: HOUSEHOLD_MEMBER_SUMMARY_SECTION_NAME,
-      title: HOUSEHOLD_MEMBER_SUMMARY_SECTION_TITLE,
+      title: getNativeFormText(model, "bhq_member_summary_heading", HOUSEHOLD_MEMBER_SUMMARY_SECTION_TITLE),
       answered: summaryApplicable && options.householdMemberSummaryConfirmed ? 1 : 0,
       total: 1,
       hasErrors: false,

@@ -652,8 +652,10 @@ function configureHouseholdRosterQuestion(model) {
   // probes (which remain the final completeness check).
   roster.dynamicAutoOpenFirstEntry = true;
   roster.dynamicHideAddButton = false;
-  roster.addPanelText = "Add household member";
-  roster.panelAddText = "Add household member";
+  // The canonical definition owns these localizable labels, including saved
+  // admin overrides. Changing the active text here replaces its translation.
+  if (!roster.addPanelText) roster.addPanelText = "Add household member";
+  if (!roster.panelAddText) roster.panelAddText = "Add household member";
 }
 
 export function refreshHouseholdSurveyBehaviors(model, selectedForm) {
