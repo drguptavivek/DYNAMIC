@@ -271,6 +271,8 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
   function requestQuestionFocus(question) {
     if (!question || question.page?.isVisible === false) return false;
     focusedQuestionRef.current = null;
+    keyboardScrollTimersRef.current.forEach((timer) => clearTimeout(timer));
+    keyboardScrollTimersRef.current = [];
     pendingFocusRef.current = question;
     if (question.page && model.currentPage !== question.page) model.currentPage = question.page;
     if (question.page && model.currentPage !== question.page) {

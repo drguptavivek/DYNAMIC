@@ -16,6 +16,8 @@ const sameDeps = (a, b) => a && b && a.length === b.length && a.every((value, in
 
 function mount(model, { width = 390, compactPager = false, validationFocusRequest, onCompleteRequested } = {}) {
   const slots = [], effects = [], frames = [], scrolls = [];
+  const keyboardListeners = new Map(), timers = new Map();
+  let timerSequence = 0;
   let cursor = 0, dirty = true, tree, props;
   const react = {
     createElement: (type, properties, ...children) => ({ type, props: { ...properties, children } }),
@@ -31,7 +33,9 @@ function mount(model, { width = 390, compactPager = false, validationFocusReques
   react.useCallback = (callback, deps) => react.useMemo(() => callback, deps);
   const imports = {
     react,
-    "react-native": { Platform: { OS: "web" }, Keyboard: { addListener: () => ({ remove() {} }) },
+    "react-native": { Platform: { OS: "web" }, Keyboard: { addListener: (name, callback) => {
+      keyboardListeners.set(name, callback); return { remove() { keyboardListeners.delete(name); } };
+    } },
       useWindowDimensions: () => ({ width }), StyleSheet: { create: (styles) => styles },
       View: "View", ScrollView: "ScrollView", Text: "Text", Pressable: "Pressable" },
     "@expo/vector-icons/MaterialCommunityIcons": "Icon",
@@ -40,7 +44,9 @@ function mount(model, { width = 390, compactPager = false, validationFocusReques
     "./SectionNavigator.js": { SectionNavigator: "Sections" }, "../../modules/questionnaires/surveyNavigation.js": navigation,
   };
   const context = { exports: {}, require: (id) => { assert.ok(id in imports, `Unexpected import ${id}`); return imports[id]; },
-    requestAnimationFrame: (callback) => { frames.push(callback); return frames.length; }, cancelAnimationFrame() {}, setTimeout, clearTimeout };
+    requestAnimationFrame: (callback) => { frames.push(callback); return frames.length; }, cancelAnimationFrame() {},
+    setTimeout: (callback) => { const id = ++timerSequence; timers.set(id, callback); return id; },
+    clearTimeout: (id) => timers.delete(id) };
   vm.runInNewContext(compiled, context);
   const ref = { current: null };
   props = { model, answerData: model.data, compactPager, validationFocusRequest, onCompleteRequested };
@@ -62,6 +68,9 @@ function mount(model, { width = 390, compactPager = false, validationFocusReques
   }
   settle();
   return { ref, nodes, scrolls, settle,
+    focus(name) { nodes().find((node) => node.type === "Question").props.onRequestTopLevelFocus(name); settle(); },
+    showKeyboard() { keyboardListeners.get("keyboardDidShow")?.({ endCoordinates: { height: 300 } }); settle(); },
+    pendingKeyboardTimers: () => timers.size,
     update(next) { props = { ...props, ...next, answerData: model.data }; dirty = true; settle(); },
     async next() { const button = nodes().find((node) => ["Next section", "Review and submit"].includes(node.props.accessibilityLabel));
       await button.props.onPress(); settle(); },
@@ -100,6 +109,17 @@ for (const [width, compactPager] of [[390, false], [1280, false], [390, true]]) 
 }
 
 const crossPage = fourChildren();
+const keyboardModel = fourChildren();
+const keyboardRenderer = mount(keyboardModel);
+keyboardRenderer.focus("after_children");
+keyboardRenderer.showKeyboard();
+assert.equal(keyboardRenderer.pendingKeyboardTimers(), 3);
+await keyboardRenderer.next();
+assert.equal(keyboardRenderer.pendingKeyboardTimers(), 0,
+  "A delayed keyboard scroll must not pull the screen away from the validation error");
+assert.equal(keyboardRenderer.request().question,
+  keyboardModel.getQuestionByName("children").panels[2].getQuestionByName("detail"));
+
 crossPage.currentPage = crossPage.getPageByName("outcome");
 const target = crossPage.getQuestionByName("children").panels[2].getQuestionByName("detail");
 target.validate();
