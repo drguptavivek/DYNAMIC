@@ -271,4 +271,15 @@ function baseProps(question, overrides = {}) {
   );
 }
 
+{
+  const model = buildModel();
+  const question = model.getQuestionByName("wq_woman_available");
+  const props = baseProps(question, { renderSignature: buildQuestionRenderSignature(question) });
+  const request = { question, sequence: 1 };
+  assert.equal(areQuestionRendererPropsEqual(props, { ...props, validationFocusRequest: request }), false,
+    "An explicit validation focus request must reveal a memoized question even when its answers are unchanged");
+  assert.equal(areQuestionRendererPropsEqual({ ...props, validationFocusRequest: request },
+    { ...props, validationFocusRequest: request }), true);
+}
+
 console.log("Validated question render memo comparator.");

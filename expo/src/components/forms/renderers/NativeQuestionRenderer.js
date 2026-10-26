@@ -1,8 +1,8 @@
 /** Dispatches a supported Survey Core question to its exact native renderer with no fallback. */
 import React from "react";
-import { View } from "react-native";
+import { StyleSheet, View } from "react-native";
 
-import { getNativeRendererKind } from "../nativeSurveyModel.js";
+import { getNativeRendererKind, hasNativeValidationProblem } from "../nativeSurveyModel.js";
 import { areQuestionRendererPropsEqual } from "../questionRenderMemo.js";
 
 import { CalculateRenderer } from "./CalculateRenderer.js";
@@ -41,9 +41,12 @@ function NativeQuestionRendererBase({
   onChange,
   onRequestTopLevelFocus,
   renderQuestion,
+  validationFocusRequest,
+  onRegisterQuestion,
+  onQuestionLayout,
 }) {
   const renderer = getNativeRendererKind(question);
-  const props = { answerData, locale, question, onChange };
+  const props = { answerData, locale, question, onChange, validationFocusRequest };
   let rendered;
   switch (renderer) {
     case "calculate": rendered = <CalculateRenderer {...props} />; break;
@@ -137,6 +140,11 @@ function NativeQuestionRendererBase({
   const shouldRequestTopLevelFocus = renderer !== "dynamic-panel" && !isPanelChild;
   return (
     <View
+      ref={(node) => onRegisterQuestion?.(question, node)}
+      onLayout={() => onQuestionLayout?.(question)}
+      style={validationFocusRequest?.question === question && hasNativeValidationProblem(question)
+        ? styles.validationTarget : undefined}
+      accessibilityLiveRegion={validationFocusRequest?.question === question ? "polite" : "none"}
       // Use capture as well as bubbling: some Android TextInput versions do
       // not consistently bubble focus through nested native controls.
       onFocusCapture={shouldRequestTopLevelFocus
@@ -152,3 +160,7 @@ function NativeQuestionRendererBase({
 }
 
 export const NativeQuestionRenderer = React.memo(NativeQuestionRendererBase, areQuestionRendererPropsEqual);
+
+const styles = StyleSheet.create({
+  validationTarget: { borderWidth: 2, borderColor: "#b42318", borderRadius: 10, padding: 4 },
+});

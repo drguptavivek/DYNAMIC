@@ -7,6 +7,8 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { NativeSurveyRenderer } from "../../components/forms/NativeSurveyRenderer.js";
+import { findFirstNativeValidationQuestion } from "../../components/forms/nativeValidationFocus.js";
+import { hasNativeValidationProblem, validateNativeQuestionTree } from "../../components/forms/nativeSurveyModel.js";
 import { FormLanguageSelection } from "../../components/forms/FormLanguageSelection.js";
 import { getDraftFormLocale } from "../../lib/formLanguage.js";
 import { PreviewRenderer } from "../../components/forms/renderers/PreviewRenderer.js";
@@ -28,6 +30,7 @@ import {
   HOUSEHOLD_MEMBER_SUMMARY_SECTION_NAME,
   buildSurveySections,
   calculateSurveyProgress,
+  getSurveyValidationQuestion,
   goToSurveySection,
 } from "./surveyNavigation";
 import {
@@ -384,6 +387,7 @@ export function QuestionnaireDashboard({
   const [memberSummaryOpen, setMemberSummaryOpen] = useState(false);
   const [memberSummaryConfirmed, setMemberSummaryConfirmed] = useState(false);
   const [sectionDrawerOpen, setSectionDrawerOpen] = useState(false);
+  const [validationFocusRequest, setValidationFocusRequest] = useState(null);
   const { width } = useWindowDimensions();
   const compact = Platform.OS !== "web" || width < 700;
   // Keep one form definition for the lifetime of this questionnaire screen.
@@ -441,6 +445,42 @@ export function QuestionnaireDashboard({
     setRendererAnswerData(nextData);
     setSections(buildSurveySections(model));
     setProgress(calculateSurveyProgress(model));
+  }
+
+  function revealValidationError(model, question = getSurveyValidationQuestion(model)) {
+    if (!question) return false;
+    if (question.page?.name) goToSurveySection(model, question.page.name);
+    if (question.page && model.currentPage !== question.page) return false;
+    setPreviewOpen(false);
+    setMemberSummaryOpen(false);
+    setSectionDrawerOpen(false);
+    setValidationFocusRequest((previous) => ({ question, sequence: (previous?.sequence || 0) + 1 }));
+    updateSurveyStatus(model);
+    return true;
+  }
+
+  function requestCompleteFromModel(model) {
+    if (!model) return false;
+    if (!model.validate()) {
+      revealValidationError(model);
+      return false;
+    }
+    if (isWomanQuestionnaire(form)) {
+      const children = model.getQuestionByName("wq_born_alive_child_followups");
+      if (children?.isVisible && children.page?.isVisible && hasIncompleteWqBornAliveChildFollowups(model)) {
+        setSaveMessage("Add details for every Born Alive child before continuing.");
+        revealValidationError(model, findFirstNativeValidationQuestion([children]) || children);
+        return false;
+      }
+      const comparison = model.getQuestionByName(WQ_REPRODUCTION_COMPARISON_FIELD);
+      if (comparison?.isVisible && comparison.page?.isVisible && hasWqReproductionComparisonDeficit(model)) {
+        setSaveMessage("The detailed-history total is lower than the earlier-summary total. Reverify Q3 or Q14 before continuing.");
+        revealValidationError(model, comparison);
+        return false;
+      }
+    }
+    model.doComplete();
+    return true;
   }
 
   function markDirty() {
@@ -535,6 +575,13 @@ export function QuestionnaireDashboard({
   async function confirmMemberSummary(model) {
     if (!model) return;
     refreshHouseholdSurveyBehaviors(model, form);
+    const schedule = model.getPageByName(HOUSEHOLD_SCHEDULE_PAGE_NAME);
+    const questions = schedule?.questions || [];
+    questions.forEach(validateNativeQuestionTree);
+    if (questions.some(hasNativeValidationProblem)) {
+      revealValidationError(model, getSurveyValidationQuestion(model, schedule.name));
+      return;
+    }
     memberSummaryConfirmedRef.current = true;
     setMemberSummaryConfirmed(true);
     setMemberSummaryOpen(false);
@@ -568,6 +615,11 @@ export function QuestionnaireDashboard({
       !memberSummaryConfirmedRef.current
     ) {
       openMemberSummaryFromModel(model);
+      return;
+    }
+    const invalidQuestion = getSurveyValidationQuestion(model, sectionName);
+    if (invalidQuestion && buildSurveySections(model).some((section) => section.name === sectionName && section.hasErrors)) {
+      revealValidationError(model, invalidQuestion);
       return;
     }
     goToSurveySection(model, sectionName);
@@ -963,9 +1015,7 @@ export function QuestionnaireDashboard({
           "The detailed-history total is lower than the earlier-summary total. Reverify Q3 or Q14 before continuing.";
         setSaveMessage(message);
         showFormAlert(model, Alert.alert, "Reproductive history totals do not match", message);
-        requestAnimationFrame(() => {
-          rendererRef.current?.focusQuestion(WQ_REPRODUCTION_COMPARISON_FIELD);
-        });
+        revealValidationError(sender, sender.getQuestionByName(WQ_REPRODUCTION_COMPARISON_FIELD));
         return;
       }
       if (
@@ -991,9 +1041,8 @@ export function QuestionnaireDashboard({
           "Born Alive child details incomplete",
           "Add and save Q24_i-Q28_i for every child shown as Born Alive before continuing."
         );
-        requestAnimationFrame(() => {
-          rendererRef.current?.focusQuestion("wq_born_alive_child_followups");
-        });
+        const children = sender.getQuestionByName("wq_born_alive_child_followups");
+        revealValidationError(sender, findFirstNativeValidationQuestion([children]) || children);
         return;
       }
       if (
@@ -1558,7 +1607,7 @@ export function QuestionnaireDashboard({
                           <Text numberOfLines={1} style={[styles.secondaryButtonText, compact && styles.previewActionTextCompact]}>Edit Form</Text>
                         </Pressable>
                         <Pressable
-                          onPress={() => survey?.doComplete?.()}
+                          onPress={() => requestCompleteFromModel(survey)}
                           style={[styles.primaryButton, compact && styles.previewActionButtonCompact]}
                         >
                           <Text numberOfLines={1} style={[styles.primaryButtonText, compact && styles.previewActionTextCompact]}>Confirm & Submit</Text>
@@ -1570,6 +1619,7 @@ export function QuestionnaireDashboard({
                 ) : survey ? (
                   <NativeSurveyRenderer
                     ref={rendererRef}
+                    validationFocusRequest={validationFocusRequest}
                     answerData={activeRendererAnswerData}
                     compactPager={false}
                     locale={activeLocale}
@@ -1581,7 +1631,7 @@ export function QuestionnaireDashboard({
                         ? getNativeFormText(survey, "visitor_outcome_message", "This women is Excluded From study", activeLocale)
                         : ""
                     }
-                    onCompleteRequested={(activeModel) => activeModel?.doComplete?.()}
+                    onCompleteRequested={requestCompleteFromModel}
                     onNextRequested={(activeModel, currentPage) => {
                       if (
                         isHouseholdQuestionnaire(form) &&

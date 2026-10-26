@@ -38,7 +38,9 @@ The Table of Contents must:
 - include synthetic review sections when required, such as HHQ member summary or final preview
 - preserve read-only prefill fields and skip logic while navigating
 - never bypass final validation
-- when Next is blocked by validation, scroll the native form to the first visible question with a validation problem
+- when Next, final review or final submission is blocked by validation, open the actual affected page and scroll to the first visible question with a validation problem; open its exact repeated entry (including a previously saved child) and highlight the question with its localized error
+- selecting a section with errors must reveal the actual failing page/question within a grouped section, rather than only opening its first page
+- revealing an error must preserve answers and entry order; it must never add, delete, complete or automatically advance a repeated entry
 
 ## Progress
 

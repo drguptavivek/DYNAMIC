@@ -298,11 +298,6 @@ assert.match(
   /onRequestTopLevelFocus=\{scrollToQuestionByName\}/,
   "The native survey renderer must wire repeat-panel continuation focus to its scroll controller"
 );
-assert.match(
-  nativeSurveyRendererSource,
-  /requestAnimationFrame\(scrollToTop\)/,
-  "Every programmatic page change must reset the native questionnaire scroll position to the top"
-);
 const historyConfirmationRendererSource = fs.readFileSync(
   path.resolve(root, "../components/forms/renderers/WqPregnancyHistoryConfirmationRenderer.js"),
   "utf8"

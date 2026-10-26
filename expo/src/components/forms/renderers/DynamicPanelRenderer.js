@@ -26,6 +26,7 @@ import {
   WQ_PREGNANCY_PLURALITY_FIELD,
 } from "../nativeSurveyModel.js";
 import { controlStyles } from "./QuestionFrame.js";
+import { findFirstNativeValidationQuestion, getValidationPanelIndex } from "../nativeValidationFocus.js";
 import { acceptHhqHighestGradeYearEntry } from "./hhqHighestGrade.js";
 import {
   confirmCommittedHhqMobileNumber,
@@ -83,6 +84,7 @@ export function DynamicPanelRenderer({
   onChange,
   onRequestTopLevelFocus,
   renderQuestion,
+  validationFocusRequest,
 }) {
   const [editingIndex, setEditingIndex] = useState(null);
   const [editorMode, setEditorMode] = useState(null);
@@ -93,6 +95,12 @@ export function DynamicPanelRenderer({
   topLevelFocusRef.current = onRequestTopLevelFocus;
   const errors = getNativeQuestionErrors(question);
   const panels = question.panels || [];
+  useEffect(() => {
+    const index = getValidationPanelIndex(question, validationFocusRequest?.question);
+    if (index < 0) return;
+    setEditingIndex(index);
+    setEditorMode("edit");
+  }, [question, validationFocusRequest]);
   const committedPanels = panels
     .map((panel, index) => ({ panel, index }))
     .filter(({ panel, index }) =>
@@ -141,6 +149,7 @@ export function DynamicPanelRenderer({
 
   useEffect(() => {
     if (!isWqPregnancyHistory || editingIndex === null) return;
+    if (getValidationPanelIndex(question, validationFocusRequest?.question) === editingIndex) return;
     topLevelFocusRef.current?.(question.name);
   }, [editingIndex, isWqPregnancyHistory, question.name]);
 
@@ -314,7 +323,10 @@ export function DynamicPanelRenderer({
       return childValid || isBHQHighestGradeAnswered;
     }).every(Boolean);
     onChange?.();
-    if (!valid || visibleQuestions.some((child) => child.errors?.length)) return;
+    if (!valid || visibleQuestions.some((child) => child.errors?.length)) {
+      onRequestTopLevelFocus?.(findFirstNativeValidationQuestion(visibleQuestions) || activePanel.questions?.find((child) => child.errors?.length));
+      return;
+    }
     if (editorMode === "add" && multipleBirth.index < multipleBirth.count) {
       const { panel: nextPanel, index: nextIndex } = appendDynamicPanel(question);
       if (!nextPanel || nextIndex < 0) return;

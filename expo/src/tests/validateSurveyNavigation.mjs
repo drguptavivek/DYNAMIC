@@ -9,6 +9,7 @@ const {
   calculateSurveyProgress,
   getCurrentPageName,
   getLogicalSurveySectionPosition,
+  getSurveyValidationQuestion,
   goToSurveySection,
 } = await import("../modules/questionnaires/surveyNavigation.js");
 
@@ -233,5 +234,15 @@ assert.equal(womanSections[1].title, "02-Reproduction");
 assert.equal(womanSections[1].isCurrent, true);
 assert.equal(womanSections[1].total, 3);
 assert.deepEqual(getLogicalSurveySectionPosition(womanReproductionModel), { index: 1, total: 3 });
+
+const failedFollowup = womanReproductionModel.getQuestionByName("pregnancy_follow_up");
+failedFollowup.isRequired = true;
+failedFollowup.validate();
+assert.equal(getSurveyValidationQuestion(womanReproductionModel, "page_02_reproduction"), failedFollowup);
+assert.equal(buildSurveySections(womanReproductionModel)[1].hasErrors, true);
+const repeat = repeatModel.getQuestionByName("members");
+repeat.addError("Review this member");
+assert.equal(buildSurveySections(repeatModel)[0].hasErrors, true, "Repeat-container errors remain visible on the section");
+assert.equal(getSurveyValidationQuestion(repeatModel, "repeat"), repeat);
 
 console.log("Validated SurveyJS navigation helpers.");

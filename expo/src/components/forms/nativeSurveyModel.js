@@ -689,7 +689,7 @@ function clearStaleRequiredError(question) {
 export function hasNativeValidationProblem(question) {
   if (!shouldValidateNativeQuestion(question)) return false;
   if (Array.isArray(question.errors) && question.errors.length > 0) return true;
-  if (question.isRequired && isEmptyNativeQuestionValue(question.value)) return true;
+  if (question.isRequired && !question.isReadOnly && !question.readOnly && isEmptyNativeQuestionValue(question.value)) return true;
   if (Array.isArray(question.items)) {
     if (question.items.some((item) => ((item.editor ?? item)?.errors ?? []).length > 0)) return true;
   }

@@ -1,6 +1,8 @@
 /**
  * Derives section navigation, applicability, progress, and preview state from Survey Core.
  */
+import { findFirstNativeValidationQuestion } from "../../components/forms/nativeValidationFocus.js";
+
 export const HOUSEHOLD_MEMBER_SUMMARY_SECTION_NAME = "hhq_household_member_summary";
 export const HOUSEHOLD_MEMBER_SUMMARY_SECTION_TITLE = "02B-HOUSEHOLD MEMBER SUMMARY";
 export const COMPACT_PREVIEW_SECTION_NAME = "compact_preview";
@@ -82,6 +84,13 @@ function getSectionStatus({ applicable, answered, total, hasErrors }) {
   return "in_progress";
 }
 
+function hasReportedValidationError(question) {
+  if (question?.isVisible === false || question?.renderAs === "background") return false;
+  return Boolean(question?.errors?.length ||
+    question?.items?.some((item) => ((item.editor ?? item)?.errors || []).length) ||
+    question?.panels?.some((panel) => (panel.questions || []).some(hasReportedValidationError)));
+}
+
 function getLocalizedTitle(page) {
   const rendered = page?.locTitle?.renderedHtml || page?.locTitle?.text;
   if (rendered) return rendered;
@@ -91,6 +100,16 @@ function getLocalizedTitle(page) {
 
 export function getCurrentPageName(model) {
   return model?.currentPage?.name || null;
+}
+
+export function getSurveyValidationQuestion(model, sectionName) {
+  const logicalName = sectionName ? getLogicalSurveySectionName(sectionName) : null;
+  for (const page of model?.visiblePages || []) {
+    if (logicalName && getLogicalSurveySectionName(page.name) !== logicalName) continue;
+    const question = findFirstNativeValidationQuestion(page.questions || page.elements || []);
+    if (question) return question;
+  }
+  return null;
 }
 
 export function goToSurveySection(model, pageName) {
@@ -109,12 +128,7 @@ export function buildSurveySections(model, options = {}) {
   const pageSections = model.pages.map((page, index) => {
     const questions = getSectionQuestions(page);
     const answered = questions.filter((question) => hasAnswer(getQuestionValue(model, question))).length;
-    const hasErrors = questions.some(
-      (question) =>
-        (Array.isArray(question.errors) && question.errors.length > 0) ||
-        (Array.isArray(question.items) &&
-          question.items.some((item) => ((item.editor ?? item)?.errors ?? []).length > 0))
-    );
+    const hasErrors = getPageQuestions(page).some(hasReportedValidationError);
     const applicable = page.isVisible !== false && questions.length > 0;
 
     return {

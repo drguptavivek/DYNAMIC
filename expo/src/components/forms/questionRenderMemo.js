@@ -137,6 +137,9 @@ export function areQuestionRendererPropsEqual(previous, next) {
   if (previous.onChange !== next.onChange) return false;
   if (previous.onRequestTopLevelFocus !== next.onRequestTopLevelFocus) return false;
   if (previous.renderQuestion !== next.renderQuestion) return false;
+  if (previous.validationFocusRequest !== next.validationFocusRequest) return false;
+  if (previous.onRegisterQuestion !== next.onRegisterQuestion) return false;
+  if (previous.onQuestionLayout !== next.onQuestionLayout) return false;
   if (previous.renderSignature !== next.renderSignature) return false;
 
   const previousValue = getNativeQuestionValue(previous.question, previous.answerData);

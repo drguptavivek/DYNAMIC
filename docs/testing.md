@@ -55,6 +55,8 @@ English checks cover portal edit/save and CSV export/import, effective sync defi
 
 For BHQ member-summary scrolling, run `node expo/src/tests/validateFormStartupLifecycle.mjs`. Check a 20-member roster on a narrow viewport: scroll to checklist A/B, continue to Section 3, and return to edit/add members. Keep the table's horizontal scrolling available.
 
+Validation navigation: run `validateRepeatValidationFocus.mjs`, `validateNativeValidationFocus.mjs` and `validateValidationHostNavigation.mjs` through the Expo test runner. Use four repeated children/members with errors in different rows: blocked Next and invalid child Save must open the exact entry and scroll to its highlighted question, including compound fields. Correcting one error must reveal the next one without changing other answers. Check mobile, desktop and compact-pager layouts, grouped reproduction-section navigation, and failed final confirmation after preview remounts the renderer. Invalid final submissions must not create evidence or complete tasks; hidden questions and internal bookkeeping fields must not become focus targets. Empty locked fields ignored by Survey Core must not block navigation or steal focus from an editable error. An unsaved but otherwise complete child must reopen its own editor without recursively navigating into later required pages.
+
 Baseline dwelling exclusions:
 
 ```bash

@@ -8,11 +8,11 @@ import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import {
   assertNativeSurveySupport,
   getVisiblePageQuestions,
-  hasNativeValidationProblem,
   stripSurveyHtml,
   validateNativeQuestionTree,
 } from "./nativeSurveyModel.js";
 import { buildQuestionRenderSignature } from "./questionRenderMemo.js";
+import { findFirstNativeValidationQuestion, getValidationPanelIndex } from "./nativeValidationFocus.js";
 import { NativeQuestionRenderer } from "./renderers/NativeQuestionRenderer.js";
 import { SectionNavigator } from "./SectionNavigator.js";
 import { getLogicalSurveySectionPosition } from "../../modules/questionnaires/surveyNavigation.js";
@@ -33,6 +33,7 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
   sections = [],
   onSectionSelect,
   compactPager = false,
+  validationFocusRequest,
 }, ref) {
   const { width } = useWindowDimensions();
   const compact = Platform.OS !== "web" || width < 700;
@@ -48,6 +49,12 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
   const refreshFrameRef = useRef(null);
   const focusedQuestionRef = useRef(null);
   const keyboardScrollTimersRef = useRef([]);
+  const [activeFocusRequest, setActiveFocusRequest] = useState(null);
+  const focusSequenceRef = useRef(0);
+  const pendingFocusRef = useRef(null);
+  const questionNodesRef = useRef(new Map());
+  const focusRequestRef = useRef(null);
+  focusRequestRef.current = activeFocusRequest;
   const scrollToTop = useCallback(() => {
     compactScrollRef.current?.scrollTo?.({ animated: false, y: 0 });
     desktopScrollRef.current?.scrollTo?.({ animated: false, y: 0 });
@@ -103,8 +110,10 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
 
   useEffect(() => {
     questionOffsetsRef.current = new Map();
-    setQuestionIndex(0);
-    const frame = requestAnimationFrame(scrollToTop);
+    if (pendingFocusRef.current?.page !== page) setQuestionIndex(0);
+    const frame = requestAnimationFrame(() => {
+      if (!pendingFocusRef.current) scrollToTop();
+    });
     return () => cancelAnimationFrame(frame);
   }, [page?.name, scrollToTop]);
 
@@ -129,6 +138,16 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
   pageRef.current = page;
   const scrollToQuestionRef = useRef(null);
 
+  const onQuestionLayout = useCallback((question) => {
+    if (pendingFocusRef.current === question) {
+      scrollToQuestionRef.current?.(question, { revealInput: true });
+    }
+  }, []);
+  const onRegisterQuestion = useCallback((question, node) => {
+    if (node) questionNodesRef.current.set(question, node);
+    else questionNodesRef.current.delete(question);
+  }, []);
+
   const renderQuestion = useCallback((question, key = question.id || question.name) => (
     <NativeQuestionRenderer
       key={key}
@@ -140,16 +159,23 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
       renderQuestion={renderQuestion}
       renderRevision={revisionRef.current}
       renderSignature={buildQuestionRenderSignature(question, localeRef.current)}
+      validationFocusRequest={focusRequestRef.current}
+      onRegisterQuestion={onRegisterQuestion}
+      onQuestionLayout={onQuestionLayout}
     />
-  ), [refresh]);
+  ), [refresh, onRegisterQuestion, onQuestionLayout]);
 
   const scrollToQuestionByName = useCallback((name) => {
+    if (typeof name === "object" && name) {
+      return requestQuestionFocusRef.current?.(name) ?? false;
+    }
     focusedQuestionRef.current = name;
     const target = getVisiblePageQuestions(pageRef.current).find((item) => item.name === name);
     if (!target) return false;
     scrollToQuestionRef.current?.(target, { revealInput: true });
     return true;
   }, []);
+  const requestQuestionFocusRef = useRef(null);
 
   // Android reports focus before the keyboard has finished opening. A single
   // scroll at that point is calculated against the old viewport and the
@@ -202,13 +228,11 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
     // Re-read visibility at call time: answer-driven skips (WQ Section 2
     // Q1 "no" -> Q6) fire before the refresh re-render, so a closure over
     // the previous render's visibleQuestions would carry stale indices.
-    const currentQuestions = getVisiblePageQuestions(page);
-    const index = currentQuestions.findIndex((item) => item.name === question.name);
+    const currentQuestions = getVisiblePageQuestions(model.currentPage);
+    const index = currentQuestions.findIndex((item) => item === question || getValidationPanelIndex(item, question) >= 0);
     if (index < 0) return;
     if (useCompactPager) {
       setQuestionIndex(index);
-      scrollToTop();
-      return;
     }
     // The cached onLayout offsets go stale when an answer change hides
     // questions above the target (Q2-Q5/Q8/Q9 hide on Q1 "no"), which made
@@ -217,27 +241,23 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
     // commit and re-layout first, with the cached offset as the fallback.
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        if (!compact) {
-          desktopScrollRef.current?.scrollTo?.({ animated: true, y: 0 });
-          return;
-        }
-        const cachedY = questionOffsetsRef.current.get(question.name);
-        const scrollY = (y) => compactScrollRef.current?.scrollTo?.({
-          animated: true,
-          // Focused inputs need only a small lift so the user keeps their
-          // place in the questionnaire. Validation/navigation calls retain
-          // the original top-of-question behavior.
-          y: Math.max(
-            0,
-            questionsOffsetRef.current + (Number.isFinite(y) ? y : 0) -
-              (options.revealInput ? 80 : 8)
-          ),
-        });
-        const row = questionRowRefsRef.current.get(question.name);
+        const owner = currentQuestions[index];
+        const cachedY = questionOffsetsRef.current.get(owner?.name);
+        const scrollY = (y, exact = false) => {
+          (compact ? compactScrollRef : desktopScrollRef).current?.scrollTo?.({
+            animated: true,
+            // Leave context above the field without hiding it under the keyboard.
+            y: Math.max(0, questionsOffsetRef.current + (Number.isFinite(y) ? y : 0) -
+              (options.revealInput ? 80 : 8)),
+          });
+          if (exact && pendingFocusRef.current === question) pendingFocusRef.current = null;
+        };
+        const exactRow = questionNodesRef.current.get(question);
+        const row = exactRow || questionRowRefsRef.current.get(owner?.name);
         if (row?.measureLayout && questionsContainerRef.current) {
           row.measureLayout(
             questionsContainerRef.current,
-            (_x, y) => scrollY(y),
+            (_x, y) => scrollY(y, Boolean(exactRow)),
             () => scrollY(cachedY),
           );
           return;
@@ -248,14 +268,39 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
   }
   scrollToQuestionRef.current = scrollToQuestion;
 
+  function requestQuestionFocus(question) {
+    if (!question || question.page?.isVisible === false) return false;
+    focusedQuestionRef.current = null;
+    pendingFocusRef.current = question;
+    if (question.page && model.currentPage !== question.page) model.currentPage = question.page;
+    if (question.page && model.currentPage !== question.page) {
+      pendingFocusRef.current = null;
+      return false;
+    }
+    const request = { question, sequence: ++focusSequenceRef.current };
+    focusRequestRef.current = request;
+    setActiveFocusRequest(request);
+    scrollToQuestion(question, { revealInput: true });
+    refresh();
+    return true;
+  }
+  requestQuestionFocusRef.current = requestQuestionFocus;
+
+  useEffect(() => {
+    if (validationFocusRequest?.question) requestQuestionFocusRef.current(validationFocusRequest.question);
+  }, [validationFocusRequest]);
+
   useImperativeHandle(
     ref,
     () => ({
       focusQuestion(name) {
-        const target = getVisiblePageQuestions(page).find((item) => item.name === name);
+        const target = typeof name === "object" ? name : model.getQuestionByName?.(name);
         if (!target) return false;
-        scrollToQuestion(target);
-        return true;
+        return requestQuestionFocus(findFirstNativeValidationQuestion([target]) || target);
+      },
+      focusFirstError() {
+        const target = findFirstNativeValidationQuestion(getVisiblePageQuestions(model.currentPage));
+        return target ? requestQuestionFocus(target) : false;
       },
     }),
     [scrollToQuestion, useCompactPager, page],
@@ -287,7 +332,7 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
       const valid = activeQuestion?.validate?.() !== false;
       refresh();
       if (!valid || activeQuestion?.errors?.length) {
-        scrollToQuestion(activeQuestion);
+        requestQuestionFocus(findFirstNativeValidationQuestion([activeQuestion]) || activeQuestion);
         return;
       }
       setQuestionIndex((value) => Math.min(visibleQuestions.length - 1, value + 1));
@@ -298,9 +343,9 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
     const pageQuestions = getVisiblePageQuestions(currentPage);
     pageQuestions.forEach(validateNativeQuestionTree);
     refresh();
-    const firstQuestionWithError = pageQuestions.find(hasNativeValidationProblem);
+    const firstQuestionWithError = findFirstNativeValidationQuestion(pageQuestions);
     if (firstQuestionWithError) {
-      scrollToQuestion(firstQuestionWithError, { revealInput: true });
+      requestQuestionFocus(firstQuestionWithError);
       await onSaveDraft?.({ silent: true, reason: "next" });
       return;
     }
@@ -312,7 +357,8 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
     model.nextPage();
     refresh();
     if (model.currentPage === currentPage) {
-      scrollToQuestion(firstQuestionWithError, { revealInput: true });
+      const error = findFirstNativeValidationQuestion(getVisiblePageQuestions(model.currentPage));
+      if (error) requestQuestionFocus(error);
     } else {
       scrollToTop();
     }
@@ -321,8 +367,8 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
 
   async function complete() {
     await onCompleteRequested?.(model);
-    const firstQuestionWithError = getVisiblePageQuestions(model.currentPage).find(hasNativeValidationProblem);
-    scrollToQuestion(firstQuestionWithError);
+    const firstQuestionWithError = findFirstNativeValidationQuestion(getVisiblePageQuestions(model.currentPage));
+    if (firstQuestionWithError) requestQuestionFocus(firstQuestionWithError);
     refresh();
   }
 
@@ -398,10 +444,9 @@ export const NativeSurveyRenderer = forwardRef(function NativeSurveyRenderer({
           <ScrollView
             ref={desktopScrollRef}
             keyboardShouldPersistTaps="always"
-            contentContainerStyle={[styles.questions, keyboardInset > 0 && { paddingBottom: keyboardInset + 24 }]}
+            contentContainerStyle={keyboardInset > 0 ? { paddingBottom: keyboardInset + 24 } : undefined}
           >
-            {visibleQuestions.map((question) => renderTopLevelQuestion(question))}
-            {resolvedPageFooter ? <Text style={styles.pageFooter}>{resolvedPageFooter}</Text> : null}
+            {questions}
           </ScrollView>
         </>
       )}

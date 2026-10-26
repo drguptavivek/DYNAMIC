@@ -11,6 +11,7 @@ import * as transforms from "../modules/questionnaires/questionnaireSurveyJsonTr
 import * as taskPrefill from "../modules/households/hhqTaskPrefill.js";
 import * as navigation from "../modules/questionnaires/surveyNavigation.js";
 import * as memberSummary from "../modules/questionnaires/householdMemberSummary.js";
+import * as nativeModel from "../components/forms/nativeSurveyModel.js";
 import * as householdIds from "../modules/households/householdIds.js";
 import dwellingOutcome from "../../../shared/householdDwellingOutcome.cjs";
 
@@ -48,6 +49,7 @@ const imports = {
   "../../../../shared/householdDwellingOutcome.cjs": dwellingOutcome,
   "react-native": { useWindowDimensions: () => ({ width: 400 }), StyleSheet: { create: (styles) => styles }, View: "View", Text: "Text", ScrollView: "ScrollView", Pressable: "Pressable" },
   "../../components/forms/NativeSurveyRenderer.js": { NativeSurveyRenderer: "NativeSurveyRenderer" },
+  "../../components/forms/nativeSurveyModel.js": nativeModel,
   "../../components/forms/renderers/DisplayRenderer.js": { DisplayRenderer: "DisplayRenderer" },
   "../questionnaires/surveyNavigation.js": navigation,
   "../questionnaires/householdMemberSummary.js": memberSummary,
@@ -161,6 +163,8 @@ await findNode(render(), "NativeSurveyRenderer").props.onPreviewRequested();
 assert.ok(findNode(render(), "NativeSurveyRenderer"), "blank restored Other reason must block preview");
 assert.equal(terminalModel.currentPage.name, "page_01_identification");
 assert.ok(terminalModel.getQuestionByName("hhq_competent_respondent_other_specify").errors.length);
+assert.equal(findNode(render(), "NativeSurveyRenderer").props.validationFocusRequest.question,
+  terminalModel.getQuestionByName("hhq_competent_respondent_other_specify"), "BHQ queues exact focus after a blocked preview");
 terminalModel.setValue("hhq_competent_respondent_available", 11);
 assert.equal(terminalModel.currentPage.name, "page_04_outcome", "shifted dwelling goes directly to Outcome");
 navigation.goToSurveySection(terminalModel, "page_01_identification");

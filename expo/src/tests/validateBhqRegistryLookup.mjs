@@ -259,6 +259,7 @@ const rendererImports = {
   "react-native": { Alert: {}, Pressable: "Pressable", ScrollView: "ScrollView", Text: "Text", View: "View", StyleSheet: { create: (styles) => styles } },
   "@expo/vector-icons/MaterialCommunityIcons": () => null,
   "../nativeSurveyModel.js": nativeModel,
+  "../nativeValidationFocus.js": await import("../components/forms/nativeValidationFocus.js"),
   "./QuestionFrame.js": { controlStyles: {} },
   "./hhqHighestGrade.js": grade,
   "./mobileNumberConfirmation.js": mobileConfirmation,

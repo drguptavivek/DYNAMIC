@@ -12,6 +12,7 @@ import {
   WQ_PREGNANCY_BABY_NAME_FIELD,
 } from "../nativeSurveyModel.js";
 import { controlStyles } from "./QuestionFrame.js";
+import { findFirstNativeValidationQuestion, getValidationPanelIndex } from "../nativeValidationFocus.js";
 import { getWqChildBirthdayPrompt } from "../../../lib/womanSurveyBehaviors.js";
 
 const CHILD_ALIVE_FIELD = "pregnancy_02_reproduction_is_name_still_alive";
@@ -79,27 +80,28 @@ function normalizeVisibleNumericAnswers(panel) {
 
 function validateActiveChild(panel, survey) {
   const t = (key, fallback) => getNativeFormText(survey, key, fallback);
+  const issue = (name, message) => ({ question: panel?.getQuestionByName?.(name), message });
   const alive = Number(panelValue(panel, CHILD_ALIVE_FIELD));
-  if (![1, 2].includes(alive)) return t("answer_q24_i_for_this_child", "Answer Q24_i for this child.");
+  if (![1, 2].includes(alive)) return issue(CHILD_ALIVE_FIELD, t("answer_q24_i_for_this_child", "Answer Q24_i for this child."));
   if (alive === 1) {
     if (!/^\d{2}$/.test(String(panelValue(panel, CHILD_AGE_FIELD) || ""))) {
-      return t("enter_q25_i_age_in_completed_years", "Enter Q25_i age in completed years.");
+      return issue(CHILD_AGE_FIELD, t("enter_q25_i_age_in_completed_years", "Enter Q25_i age in completed years."));
     }
     if (![1, 2].includes(Number(panelValue(panel, CHILD_LIVING_WITH_FIELD)))) {
-      return t("answer_q26_i_for_this_child", "Answer Q26_i for this child.");
+      return issue(CHILD_LIVING_WITH_FIELD, t("answer_q26_i_for_this_child", "Answer Q26_i for this child."));
     }
     if (!/^\d{2}$/.test(String(panelValue(panel, CHILD_LINE_FIELD) || ""))) {
-      return t("the_q27_i_household_child_number_could_not_be_generated", "The Q27_i household child number could not be generated.");
+      return issue(CHILD_LIVING_WITH_FIELD, t("the_q27_i_household_child_number_could_not_be_generated", "The Q27_i household child number could not be generated."));
     }
-    return "";
+    return null;
   }
   const death = panelValue(panel, CHILD_DEATH_AGE_FIELD);
-  if (!death || typeof death !== "object") return t("enter_q28_i_age_at_death", "Enter Q28_i age at death.");
+  if (!death || typeof death !== "object") return issue(CHILD_DEATH_AGE_FIELD, t("enter_q28_i_age_at_death", "Enter Q28_i age at death."));
   const values = ["days", "months", "years"].map((name) => String(death[name] || ""));
   if (values.some((value) => !/^\d{2}$/.test(value))) {
-    return t("enter_q28_i_days_months_and_years_as_two_digits", "Enter Q28_i days, months, and years as two digits.");
+    return issue(CHILD_DEATH_AGE_FIELD, t("enter_q28_i_days_months_and_years_as_two_digits", "Enter Q28_i days, months, and years as two digits."));
   }
-  return "";
+  return null;
 }
 
 export function WqBornAliveChildFollowupsRenderer({
@@ -107,6 +109,7 @@ export function WqBornAliveChildFollowupsRenderer({
   onChange,
   onRequestTopLevelFocus,
   renderQuestion,
+  validationFocusRequest,
 }) {
   const t = (key, fallback) => getNativeFormText(question.survey, key, fallback);
   const f = (key, fallback, values) => formatNativeFormText(question.survey, key, fallback, values);
@@ -126,6 +129,23 @@ export function WqBornAliveChildFollowupsRenderer({
     );
     setEditingIndex(firstIncomplete >= 0 ? firstIncomplete : null);
   }, [editingIndex, panels.length, question.value]);
+
+  useEffect(() => {
+    let index = getValidationPanelIndex(question, validationFocusRequest?.question);
+    if (validationFocusRequest?.question === question) {
+      index = panels.findIndex((panel) => Number(panelValue(panel, WQ_FOLLOWUP_COMPLETED_FIELD)) !== 1);
+    }
+    if (index < 0) return;
+    setEditingIndex(index);
+    setError("");
+    if (validationFocusRequest?.question === question) {
+      const children = (panels[index]?.questions || []).filter((child) =>
+        !isNativeInternalPanelField(child.name) && !FOLLOWUP_METADATA_FIELDS.has(child.name) &&
+        child.isVisible !== false && child.renderAs !== "background");
+      const target = findFirstNativeValidationQuestion(children) || children.find((child) => !child.isReadOnly);
+      if (target) requestAnimationFrame(() => onRequestTopLevelFocus?.(target));
+    }
+  }, [question, validationFocusRequest]);
 
   const pendingLinePanel = editingIndex === null ? null : panels[editingIndex];
   const pendingAlive = Number(panelValue(pendingLinePanel, CHILD_ALIVE_FIELD));
@@ -155,6 +175,8 @@ export function WqBornAliveChildFollowupsRenderer({
         : birthdayPrompt, [{ text: t("popup_ok", "OK") }]);
   }, [editingIndex, pendingDeathAge, pendingDeathAgeSignature, pendingLinePanel]);
   useEffect(() => {
+    if (validationFocusRequest?.question === question ||
+      getValidationPanelIndex(question, validationFocusRequest?.question) === editingIndex) return;
     if (
       pendingLinePanel &&
       pendingAlive === 1 &&
@@ -180,10 +202,13 @@ export function WqBornAliveChildFollowupsRenderer({
 
   function commitChild() {
     normalizeVisibleNumericAnswers(activePanel);
-    const validationError = validateActiveChild(activePanel, question.survey);
-    if (validationError) {
-      setError(validationError);
+    const validationIssue = validateActiveChild(activePanel, question.survey);
+    if (validationIssue) {
+      setError(validationIssue.message);
+      activeQuestions.forEach((child) => child.validate?.());
+      validationIssue.question?.addError?.(validationIssue.message);
       onChange?.();
+      onRequestTopLevelFocus?.(validationIssue.question || findFirstNativeValidationQuestion(activeQuestions) || question);
       return;
     }
     const completed = activePanel?.getQuestionByName?.(WQ_FOLLOWUP_COMPLETED_FIELD);

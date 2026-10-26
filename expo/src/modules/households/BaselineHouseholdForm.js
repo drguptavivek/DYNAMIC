@@ -16,7 +16,7 @@ import { getDraftFormLocale } from "../../lib/formLanguage.js";
 import { SectionNavigator } from "../../components/forms/SectionNavigator.js";
 import { DisplayRenderer } from "../../components/forms/renderers/DisplayRenderer.js";
 import { PreviewRenderer } from "../../components/forms/renderers/PreviewRenderer.js";
-import { getNativeQuestionValue } from "../../components/forms/nativeSurveyModel.js";
+import { getNativeQuestionValue, hasNativeValidationProblem, validateNativeQuestionTree } from "../../components/forms/nativeSurveyModel.js";
 import { applyHouseholdMasterChoices } from "../../lib/householdMasterChoices.js";
 import {
   attachHouseholdSurveyBehaviors,
@@ -26,6 +26,7 @@ import {
   COMPACT_PREVIEW_SECTION_NAME,
   HOUSEHOLD_MEMBER_SUMMARY_SECTION_NAME,
   buildSurveySections,
+  getSurveyValidationQuestion,
   goToSurveySection,
 } from "../questionnaires/surveyNavigation.js";
 import { buildHouseholdMemberSummaryRows } from "../questionnaires/householdMemberSummary.js";
@@ -254,6 +255,7 @@ export function BaselineHouseholdForm({
   const [previewSignature, setPreviewSignature] = useState("");
   const [finalReview, setFinalReview] = useState(false);
   const [sectionDrawerOpen, setSectionDrawerOpen] = useState(false);
+  const [validationFocusRequest, setValidationFocusRequest] = useState(null);
   const [renderAnswerData, setRenderAnswerData] = useState({});
   const [draftLookup, setDraftLookup] = useState({ key: "", loading: true, draft: null });
   const [, setRevision] = useState(0);
@@ -671,6 +673,7 @@ export function BaselineHouseholdForm({
     if (getHhqDwellingExclusion(model.data)?.outcome === 12 &&
       !model.getQuestionByName("hhq_competent_respondent_other_specify")?.validate()) {
       goToSurveySection(model, "page_01_identification");
+      revealValidationError(model.getQuestionByName("hhq_competent_respondent_other_specify"));
       setView("form");
       setMessage("Complete the highlighted required fields before final review.");
       return;
@@ -693,22 +696,34 @@ export function BaselineHouseholdForm({
     setMessage("Confirm the household roster before Section 03.");
   }
 
+  function revealValidationError(question = getSurveyValidationQuestion(model)) {
+    if (!question) return false;
+    if (question.page?.name) goToSurveySection(model, question.page.name);
+    if (question.page && model.currentPage !== question.page) return false;
+    setView("form");
+    setSectionDrawerOpen(false);
+    setValidationFocusRequest((previous) => ({ question, sequence: (previous?.sequence || 0) + 1 }));
+    setRevision((value) => value + 1);
+    return true;
+  }
+
   function validateSchedule() {
     applyHhqVisitNo(model, taskContext);
     refreshHouseholdSurveyBehaviors(model, form);
     const page = model.getPageByName(HOUSEHOLD_SCHEDULE_PAGE_NAME);
-    const questions = page?.getAllQuestions?.().filter(
+    const questions = (page?.getAllQuestions?.() || page?.questions || []).filter(
       (question) => question.isVisible !== false && question.getType?.() !== "html"
-    ) || [];
-    const results = questions.map((question) => question.validate?.() !== false);
+    );
+    questions.forEach(validateNativeQuestionTree);
     refreshHouseholdSurveyBehaviors(model, form);
-    return results.every(Boolean) && !questions.some((question) => question.errors?.length);
+    return !questions.some(hasNativeValidationProblem);
   }
 
   async function confirmMemberSummary() {
     if (!validateSchedule()) {
       goToSurveySection(model, HOUSEHOLD_SCHEDULE_PAGE_NAME);
       setView("form");
+      revealValidationError(getSurveyValidationQuestion(model, HOUSEHOLD_SCHEDULE_PAGE_NAME));
       setMessage("Complete the highlighted household roster fields before confirming.");
       setRevision((value) => value + 1);
       return;
@@ -759,7 +774,12 @@ export function BaselineHouseholdForm({
       await openMemberSummary();
       return;
     }
-    goToSurveySection(model, section.name);
+    const invalidQuestion = getSurveyValidationQuestion(model, section.name);
+    if (section.hasErrors && invalidQuestion) {
+      revealValidationError(invalidQuestion);
+    } else {
+      goToSurveySection(model, section.name);
+    }
     setView("form");
     setMessage("");
     setFinalReview(false);
@@ -782,8 +802,7 @@ export function BaselineHouseholdForm({
       return;
     }
     if (!model.validate()) {
-      const firstError = model.getAllQuestions().find((question) => question.errors?.length);
-      if (firstError?.page?.name) goToSurveySection(model, firstError.page.name);
+      revealValidationError();
       setView("form");
       setMessage("Complete the highlighted required fields before final review.");
       setRevision((value) => value + 1);
@@ -803,6 +822,7 @@ export function BaselineHouseholdForm({
       if (!(await saveDraft({ silent: true, reason: "final-submit" }))) return;
       applyHhqVisitNo(model, taskContext);
       if (!model.validate()) {
+        revealValidationError();
         setView("form");
         setMessage("Complete the highlighted required fields before final save.");
         return;
@@ -880,6 +900,7 @@ export function BaselineHouseholdForm({
       <View style={styles.body}>
         {view === "form" ? (
           <NativeSurveyRenderer
+            validationFocusRequest={validationFocusRequest}
             answerData={rendererAnswerData}
             model={model}
             notice={message}

@@ -27,6 +27,7 @@ const compiled = await Promise.all(files.map(name => build({
         export const WQ_FOLLOWUP_CHILD_INDEX_FIELD='child', WQ_FOLLOWUP_COMPLETED_FIELD='completed', WQ_FOLLOWUP_PREGNANCY_INDEX_FIELD='pregnancy', WQ_PREGNANCY_BABY_NAME_FIELD='baby';
         export const WQ_PREGNANCY_HISTORY_PANEL_FIELD='history', WQ_PREGNANCY_FOLLOW_UP_FIELD='followup';
         export const getNativeQuestionValue=q=>q?.value, isNativeInternalPanelField=()=>false;
+        export const hasNativeValidationProblem=()=>false, shouldValidateNativeQuestion=()=>false;
         export const groupWqPregnancyHistoryPanels=panels=>panels.map(panel=>({groupIndex:0,rows:[{panel}]}));
         export const getWqPregnancyChildSummary=panel=>({name:'Child name',bornStatus:'Born Alive',sex:'Male',pregnancyLasts:'9 months',outcome:'Living',outcomeYear:'2020'});
         export const getWqPregnancyReviewLabel=index=>'Pregnancy '+(index+1), getWqPregnancyGapPrompt=()=> 'Gap prompt';
