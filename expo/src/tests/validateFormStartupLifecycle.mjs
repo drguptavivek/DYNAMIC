@@ -175,6 +175,12 @@ button(summary, "No").props.onPress();
 summary = findNode(render(), "ScrollView");
 assert.match(textContent(summary), /B\) Are there other people/);
 assert.ok(button(summary, "No, go to Section 3"), "checklist B continuation stays inside the vertical scroll");
+await button(summary, "No, go to Section 3").props.onPress();
+assert.ok(findNode(render(), "NativeSurveyRenderer").props.validationFocusRequest?.question,
+  "An incomplete roster must still queue focus on its actual validation error");
+summary = openSummary();
+button(summary, "No").props.onPress();
+summary = findNode(render(), "ScrollView");
 // Existing schedule validation is tested separately; isolate navigation after a valid schedule.
 const schedule = rosterModel.getPageByName("page_02_household_schedule");
 const getScheduleQuestions = schedule.getAllQuestions;
@@ -183,6 +189,8 @@ await button(summary, "No, go to Section 3").props.onPress();
 schedule.getAllQuestions = getScheduleQuestions;
 assert.equal(rosterModel.currentPage.name, "page_03_household_characteristics");
 assert.ok(findNode(render(), "NativeSurveyRenderer"));
+assert.ok(findNode(render(), "NativeSurveyRenderer").props.validationFocusRequest === null,
+  "Confirmed roster must not replay the corrected Section 2 error when the renderer remounts");
 
 // Saved target-language text must reach the custom BHQ roster host, not just SurveyJS questions.
 const translatedHostKeys = [

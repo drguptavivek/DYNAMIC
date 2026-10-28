@@ -731,6 +731,7 @@ export function BaselineHouseholdForm({
     }
     memberSummaryConfirmedRef.current = true;
     setMemberSummaryConfirmed(true);
+    setValidationFocusRequest(null);
     goToSurveySection(model, HOUSEHOLD_CHARACTERISTICS_PAGE_NAME);
     setView("form");
     setMessage(getNativeFormText(model, "bhq_roster_confirmed", "Household roster confirmed."));
