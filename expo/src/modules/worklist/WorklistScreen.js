@@ -24,6 +24,7 @@ import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import * as syncService from "../sync/syncService.js";
 import { listTaskWorklistPage } from "./taskWorklistRepository.js";
 import { buildTaskLocalityOptions, filterTaskWorklist, getTaskUrgencyBucket } from "./taskWorklist.js";
+import { getTaskWorklistDate, isAssignedBaselineHhq } from "./taskWorklistDate.js";
 import { filterTasksByType, listStandardTaskTypeOptions } from "./taskTypeFilter.js";
 import { getTaskOpenBlockReason } from "./taskOpenPolicy.js";
 import {
@@ -83,7 +84,7 @@ function groupTasksByUrgency(tasks, options = {}) {
   for (const task of tasks) {
     if (task.status === "completed" || task.status === "missed") continue;
 
-    const protocolDate = task.target_date || task.window_start || "";
+    const protocolDate = getTaskWorklistDate(task, today);
     if (stageFilter === "outdated" && protocolDate && protocolDate < today) {
       groups.overdue.push({ ...task, worklist_display_stage: "outdated" });
     } else {
@@ -463,7 +464,9 @@ const TaskRow = memo(function TaskRow({ task, onPress, onLongPress, onViewHouseh
             {detailLine}
           </Text>
         ) : null}
-        <Text style={styles.taskDate}>{`Target Date: ${task.target_date || "-"}`}</Text>
+        <Text style={styles.taskDate}>{isAssignedBaselineHhq(task)
+          ? `Complete by: ${task.window_end || task.target_date || "-"}`
+          : `Target Date: ${task.target_date || "-"}`}</Text>
         {task.status === "completed" && (
           <View style={styles.completedBadge}>
             <Text style={styles.completedBadgeText}>Completed</Text>

@@ -24,6 +24,10 @@ for (const entry of catalog) {
   const english = getPreparedSurveyJson(raw);
   assert.equal(getPreparedSurveyJson(raw), english, `${entry.form_code}: preparation stays cached`);
   const rows = formTranslation.flattenFormText(english);
+  if (entry.form_code === "HHQ") {
+    assert.ok(rows.some(row => row.title === "Now I Would like to ask about the members of your Household. Please give me the names of persons who usually live in your household, starting with the head of the household."),
+      "The visible BHQ roster introduction must be editable in the shared translation inventory");
+  }
   const groupedRows = rows.filter(row => row.kind === "native" && row.name.slice("@native:".length) in GROUPED_CHOICE_TEXT);
   assert.equal(groupedRows.length, entry.form_code === "HHQ" ? 28 : 0, `${entry.form_code}: grouped labels and hints belong only to BHQ`);
   for (const [code, name] of Object.entries(LMP_TIMING_FIELDS)) {

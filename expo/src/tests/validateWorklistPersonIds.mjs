@@ -5,6 +5,7 @@ import vm from "node:vm";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { transformSync } from "esbuild";
+import { isAssignedBaselineHhq } from "../modules/worklist/taskWorklistDate.js";
 
 const source = fs.readFileSync(new URL("../modules/worklist/WorklistScreen.js", import.meta.url), "utf8");
 const start = source.indexOf("const TaskRow = memo(");
@@ -19,6 +20,7 @@ vm.runInNewContext(transformSync(`${source.slice(start, end)}\nmodule.exports = 
   module, React, memo: React.memo, View: host("div"), Text: host("span"), Pressable: host("button"),
   styles: {}, BADGE_COLORS: {}, MaterialCommunityIcons: () => null,
   getTaskOpenBlockReason: () => null, getTaskVisitNo: () => 1, getFormDisplayCode: (code) => code,
+  isAssignedBaselineHhq,
 });
 
 const householdId = "1-01-0001-01";
@@ -26,6 +28,9 @@ const base = { household_id: householdId, target_date: "2026-10-26", status: "op
 function card(task) {
   return renderToStaticMarkup(React.createElement(module.exports, { task: { ...base, ...task } }));
 }
+assert.ok(card({ task_type: "HHQ", protocol_visit_label: "baseline",
+  generation_source: "field_worker_household_assignment" }).includes("Complete by: 2026-10-26"));
+assert.ok(card({ task_type: "WQ" }).includes("Target Date: 2026-10-26"));
 for (const [index, name] of ["Sunita Rawat", "Kumari Sheela", "Baby Rawat"].entries()) {
   const id = `${householdId}-0${index + 1}`;
   const html = card({ task_type: "WQ", subject_type: "person", subject_id: id, woman_name: name });

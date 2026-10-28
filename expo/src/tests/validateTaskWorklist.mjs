@@ -163,6 +163,23 @@ const overdueDraftTask = {
   window_start: "2026-08-12",
 };
 assert.equal(getTaskStage(overdueDraftTask, "2026-08-17"), "draft");
+const assignedBhq = {
+  ...confirmedTask, task_type: "HHQ", protocol_visit_label: "baseline",
+  generation_source: "field_worker_household_assignment",
+  window_start: "2026-10-28", target_date: "2027-04-26",
+};
+const assignedSnapshot = JSON.stringify(assignedBhq);
+assert.equal(getTaskStage(assignedBhq, "2026-10-29"), "current");
+assert.equal(getTaskUrgencyBucket(assignedBhq, "2026-10-29"), "today");
+assert.equal(getTaskStage(assignedBhq, "2026-10-28"), "current");
+assert.equal(getTaskStage(assignedBhq, "2027-04-26"), "current");
+assert.equal(getTaskStage(assignedBhq, "2027-04-27"), "outdated");
+assert.equal(getTaskStage(assignedBhq, "2026-10-27"), "upcoming");
+assert.equal(getTaskStage({ ...assignedBhq, has_active_draft: true }, "2026-10-29"), "draft");
+assert.equal(getTaskStage({ ...assignedBhq, task_type: "WQ" }, "2026-10-29"), "upcoming");
+assert.equal(getTaskStage({ ...assignedBhq, protocol_visit_label: "revisit" }, "2026-10-29"), "upcoming");
+assert.equal(getTaskStage({ ...assignedBhq, generation_source: "field_worker_assignment_sync_reconciliation" }, "2026-10-29"), "current");
+assert.equal(JSON.stringify(assignedBhq), assignedSnapshot, "Grouping must not rewrite task dates or answers");
 assert.deepEqual(
   selectTasksForStage([confirmedTask, futurePlannedTask], "future_planned").map((task) => task.id),
   ["future-planned-hrf-filter"],

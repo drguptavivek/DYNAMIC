@@ -18,6 +18,7 @@ Required field routes:
 Rules:
 
 - Field app surfaces are locality-aware.
+- Assigned baseline BHQ tasks appear under Today throughout their open assignment window, under Draft when started, and Overdue after their deadline. Their card labels the stored assignment target as Complete by; this grouping never changes task dates, follow-up schedules or completion rules.
 - The global locality switcher scopes household/member/task lists.
 - On narrow field-app layouts, the locality switcher lives in the main DYNAMIC drawer rather than occupying the fixed top bar.
 - Field users must not see a global unscoped study dataset.

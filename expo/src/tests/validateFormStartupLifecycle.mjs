@@ -128,6 +128,11 @@ render();
 assert.equal(models.length, 2);
 assert.equal(models[1].getValue("hhq_household_head_name"), "Saved head");
 assert.equal(models[1].getQuestionByName("hhq_household_members").panels[0].getQuestionByName("member_name").value, "Saved member");
+const scheduleQuestions = nativeModel.getVisiblePageQuestions(models[1].getPageByName("page_02_household_schedule"));
+assert.equal(scheduleQuestions[0].name, "hhq_household_schedule_intro");
+assert.equal(scheduleQuestions[0].renderAs, "instruction");
+assert.equal(scheduleQuestions[0].html, "Now I Would like to ask about the members of your Household. Please give me the names of persons who usually live in your household, starting with the head of the household.");
+assert.equal(scheduleQuestions[1].name, "hhq_household_members");
 render();
 assert.equal(models.length, 2, "restored draft rerenders retain the same model and answers");
 

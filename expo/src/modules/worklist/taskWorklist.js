@@ -1,6 +1,7 @@
 import { evaluateTaskLifecycleTransition } from "@dynamic/event-core";
 import { DEFAULT_PROTOCOL_CONFIG } from "@dynamic/shared-workflow";
 import { getLocalCalendarDate } from "../../lib/localDate.js";
+import { getTaskWorklistDate } from "./taskWorklistDate.js";
 
 const TERMINAL_STATUSES = new Set([
   "completed",
@@ -68,10 +69,6 @@ function isTerminalTask(task) {
   return TERMINAL_STATUSES.has(status) || TERMINAL_STATUSES.has(lifecycleStatus);
 }
 
-function taskProtocolDate(task) {
-  return task?.target_date || task?.window_start || "";
-}
-
 function taskOpenDate(task) {
   return task?.window_start || task?.target_date || "";
 }
@@ -88,7 +85,7 @@ export function isFuturePlannedTask(task, today = getLocalCalendarDate()) {
 export function getTaskStage(task, today = getLocalCalendarDate()) {
   if (task?.has_active_draft) return "draft";
   if (isFuturePlannedTask(task, today)) return "future_planned";
-  const date = taskProtocolDate(task);
+  const date = getTaskWorklistDate(task, today);
   if (date && date < today) return "outdated";
   if (date && date === today) return "current";
   return "upcoming";
@@ -98,14 +95,14 @@ export function getTaskUrgencyBucket(task, today = getLocalCalendarDate()) {
   const stage = getTaskStage(task, today);
   if (stage === "draft") return "draft";
   if (stage === "future_planned") return "futurePlanned";
-  const protocolDate = taskProtocolDate(task);
+  const protocolDate = getTaskWorklistDate(task, today);
   if (protocolDate && protocolDate < today) return "overdue";
   if (protocolDate === today) return "today";
   return "upcoming";
 }
 
 function isOutdatedTask(task, today = getLocalCalendarDate()) {
-  const date = taskProtocolDate(task);
+  const date = getTaskWorklistDate(task, today);
   return Boolean(date && date < today);
 }
 

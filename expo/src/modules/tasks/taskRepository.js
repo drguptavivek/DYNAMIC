@@ -3,6 +3,7 @@ import { stripHouseholdGpsMetadata } from "../../../../shared/householdGpsStorag
 import { getAssignedHouseholdIds, householdScopePredicate } from "../sync/householdAssignmentScope.js";
 import { getDb } from "./taskSchema.js";
 import { getLocalCalendarDate } from "../../lib/localDate.js";
+import { getTaskWorklistDate } from "../worklist/taskWorklistDate.js";
 import { cancelWomanTask, isDeceasedWoman, terminateWomanState } from "./womanTermination.js";
 
 function getDeceasedWoman(db, womanId) {
@@ -220,7 +221,7 @@ function filterWorklistRowsForSyncFallback(rows, filters) {
   const normalizedSearch = String(filters.search || "").trim().toLowerCase();
   const draftMap = draftIdentityValues(filters.activeDrafts || []);
   const isBaseline = (task) => ["HHQ", "WQ"].includes(String(task?.task_type || "").toUpperCase());
-  const protocolDate = (task) => task?.target_date || task?.window_start || "";
+  const protocolDate = (task) => getTaskWorklistDate(task, today);
   const opensOn = (task) => task?.window_start || task?.target_date || "";
   const isFuture = (task) =>
     String(task?.lifecycle_status || task?.status || "").toLowerCase() === "planned" &&
@@ -361,6 +362,9 @@ function buildWorklistWhere(filters = {}) {
   const taskTypeExpr = "UPPER(COALESCE(t.task_type, ''))";
   const opensOn = "COALESCE(NULLIF(t.window_start, ''), NULLIF(t.target_date, ''))";
   const protocolDate = "COALESCE(NULLIF(t.target_date, ''), NULLIF(t.window_start, ''), '')";
+  const assignmentDeadline = "COALESCE(NULLIF(t.window_end, ''), NULLIF(t.target_date, ''), NULLIF(t.window_start, ''), '')";
+  const assignedHhq = `(${taskTypeExpr} = 'HHQ' AND t.protocol_visit_label = 'baseline' AND t.generation_source IN ('field_worker_household_assignment', 'field_worker_assignment_sync_reconciliation'))`;
+  const worklistDate = `CASE WHEN ${assignedHhq} THEN CASE WHEN NULLIF(t.window_start, '') <= ? AND ${assignmentDeadline} >= ? THEN ? ELSE ${assignmentDeadline} END ELSE ${protocolDate} END`;
   const baseline = `${taskTypeExpr} IN ('HHQ', 'WQ')`;
   const actionable = `(${baseline} OR ${lifecycle} <> 'planned' OR ${opensOn} IS NULL OR ${opensOn} = '' OR ${opensOn} <= ?)`;
   const futurePlanned = `(${lifecycle} = 'planned' AND ${taskTypeExpr} NOT IN ('HHQ', 'WQ') AND ${opensOn} > ?)`;
@@ -377,18 +381,18 @@ function buildWorklistWhere(filters = {}) {
     conditions.push(actionable);
     params.push(today);
     if (stage === "outdated") {
-      conditions.push(`${protocolDate} < ?`);
-      params.push(today);
+      conditions.push(`(${worklistDate}) < ?`);
+      params.push(today, today, today, today);
     } else if (stage === "current") {
-      conditions.push(`${protocolDate} = ?`);
-      params.push(today);
+      conditions.push(`(${worklistDate}) = ?`);
+      params.push(today, today, today, today);
       if (hasDrafts) {
         conditions.push(`NOT ${draftPredicate.sql}`);
         params.push(...draftPredicate.params);
       }
     } else if (stage === "upcoming") {
-      conditions.push(`(${protocolDate} > ? OR ${protocolDate} = '')`);
-      params.push(today);
+      conditions.push(`COALESCE(NULLIF((${worklistDate}), ''), '9999-12-31') > ?`);
+      params.push(today, today, today, today);
       if (hasDrafts) {
         conditions.push(`NOT ${draftPredicate.sql}`);
         params.push(...draftPredicate.params);
