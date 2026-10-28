@@ -185,6 +185,8 @@ Run `npm --workspace @dynamic/expo exec -- tsx src/tests/validateAssignedBhqWork
 
 ## Embedded Android APK Packaging
 
+Session restoration: run `node expo/src/tests/validateStoredSessionRestore.mjs` to check accepted restarts, expired access tokens, concurrent refresh and delayed old-token rejection, temporary offline/server failures and genuine session revocation. Successful restore must retain local entries; an APK update must not itself reset session or PIN state.
+
 For a JS-only APK update, use `python expo/scripts/repackageAndroidApk.py <intact-source.apk> <index.android.bundle> <unsigned-output.apk>`, then align and sign the output with the existing release certificate. The script removes only old signature entries and preserves native resources, including `META-INF/services` and Kotlin module metadata. Never remove the entire `META-INF` directory: Kotlin image-picker initialization needs its `BuiltInsLoader` service entry. A source missing that entry is rejected before the output is changed.
 
 Run `python expo/scripts/test_repackageAndroidApk.py` for the packaging regression check. Before publishing, verify the signed APK still contains `META-INF/services/kotlin.reflect.jvm.internal.impl.builtins.BuiltInsLoader`, then verify Camera and Gallery on Android; HTTP upload tests do not exercise native image capture.

@@ -34,9 +34,9 @@ const syncScreenSource = fs.readFileSync(
   "utf8",
 );
 const syncRouteSource = fs.readFileSync(path.resolve(testRoot, "../../app/sync.js"), "utf8");
-assert.match(authStoreSource, /export async function refreshStoredSession\(\)/);
+assert.match(authStoreSource, /export async function refreshStoredSession\(/);
 assert.match(syncServiceSource, /response\.status === 401 \|\| response\.status === 403/);
-assert.match(syncServiceSource, /await authStore\.refreshStoredSession\(\)/);
+assert.match(syncServiceSource, /await authStore\.refreshStoredSession\(token\)/);
 assert.match(syncServiceSource, /getGeneratedTaskKeys\(\s*response\.id, response\.task_id/);
 assert.match(syncServiceSource, /completed forms remain saved on this device/);
 assert.match(syncServiceSource, /Assignment refresh failed \(\$\{statusLabel\}\)/);

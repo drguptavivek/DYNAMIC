@@ -107,7 +107,7 @@ export async function refreshAssignments() {
 
   let response = await requestAssignments(token);
   if (response.status === 401 || response.status === 403) {
-    const refreshed = await authStore.refreshStoredSession();
+    const refreshed = await authStore.refreshStoredSession(token);
     if (refreshed.ok && refreshed.accessToken) {
       token = refreshed.accessToken;
       response = await requestAssignments(token);

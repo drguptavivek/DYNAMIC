@@ -9,6 +9,7 @@ import { formatAndroidDeviceId } from "./deviceIdentity.js";
 import { describeHttpFailure, describeNetworkError } from "../../lib/networkErrors.js";
 
 let currentUser = null;
+let sessionRefresh = null;
 const DEVICE_ID_PREFIX = "dynamic-field-device";
 
 function unwrapApiData(payload) {
@@ -148,6 +149,7 @@ export async function login(username, password) {
     resetSyncedCacheForLogin();
     setMeta("access_token", access_token);
     setMeta("refresh_token", refresh_token || "");
+    setMeta("auth_session_refreshed_at", new Date().toISOString());
     setMeta("device_id", deviceId);
     const enrichedUser = { ...fetchedUser, device_id: deviceId };
     storeUser(enrichedUser);
@@ -182,6 +184,7 @@ export async function loginWithQrPayload(qrPayload) {
     resetSyncedCacheForLogin();
     setMeta("access_token", access_token);
     setMeta("refresh_token", refresh_token || "");
+    setMeta("auth_session_refreshed_at", new Date().toISOString());
     setMeta("device_id", deviceId);
     const enrichedUser = { ...fetchedUser, device_id: deviceId };
     storeUser(enrichedUser);
@@ -261,12 +264,28 @@ export function getUser() {
   return null;
 }
 
-export async function refreshStoredSession() {
+export async function refreshStoredSession(rejectedAccessToken) {
+  const storedAccessToken = getToken();
+  if (rejectedAccessToken && storedAccessToken && storedAccessToken !== rejectedAccessToken) {
+    return { ok: true, accessToken: storedAccessToken };
+  }
   const refreshToken = getRefreshToken();
   if (!refreshToken) {
     return { ok: false, definitive: true };
   }
+  if (sessionRefresh?.token === refreshToken) return sessionRefresh.promise;
 
+  // Startup and sync must not rotate the same saved session independently.
+  const request = { token: refreshToken, promise: rotateStoredSession(refreshToken) };
+  sessionRefresh = request;
+  try {
+    return await request.promise;
+  } finally {
+    if (sessionRefresh === request) sessionRefresh = null;
+  }
+}
+
+async function rotateStoredSession(refreshToken) {
   try {
     const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
       method: "POST",
@@ -284,13 +303,25 @@ export async function refreshStoredSession() {
     if (!data?.access_token) {
       return { ok: false, definitive: true };
     }
+    if (getRefreshToken() !== refreshToken) return { ok: false, definitive: false };
     setMeta("access_token", data.access_token);
     setMeta("refresh_token", data.refresh_token || refreshToken);
+    setMeta("auth_session_refreshed_at", new Date().toISOString());
     return { ok: true, accessToken: data.access_token };
   } catch (error) {
     console.error("Session refresh failed:", error);
     return { ok: false, definitive: false };
   }
+}
+
+export async function renewSessionAfterUnlock() {
+  const accessToken = getToken();
+  const refreshedAt = Date.parse(getMeta("auth_session_refreshed_at") || "");
+  const elapsed = Date.now() - refreshedAt;
+  if (accessToken && Number.isFinite(refreshedAt) && elapsed >= 0 && elapsed < 24 * 60 * 60 * 1000) {
+    return { ok: true, accessToken };
+  }
+  return refreshStoredSession(accessToken);
 }
 
 async function checkStoredSession(accessToken) {
@@ -346,7 +377,7 @@ export async function restoreSession() {
   if (sessionCheck.status === "rejected") {
     // Access tokens are intentionally short lived. Rotate the stored refresh
     // token before treating the saved login as invalid.
-    const refreshed = await refreshStoredSession();
+    const refreshed = await refreshStoredSession(accessToken);
     if (refreshed.ok) {
       sessionCheck = await checkStoredSession(refreshed.accessToken);
     } else if (refreshed.definitive) {

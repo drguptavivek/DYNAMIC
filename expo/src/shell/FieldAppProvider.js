@@ -172,6 +172,7 @@ export function FieldAppProvider({ children }) {
     const ok = await appLockStore.verifyPinForUser(user, pin);
     if (ok) {
       setAppLocked(false);
+      void authStore.renewSessionAfterUnlock().catch((error) => console.warn("Session renewal failed:", error));
       return { ok: true };
     }
     return { ok: false, error: "PIN did not match" };
@@ -182,6 +183,7 @@ export function FieldAppProvider({ children }) {
     const result = await appLockStore.unlockWithBiometrics(user);
     if (result.ok) {
       setAppLocked(false);
+      void authStore.renewSessionAfterUnlock().catch((error) => console.warn("Session renewal failed:", error));
       return { ok: true };
     }
     if (result.reason === "not_configured") {
