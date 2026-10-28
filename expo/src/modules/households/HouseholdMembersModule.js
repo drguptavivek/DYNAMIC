@@ -8,6 +8,7 @@ import {
 } from "./householdRepository.js";
 import { ROUTES, navigateTo } from "../../navigation/routes.js";
 import { createDirectPefTask, getDirectPefEligibility } from "../pregnancy/directPef.js";
+import { getAssignedHouseholdIds } from "../sync/householdAssignmentScope.js";
 import {
   formatHouseholdMemberStatus,
   formatHouseholdRelationship,
@@ -17,6 +18,11 @@ const PAGE_SIZE = 50;
 const FREE_TEXT_SEARCH_MIN_LENGTH = 3;
 const SEARCH_DEBOUNCE_MS = 300;
 
+function canAccessHousehold(householdId) {
+  const assignedIds = getAssignedHouseholdIds();
+  return assignedIds === null || assignedIds.includes(householdId);
+}
+
 export function HouseholdMembersModule({ householdId = "", selectedLocalityCode, onOpenTask }) {
   const [members, setMembers] = useState([]);
   const [household, setHousehold] = useState(null);
@@ -25,6 +31,7 @@ export function HouseholdMembersModule({ householdId = "", selectedLocalityCode,
   const [sex, setSex] = useState("");
   const [page, setPage] = useState(0);
   const [hasNextPage, setHasNextPage] = useState(false);
+  const householdAllowed = !householdId || canAccessHousehold(householdId);
 
   useEffect(() => {
     setPage(0);
@@ -46,6 +53,7 @@ export function HouseholdMembersModule({ householdId = "", selectedLocalityCode,
   }
 
   async function handleDirectPef(member, householdContext) {
+    if (!canAccessHousehold(member?.household_id || householdContext?.household_id || householdId)) return;
     const result = await createDirectPefTask({
       member,
       household: householdContext || household || {
@@ -54,18 +62,24 @@ export function HouseholdMembersModule({ householdId = "", selectedLocalityCode,
         locality_code: member?.locality_code,
       },
     });
-    if (result.task) await onOpenTask?.(result.task);
+    if (result.task && canAccessHousehold(result.task.household_id)) await onOpenTask?.(result.task);
   }
 
   useEffect(() => {
     let active = true;
     async function load() {
+      if (!householdAllowed) {
+        setHousehold(null);
+        setMembers([]);
+        setHasNextPage(false);
+        return;
+      }
       if (householdId) {
         const [householdRow, rows] = await Promise.all([
           getHousehold(householdId),
           listHouseholdMembers(householdId),
         ]);
-        if (!active) return;
+        if (!active || !canAccessHousehold(householdId)) return;
         const filtered = rows
           .filter((member) => !sex || String(member.sex) === String(sex))
           .filter((member) => !search || String(member.member_name || "").toLowerCase().includes(search.toLowerCase()));
@@ -83,15 +97,21 @@ export function HouseholdMembersModule({ householdId = "", selectedLocalityCode,
         offset: page * PAGE_SIZE,
       });
       if (!active) return;
+      const assignedIds = getAssignedHouseholdIds();
+      const scopedRows = assignedIds === null ? rows : rows.filter((member) => assignedIds.includes(member.household_id));
       setHousehold(null);
-      setHasNextPage(rows.length > PAGE_SIZE);
-      setMembers(rows.slice(0, PAGE_SIZE));
+      setHasNextPage(scopedRows.length > PAGE_SIZE);
+      setMembers(scopedRows.slice(0, PAGE_SIZE));
     }
     load();
     return () => {
       active = false;
     };
-  }, [householdId, selectedLocalityCode, search, sex, page]);
+  }, [householdId, householdAllowed, selectedLocalityCode, search, sex, page]);
+
+  if (!householdAllowed) {
+    return <View style={styles.wrap}><Text>This household is no longer assigned to your current account.</Text></View>;
+  }
 
   return (
     <View style={styles.wrap}>

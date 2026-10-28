@@ -12,11 +12,32 @@ function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-function isActiveAssignment(assignment: typeof schema.userAreaAssignments.$inferSelect): boolean {
+function isActiveAssignment(assignment: Pick<typeof schema.userAreaAssignments.$inferSelect, "active_from" | "active_to">): boolean {
   const today = todayIsoDate();
   const activeFrom = assignment.active_from ? String(assignment.active_from) : null;
   const activeTo = assignment.active_to ? String(assignment.active_to) : null;
   return (!activeFrom || activeFrom <= today) && (!activeTo || activeTo >= today);
+}
+
+export async function getCurrentFieldWorkerHouseholdAssignments(userId: string) {
+  // Site changes must stop old allocation links granting access, even with an older JWT.
+  return db.select({ household_id: schema.households.household_id,
+    site_id: schema.households.site_id, locality_code: schema.households.locality_code })
+    .from(schema.fieldWorkerHouseholdAssignments)
+    .innerJoin(schema.households, eq(schema.households.household_id, schema.fieldWorkerHouseholdAssignments.household_id))
+    .innerJoin(schema.users, and(eq(schema.users.user_id, schema.fieldWorkerHouseholdAssignments.user_id),
+      eq(schema.users.site_id, schema.households.site_id), eq(schema.users.role, "field_worker"), eq(schema.users.active, true)))
+    .where(eq(schema.fieldWorkerHouseholdAssignments.user_id, userId));
+}
+
+async function getCurrentFieldWorkerLocalityAssignments(userId: string) {
+  return (await db.select({ site_id: schema.userAreaAssignments.site_id,
+    locality_code: schema.userAreaAssignments.locality_code, active_from: schema.userAreaAssignments.active_from,
+    active_to: schema.userAreaAssignments.active_to })
+    .from(schema.userAreaAssignments)
+    .innerJoin(schema.users, and(eq(schema.users.user_id, schema.userAreaAssignments.user_id),
+      eq(schema.users.site_id, schema.userAreaAssignments.site_id), eq(schema.users.role, "field_worker"), eq(schema.users.active, true)))
+    .where(eq(schema.userAreaAssignments.user_id, userId))).filter(isActiveAssignment);
 }
 
 export async function buildAreaScopeCondition(
@@ -32,10 +53,7 @@ export async function buildAreaScopeCondition(
   }
 
   if (user.role === "field_worker") {
-    const householdAssignments = await db
-      .select({ household_id: schema.fieldWorkerHouseholdAssignments.household_id })
-      .from(schema.fieldWorkerHouseholdAssignments)
-      .where(eq(schema.fieldWorkerHouseholdAssignments.user_id, user.sub));
+    const householdAssignments = await getCurrentFieldWorkerHouseholdAssignments(user.sub);
     // Explicit household assignments are narrower than a locality assignment
     // and must be authoritative for every household-scoped resource.
     if (table.household_id) {
@@ -44,12 +62,7 @@ export async function buildAreaScopeCondition(
         householdAssignments.map((assignment) => assignment.household_id),
       ) : sql`false`;
     }
-    const localityAssignments = (
-      await db
-        .select()
-        .from(schema.userAreaAssignments)
-        .where(eq(schema.userAreaAssignments.user_id, user.sub))
-    ).filter(isActiveAssignment);
+    const localityAssignments = await getCurrentFieldWorkerLocalityAssignments(user.sub);
     if (localityAssignments.length > 0) {
       return or(
         ...localityAssignments.map((assignment) =>
@@ -60,6 +73,7 @@ export async function buildAreaScopeCondition(
         ),
       );
     }
+    return sql`false`;
   }
 
   const assignments = (
@@ -80,7 +94,7 @@ export async function buildAreaScopeCondition(
     );
   }
 
-  if (user.site_id !== null && user.role !== "field_worker") {
+  if (user.site_id !== null) {
     return eq(table.site_id, user.site_id);
   }
 
@@ -102,35 +116,23 @@ export async function canAccessLocation(
   }
 
   if (user.role === "field_worker") {
-    const householdAssignments = await db
-      .select({ household_id: schema.fieldWorkerHouseholdAssignments.household_id })
-      .from(schema.fieldWorkerHouseholdAssignments)
-      .where(eq(schema.fieldWorkerHouseholdAssignments.user_id, user.sub));
+    const householdAssignments = await getCurrentFieldWorkerHouseholdAssignments(user.sub);
     if (householdId && householdAssignments.length > 0) {
-      return householdAssignments.some((assignment) => assignment.household_id === householdId);
+      return householdAssignments.some((assignment) => assignment.household_id === householdId &&
+        assignment.site_id === siteId && assignment.locality_code === localityCode);
     }
-    const localityAssignments = (
-      await db
-        .select()
-        .from(schema.userAreaAssignments)
-        .where(eq(schema.userAreaAssignments.user_id, user.sub))
-    ).filter(isActiveAssignment);
+    if (householdId) {
+      const [household] = await db.select({ site_id: schema.households.site_id, locality_code: schema.households.locality_code })
+        .from(schema.households).where(eq(schema.households.household_id, householdId));
+      if (household && (household.site_id !== siteId || household.locality_code !== localityCode)) return false;
+    }
+    const localityAssignments = await getCurrentFieldWorkerLocalityAssignments(user.sub);
     if (localityAssignments.length > 0) {
       return localityAssignments.some(
         (assignment) => assignment.site_id === siteId && assignment.locality_code === localityCode,
       );
     }
-    if (!householdId) return false;
-    const [assignment] = await db
-      .select({ household_id: schema.fieldWorkerHouseholdAssignments.household_id })
-      .from(schema.fieldWorkerHouseholdAssignments)
-      .where(
-        and(
-          eq(schema.fieldWorkerHouseholdAssignments.user_id, user.sub),
-          eq(schema.fieldWorkerHouseholdAssignments.household_id, householdId),
-        ),
-      );
-    return Boolean(assignment);
+    return false;
   }
 
   const assignments = (

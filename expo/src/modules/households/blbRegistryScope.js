@@ -2,6 +2,7 @@ import hdssVillageMapping from "../../../../shared/hdssVillageMapping.json" with
 
 /** Pure Ballabgarh registry scope helpers; no storage or network access. */
 function getAssignedLocalities(user, today) {
+  if (user?.role === "field_worker" && Number(user.site_id) !== hdssVillageMapping.siteId) return [];
   const assignments = Array.isArray(user?.area_assignments) ? user.area_assignments : [];
   return [...new Set(assignments
     .filter((assignment) => {

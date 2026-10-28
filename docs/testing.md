@@ -22,6 +22,17 @@ Expected smoke result includes `ok: true`, `dev-field-worker`, one assignment, b
 
 ## Common Test Sets
 
+Site-transfer scope and offline workflow (isolated mocks/in-memory SQLite; no live database):
+
+```bash
+npm --workspace @dynamic/api exec -- tsx --test src/lib/areaScope.test.ts src/lib/hdssRegistryScope.test.ts src/routes/users.site-transfer.test.ts
+npm --workspace @dynamic/expo exec -- tsx src/tests/validateHouseholdAssignmentScope.mjs
+npm --workspace @dynamic/expo exec -- tsx src/tests/validateReassignedWorkerWorkflow.mjs
+node expo/src/tests/validateReassignedCacheAccess.mjs
+```
+
+Cover the same worker moving from Bareilly `1/01` to Ballabhgarh `2/39`: old allocation links must not grant access with fresh or stale JWTs, sync snapshots contain only valid current-site household IDs, and profile updates roll back completely if allocation/area writes fail. Preserve other workers' allocations and shared task/form/household records. On device, retain old unsynced evidence and drafts while hiding old-site work. Verify selected BHQ site/locality radio values for the current household, an Upcoming BHQ creating three distinct women's BWQs offline, and one pregnant BWQ creating its PEF while the other women's BWQs stay open. Questionnaire skip logic, eligibility and task-generation code remain unchanged by the scope repair.
+
 API unit and type checks:
 
 ```bash

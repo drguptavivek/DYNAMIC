@@ -26,11 +26,11 @@ test("HDSS registry scope matches assigned villages without locality wildcard ex
   villages.forEach((village) => insert.run(village));
   const originalSelect = db.select;
   let assignments: { site_id: number; locality_code: string; active_from: string | null; active_to: string | null }[] = [];
-  (db as any).select = () => ({ from: (table: unknown) => ({ where: async () => {
+  (db as any).select = () => ({ from: (table: unknown) => { const query = { innerJoin: () => query, where: async () => {
     if (table === schema.fieldWorkerHouseholdAssignments) return [];
     assert.equal(table, schema.userAreaAssignments);
     return assignments;
-  } }) });
+  } }; return query; } });
   const worker: JwtPayload = { sub: "worker", username: "worker", role: "field_worker", site_id: 2, type: "access" };
   const dialect = new PgDialect();
   const visible = async (user = worker) => {

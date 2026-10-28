@@ -10,7 +10,7 @@ import { processFormResponse } from "../services/eventProcessor";
 import { resolveTaskWomanId, isWomanTerminated, withGeneratedTaskKeys } from "../services/taskWriter";
 import { getEffectiveFormVersionManifest } from "../lib/formLanguage";
 import { buildSyncClockMetadata } from "../lib/syncClock";
-import { appendAreaScopeCondition, canAccessLocation } from "../lib/areaScope";
+import { appendAreaScopeCondition, canAccessLocation, getCurrentFieldWorkerHouseholdAssignments } from "../lib/areaScope";
 import { runWithDb } from "../lib/dbContext";
 import { getDataAccessProfile, requireDataAccess } from "../lib/dataAccess";
 import { buildFormAttachmentLocation, isSupportedImageBuffer } from "../lib/formAttachmentStorage";
@@ -891,9 +891,7 @@ router.get(
       : undefined;
 
     const assignedHouseholdIds = req.user!.role === "field_worker"
-      ? (await db.select({ household_id: schema.fieldWorkerHouseholdAssignments.household_id })
-          .from(schema.fieldWorkerHouseholdAssignments)
-          .where(eq(schema.fieldWorkerHouseholdAssignments.user_id, req.user!.sub)))
+      ? (await getCurrentFieldWorkerHouseholdAssignments(req.user!.sub))
           .map((assignment) => assignment.household_id)
       : null;
 

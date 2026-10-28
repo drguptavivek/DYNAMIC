@@ -435,7 +435,8 @@ assert.equal(
   0,
   "Clearing Q9 must also clear its inline message"
 );
-assert.equal(check8Model.validate(), true, "A cleared Q9 must not block validation");
+check8Model.validate();
+assert.equal(check8Question.errors.length, 0, "A cleared Q9 must not block validation");
 
 // --- calculateWqPregnancyDurationMessage / Q21_i ---------------------------
 

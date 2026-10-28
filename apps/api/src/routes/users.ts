@@ -1,7 +1,7 @@
 import { Router, Request, Response } from "express";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
-import { eq, and, ilike, inArray, isNull, or } from "drizzle-orm";
+import { eq, ne, and, ilike, inArray, isNull, or } from "drizzle-orm";
 import { db, schema } from "../db";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { sendError, sendSuccess } from "../lib/errors";
@@ -872,6 +872,16 @@ router.patch(
 
       await db.transaction(async (tx) => {
         await tx.update(schema.users).set(updateData).where(eq(schema.users.user_id, userId));
+
+        if (user.role === "field_worker" && nextRole === "field_worker" && nextSiteId != null && nextSiteId !== user.site_id) {
+          // A site transfer withdraws this worker's old allocations, not the shared household work.
+          await tx.delete(schema.fieldWorkerHouseholdAssignments).where(and(
+            eq(schema.fieldWorkerHouseholdAssignments.user_id, userId),
+            inArray(schema.fieldWorkerHouseholdAssignments.household_id,
+              tx.select({ household_id: schema.households.household_id }).from(schema.households)
+                .where(ne(schema.households.site_id, nextSiteId))),
+          ));
+        }
 
         if (localityCodes !== undefined || data.site_id !== undefined) {
           await tx
