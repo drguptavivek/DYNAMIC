@@ -223,7 +223,7 @@ for (const siteId of [1, 2, 3, 4]) {
         assert.equal(model.getQuestionByName("wq_blood_pressure_measured_site").readOnly, siteId !== 1);
         assert.equal(model.getQuestionByName("wq_hemoglobin_measured_site").readOnly, siteId !== 1);
         model.setValue(WQ_PREGNANT_FIELD, 2);
-        assert.equal(model.getPageByName("page_03_other_health_issues").isVisible, age === 30);
+        assert.equal(model.getPageByName("page_03_other_health_issues").isVisible, true);
         model.setValue(WQ_PREGNANT_FIELD, 1);
         assert.equal(model.getPageByName("page_06_biomarkers").isVisible, true);
         model.setValue("wq_consent_study", 2);
@@ -233,3 +233,49 @@ for (const siteId of [1, 2, 3, 4]) {
   }
 }
 console.log("BWQ pregnant interview navigation, draft restoration, Q38 labels and site restrictions passed.");
+
+// Q38 controls tracking eligibility, not continuation through the remaining interview.
+for (const siteId of [1, 2, 3, 4]) {
+  for (const pregnant of [2, 98]) {
+    for (const scenario of [
+      { label: "eligible", age: 30, lmp: { mode: "relative", unit: "days", value: "30" }, sterilization: 4, eligibility: 1 },
+      { label: "age outside tracking range", age: 46, lmp: { mode: "relative", unit: "days", value: "30" }, sterilization: 4, eligibility: 2 },
+      { label: "sterilized", age: 30, lmp: { mode: "relative", unit: "days", value: "30" }, sterilization: 1, eligibility: 2 },
+      { label: "menopause", age: 30, lmp: 994, sterilization: 4, eligibility: 2 },
+      { label: "hysterectomy", age: 30, lmp: 993, sterilization: 4, eligibility: 2 },
+    ]) {
+      const original = createModel({
+        [WQ_AGE_FIELD]: scenario.age, [WQ_PREGNANT_FIELD]: pregnant,
+        [WQ_STERILIZATION_FIELD]: scenario.sterilization, [WQ_LMP_FIELD]: scenario.lmp,
+        [WQ_INTERVIEW_DATE_FIELD]: "2026-10-28", wq_woman_available: 1, wq_consent_study: 1,
+      });
+      for (const model of [original, createModel(structuredClone(original.data))]) {
+        const context = { taskContext: { site_id: siteId } };
+        applyWqDomesticViolenceSiteAccess(model, context);
+        applyWqBiomarkerSiteAccess(model, context);
+        const eligibility = model.getQuestionByName(WQ_PREGNANCY_TRACKING_ELIGIBLE_FIELD);
+        assert.equal(eligibility.value, scenario.eligibility, `${scenario.label}: preserve Q38's actual code`);
+        model.checkErrorsMode = "onComplete";
+        model.currentPage = eligibility.page;
+        const expectedPages = ["page_03_other_health_issues", "page_04_husband_background_woman_work",
+          "page_06_biomarkers", ...(siteId === 4 ? ["page_05_domestic_violence"] : []), "page_outcome"];
+        for (const page of expectedPages) {
+          const previous = model.currentPage.name;
+          assert.equal(model.nextPage(), true);
+          assert.equal(model.currentPage.name, page, `${scenario.label}, site ${siteId}, Q32=${pregnant}: Next must not skip ${page}`);
+          assert.equal(shouldCompleteWqInterviewAfterPage(model, previous), page === "page_outcome");
+        }
+        assert.equal(model.getValue(WQ_PREGNANCY_TRACKING_ELIGIBLE_FIELD), scenario.eligibility);
+        assert.equal(model.getQuestionByName("wq_blood_pressure_measured_site").readOnly, siteId !== 1);
+        assert.equal(model.getQuestionByName("wq_hemoglobin_measured_site").readOnly, siteId !== 1);
+        for (const [field, value] of [["wq_consent_study", 2], ["wq_woman_available", 2], [WQ_CURRENT_MARITAL_STATUS_FIELD, 7]]) {
+          const before = model.getValue(field);
+          model.setValue(field, value);
+          for (const page of expectedPages.slice(0, 3)) assert.equal(model.getPageByName(page).isVisible, false, `${field}: existing stop guard remains`);
+          model.setValue(field, before);
+        }
+      }
+    }
+  }
+}
+console.log("BWQ non-pregnant/unsure Q38 ineligible navigation and existing section restrictions passed.");

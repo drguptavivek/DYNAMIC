@@ -20,6 +20,7 @@ export default function Layout() {
   const location = useLocation();
 
   const isAdmin = user?.role === "central_admin" || user?.role === "site_research_scientist";
+  const canAssignHouseholds = isAdmin || user?.role === "site_data_manager";
   const canManageFormLanguage =
     user?.role === "central_admin" ||
     user?.role === "site_research_scientist" ||
@@ -41,7 +42,7 @@ export default function Layout() {
     { path: "/children", label: "Children" },
     { path: "/masters", label: "Study Masters" },
     ...(isAdmin ? [{ path: "/users", label: "Users" }] : []),
-    ...(isAdmin
+    ...(canAssignHouseholds
       ? [{ path: "/field-worker-household-assignment", label: "Field Worker Household Assignment" }]
       : []),
   ];

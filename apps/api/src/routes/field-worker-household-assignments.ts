@@ -7,6 +7,7 @@ import { requireAuth, requireRole } from "../middleware/auth";
 import { sendError, sendSuccess } from "../lib/errors";
 import { addDays, parseISODate, toISODate } from "@dynamic/shared-workflow";
 import { parseHouseholdAssignmentRange } from "../../../../shared/householdAssignmentRange.cjs";
+import { getHouseholdAssignmentLocalities } from "../lib/householdAssignmentScope";
 
 const router = Router();
 const HHQ_ASSIGNMENT_WINDOW_DAYS = 180;
@@ -44,7 +45,7 @@ function buildHhqTaskKey(householdId: string, targetDate: string): string {
 router.get(
   "/",
   requireAuth,
-  requireRole("central_admin", "site_research_scientist", "field_supervisor"),
+  requireRole("central_admin", "site_research_scientist", "field_supervisor", "site_data_manager"),
   async (req: Request, res: Response) => {
     try {
       const query = assignmentListSchema.parse(req.query);
@@ -63,6 +64,14 @@ router.get(
         return;
       }
       const conditions: any[] = [eq(schema.households.site_id, query.site_id)];
+      const localities = await getHouseholdAssignmentLocalities(req.user!);
+      if (localities !== undefined) {
+        if (range.localityCode !== undefined && !localities.includes(range.localityCode)) {
+          sendError(res, 403, "INSUFFICIENT_PERMISSIONS", "You can only view your assigned localities");
+          return;
+        }
+        conditions.push(localities.length ? inArray(schema.households.locality_code, localities) : sql`false`);
+      }
       if (range.localityCode !== undefined) {
         conditions.push(eq(schema.households.locality_code, range.localityCode));
       }
@@ -151,7 +160,7 @@ router.get(
 router.post(
   "/",
   requireAuth,
-  requireRole("central_admin", "site_research_scientist", "field_supervisor"),
+  requireRole("central_admin", "site_research_scientist", "field_supervisor", "site_data_manager"),
   async (req: Request, res: Response) => {
     try {
       const data = assignSchema.parse(req.body);
@@ -183,7 +192,8 @@ router.post(
 
       if (
         fieldWorkers.length !== uniqueUserIds.length ||
-        fieldWorkers.some((fieldWorker) => fieldWorker.role !== "field_worker" || fieldWorker.active === false)
+        fieldWorkers.some((fieldWorker) => fieldWorker.role !== "field_worker" || fieldWorker.active === false ||
+          (req.user!.role === "site_data_manager" && fieldWorker.active !== true))
       ) {
         sendError(res, 400, "INVALID_FIELD_WORKER", "Select active field workers");
         return;
@@ -228,6 +238,11 @@ router.post(
           "INVALID_ASSIGNMENT_SITE",
           "Households must belong to the selected field worker site",
         );
+        return;
+      }
+      const localities = await getHouseholdAssignmentLocalities(req.user!);
+      if (localities !== undefined && households.some((household) => !localities.includes(household.locality_code))) {
+        sendError(res, 403, "INSUFFICIENT_PERMISSIONS", "You can only assign households in your assigned localities");
         return;
       }
 
@@ -393,7 +408,7 @@ router.post(
 router.delete(
   "/",
   requireAuth,
-  requireRole("central_admin", "site_research_scientist", "field_supervisor"),
+  requireRole("central_admin", "site_research_scientist", "field_supervisor", "site_data_manager"),
   async (req: Request, res: Response) => {
     try {
       const data = clearAssignmentsSchema.parse(req.body);
@@ -407,6 +422,7 @@ router.delete(
             .select({
               household_id: schema.households.household_id,
               site_id: schema.households.site_id,
+              locality_code: schema.households.locality_code,
             })
             .from(schema.households)
             .where(inArray(schema.households.household_id, householdIdBatch))),
@@ -423,6 +439,23 @@ router.delete(
       ) {
         sendError(res, 403, "INSUFFICIENT_PERMISSIONS", "You can only clear your own site");
         return;
+      }
+
+      const localities = await getHouseholdAssignmentLocalities(req.user!);
+      if (localities !== undefined) {
+        if (households.some((household) => !localities.includes(household.locality_code))) {
+          sendError(res, 403, "INSUFFICIENT_PERMISSIONS", "You can only clear households in your assigned localities");
+          return;
+        }
+        const users = [];
+        for (const userIds of chunks(uniqueUserIds)) {
+          users.push(...await db.select({ user_id: schema.users.user_id, role: schema.users.role, site_id: schema.users.site_id })
+            .from(schema.users).where(inArray(schema.users.user_id, userIds)));
+        }
+        if (users.length !== uniqueUserIds.length || users.some((user) => user.role !== "field_worker" || user.site_id !== req.user!.site_id)) {
+          sendError(res, 403, "INSUFFICIENT_PERMISSIONS", "You can only clear field workers from your own site");
+          return;
+        }
       }
 
       for (const householdIdBatch of chunks(uniqueHouseholdIds)) {

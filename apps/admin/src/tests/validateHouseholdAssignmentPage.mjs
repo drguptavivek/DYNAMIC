@@ -14,8 +14,13 @@ const requests = [], slots = [];
 let cursor = 0, dirty = true, effects = [], tree, deferredAll, failRefresh = false, failPost = false;
 let pickerFixtures = false;
 let filterFixtures = false;
+let managerAreas = [{ site_id: 2, locality_code: '02' },
+  { site_id: 2, locality_code: '11', active_to: '2000-01-01' },
+  { site_id: 9, locality_code: '90' }];
+let failManagerAreas = false;
 const sameDeps = (a, b) => a && b && a.length === b.length && a.every((value, index) => Object.is(value, b[index]));
 globalThis.assignmentHarness = {
+  user: { user_id: 'central', role: 'central_admin' },
   useState(initial) {
     const index = cursor++;
     if (!(index in slots)) slots[index] = typeof initial === 'function' ? initial() : initial;
@@ -39,11 +44,17 @@ globalThis.assignmentHarness = {
       requests.push({ method: 'get', path });
       if (path === '/masters/sites') return [
         { site_id: 2, site_name: 'Ballabhgarh' }, { site_id: 1, site_name: 'Bareilly' },
+        { site_id: 9, site_name: 'Future site' },
       ];
       if (path === '/masters/localities') return [
         { site_id: 2, locality_code: '02', locality_name: 'Locality 02' },
         { site_id: 2, locality_code: '11', locality_name: 'Dayalpur' },
+        { site_id: 9, locality_code: '90', locality_name: 'Future locality' },
       ];
+      if (path === '/users/manager/area-assignments') {
+        if (failManagerAreas) throw new Error('Manager locality scope unavailable');
+        return managerAreas;
+      }
       if (path.endsWith('/area-assignments')) {
         if (path.includes('/other-site/')) return [{ site_id: 1, locality_code: '02' }];
         if (path.includes('/expired/')) return [{ site_id: 2, locality_code: '02', active_to: '2000-01-01' }];
@@ -79,7 +90,10 @@ globalThis.assignmentHarness = {
       const range = parseHouseholdAssignmentRange(params.get('household_start') || '', params.get('household_end') || '', {
         siteId: Number(params.get('site_id')), localityCode: params.get('locality_code') || undefined,
       });
-      return households.filter(row => isHouseholdInAssignmentRange(row, range));
+      return households.filter(row => isHouseholdInAssignmentRange(row, range) &&
+        (globalThis.assignmentHarness.user.role !== 'site_data_manager' || managerAreas.some(area =>
+          area.site_id === row.site_id && area.site_id === globalThis.assignmentHarness.user.site_id &&
+          area.locality_code === row.locality_code && !area.active_to)));
     },
     async post(path, payload) {
       requests.push({ method: 'post', path, payload: structuredClone(payload) });
@@ -104,11 +118,12 @@ const bundled = await build({
   entryPoints: ['apps/admin/src/pages/FieldWorkerHouseholdAssignmentPage.tsx'],
   bundle: true, write: false, format: 'cjs', platform: 'node', jsx: 'automatic',
   plugins: [{ name: 'assignment-page-dependencies', setup(builder) {
-    builder.onResolve({ filter: /^(react|react\/jsx-runtime)$|\/lib\/api$|\.css$/ }, args => ({ path: args.path, namespace: 'mock' }));
+    builder.onResolve({ filter: /^(react|react\/jsx-runtime)$|\/lib\/(api|auth-context)$|\.css$/ }, args => ({ path: args.path, namespace: 'mock' }));
     builder.onLoad({ filter: /.*/, namespace: 'mock' }, args => ({ contents:
       args.path === 'react' ? 'export const {useState,useRef,useMemo,useEffect}=globalThis.assignmentHarness;' :
       args.path === 'react/jsx-runtime' ? 'export const jsx=(type,props,key)=>({type,props,key}); export const jsxs=jsx; export const Fragment="fragment";' :
       args.path.endsWith('/api') ? 'export const api=globalThis.assignmentHarness.api;' :
+      args.path.endsWith('/auth-context') ? 'export const useAuth=()=>({user:globalThis.assignmentHarness.user});' :
       'export default new Proxy({}, {get:(_,key)=>key});'
     }));
   }}],
@@ -392,3 +407,73 @@ await change(find(node => node.props?.id === 'assignment-locality', 'locality'),
 await click('View');
 assert.equal(labelled('Assigned field worker').props.value, '', 'Changing locality resets the worker filter');
 console.log('Assignment ranges, scoped selection, refresh/retry, duplicate-name locality details, worker search and hidden selection checks passed.');
+
+// Site managers use the existing page with their own site and active localities only.
+async function openForManager(siteId = 2) {
+  slots.length = 0; effects = []; dirty = true; requests.length = 0;
+  globalThis.assignmentHarness.user = { user_id: 'manager', role: 'site_data_manager', site_id: siteId };
+  await settle();
+}
+await openForManager();
+const site = () => find(node => node.props?.id === 'assignment-site', 'site');
+const locality = () => find(node => node.props?.id === 'assignment-locality', 'locality');
+assert.equal(site().props.value, '2');
+assert.equal(site().props.disabled, true, 'Site managers cannot switch to another site');
+assert.deepEqual(nodes(site()).filter(node => node.type === 'option' && node.props.value !== '').map(node => node.props.value), [2]);
+assert.deepEqual(nodes(locality()).filter(node => node.type === 'option' && node.props.value !== '').map(node => node.props.value), ['02'],
+  'Other-site and expired locality assignments must not be listed');
+await click('View');
+assert.ok(rows().length > 0);
+assert.ok(rows().every(row => row.key.startsWith('2-02-')), 'All-locality scope must remain within the manager assignments');
+assert.ok(requests.some(request => request.path === '/users?site_id=2&role=field_worker&active=1'));
+await check('Select visible households', true); await click('Assign all selected');
+assert.ok(!workerOptions().some(option => text(option).includes('other-site')), 'Other-site workers must not enter the picker');
+nodes(workerOptions().find(option => text(option).includes('worker-one'))).find(node => node.type === 'input').props.onChange();
+await settle();
+await nodes(find(node => node.props?.className === 'bulkModal', 'bulk modal'))
+  .find(node => node.type === 'button' && text(node) === 'Assign').props.onClick(); await settle();
+assert.ok(requests.some(request => request.method === 'post'), 'A scoped site manager can use normal assignment');
+assert.equal(site().props.value, '2');
+assert.equal(site().props.disabled, true);
+managerAreas = [{ site_id: 9, locality_code: '90' }];
+await openForManager(9);
+assert.equal(site().props.value, '9', 'A future site works without a hardcoded site ID');
+assert.deepEqual(nodes(locality()).filter(node => node.type === 'option' && node.props.value !== '').map(node => node.props.value), ['90']);
+await click('View');
+assert.ok(requests.some(request => request.path === '/users?site_id=9&role=field_worker&active=1'));
+managerAreas = [];
+await openForManager();
+assert.match(text(tree), /No active localities are assigned/);
+assert.equal(site().props.value, '');
+await click('View');
+assert.ok(!requests.some(request => request.path?.startsWith('/field-worker-household-assignments')), 'No locality permission must fail closed');
+failManagerAreas = true;
+await openForManager();
+assert.match(text(tree), /Manager locality scope unavailable/);
+assert.equal(site().props.value, '');
+await openForManager(null);
+assert.match(text(tree), /not assigned to a site/);
+assert.equal(requests.length, 0, 'An unscoped manager must not request master or allocation data');
+
+const layoutBundle = await build({
+  entryPoints: ['apps/admin/src/components/Layout.tsx'], bundle: true, write: false,
+  format: 'cjs', platform: 'node', jsx: 'automatic',
+  plugins: [{ name: 'assignment-layout-dependencies', setup(builder) {
+    builder.onResolve({ filter: /^(react-router-dom|react\/jsx-runtime)$|\/lib\/auth-context$|\.css$/ }, args => ({ path: args.path, namespace: 'mock' }));
+    builder.onLoad({ filter: /.*/, namespace: 'mock' }, args => ({ contents:
+      args.path === 'react-router-dom' ? 'export const Link="link",Outlet="outlet",useLocation=()=>({pathname:"/dashboard"});' :
+      args.path === 'react/jsx-runtime' ? 'export const jsx=(type,props,key)=>({type,props,key}); export const jsxs=jsx;' :
+      args.path.endsWith('/auth-context') ? 'export const useAuth=()=>({user:globalThis.assignmentHarness.user,logout:()=>{}});' :
+      'export default new Proxy({}, {get:(_,key)=>key});'
+    }));
+  }}],
+});
+const layout = { exports: {} };
+new Function('module', 'exports', layoutBundle.outputFiles[0].text)(layout, layout.exports);
+for (const role of ['central_admin', 'site_research_scientist', 'site_data_manager', 'field_worker']) {
+  globalThis.assignmentHarness.user = { role };
+  const links = nodes(layout.exports.default()).filter(node => node.type === 'link').map(node => node.props.to);
+  assert.equal(links.includes('/field-worker-household-assignment'), role !== 'field_worker', `${role}: allocation navigation`);
+  assert.equal(links.includes('/users'), ['central_admin', 'site_research_scientist'].includes(role), `${role}: user administration remains unchanged`);
+}
+console.log('Site-manager allocation navigation, own-site/active-locality scope, future sites and fail-closed UI checks passed.');

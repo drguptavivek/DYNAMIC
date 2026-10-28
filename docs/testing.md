@@ -67,6 +67,15 @@ Use the actual BHQ definition and behavior handlers for GPS regressions: Locatio
 
 BHQ response exports must include the stored `hhq_gps_latitude` and `hhq_gps_longitude` even though the app adds these fields at runtime. Test exact saved values, valid zero coordinates, blank older responses and deduplication if the definition already includes GPS. Other questionnaires must not acquire BHQ GPS columns or borrowed coordinates. Coordinates remain in the submitted response's `answers_json`; exports do not rewrite responses or infer a location.
 
+Form-data export controls (no database required):
+
+```bash
+node apps/admin/src/tests/validateFormDataExportPage.mjs
+npm --workspace @dynamic/api exec -- tsx --test src/routes/form-responses.export.test.ts src/lib/formExportPrivacy.test.ts
+```
+
+Cover separate BHQ household/member files, one stored member per row with household/response IDs, names-only household rosters, coded and English-label modes for all forms, unknown codes and free-entry numeric values, user filtering within server area scope, and independent PIS/Non-PIS capabilities. Mask identifying data before decoding/serializing, including nested repeats, DOB/GPS, contact details, notes and staff metadata; retain household IDs and clinical values. Check current questionnaire PII keys and clinical exceptions across all twelve forms, unknown stored member fields, unchanged source answers, staff-list async races, busy/error states and legacy GPS/mobile export behavior.
+
 For BHQ member-summary scrolling, run `node expo/src/tests/validateFormStartupLifecycle.mjs`. Check a 20-member roster on a narrow viewport: scroll to checklist A/B, continue to Section 3, and return to edit/add members. Keep the table's horizontal scrolling available.
 
 Validation navigation: run `validateRepeatValidationFocus.mjs`, `validateNativeValidationFocus.mjs` and `validateValidationHostNavigation.mjs` through the Expo test runner. Use four repeated children/members with errors in different rows: blocked Next and invalid child Save must open the exact entry and scroll to its highlighted question, including compound fields. Correcting one error must reveal the next one without changing other answers. Check mobile, desktop and compact-pager layouts, grouped reproduction-section navigation, and failed final confirmation after preview remounts the renderer. Invalid final submissions must not create evidence or complete tasks; hidden questions and internal bookkeeping fields must not become focus targets. Empty locked fields ignored by Survey Core must not block navigation or steal focus from an editable error. An unsaved but otherwise complete child must reopen its own editor without recursively navigating into later required pages.
@@ -89,7 +98,7 @@ node expo/src/tests/validateWqAlcoholLimits.mjs
 ```
 
 Check Q32 Yes automatically sets the coded No answers for Q36/Q37, including draft restoration, while normal No/unsure responses keep the existing behavior. Check Q33a's minimum of 28 days at the 27/28-day boundary for both date and relative entries, including equivalent weeks/months and translated validation text.
-For pregnant women, exercise actual Next navigation through health, husband background and biomarkers before Outcome, plus Domestic Violence only at site 4. Cover ages 30 and 46, including Q38=2, fresh/restored drafts and pregnancy toggles. Q38 must show its read-only choice label without changing the eligibility code; consent stops and site biomarker locks still apply.
+For pregnant, non-pregnant and unsure women, exercise actual Next navigation through health, husband background and biomarkers before Outcome even when Q38=2, plus Domestic Violence only at site 4. Cover ages 30 and 46, sterilization/menopause, fresh/restored drafts and pregnancy toggles. Q38 must show its read-only choice label without changing the eligibility code; consent stops, existing site restrictions, biomarker locks and task-generation rules must remain unchanged.
 Check husband/partner Q13 at 30/31 days and Q14 at 5/6 drinks, including valid special responses, draft restoration, and translatable validator messages in the codebook.
 Check respondent Q17 shows Days first, accepts 30 and rejects 31, while retaining None and Every day/almost every day and their existing skip behavior. Check Q18 shows Drinks first, accepts 5 and rejects 6, and retains its special response.
 
@@ -98,9 +107,12 @@ Household assignment range, page-selection and assignment refresh checks (no dat
 ```bash
 node --test shared/householdAssignmentRange.test.cjs
 node apps/admin/src/tests/validateHouseholdAssignmentPage.mjs
+npm --workspace @dynamic/api exec -- tsx --test src/routes/field-worker-household-assignments.scope.test.ts
 ```
 
 Assignment checks cover refreshed worker chips, clearing completed selections, preserving the selected site/locality/search and page, and retrying failed writes or refreshes. Worker-picker checks cover duplicate names, usernames, active localities, metadata failures, and preserving selections while searching. Verify table scroll, visibility of the last assigned household, and worker-picker sizing in a browser.
+
+Site Data Manager allocation checks must cover the navigation link, a pinned site, active permitted localities and own-site field workers, including a newly added site ID. Test empty/expired locality permissions and forged cross-site/locality requests on list, assign and clear; mixed invalid batches must fail before any write. Preserve existing Central Admin and Site Research Scientist behavior, allocation refresh/filter state and task-generation logic. User-account and study-master administration are separate permissions.
 
 The assignment worker filter must count persisted assignments across the entire selected site/locality, including households beyond page one and outside the current range/search. Include locality workers with zero households and any existing household owners. Verify filtering before pagination, empty results for zero assignments, refreshed counts after assignment/removal, and worker-scoped bulk selection without selecting hidden workers' households. Changing the worker clears selection; changing site/locality resets the worker filter.
 

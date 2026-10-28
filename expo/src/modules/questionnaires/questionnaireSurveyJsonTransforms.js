@@ -994,10 +994,10 @@ function applyWqPregnantInterviewContinuation(surveyJson) {
     ...surveyJson,
     pages: surveyJson.pages.map((page) => ({
       ...page,
-      // Current pregnancy still requires the interview, independently of PSF eligibility.
+      // Tracking ineligibility must not end the remaining interview; other section guards still apply.
       visibleIf: followupPages.has(page.name)
         ? page.visibleIf.replace("{wq_pregnancy_tracking_eligible} = 1",
-          "({wq_pregnancy_tracking_eligible} = 1 or {wq_pregnant} = 1)")
+          "({wq_pregnancy_tracking_eligible} = 1 or {wq_pregnancy_tracking_eligible} = 2 or {wq_pregnant} = 1)")
         : page.visibleIf,
       elements: page.elements.map((element) => element.name === "wq_pregnancy_tracking_eligible"
         ? { ...element, renderAs: "radio" }

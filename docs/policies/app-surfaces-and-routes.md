@@ -38,6 +38,16 @@ Rules:
 - Delayed definition loads or file reads must not replace the currently selected form/language or enable an export/import/save for stale data.
 - Protocol downloads retain the raw questionnaire definition and carry translation overlays for application after Android's presentation transforms. Preparing or translating text must not change expressions, required rules, answer keys, task scheduling, or interview language locking.
 
+## Form Data Export
+
+- Exports remain Excel-compatible UTF-8 CSV downloads, using coded answers by default. An uncoded option resolves known option values to their English choice text; free text, identifiers, dates, coordinates and unknown codes retain their stored values.
+- BHQ site/locality labels use current masters, with locality lookup keyed by site and locality code; missing master labels retain their codes instead of using another site's village name.
+- All forms support filtering by recorded submitter, with the available staff list derived only from form responses inside the caller's server-enforced area scope. The same filter applies to the BHQ member file.
+- PIS is the normal identifiable export. Non-PIS masks direct identifiers, including names, contact/address information, precise GPS, birth dates and identifying free text, including nested roster/repeated values. Household IDs remain unchanged for analysis linkage. This is a masked export, not a guarantee of anonymity. Privacy masking takes precedence over coded/uncoded display.
+- BHQ offers separate household and member downloads. The household file shows member names in the roster column; complete roster details appear only in the member file, with one row per stored member and the household ID and response provenance alongside it.
+- Member exports read the submitted BHQ roster, not the current member registry. Both downloads enforce the same raw-CRF permission and server-side area scope. Exporting never changes stored answers, projections or tasks.
+- PIS additionally requires PII access, and Non-PIS additionally requires the de-identified-export capability; neither mode grants raw-CRF access to a role that does not already have it.
+
 ## Runtime Site And Locality Choices
 
 HHQ site/locality choices come from authenticated user context:

@@ -1,6 +1,7 @@
 import { type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 import { isHouseholdInAssignmentRange, parseHouseholdAssignmentRange } from "../../../../shared/householdAssignmentRange.cjs";
 import { api } from "../lib/api";
+import { useAuth } from "../lib/auth-context";
 import styles from "./FieldWorkerHouseholdAssignmentPage.module.css";
 
 const HOUSEHOLD_PAGE_SIZE = 1000;
@@ -59,6 +60,8 @@ function selectedWorkers(fieldWorkers: User[], selectedIds: string[]): User[] {
 }
 
 export default function FieldWorkerHouseholdAssignmentPage() {
+  const { user } = useAuth();
+  const isSiteDataManager = user?.role === "site_data_manager";
   const [sites, setSites] = useState<Site[]>([]);
   const [localities, setLocalities] = useState<Locality[]>([]);
   const [selectedSiteId, setSelectedSiteId] = useState("");
@@ -245,25 +248,55 @@ export default function FieldWorkerHouseholdAssignmentPage() {
   }, [selectedLocalityCode, selectedSiteId]);
 
   useEffect(() => {
+    let cancelled = false;
     async function loadMasters() {
       setLoading(true);
       setError("");
+      if (isSiteDataManager) {
+        setSites([]);
+        setLocalities([]);
+        setSelectedSiteId("");
+        setSelectedLocalityCode("");
+      }
       try {
-        const [siteData, localityData] = await Promise.all([
+        if (isSiteDataManager && !user?.site_id) throw new Error("Your account is not assigned to a site");
+        const [siteData, localityData, ownAreas] = await Promise.all([
           api.get<Site[]>("/masters/sites"),
           api.get<Locality[]>("/masters/localities"),
+          isSiteDataManager
+            ? api.get<AreaAssignment[]>(`/users/${encodeURIComponent(user!.user_id)}/area-assignments`)
+            : Promise.resolve([] as AreaAssignment[]),
         ]);
-        setSites(siteData);
-        setLocalities(localityData);
+        if (cancelled) return;
+        if (isSiteDataManager) {
+          const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+          const activeCodes = new Set(ownAreas.filter((area) => area.site_id === user!.site_id &&
+            (!area.active_from || area.active_from <= today) && (!area.active_to || area.active_to >= today))
+            .map((area) => area.locality_code));
+          const allowedLocalities = localityData.filter((locality) => locality.site_id === user!.site_id && activeCodes.has(locality.locality_code));
+          if (!allowedLocalities.length) throw new Error("No active localities are assigned to your account");
+          setSites(siteData.filter((site) => site.site_id === user!.site_id));
+          setLocalities(allowedLocalities);
+          setSelectedSiteId(String(user!.site_id));
+          setSelectedLocalityCode("");
+        } else {
+          setSites(siteData);
+          setLocalities(localityData);
+        }
       } catch (err) {
+        if (cancelled) return;
+        setSites([]);
+        setLocalities([]);
+        setSelectedSiteId("");
         setError(err instanceof Error ? err.message : "Failed to load sites and localities");
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
 
     void loadMasters();
-  }, []);
+    return () => { cancelled = true; };
+  }, [isSiteDataManager, user?.site_id, user?.user_id]);
 
   useEffect(() => {
     function closeWorkerMenu(event: globalThis.MouseEvent) {
@@ -314,7 +347,9 @@ export default function FieldWorkerHouseholdAssignmentPage() {
         api.get<Household[]>(`/field-worker-household-assignments?${params.toString()}`),
         api.get<User[]>(
           `/users?site_id=${encodeURIComponent(selectedSiteId)}&role=field_worker&active=1`,
-        ).then(async (workers) => ({
+        ).then((workers) => isSiteDataManager
+          ? workers.filter((worker) => worker.site_id === Number(selectedSiteId) && worker.role === "field_worker")
+          : workers).then(async (workers) => ({
           workers,
           areas: options.resetSelection ? Object.fromEntries(await Promise.all(workers.map(async (worker) => {
             try {
@@ -578,7 +613,7 @@ export default function FieldWorkerHouseholdAssignmentPage() {
               setSelectedSiteId(event.target.value);
               setSelectedLocalityCode("");
             }}
-            disabled={loading || busy}
+            disabled={loading || busy || isSiteDataManager}
           >
             <option value="">Select site</option>
             {sites.map((site) => (

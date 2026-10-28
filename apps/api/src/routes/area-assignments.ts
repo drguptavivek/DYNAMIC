@@ -5,6 +5,7 @@ import { eq, and } from "drizzle-orm";
 import { db, schema } from "../db";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { sendError, sendSuccess } from "../lib/errors";
+import { getHouseholdAssignmentLocalities } from "../lib/householdAssignmentScope";
 
 const router = Router();
 
@@ -24,7 +25,8 @@ router.get("/users/:userId/area-assignments", requireAuth, async (req: Request, 
     const canView =
       req.user!.role === "central_admin" ||
       req.user!.sub === userId ||
-      ((req.user!.role === "site_research_scientist" || req.user!.role === "field_supervisor") &&
+      ((req.user!.role === "site_research_scientist" || req.user!.role === "field_supervisor" ||
+        (req.user!.role === "site_data_manager" && user.role === "field_worker")) &&
         req.user!.site_id != null &&
         user.site_id === req.user!.site_id);
     if (!canView) {
@@ -32,10 +34,16 @@ router.get("/users/:userId/area-assignments", requireAuth, async (req: Request, 
       return;
     }
 
-    const assignments = await db
+    let assignments = await db
       .select()
       .from(schema.userAreaAssignments)
       .where(eq(schema.userAreaAssignments.user_id, userId));
+
+    const localities = await getHouseholdAssignmentLocalities(req.user!);
+    if (localities !== undefined) {
+      assignments = assignments.filter((assignment) => assignment.site_id === req.user!.site_id &&
+        localities.includes(assignment.locality_code));
+    }
 
     sendSuccess(res, assignments, 200, { total: assignments.length });
   } catch (error) {

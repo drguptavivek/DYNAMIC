@@ -9,6 +9,7 @@ import { createLoginQrPayload } from "../lib/loginQr";
 import { hashPassword } from "../lib/password";
 import { sendCredentialsEmail } from "../lib/email";
 import { markAccessSessionRevoked } from "../lib/tokenSessionCache";
+import { getHouseholdAssignmentLocalities } from "../lib/householdAssignmentScope";
 
 const router = Router();
 const userRoleValues = [
@@ -296,7 +297,7 @@ router.get("/me", requireAuth, async (req: Request, res: Response) => {
 router.get(
   "/",
   requireAuth,
-  requireRole("central_admin", "site_research_scientist", "field_supervisor"),
+  requireRole("central_admin", "site_research_scientist", "field_supervisor", "site_data_manager"),
   async (req: Request, res: Response) => {
     try {
       const { site_id: siteIdStr, role, active: activeStr, search } = req.query;
@@ -304,6 +305,19 @@ router.get(
       const activeFilter = parseBoolean(activeStr as string);
 
       let conditions: any[] = [];
+
+      if (req.user!.role === "site_data_manager") {
+        if ((siteId !== undefined && siteId !== req.user!.site_id) || (role && role !== "field_worker")) {
+          sendError(res, 403, "INSUFFICIENT_PERMISSIONS", "You can only view field workers from your own site");
+          return;
+        }
+        const localities = await getHouseholdAssignmentLocalities(req.user!);
+        if (!localities?.length) {
+          sendSuccess(res, [], 200, { total: 0 });
+          return;
+        }
+        conditions.push(eq(schema.users.role, "field_worker"), eq(schema.users.active, true));
+      }
 
       // Role-based filtering: non-admins can only see their own site
       if (req.user!.role !== "central_admin") {
