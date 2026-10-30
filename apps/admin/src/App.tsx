@@ -63,5 +63,5 @@ export default function App() {
 
 function DashboardEntry() {
   const { user } = useAuth();
-  return user?.role === "central_admin" ? <SiteFormTotalsPage /> : <DashboardPage />;
+  return user?.role === "central_admin" || user?.role === "site_data_manager" ? <SiteFormTotalsPage /> : <DashboardPage />;
 }

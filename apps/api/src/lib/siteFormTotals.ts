@@ -1,13 +1,14 @@
 import { sql } from "drizzle-orm";
 import type { SiteFormTotals } from "../../../../shared/siteFormTotals";
 
-export function siteFormTotalsSql() {
+export function siteFormTotalsSql(siteId: number | null = null) {
   return sql`select s.site_id,s.site_name,f.form_code,count(f.form_response_id)::integer count
     from study_sites s left join (
       select f.form_response_id,f.site_id,f.form_code from form_responses f
       join users u on u.user_id=f.submitted_by_user_id and u.role='field_worker'
       where coalesce(f.response_status,'primary')='primary'
     ) f on f.site_id=s.site_id
+    where (${siteId}::integer is null or s.site_id=${siteId})
     group by s.site_id,s.site_name,f.form_code
     order by s.site_id,f.form_code`;
 }

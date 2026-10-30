@@ -37,7 +37,12 @@ test("site totals count all-time primary field-worker forms at their recorded si
     const before = JSON.stringify(sqlite.prepare("select * from form_responses order by form_response_id").all());
     const compiled = new PgDialect().sqlToQuery(siteFormTotalsSql());
     assert.match(compiled.sql, /^select /);
-    const rows = sqlite.prepare(compiled.sql.replace(/::integer/g, "")).all() as any[];
+    const runQuery = (query: ReturnType<typeof siteFormTotalsSql>) => {
+      const compiledQuery = new PgDialect().sqlToQuery(query);
+      return sqlite.prepare(compiledQuery.sql.replace(/::integer/g, "").replace(/\$\d+/g, "?"))
+        .all(...compiledQuery.params) as any[];
+    };
+    const rows = runQuery(siteFormTotalsSql());
     const result = assembleSiteFormTotals(rows, new Date("2026-10-30T10:00:00Z"));
     assert.deepEqual(result, { generated_at: "2026-10-30T10:00:00.000Z", sites: [
       { site_id: 1, site_name: "Bareilly", total: 1, forms_by_code: { HHQ: 1 } },
@@ -49,13 +54,21 @@ test("site totals count all-time primary field-worker forms at their recorded si
     const route = (dashboardRouter as any).stack.find((layer: any) => layer.route?.path === "/site-form-totals").route;
     const originalExecute = db.execute;
     (db as any).execute = async (query: any) => {
-      assert.equal(new PgDialect().sqlToQuery(query).sql, compiled.sql);
-      return { rows };
+      return { rows: runQuery(query) };
     };
     try {
       let body: any;
-      await route.stack.at(-1).handle({}, { status() { return this; }, json(value: any) { body = value; } });
+      const response = { status() { return this; }, json(value: any) { body = value; } };
+      await route.stack.at(-1).handle({ user: { role: "central_admin" } }, response);
       assert.deepEqual(body.data.sites, result.sites);
+      for (const siteId of [1, 2, 9]) {
+        await route.stack.at(-1).handle({ user: { role: "site_data_manager", site_id: siteId }, query: { site_id: 1 } }, response);
+        assert.deepEqual(body.data.sites, result.sites.filter((site) => site.site_id === siteId));
+      }
+      for (const siteId of [null, undefined, 0, -1]) {
+        await route.stack.at(-1).handle({ user: { role: "site_data_manager", site_id: siteId } }, response);
+        assert.equal(body.error.code, "FORBIDDEN");
+      }
     } finally {
       db.execute = originalExecute;
     }
@@ -64,7 +77,7 @@ test("site totals count all-time primary field-worker forms at their recorded si
   }
 });
 
-test("site totals route requires authentication, central admin role and aggregate-data capability", async () => {
+test("site totals route requires authentication, an allowed manager role and aggregate-data capability", async () => {
   const route = (dashboardRouter as any).stack.find((layer: any) => layer.route?.path === "/site-form-totals").route;
   assert.ok(route.methods.get);
   const response = () => {
@@ -74,14 +87,16 @@ test("site totals route requires authentication, central admin role and aggregat
   const unauthenticated = response();
   route.stack[0].handle({ headers: {} }, unauthenticated, () => assert.fail("Anonymous request passed authentication"));
   assert.equal(unauthenticated.result.status, 401);
-  for (const role of ["site_data_manager", "site_research_scientist", "central_data_manager", "field_worker"]) {
+  for (const role of ["site_research_scientist", "central_data_manager", "field_worker"]) {
     const denied = response();
     route.stack[1].handle({ user: { role } }, denied, () => assert.fail(`${role} passed central-only guard`));
     assert.equal(denied.result.status, 403);
   }
-  let permitted = false;
-  route.stack[1].handle({ user: { role: "central_admin" } }, response(), () => { permitted = true; });
-  assert.equal(permitted, true);
+  for (const role of ["central_admin", "site_data_manager"]) {
+    let permitted = false;
+    route.stack[1].handle({ user: { role } }, response(), () => { permitted = true; });
+    assert.equal(permitted, true);
+  }
   const deniedCapability = response();
   await new Promise<void>((resolve) => {
     route.stack[2].handle({ user: { role: "central_admin" }, dataAccessProfile: { can_access_aggregate_dashboards: false } }, {

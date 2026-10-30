@@ -21,13 +21,14 @@ export default function Layout() {
 
   const isAdmin = user?.role === "central_admin" || user?.role === "site_research_scientist";
   const canAssignHouseholds = isAdmin || user?.role === "site_data_manager";
+  const canViewSiteTotals = user?.role === "central_admin" || user?.role === "site_data_manager";
   const canManageFormLanguage =
     user?.role === "central_admin" ||
     user?.role === "site_research_scientist" ||
     user?.role === "site_data_manager";
   const links = [
-    { path: "/dashboard", label: user?.role === "central_admin" ? "Main dashboard" : "Dashboard" },
-    ...(user?.role === "central_admin" ? [{ path: "/staff-dashboard", label: "Staff dashboard" }] : []),
+    { path: "/dashboard", label: canViewSiteTotals ? "Main dashboard" : "Dashboard" },
+    ...(canViewSiteTotals ? [{ path: "/staff-dashboard", label: "Staff dashboard" }] : []),
     { path: "/tasks", label: "Tasks" },
     { path: "/data-quality", label: "Data Quality" },
     { path: "/sync-logs", label: "Sync Logs" },

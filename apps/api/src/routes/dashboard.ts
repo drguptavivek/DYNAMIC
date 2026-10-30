@@ -11,9 +11,14 @@ import { assembleSiteFormTotals, siteFormTotalsSql } from "../lib/siteFormTotals
 
 const router = Router();
 
-router.get("/site-form-totals", requireAuth, requireRole("central_admin"), requireDataAccess("can_access_aggregate_dashboards"), async (_req: Request, res: Response) => {
+router.get("/site-form-totals", requireAuth, requireRole("central_admin", "site_data_manager"), requireDataAccess("can_access_aggregate_dashboards"), async (req: Request, res: Response) => {
   try {
-    const result = await db.execute(siteFormTotalsSql());
+    const siteId = req.user!.role === "central_admin" ? null : req.user!.site_id;
+    if (req.user!.role !== "central_admin" && (!Number.isSafeInteger(siteId) || siteId! < 1)) {
+      sendError(res, 403, "FORBIDDEN", "A site assignment is required to view site totals");
+      return;
+    }
+    const result = await db.execute(siteFormTotalsSql(siteId));
     sendSuccess(res, assembleSiteFormTotals(result.rows as any[]));
   } catch (error) {
     console.error("Site form totals error:", error);

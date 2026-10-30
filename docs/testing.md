@@ -22,7 +22,7 @@ Expected smoke result includes `ok: true`, `dev-field-worker`, one assignment, b
 
 ## Common Test Sets
 
-Central main dashboard: run `node apps/admin/src/tests/validateSiteFormTotalsPage.mjs` and `node apps/admin/src/tests/validateOperationsDashboard.mjs`, plus the API site-form totals regression. Check all-time totals (no date restriction), primary field-worker submissions only, submission site rather than current staff site, duplicate exclusion, zero/new sites, form-code labels, central-only access, refresh/error states and preserved staff/site dashboards.
+Main dashboard: run `node apps/admin/src/tests/validateSiteFormTotalsPage.mjs` and `node apps/admin/src/tests/validateOperationsDashboard.mjs`, plus the API site-form totals regression. Check all-time totals (no date restriction), primary field-worker submissions only, submission site rather than current staff site, duplicate exclusion, zero/new sites, form-code labels, Central Admin access across sites, Site Data Manager access pinned to their account site (including forged site filters and missing-site denial), refresh/error states and preserved staff dashboards. CSV exports include non-primary and non-field-worker responses, so compare equivalent populations before expecting equal totals.
 
 Site-transfer scope and offline workflow (isolated mocks/in-memory SQLite; no live database):
 

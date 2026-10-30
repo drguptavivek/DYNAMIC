@@ -11,8 +11,8 @@ const count = (value: number) => value.toLocaleString("en-IN");
 
 export default function SiteFormTotalsPage() {
   const { user } = useAuth();
-  if (user?.role !== "central_admin") return <Navigate to="/dashboard" replace />;
-  return <SiteFormTotalsView key={user.user_id} />;
+  if (user?.role !== "central_admin" && user?.role !== "site_data_manager") return <Navigate to="/dashboard" replace />;
+  return <SiteFormTotalsView key={`${user.user_id}:${user.role}:${user.site_id}`} />;
 }
 
 function SiteFormTotalsView() {
