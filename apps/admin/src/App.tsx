@@ -4,6 +4,8 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import Layout from "./components/Layout";
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
+import SiteFormTotalsPage from "./pages/SiteFormTotalsPage";
+import { useAuth } from "./lib/auth-context";
 import UsersPage from "./pages/UsersPage";
 import FieldWorkerHouseholdAssignmentPage from "./pages/FieldWorkerHouseholdAssignmentPage";
 import MastersPage from "./pages/MastersPage";
@@ -28,7 +30,8 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route element={<ProtectedRoute />}>
             <Route element={<Layout />}>
-              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/dashboard" element={<DashboardEntry />} />
+              <Route path="/staff-dashboard" element={<DashboardPage />} />
               <Route path="/security/totp-setup" element={<TotpSetupPage />} />
               <Route path="/users" element={<UsersPage />} />
               <Route path="/field-worker-household-assignment" element={<FieldWorkerHouseholdAssignmentPage />} />
@@ -56,4 +59,9 @@ export default function App() {
       </BrowserRouter>
     </AuthProvider>
   );
+}
+
+function DashboardEntry() {
+  const { user } = useAuth();
+  return user?.role === "central_admin" ? <SiteFormTotalsPage /> : <DashboardPage />;
 }

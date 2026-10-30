@@ -1,14 +1,25 @@
 import { Router, Request, Response } from "express";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { db, schema } from "../db";
-import { requireAuth } from "../middleware/auth";
+import { requireAuth, requireRole } from "../middleware/auth";
 import { sendError, sendSuccess } from "../lib/errors";
 import { appendAreaScopeCondition } from "../lib/areaScope";
 import { requireDataAccess } from "../lib/dataAccess";
 import { assembleDashboard, dashboardScope, dashboardSql } from "../lib/operationsDashboard";
 import type { DashboardStaffRow } from "../../../../shared/operationsDashboard";
+import { assembleSiteFormTotals, siteFormTotalsSql } from "../lib/siteFormTotals";
 
 const router = Router();
+
+router.get("/site-form-totals", requireAuth, requireRole("central_admin"), requireDataAccess("can_access_aggregate_dashboards"), async (_req: Request, res: Response) => {
+  try {
+    const result = await db.execute(siteFormTotalsSql());
+    sendSuccess(res, assembleSiteFormTotals(result.rows as any[]));
+  } catch (error) {
+    console.error("Site form totals error:", error);
+    sendError(res, 500, "INTERNAL_ERROR", "Could not load site form totals");
+  }
+});
 
 router.get("/operations", requireAuth, requireDataAccess("can_access_aggregate_dashboards"), async (req: Request, res: Response) => {
   try {

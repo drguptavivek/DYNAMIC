@@ -26,7 +26,8 @@ export default function Layout() {
     user?.role === "site_research_scientist" ||
     user?.role === "site_data_manager";
   const links = [
-    { path: "/dashboard", label: "Dashboard" },
+    { path: "/dashboard", label: user?.role === "central_admin" ? "Main dashboard" : "Dashboard" },
+    ...(user?.role === "central_admin" ? [{ path: "/staff-dashboard", label: "Staff dashboard" }] : []),
     { path: "/tasks", label: "Tasks" },
     { path: "/data-quality", label: "Data Quality" },
     { path: "/sync-logs", label: "Sync Logs" },

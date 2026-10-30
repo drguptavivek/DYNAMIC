@@ -138,3 +138,5 @@ Sync pulls are paged. Large household sync should pull households first and memb
 - Logout and account changes clear the native and web registry caches along with other participant data. Local source exports stay ignored and must not be committed or sent to external services.
 
 Route contracts should be documented here before UI code depends on them.
+
+Central Admin `/dashboard` shows the main site-cards dashboard: all-time accepted, primary submissions recorded against field-worker accounts, counted by each submission's site and form code. Every study site appears, including new sites and sites with zero submissions. There is no date filter. Drafts, duplicate submissions and unsynced phone work do not count. The existing staff operations dashboard remains at `/staff-dashboard`; other admin roles keep their existing `/dashboard` experience. The read-only `/api/v1/dashboard/site-form-totals` endpoint requires Central Admin and aggregate-dashboard capability.
