@@ -98,6 +98,7 @@ Role rules:
 - Supervisors operate only within their assigned operational scope.
 - Site data managers operate within assigned site/locality scope for Issue review and Resolution Proposal work.
 - Site data managers may view, assign and clear household allocations only in their own site and active centrally assigned localities. New allocations target active field workers from that site. Missing or expired locality permissions deny allocation access. This permission does not grant user-account or study-master administration.
+- Site data managers may preview/import household CSVs only for their account's site and view/download that site's import archives. The API verifies the selected site, validates each CSV row against that site and its locality masters, and retains padding and duplicate checks before writes. This exception does not grant site/locality creation, household deletion or HDSS upload permissions.
 - Site research scientists are the current site-admin role: they can manage users and device assignments only within their own site, and cannot create central or collaborator users.
 - Central data managers review and approve Site Data Manager resolution work within permitted central scope.
 - Central admins can manage cross-site users, masters, and device assignments.

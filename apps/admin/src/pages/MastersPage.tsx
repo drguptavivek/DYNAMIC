@@ -1077,7 +1077,11 @@ function MappingCsvImportModal({
   onClose: () => void;
   onImported: () => Promise<void>;
 }) {
-  const [selectedSiteId, setSelectedSiteId] = useState("");
+  const { user } = useAuth();
+  const isSiteDataManager = user?.role === "site_data_manager";
+  const importSites = isSiteDataManager ? sites.filter((site) => site.site_id === user.site_id) : sites;
+  const [selectedSiteChoice, setSelectedSiteId] = useState("");
+  const selectedSiteId = isSiteDataManager ? String(importSites[0]?.site_id ?? "") : selectedSiteChoice;
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<MappingImportPreview | null>(null);
   const [error, setError] = useState("");
@@ -1087,6 +1091,12 @@ function MappingCsvImportModal({
   const [previewPage, setPreviewPage] = useState(1);
   const canImport = Boolean(selectedSiteId && file && preview && preview.ready > 0);
   const previewPageSize = 100;
+
+  useEffect(() => {
+    setFile(null);
+    setPreview(null);
+    setError("");
+  }, [user?.role, user?.site_id]);
   const filteredPreviewRows = preview
     ? preview.rows.filter((row) => {
         const term = previewSearch.trim().toLowerCase();
@@ -1120,6 +1130,7 @@ function MappingCsvImportModal({
 
   function buildFormData() {
     if (!selectedSiteId) throw new Error("Select a study site first");
+    if (!importSites.some((site) => String(site.site_id) === selectedSiteId)) throw new Error("Select an available study site");
     if (!file) throw new Error("Choose a CSV file first");
     const formData = new FormData();
     formData.append("site_id", selectedSiteId);
@@ -1179,6 +1190,7 @@ function MappingCsvImportModal({
             <select
               id="mapping-import-site"
               value={selectedSiteId}
+              disabled={isSiteDataManager}
               onChange={(event) => {
                 setSelectedSiteId(event.target.value);
                 setFile(null);
@@ -1187,7 +1199,7 @@ function MappingCsvImportModal({
               }}
             >
               <option value="">Select site</option>
-              {sites.map((site) => (
+              {importSites.map((site) => (
                 <option key={site.site_id} value={site.site_id}>
                   {site.site_id} - {site.site_name}
                 </option>

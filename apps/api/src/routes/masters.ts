@@ -737,6 +737,11 @@ function getMappingImportUploadRoot(): string {
   return path.resolve(process.cwd(), "uploads", "mapping-frame");
 }
 
+function canAccessMappingImportSite(user: Request["user"], siteId: number): boolean {
+  return user?.role === "central_admin" || (user?.role === "site_data_manager" &&
+    Number.isSafeInteger(user.site_id) && user.site_id! > 0 && user.site_id === siteId);
+}
+
 async function saveMappingFrameImportUpload(
   rows: MappingFramePreviewRow[],
   originalCsv: string,
@@ -1121,10 +1126,10 @@ router.get("/mapping-frame", async (req: Request, res: Response) => {
  */
 router.get(
   "/mapping-frame/import-uploads",
-  requireRole("central_admin"),
-  async (_req: Request, res: Response) => {
+  requireRole("central_admin", "site_data_manager"),
+  async (req: Request, res: Response) => {
     try {
-      const uploads = await listMappingFrameImportUploads();
+      const uploads = (await listMappingFrameImportUploads()).filter((upload) => canAccessMappingImportSite(req.user, upload.site_id));
       sendSuccess(res, uploads, 200, { total: uploads.length });
     } catch (error) {
       console.error("List mapping frame import uploads error:", error);
@@ -1388,8 +1393,8 @@ router.post(
  */
 router.post(
   "/mapping-frame/import-csv/preview",
+  requireRole("central_admin", "site_data_manager"),
   upload.single("file"),
-  requireRole("central_admin"),
   async (req: Request, res: Response) => {
     try {
       if (!req.file) {
@@ -1403,6 +1408,10 @@ router.post(
       const selectedSiteId = parseSelectedSiteId(req.body.site_id);
       if (!selectedSiteId) {
         sendError(res, 400, "VALIDATION_ERROR", "Select a valid study site before preview");
+        return;
+      }
+      if (!canAccessMappingImportSite(req.user, selectedSiteId)) {
+        sendError(res, 403, "FORBIDDEN", "Households can be imported only into your assigned site");
         return;
       }
 
@@ -1441,8 +1450,8 @@ router.post(
  */
 router.post(
   "/mapping-frame/import-csv",
+  requireRole("central_admin", "site_data_manager"),
   upload.single("file"),
-  requireRole("central_admin"),
   async (req: Request, res: Response) => {
     try {
       if (!req.file) {
@@ -1456,6 +1465,10 @@ router.post(
       const selectedSiteId = parseSelectedSiteId(req.body.site_id);
       if (!selectedSiteId) {
         sendError(res, 400, "VALIDATION_ERROR", "Select a valid study site before import");
+        return;
+      }
+      if (!canAccessMappingImportSite(req.user, selectedSiteId)) {
+        sendError(res, 403, "FORBIDDEN", "Households can be imported only into your assigned site");
         return;
       }
 
@@ -1494,7 +1507,7 @@ router.post(
  */
 router.get(
   "/mapping-frame/import-uploads/:upload_id/:kind",
-  requireRole("central_admin"),
+  requireRole("central_admin", "site_data_manager"),
   async (req: Request, res: Response) => {
     try {
       const { upload_id: uploadId, kind } = req.params;
@@ -1509,6 +1522,20 @@ router.get(
       if (!resolvedFile.startsWith(resolvedRoot + path.sep)) {
         sendError(res, 400, "VALIDATION_ERROR", "Invalid upload file request");
         return;
+      }
+
+      if (req.user?.role !== "central_admin") {
+        let metadata: MappingFrameImportUploadMetadata;
+        try {
+          metadata = JSON.parse(await fs.readFile(path.join(path.dirname(resolvedFile), "metadata.json"), "utf-8"));
+        } catch {
+          sendError(res, 404, "UPLOAD_FILE_NOT_FOUND", "Upload file not found");
+          return;
+        }
+        if (!canAccessMappingImportSite(req.user, metadata.site_id)) {
+          sendError(res, 403, "FORBIDDEN", "Import files are available only for your assigned site");
+          return;
+        }
       }
 
       try {
