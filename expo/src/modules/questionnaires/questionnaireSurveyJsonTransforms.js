@@ -1446,9 +1446,14 @@ function applyWqReproductionComparisonTable(surveyJson) {
     pages: surveyJson.pages.flatMap((page) => {
       const q29Index = page.elements.findIndex((element) => element.name === WQ_Q29_NAME);
       if (q29Index < 0) return [page];
-      const elements = page.elements.map((element) => element.name === WQ_Q22B_NAME
-        ? { ...element, isRequired: true }
-        : element);
+      const elements = page.elements.map((element) => {
+        if (element.name === "pregnancy_02_reproduction_if_row_i_1_were_there_any_other_pregnancie") {
+          const historyVisibleIf = `{${WQ_REPRODUCTION_Q13_NAME}} = 1`;
+          return { ...element, visibleIf: element.visibleIf
+            ? `(${element.visibleIf}) and (${historyVisibleIf})` : historyVisibleIf };
+        }
+        return element.name === WQ_Q22B_NAME ? { ...element, isRequired: true } : element;
+      });
       elements.splice(q29Index, 0, {
         type: "html",
         name: WQ_REPRODUCTION_COMPARISON_NAME,

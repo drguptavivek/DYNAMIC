@@ -231,6 +231,74 @@ assert.equal(wholeWq.validate(), false, "It must also block final submission");
 wholeWq.setValue("wq_name_woman", "Test Woman");
 assert.equal(wholeWq.validate(), true);
 
+// Never-pregnant women must not be forced to invent a pregnancy for Q22_i.
+const historyReviewField = "pregnancy_02_reproduction_if_row_i_1_were_there_any_other_pregnancie";
+const historyCheckField = "wq_02_reproduction_check_12";
+const lossField = "wq_02_reproduction_women_sometimes_have_a_pregnancy_that_does";
+const lossCountField = "wq_02_reproduction_how_many_miscarriages_abortions_and_stillb";
+for (const no of [2, "2"]) {
+  const noHistory = createSurveyModel(wq);
+  noHistory.data = { ...structuredClone(wholeWq.data),
+    wq_02_reproduction_now_i_would_like_to_ask_about_all_the_birt: no,
+    wq_02_reproduction_have_you_ever_given_birth_to_a_boy_or_girl: no,
+    wq_02_reproduction_probe_born_alive_signs_of_life: no,
+    [lossField]: no, wq_pregnancy_history: undefined,
+    [historyReviewField]: undefined,
+  };
+  applyWqReproductionSummary(noHistory);
+  applyWqPregnancyHistoryCalculations(noHistory);
+  assert.equal(noHistory.getValue(historyCheckField), 2);
+  const review = noHistory.getQuestionByName(historyReviewField);
+  assert.equal(review.isVisible, false, "No previous pregnancy must hide the empty required review");
+  assert.equal(noHistory.getPageByName("page_02a_pregnancy_history").isVisible, false);
+  noHistory.currentPage = noHistory.getPageByName("page_02_reproduction");
+  assert.equal(noHistory.nextPage(), true, "The answered reproduction screen must advance");
+  assert.notEqual(noHistory.currentPage.name, "page_02b_reproduction_follow_up");
+  assert.equal(noHistory.nextPage(), true, "Existing empty child summary must not block continuation");
+  assert.equal(noHistory.currentPage.name, "page_02e_reproduction_after_comparison");
+  assert.equal(noHistory.getValue(historyReviewField), undefined, "Do not fabricate a review answer");
+  assert.equal(noHistory.getQuestionByName("wq_pregnancy_history").panels.length, 0);
+  applyWqBiomarkerSiteAccess(noHistory, context);
+  applyWqDomesticViolenceSiteAccess(noHistory, context);
+  attachWqValidation(noHistory);
+  fillVisibleAnswers(noHistory);
+  assert.equal(noHistory.validate(), true, "Skipped history must not block final validation");
+  const restored = createSurveyModel(wq);
+  restored.data = structuredClone(noHistory.data);
+  applyWqReproductionSummary(restored);
+  assert.equal(restored.getQuestionByName(historyReviewField).isVisible, false);
+  restored.setValue(lossField, 1);
+  restored.setValue(lossCountField, "1");
+  applyWqReproductionSummary(restored);
+  assert.equal(restored.getValue("wq_pregnant"), 2, "Current pregnancy does not control past-history review");
+  const restoredReview = restored.getQuestionByName(historyReviewField);
+  assert.equal(restoredReview.isVisible, true, "Miscarriage-only history still needs review");
+  assert.equal(restoredReview.isRequired, true);
+  assert.equal(restoredReview.validate(), false);
+  restored.setValue(lossField, no);
+  applyWqReproductionSummary(restored);
+  assert.equal(restoredReview.isVisible, false, "Changing back to no history must hide the review again");
+}
+const retainedHistory = createSurveyModel(wq);
+retainedHistory.data = structuredClone(wholeWq.data);
+const retainedRows = structuredClone(retainedHistory.getValue("wq_pregnancy_history"));
+retainedHistory.setValue(historyCheckField, 2);
+assert.equal(retainedHistory.getQuestionByName(historyReviewField).isVisible, false);
+assert.deepEqual(retainedHistory.getValue("wq_pregnancy_history"), retainedRows, "Hiding review must not delete saved rows");
+retainedHistory.setValue(historyCheckField, "1");
+assert.equal(retainedHistory.getQuestionByName(historyReviewField).isVisible, true);
+const previouslyGuarded = load("baseline_woman_s_questionnaire_v2026.05.09.json");
+elements(previouslyGuarded).find((question) => question.name === historyReviewField).visibleIf = "{wq_woman_available} = 1";
+const guardedBefore = JSON.stringify(previouslyGuarded);
+const guardedReviewModel = createSurveyModel(prepareQuestionnaireSurveyJson(previouslyGuarded));
+assert.equal(JSON.stringify(previouslyGuarded), guardedBefore, "Downloaded definition must remain unchanged");
+guardedReviewModel.data = { wq_woman_available: 2, [historyCheckField]: 1 };
+assert.equal(guardedReviewModel.getQuestionByName(historyReviewField).isVisible, false);
+guardedReviewModel.setValue("wq_woman_available", 1);
+assert.equal(guardedReviewModel.getQuestionByName(historyReviewField).isVisible, true,
+  "The original review condition and past-pregnancy condition must both hold");
+guardedReviewModel.setValue(historyCheckField, "2");
+assert.equal(guardedReviewModel.getQuestionByName(historyReviewField).isVisible, false);
 const wholePef = createSurveyModel(pef);
 wholePef.data = {
   pef_pregnancy_information_source: 1, pef_woman_hh_member_id: "2-39-0002-01-02",
