@@ -42,6 +42,19 @@ function buildHhqTaskKey(householdId: string, targetDate: string): string {
   return `${householdId}:household:${householdId}:HHQ:baseline:${targetDate}:v1`;
 }
 
+export function householdBhqStatusSql() {
+  return sql<string>`case when exists (
+    select 1 from form_responses f where f.household_id=${schema.households.household_id}
+      and f.site_id=${schema.households.site_id} and f.form_code='HHQ'
+      and coalesce(f.response_status,'primary')='primary'
+      and f.answers_json->>'hhq_result_interview'='1'
+  ) then 'completed' when exists (
+    select 1 from questionnaire_drafts d where d.household_id=${schema.households.household_id}
+      and d.site_id=${schema.households.site_id} and d.form_code='HHQ' and d.draft_status='active'
+      and d.submitted_form_response_id is null
+  ) then 'draft' else 'pending' end`;
+}
+
 router.get(
   "/",
   requireAuth,
@@ -91,6 +104,7 @@ router.get(
           site_id: schema.households.site_id,
           locality_code: schema.households.locality_code,
           household_number: schema.households.household_number,
+          bhq_status: householdBhqStatusSql(),
           assigned_user_id: schema.fieldWorkerHouseholdAssignments.user_id,
           assigned_field_worker_name: schema.users.display_name,
           assigned_field_worker_username: schema.users.username,
@@ -111,6 +125,7 @@ router.get(
           site_id: number;
           locality_code: string;
           household_number: string;
+          bhq_status: string;
           assigned_user_ids: string[];
           assigned_field_worker_names: string[];
           assigned_field_worker_usernames: string[];
@@ -125,6 +140,7 @@ router.get(
             site_id: row.site_id,
             locality_code: row.locality_code,
             household_number: row.household_number,
+            bhq_status: row.bhq_status,
             assigned_user_ids: [],
             assigned_field_worker_names: [],
             assigned_field_worker_usernames: [],

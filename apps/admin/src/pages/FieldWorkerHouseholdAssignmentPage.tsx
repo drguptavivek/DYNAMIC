@@ -40,6 +40,7 @@ interface Household {
   site_id: number;
   locality_code: string;
   household_number: string;
+  bhq_status?: "completed" | "draft" | "pending";
   assigned_user_ids?: string[];
   assigned_field_worker_names?: string[];
   assigned_field_worker_usernames?: string[];
@@ -310,6 +311,36 @@ export default function FieldWorkerHouseholdAssignmentPage() {
     document.addEventListener("mousedown", closeWorkerMenu);
     return () => document.removeEventListener("mousedown", closeWorkerMenu);
   }, []);
+
+  useEffect(() => {
+    if (!hasViewed || !selectedSiteId || busy) return;
+    let cancelled = false, inFlight = false;
+    async function refreshStatuses() {
+      if (cancelled || inFlight || document.visibilityState === "hidden") return;
+      inFlight = true;
+      const version = requestVersion.current;
+      const params = new URLSearchParams({ site_id: selectedSiteId });
+      if (selectedLocalityCode) params.set("locality_code", selectedLocalityCode);
+      try {
+        const rows = await api.get<Household[]>(`/field-worker-household-assignments?${params}`);
+        if (cancelled || version !== requestVersion.current) return;
+        const statuses = new Map(rows.map((row) => [row.household_id, row.bhq_status]));
+        setHouseholds((current) => current.map((row) => statuses.has(row.household_id)
+          ? { ...row, bhq_status: statuses.get(row.household_id) } : row));
+      } catch {
+        // Retain the last confirmed status when the server is unavailable.
+      } finally { inFlight = false; }
+    }
+    const timer = setInterval(() => { void refreshStatuses(); }, 30000);
+    window.addEventListener("focus", refreshStatuses);
+    document.addEventListener("visibilitychange", refreshStatuses);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+      window.removeEventListener("focus", refreshStatuses);
+      document.removeEventListener("visibilitychange", refreshStatuses);
+    };
+  }, [hasViewed, selectedSiteId, selectedLocalityCode, busy]);
 
   async function loadAssignmentTable(options: { resetSelection: boolean; anchorHouseholdIds?: string[] }) {
     const version = ++requestVersion.current;
@@ -687,6 +718,7 @@ export default function FieldWorkerHouseholdAssignmentPage() {
                   ? ` from ${visibleHouseholds.length}`
                   : ""}
               </p>
+              <p className={styles.statusLegend}>Green: completed BHQ synced · Yellow: backed-up BHQ draft</p>
             </div>
             <div className={styles.tableSearchBar}>
               <input
@@ -778,7 +810,8 @@ export default function FieldWorkerHouseholdAssignmentPage() {
                     const pickedWorkers = selectedWorkers(knownWorkers, selectedWorkerIds);
                     const isOpen = openWorkerMenuFor === household.household_id;
                     return (
-                      <tr key={household.household_id} data-household-id={household.household_id}>
+                      <tr key={household.household_id} data-household-id={household.household_id}
+                        className={household.bhq_status === "completed" ? styles.completedRow : household.bhq_status === "draft" ? styles.draftRow : undefined}>
                         <td>
                           <input
                             type="checkbox"
@@ -869,7 +902,10 @@ export default function FieldWorkerHouseholdAssignmentPage() {
                             )}
                           </div>
                         </td>
-                        <td>{household.household_id}</td>
+                        <td>{household.household_id}
+                          {household.bhq_status === "completed" ? <span className={styles.householdStatus}>Completed</span>
+                            : household.bhq_status === "draft" ? <span className={styles.householdStatus}>Draft</span> : null}
+                        </td>
                         <td>
                           <button
                             type="button"

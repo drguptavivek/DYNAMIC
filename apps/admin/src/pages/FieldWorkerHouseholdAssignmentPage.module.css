@@ -267,6 +267,28 @@
   min-width: 920px;
 }
 
+.assignmentTable .completedRow > td {
+  background: #dcfce7;
+}
+
+.assignmentTable .draftRow > td {
+  background: #fef3c7;
+}
+
+.householdStatus {
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  display: inline-block;
+  font-size: 11px;
+  line-height: 15px;
+  margin-left: 6px;
+  padding-inline: 4px;
+}
+
+.tableSummary .statusLegend {
+  font-size: 11px;
+}
+
 .assignmentTable th,
 .assignmentTable td {
   border-bottom: 1px solid #e5e7eb;

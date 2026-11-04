@@ -95,6 +95,7 @@ Rules:
 - Admin correction/data-quality actions must follow active correction policy.
 - Masters and users are controlled admin surfaces, not field-app workflows.
 - Household assignment filters and selection controls remain visible while the table scrolls. The table-header checkbox selects/deselects only the current page; the separate site/locality checkbox selects every household in that scope, ignoring range and search. Changing filters clears selection.
+- Household assignment rows show green with a Completed label only for a server-received primary BHQ with completed interview outcome. Active server-backed BHQ drafts show yellow with a Draft label; completion takes priority over a stale draft. Pending, incomplete and phone-only work retain the default appearance. Status refresh preserves assignment selections, filters and table position; these colors do not alter tasks, households or allocations.
 - Assignment ranges accept inclusive household numbers or full household IDs with the same site/locality/structure prefix. Full IDs must match selected scope; malformed, mixed, conflicting, or reversed bounds are rejected instead of silently disabling filtering.
 
 ## API Surface

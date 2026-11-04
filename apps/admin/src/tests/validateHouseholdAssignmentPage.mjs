@@ -6,6 +6,7 @@ import { parseHouseholdAssignmentRange, isHouseholdInAssignmentRange } from '../
 const households = Array.from({ length: 1205 }, (_, index) => ({
   household_id: `2-02-0010-${String(index + 1).padStart(2, '0')}`,
   site_id: 2, locality_code: '02', household_number: String(index + 1),
+  bhq_status: index === 9 ? 'completed' : index === 10 ? 'draft' : 'pending',
 })).concat([
   { household_id: '2-02-0011-15', site_id: 2, locality_code: '02', household_number: '15' },
   { household_id: '2-11-0010-15', site_id: 2, locality_code: '11', household_number: '15' },
@@ -37,7 +38,11 @@ globalThis.assignmentHarness = {
   },
   useEffect(callback, deps) {
     const index = cursor++;
-    if (!sameDeps(slots[index], deps)) { slots[index] = deps; effects.push(callback); }
+    if (!sameDeps(slots[index]?.deps, deps)) {
+      slots[index]?.cleanup?.();
+      const slot = slots[index] = { deps };
+      effects.push(() => { slot.cleanup = callback(); });
+    }
   },
   api: {
     async get(path) {
@@ -93,7 +98,7 @@ globalThis.assignmentHarness = {
       return households.filter(row => isHouseholdInAssignmentRange(row, range) &&
         (globalThis.assignmentHarness.user.role !== 'site_data_manager' || managerAreas.some(area =>
           area.site_id === row.site_id && area.site_id === globalThis.assignmentHarness.user.site_id &&
-          area.locality_code === row.locality_code && !area.active_to)));
+          area.locality_code === row.locality_code && !area.active_to))).map(row => ({ ...row }));
     },
     async post(path, payload) {
       requests.push({ method: 'post', path, payload: structuredClone(payload) });
@@ -113,7 +118,13 @@ globalThis.assignmentHarness = {
     },
   },
 };
-globalThis.document = { addEventListener() {}, removeEventListener() {} };
+const timers = new Map(), listeners = new Map();
+const originalSetInterval = globalThis.setInterval, originalClearInterval = globalThis.clearInterval;
+globalThis.setInterval = (callback, delay) => { assert.equal(delay, 30000); const id = Symbol(); timers.set(id, callback); return id; };
+globalThis.clearInterval = id => timers.delete(id);
+const events = () => ({ addEventListener(type, callback) { listeners.set(type, callback); }, removeEventListener(type, callback) { if (listeners.get(type) === callback) listeners.delete(type); } });
+globalThis.document = { ...events(), visibilityState: 'visible' };
+globalThis.window = { ...events(), confirm: () => true };
 const bundled = await build({
   entryPoints: ['apps/admin/src/pages/FieldWorkerHouseholdAssignmentPage.tsx'],
   bundle: true, write: false, format: 'cjs', platform: 'node', jsx: 'automatic',
@@ -168,8 +179,40 @@ await click('View');
 assert.equal(rows().length, 11);
 assert.equal(rows()[0].key, '2-02-0010-10');
 assert.equal(rows().at(-1).key, '2-02-0010-20');
+assert.equal(rows()[0].props.className, 'completedRow');
+assert.ok(text(rows()[0]).includes('Completed'));
+assert.equal(rows()[1].props.className, 'draftRow');
+assert.ok(text(rows()[1]).includes('Draft'));
+assert.equal(rows()[2].props.className, undefined, 'Pending rows retain their ordinary appearance');
 await check('Select visible households', true);
 assert.equal(selectedRows().length, 11);
+assert.equal(timers.size, 1, 'One visible-page status timer is active');
+households[10].bhq_status = 'completed';
+const readsBeforeStatus = requests.length;
+await [...timers.values()][0](); await settle();
+assert.equal(rows()[1].props.className, 'completedRow', 'A newly synced BHQ automatically turns green');
+assert.equal(selectedRows().length, 11, 'Status refresh retains selected households');
+assert.equal(labelled('Household range start').props.value, '2-02-0010-10');
+assert.equal(labelled('Household range end').props.value, '2-02-0010-20');
+assert.ok(requests.slice(readsBeforeStatus).every(request => request.path.startsWith('/field-worker-household-assignments?')), 'Status polling does not reload worker selections or masters');
+document.visibilityState = 'hidden';
+const readsBeforeHidden = requests.length;
+await [...timers.values()][0]();
+assert.equal(requests.length, readsBeforeHidden, 'Hidden pages do not poll');
+document.visibilityState = 'visible';
+let releaseStatus;
+deferredAll = { promise: new Promise(resolve => { releaseStatus = resolve; }) };
+const activeStatusRefresh = [...timers.values()][0];
+activeStatusRefresh();
+const readsWithStatusInFlight = requests.length;
+activeStatusRefresh();
+assert.equal(requests.length, readsWithStatusInFlight, 'Status refreshes cannot overlap');
+releaseStatus(); await settle();
+failRefresh = true;
+await listeners.get('focus')(); await settle();
+assert.equal(rows()[1].props.className, 'completedRow', 'A network failure retains the last confirmed server status');
+assert.equal(selectedRows().length, 11);
+failRefresh = false;
 await click('Assign all selected');
 const workerOption = find(node => node.type === 'label' && text(node).startsWith('worker'), 'bulk worker');
 assert.ok(!nodes(workerOption).some(node => node.props?.className === 'workerUsername'), 'A repeated name must not have a second username line');
@@ -343,7 +386,7 @@ assert.match(text(workerOptions()[0]), /Sanjay.*worker-two.*Dayalpur/);
 
 // Worker counts cover the whole locality, including assignments below page one and outside the range.
 filterFixtures = true;
-globalThis.window = { confirm: () => true };
+globalThis.window.confirm = () => true;
 households.forEach(row => { row.assigned_user_ids = []; });
 households[0].assigned_user_ids = ['worker'];
 households[1004].assigned_user_ids = ['worker-two'];
@@ -410,6 +453,7 @@ console.log('Assignment ranges, scoped selection, refresh/retry, duplicate-name 
 
 // Site managers use the existing page with their own site and active localities only.
 async function openForManager(siteId = 2) {
+  slots.forEach(slot => slot?.cleanup?.());
   slots.length = 0; effects = []; dirty = true; requests.length = 0;
   globalThis.assignmentHarness.user = { user_id: 'manager', role: 'site_data_manager', site_id: siteId };
   await settle();
@@ -477,3 +521,7 @@ for (const role of ['central_admin', 'site_research_scientist', 'site_data_manag
   assert.equal(links.includes('/users'), ['central_admin', 'site_research_scientist'].includes(role), `${role}: user administration remains unchanged`);
 }
 console.log('Site-manager allocation navigation, own-site/active-locality scope, future sites and fail-closed UI checks passed.');
+slots.forEach(slot => slot?.cleanup?.());
+globalThis.setInterval = originalSetInterval;
+globalThis.clearInterval = originalClearInterval;
+console.log('Completed/draft household colours and automatic status refresh preserve range and selections; hidden pages do not poll.');
