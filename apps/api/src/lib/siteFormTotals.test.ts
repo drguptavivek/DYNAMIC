@@ -5,6 +5,7 @@ import { PgDialect } from "drizzle-orm/pg-core";
 import { assembleSiteFormTotals, siteFormTotalsSql } from "./siteFormTotals";
 import dashboardRouter from "../routes/dashboard";
 import { db } from "../db";
+import { emptySiteOperationalProgress } from "./siteOperationalProgress";
 
 test("site totals count all-time primary field-worker forms at their recorded site without writes", async (t) => {
   let DatabaseSync;
@@ -48,12 +49,13 @@ test("site totals count all-time primary field-worker forms at their recorded si
       { site_id: 1, site_name: "Bareilly", total: 1, forms_by_code: { HHQ: 1 } },
       { site_id: 2, site_name: "Ballabhgarh", total: 3, forms_by_code: { NEW_FORM: 1, PEF: 1, WQ: 1 } },
       { site_id: 9, site_name: "New site", total: 0, forms_by_code: {} },
-    ] });
+    ].map((site) => ({ ...site, progress: emptySiteOperationalProgress() })) });
     assert.equal(JSON.stringify(sqlite.prepare("select * from form_responses order by form_response_id").all()), before);
 
     const route = (dashboardRouter as any).stack.find((layer: any) => layer.route?.path === "/site-form-totals").route;
     const originalExecute = db.execute;
     (db as any).execute = async (query: any) => {
+      if (new PgDialect().sqlToQuery(query).sql.startsWith("with scoped_sites")) return { rows: [] };
       return { rows: runQuery(query) };
     };
     try {

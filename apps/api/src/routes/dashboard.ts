@@ -8,6 +8,7 @@ import { requireDataAccess } from "../lib/dataAccess";
 import { assembleDashboard, dashboardScope, dashboardSql } from "../lib/operationsDashboard";
 import type { DashboardStaffRow } from "../../../../shared/operationsDashboard";
 import { assembleSiteFormTotals, siteFormTotalsSql } from "../lib/siteFormTotals";
+import { siteOperationalProgressSql } from "../lib/siteOperationalProgress";
 
 const router = Router();
 
@@ -18,8 +19,10 @@ router.get("/site-form-totals", requireAuth, requireRole("central_admin", "site_
       sendError(res, 403, "FORBIDDEN", "A site assignment is required to view site totals");
       return;
     }
-    const result = await db.execute(siteFormTotalsSql(siteId));
-    sendSuccess(res, assembleSiteFormTotals(result.rows as any[]));
+    const now = new Date();
+    const asOfDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+    const [result, progress] = await Promise.all([db.execute(siteFormTotalsSql(siteId)), db.execute(siteOperationalProgressSql(siteId, asOfDate))]);
+    sendSuccess(res, assembleSiteFormTotals(result.rows as any[], now, progress.rows as any[]));
   } catch (error) {
     console.error("Site form totals error:", error);
     sendError(res, 500, "INTERNAL_ERROR", "Could not load site form totals");

@@ -8,6 +8,8 @@ import { sendError, sendSuccess } from "../lib/errors";
 import { addDays, parseISODate, toISODate } from "@dynamic/shared-workflow";
 import { parseHouseholdAssignmentRange } from "../../../../shared/householdAssignmentRange.cjs";
 import { getHouseholdAssignmentLocalities } from "../lib/householdAssignmentScope";
+import { householdBhqStatusSql } from "../lib/householdBhqStatus";
+export { householdBhqStatusSql } from "../lib/householdBhqStatus";
 
 const router = Router();
 const HHQ_ASSIGNMENT_WINDOW_DAYS = 180;
@@ -40,19 +42,6 @@ const clearAssignmentsSchema = z.object({
 
 function buildHhqTaskKey(householdId: string, targetDate: string): string {
   return `${householdId}:household:${householdId}:HHQ:baseline:${targetDate}:v1`;
-}
-
-export function householdBhqStatusSql() {
-  return sql<string>`case when exists (
-    select 1 from form_responses f where f.household_id=${schema.households.household_id}
-      and f.site_id=${schema.households.site_id} and f.form_code='HHQ'
-      and coalesce(f.response_status,'primary')='primary'
-      and f.answers_json->>'hhq_result_interview'='1'
-  ) then 'completed' when exists (
-    select 1 from questionnaire_drafts d where d.household_id=${schema.households.household_id}
-      and d.site_id=${schema.households.site_id} and d.form_code='HHQ' and d.draft_status='active'
-      and d.submitted_form_response_id is null
-  ) then 'draft' else 'pending' end`;
 }
 
 router.get(

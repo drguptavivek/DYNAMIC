@@ -1,13 +1,51 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { useAuth } from "../lib/auth-context";
 import { api } from "../lib/api";
-import type { SiteFormTotals } from "../../../../shared/siteFormTotals";
+import type { DashboardWorkload, SiteFormTotals, SiteOperationalProgress } from "../../../../shared/siteFormTotals";
 import styles from "./SiteFormTotalsPage.module.css";
 
 const FORM_CODES = ["HHQ", "WQ", "PEF", "PSF", "PFF", "HRF", "UF", "POF", "BAF", "SBF", "NFF", "CDF"];
+const WORKLOAD_KEYS = ["completed", "draft", "pending", "upcoming", "closed", "overdue"] as const;
 const formLabel = (code: string) => code === "HHQ" ? "BHQ" : code === "WQ" ? "BWQ" : code;
 const count = (value: number) => value.toLocaleString("en-IN");
+const percent = (value: number, total: number) => {
+  if (total <= 0) return "—";
+  const percentage = value * 100 / total;
+  if (value > 0 && percentage < 0.1) return "<0.1%";
+  if (value < total && percentage > 99.9) return ">99.9%";
+  return `${percentage.toFixed(1)}%`;
+};
+const emptyWorkload = (): DashboardWorkload => ({ completed: 0, draft: 0, pending: 0, upcoming: 0, closed: 0, overdue: 0 });
+const actionable = (tasks: DashboardWorkload) => tasks.completed + tasks.draft + tasks.pending;
+
+function summarize(sites: SiteFormTotals["sites"]): SiteOperationalProgress {
+  const result: SiteOperationalProgress = {
+    households: { total: 0, assigned: 0, completed: 0, draft: 0, pending: 0, closed: 0 },
+    tasks: emptyWorkload(), tasks_by_code: {}, active_field_workers: 0, eligible_women: 0, active_pregnancies: 0,
+  };
+  for (const { progress } of sites) {
+    for (const key of ["total", "assigned", "completed", "draft", "pending", "closed"] as const) result.households[key] += progress.households[key];
+    for (const key of WORKLOAD_KEYS) result.tasks[key] += progress.tasks[key];
+    for (const [code, tasks] of Object.entries(progress.tasks_by_code)) {
+      const target = result.tasks_by_code[code] ??= emptyWorkload();
+      for (const key of WORKLOAD_KEYS) target[key] += tasks[key];
+    }
+    result.active_field_workers += progress.active_field_workers;
+    result.eligible_women += progress.eligible_women;
+    result.active_pregnancies += progress.active_pregnancies;
+  }
+  return result;
+}
+
+function segments(values: { label: string; value: number; color: string }[], total: number) {
+  return <>
+    <div className={styles.stackedBar} aria-hidden="true">{values.map(({ label, value, color }) => <span key={label} style={{ width: `${total ? value * 100 / total : 0}%`, background: color }} />)}</div>
+    <dl className={styles.legend}>{values.map(({ label, value, color }) => <div key={label}>
+      <dt><i style={{ background: color }} />{label}</dt><dd>{count(value)} <span>{percent(value, total)}</span></dd>
+    </div>)}</dl>
+  </>;
+}
 
 export default function SiteFormTotalsPage() {
   const { user } = useAuth();
@@ -20,6 +58,7 @@ function SiteFormTotalsView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [revision, setRevision] = useState(0);
+  const [siteFilter, setSiteFilter] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -27,34 +66,98 @@ function SiteFormTotalsView() {
     setError("");
     api.get<SiteFormTotals>("/dashboard/site-form-totals")
       .then((result) => { if (!cancelled) setData(result); })
-      .catch((reason) => { if (!cancelled) setError(reason instanceof Error ? reason.message : "Could not load site totals."); })
+      .catch((reason) => { if (!cancelled) setError(reason instanceof Error ? reason.message : "Could not load study progress."); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [revision]);
 
+  const sites = data?.sites.filter((site) => !siteFilter || String(site.site_id) === siteFilter) ?? [];
+  const progress = summarize(sites);
+  const households = progress.households, tasks = progress.tasks;
+  const taskTotal = actionable(tasks);
+  const forms = sites.reduce((sum, site) => sum + site.total, 0);
+  const formsByCode: Record<string, number> = {};
+  for (const site of sites) for (const [code, value] of Object.entries(site.forms_by_code)) formsByCode[code] = (formsByCode[code] ?? 0) + value;
+  const codes = [...FORM_CODES, ...[...new Set([...Object.keys(formsByCode), ...Object.keys(progress.tasks_by_code)])].filter((code) => !FORM_CODES.includes(code)).sort()];
+  const householdSegments = [
+    { label: "Completed BHQ", value: households.completed, color: "#16835b" },
+    { label: "Backed-up draft", value: households.draft, color: "#e6ad26" },
+    { label: "Not yet completed", value: households.pending, color: "#d9e3ed" },
+    { label: "Closed / excluded", value: households.closed, color: "#66758a" },
+  ];
+  const taskSegments = [
+    { label: "Completed", value: tasks.completed, color: "#16835b" },
+    { label: "Draft", value: tasks.draft, color: "#e6ad26" },
+    { label: "Left now", value: tasks.pending, color: "#387bd6" },
+  ];
+  let angle = 0;
+  const gradient = householdSegments.map(({ value, color }) => {
+    const start = angle; angle += households.total ? value * 100 / households.total : 0;
+    return `${color} ${start}% ${angle}%`;
+  }).join(", ");
+
   return <div className={styles.container}>
     <header className={styles.heading}>
-      <div><h1>Main dashboard</h1><p>All-time forms submitted by field staff, by site</p></div>
+      <div><span className={styles.eyebrow}>DYNAMIC · STUDY DELIVERY</span><h1>Operational dashboard</h1><p>All-time progress and current workload</p></div>
       <div className={styles.actions}>
+        {data && data.sites.length > 1 && <label>Study site<select aria-label="Study site" value={siteFilter} onChange={(event) => setSiteFilter(event.target.value)}>
+          <option value="">All sites</option>{data.sites.map((site) => <option key={site.site_id} value={site.site_id}>{site.site_name}</option>)}
+        </select></label>}
         <Link to="/staff-dashboard">Staff dashboard</Link>
         <button onClick={() => setRevision((value) => value + 1)} disabled={loading}>Refresh</button>
       </div>
     </header>
-    <p className={styles.note}>Accepted, synced submissions only. Drafts and work still on a phone are not included.</p>
-    {loading ? <div className={styles.state} role="status">Loading site totals…</div>
-      : error ? <div className={styles.state} role="alert"><strong>Site totals could not be loaded</strong><p>{error}</p><button onClick={() => setRevision((value) => value + 1)}>Try again</button></div>
-      : data && <>
-        <div className={styles.updated}>Updated {new Intl.DateTimeFormat("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(data.generated_at))} IST</div>
-        <div className={styles.grid}>
-          {data.sites.map((site) => {
-            const codes = [...FORM_CODES, ...Object.keys(site.forms_by_code).filter((code) => !FORM_CODES.includes(code)).sort()];
-            return <section className={styles.card} key={site.site_id} aria-label={`${site.site_name} form totals`}>
-              <header className={styles.cardHeading}><div><span className={styles.siteId}>Site {site.site_id}</span><h2>{site.site_name}</h2></div><div className={styles.total}><span>Total forms</span><strong>{count(site.total)}</strong></div></header>
-              <dl className={styles.forms}>{codes.map((code) => <div key={code}><dt>{formLabel(code)}</dt><dd>{count(site.forms_by_code[code] ?? 0)}</dd></div>)}</dl>
-            </section>;
-          })}
-          {data.sites.length === 0 && <p className={styles.state}>No study sites found.</p>}
-        </div>
-      </>}
+    {loading ? <div className={styles.state} role="status">Loading study progress…</div>
+      : error ? <div className={styles.state} role="alert"><strong>Study progress could not be loaded</strong><p>{error}</p><button onClick={() => setRevision((value) => value + 1)}>Try again</button></div>
+      : data && <div className={styles.content}>
+        <div className={styles.context}><span>{sites.length === 1 ? sites[0].site_name : `${sites.length} study sites`} · Server-synced records</span><span>Updated {new Intl.DateTimeFormat("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(data.generated_at))} IST</span></div>
+        {sites.length === 0 ? <div className={styles.state}>No study sites found.</div> : <>
+          <div className={styles.kpis}>
+            <article><span>Accepted forms received</span><strong>{count(forms)}</strong><small>All questionnaire types · field staff</small></article>
+            <article><span>Households surveyed</span><strong>{percent(households.completed, households.total)}</strong><small>{count(households.completed)} of {count(households.total)} registered households</small></article>
+            <article><span>Work open now</span><strong>{count(tasks.pending + tasks.draft)}</strong><small>{count(tasks.draft)} drafts · {count(tasks.upcoming)} upcoming separately</small></article>
+            <article className={tasks.overdue ? styles.attention : undefined}><span>Overdue tasks</span><strong>{count(tasks.overdue)}</strong><small>Included in work open now</small></article>
+          </div>
+          <div className={styles.overview}>
+            <section className={styles.panel} aria-label="Household coverage">
+              <header><div><h2>Household coverage</h2><p>Every registered household, counted once</p></div><span className={styles.pill}>BHQ</span></header>
+              <div className={styles.coverage}>
+                <div className={styles.donut} style={{ background: households.total ? `conic-gradient(${gradient})` : "#e8edf3" }} aria-hidden="true"><div><strong>{percent(households.completed, households.total)}</strong><span>surveyed</span></div></div>
+                <div className={styles.coverageLegend}>{segments(householdSegments, households.total)}</div>
+              </div>
+              <footer><span><strong>{count(households.assigned)}</strong> assigned · <strong>{count(households.total - households.assigned)}</strong> unassigned</span><span>Assignment coverage {percent(households.assigned, households.total)}</span></footer>
+            </section>
+            <section className={styles.panel} aria-label="Form task delivery">
+              <header><div><h2>Actionable task delivery</h2><p>Completed work and tasks currently open</p></div><strong className={styles.deliveryPercent}>{percent(tasks.completed, taskTotal)}</strong></header>
+              <div className={styles.taskSummary}><strong>{count(tasks.completed)}</strong><span>completed / {count(taskTotal)} actionable tasks</span></div>
+              {segments(taskSegments, taskTotal)}
+              <footer><span><strong>{count(tasks.upcoming)}</strong> upcoming · not yet due</span><span>{count(tasks.closed)} closed / cancelled / disabled</span><span>Both outside this percentage</span></footer>
+            </section>
+          </div>
+          <div className={styles.cohort}>
+            <span><strong>{count(progress.active_field_workers)}</strong> active field staff</span>
+            <span><strong>{count(progress.eligible_women)}</strong> women registered for BWQ</span>
+            <span><strong>{count(progress.active_pregnancies)}</strong> active pregnancies</span>
+          </div>
+          <section className={styles.panel} aria-label="Site progress comparison">
+            <header><div><h2>Site progress</h2><p>Compare coverage and the workload needing attention</p></div></header>
+            <div className={styles.tableScroll}><table><thead><tr><th>Site</th><th>BHQ coverage</th><th>Draft households</th><th>Pending households</th><th>Closed households</th><th>Assigned</th><th>Open tasks</th><th>Overdue</th><th>Accepted forms</th></tr></thead>
+              <tbody>{sites.map((site) => { const h = site.progress.households, t = site.progress.tasks; return <tr key={site.site_id}>
+                <th scope="row">{site.site_name}</th><td><div className={styles.miniProgress}><span>{percent(h.completed, h.total)}</span><i><b style={{ width: `${h.total ? h.completed * 100 / h.total : 0}%` }} /></i></div><small>{count(h.completed)} / {count(h.total)}</small></td>
+                <td>{count(h.draft)}</td><td>{count(h.pending)}</td><td>{count(h.closed)}</td><td>{count(h.assigned)}</td><td>{count(t.pending + t.draft)}</td><td className={t.overdue ? styles.danger : undefined}>{count(t.overdue)}</td><td>{count(site.total)}</td>
+              </tr>; })}</tbody></table></div>
+          </section>
+          <section className={styles.panel} aria-label="Questionnaire workload">
+            <header><div><h2>Questionnaire workload</h2><p>Received forms and task progress have separate totals</p></div></header>
+            <div className={styles.tableScroll}><table><thead><tr><th>Form</th><th>Accepted forms</th><th>Tasks completed</th><th>Draft tasks</th><th>Left now</th><th>Upcoming</th><th>Inactive / closed</th><th>Task completion</th></tr></thead><tbody>
+              {codes.map((code) => { const t = progress.tasks_by_code[code] ?? emptyWorkload(), total = actionable(t); return <tr key={code}>
+                <th scope="row">{formLabel(code)}</th><td>{count(formsByCode[code] ?? 0)}</td><td>{count(t.completed)}</td><td>{count(t.draft)}</td><td>{count(t.pending)}</td><td>{count(t.upcoming)}</td><td>{count(t.closed)}</td>
+                <td><div className={styles.miniProgress}><span>{percent(t.completed, total)}</span><i><b style={{ width: `${total ? t.completed * 100 / total : 0}%` }} /></i></div></td>
+              </tr>; })}
+            </tbody></table></div>
+          </section>
+          <p className={styles.note}>Household coverage uses all registered households. Task completion uses completed + draft + left now; upcoming, closed, cancelled and disabled tasks are outside that percentage. Drafts are server backups; unsynced phone work is not visible. Accepted form totals retain their existing rules and can differ from CSV exports.</p>
+        </>}
+      </div>}
   </div>;
 }

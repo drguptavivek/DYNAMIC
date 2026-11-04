@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import type { SiteFormTotals } from "../../../../shared/siteFormTotals";
+import { assembleSiteOperationalProgress, emptySiteOperationalProgress, SiteProgressRow } from "./siteOperationalProgress";
 
 export function siteFormTotalsSql(siteId: number | null = null) {
   return sql`select s.site_id,s.site_name,f.form_code,count(f.form_response_id)::integer count
@@ -20,12 +21,13 @@ interface SiteFormCount {
   count: number;
 }
 
-export function assembleSiteFormTotals(rows: SiteFormCount[], now = new Date()): SiteFormTotals {
+export function assembleSiteFormTotals(rows: SiteFormCount[], now = new Date(), progressRows: SiteProgressRow[] = []): SiteFormTotals {
+  const progress = assembleSiteOperationalProgress(progressRows);
   const sites = new Map<number, SiteFormTotals["sites"][number]>();
   for (const row of rows) {
     let site = sites.get(row.site_id);
     if (!site) {
-      site = { site_id: row.site_id, site_name: row.site_name, total: 0, forms_by_code: {} };
+      site = { site_id: row.site_id, site_name: row.site_name, total: 0, forms_by_code: {}, progress: progress.get(row.site_id) ?? emptySiteOperationalProgress() };
       sites.set(row.site_id, site);
     }
     const count = Number(row.count);

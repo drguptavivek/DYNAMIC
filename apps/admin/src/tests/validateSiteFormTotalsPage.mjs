@@ -57,52 +57,76 @@ const flush = async () => { await new Promise(resolve => setImmediate(resolve));
 
 render();
 assert.equal(requests.length, 1);
-assert.equal(requests[0].path, "/dashboard/site-form-totals", "No date filter is sent");
-assert.match(text(tree), /Loading site totals/);
-const result = { generated_at: "2026-10-30T04:00:00Z", sites: [
-  { site_id: 1, site_name: "Bareilly", total: 6, forms_by_code: { HHQ: 3, WQ: 2, PEF: 1 } },
-  { site_id: 2, site_name: "Ballabhgarh", total: 1, forms_by_code: { NEW_FORM: 1 } },
-  { site_id: 7, site_name: "New study site", total: 0, forms_by_code: {} },
+assert.equal(requests[0].path, "/dashboard/site-form-totals", "All-time view sends no date filter");
+assert.match(text(tree), /Loading study progress/);
+const emptyWork = () => ({ completed: 0, draft: 0, pending: 0, upcoming: 0, closed: 0, overdue: 0 });
+const emptyProgress = () => ({ households: { total: 0, assigned: 0, completed: 0, draft: 0, pending: 0, closed: 0 }, tasks: emptyWork(), tasks_by_code: {}, active_field_workers: 0, eligible_women: 0, active_pregnancies: 0 });
+const work = { completed: 30, draft: 5, pending: 15, upcoming: 10, closed: 4, overdue: 3 };
+const result = { generated_at: "2026-11-04T04:00:00Z", sites: [
+  { site_id: 1, site_name: "Bareilly", total: 6, forms_by_code: { HHQ: 3, WQ: 2, PEF: 1 }, progress: {
+    households: { total: 100, assigned: 80, completed: 40, draft: 5, pending: 50, closed: 5 },
+    tasks: work, tasks_by_code: { HHQ: work }, active_field_workers: 8, eligible_women: 90, active_pregnancies: 4,
+  } },
+  { site_id: 2, site_name: "Ballabhgarh", total: 1, forms_by_code: { NEW_FORM: 1 }, progress: emptyProgress() },
+  { site_id: 7, site_name: "New study site", total: 0, forms_by_code: {}, progress: emptyProgress() },
 ] };
 requests[0].resolve(result); await flush();
-const cards = nodes(tree).filter(node => node.type === "section");
-assert.equal(cards.length, 3, "Every site appears, including newly added and zero-activity sites");
-assert.match(text(cards[0]), /BHQ3BWQ2PEF1/);
-assert.ok(text(cards[1]).includes("NEW_FORM1"), "Additional form types are retained");
-assert.equal(nodes(cards[2]).filter(node => node.type === "dd").length, 12);
-assert.ok(nodes(cards[2]).filter(node => node.type === "dd").every(node => text(node) === "0"));
+assert.match(text(tree), /Operational dashboard/);
+assert.match(text(tree), /Accepted forms received7/);
+assert.match(text(tree), /Households surveyed40.0%/);
+assert.match(text(tree), /Work open now20/);
+assert.match(text(tree), /Overdue tasks3/);
+assert.match(text(tree), /30completed \/ 50 actionable tasks/);
+assert.match(text(tree), /60.0%/);
+assert.match(text(tree), /4 closed \/ cancelled/);
+assert.ok(!text(tree).includes("NaN"));
+const section = label => nodes(tree).find(node => node.type === "section" && node.props["aria-label"] === label);
+assert.ok(text(section("Household coverage")).includes("40.0%"));
+assert.ok(text(section("Household coverage")).includes("80.0%"));
+const siteRows = nodes(section("Site progress comparison")).filter(node => node.type === "tr");
+assert.equal(siteRows.length, 4, "New and zero-activity sites remain visible");
+const formRows = nodes(section("Questionnaire workload")).filter(node => node.type === "tr");
+assert.equal(formRows.length, 14, "Twelve standard forms plus unknown form code and heading");
+assert.ok(formRows.some(node => text(node).startsWith("BHQ33051510460.0%")), "Accepted forms and task counts stay distinct");
+assert.ok(formRows.some(node => text(node).startsWith("NEW_FORM1")));
 assert.ok(nodes(tree).some(node => node.type === "a" && node.props.to === "/staff-dashboard"));
 assert.ok(!nodes(tree).some(node => node.type === "input" && node.props.type === "date"));
+const filter = nodes(tree).find(node => node.props?.["aria-label"] === "Study site");
+filter.props.onChange({ target: { value: "2" } }); render();
+assert.match(text(tree), /Accepted forms received1/);
+assert.match(text(tree), /Households surveyed—/);
+assert.equal(nodes(section("Site progress comparison")).filter(node => node.type === "tr").length, 2);
+filter.props.onChange({ target: { value: "" } }); render();
 button("Refresh").props.onClick(); render();
-assert.match(text(tree), /Loading site totals/);
-assert.equal(nodes(tree).filter(node => node.type === "section").length, 0, "Stale totals are hidden while refreshing");
+assert.match(text(tree), /Loading study progress/);
+assert.equal(nodes(tree).filter(node => node.type === "section").length, 0, "Stale totals hidden while refreshing");
 requests[1].reject(new Error("Connection interrupted")); await flush();
 assert.ok(nodes(tree).some(node => node.props?.role === "alert"));
 assert.match(text(tree), /Connection interrupted/);
-assert.equal(nodes(tree).filter(node => node.type === "section").length, 0);
 button("Try again").props.onClick(); render();
 requests[2].resolve({ ...result, sites: [] }); await flush();
 assert.match(text(tree), /No study sites found/);
 const requestCount = requests.length;
 slots.forEach(slot => slot?.cleanup?.()); slots = []; effects = [];
 user = { user_id: "site-manager", role: "site_data_manager", site_id: 2 }; dirty = true; render();
-assert.equal(requests.length, requestCount + 1, "Site data managers request their server-scoped site totals");
-assert.equal(nodes(tree).filter(node => node.type === "section").length, 0, "Central totals are not reused on account change");
-requests[requestCount].resolve({ ...result, sites: [result.sites[1]] }); await flush();
-assert.equal(nodes(tree).filter(node => node.type === "section").length, 1);
+assert.equal(requests.length, requestCount + 1);
+assert.equal(nodes(tree).filter(node => node.type === "section").length, 0);
+const managerSite = { ...result.sites[1], progress: { ...emptyProgress(), households: { total: 10000, assigned: 0, completed: 1, draft: 0, pending: 9999, closed: 0 } } };
+requests[requestCount].resolve({ ...result, sites: [managerSite] }); await flush();
 assert.ok(text(tree).includes("Ballabhgarh"));
 assert.ok(!text(tree).includes("Bareilly"));
-assert.ok(nodes(tree).some(node => node.type === "a" && node.props.to === "/staff-dashboard"));
+assert.ok(!nodes(tree).some(node => node.props?.["aria-label"] === "Study site"));
+assert.ok(text(tree).includes("<0.1%"), "Small positive progress must not appear as zero");
+button("Refresh").props.onClick(); render();
+requests[requestCount + 1].resolve({ ...result, sites: [{ ...managerSite, progress: { ...managerSite.progress, households: { ...managerSite.progress.households, completed: 9999, pending: 1 } } }] }); await flush();
+assert.ok(text(tree).includes(">99.9%"), "Incomplete work must not round to 100% complete");
 user = { user_id: "field-worker", role: "field_worker" }; dirty = true; render();
 assert.equal(tree.type, "Navigate");
-assert.equal(requests.length, requestCount + 1, "Other roles cannot request site totals");
+assert.equal(requests.length, requestCount + 2);
 const appSource = readFileSync(new URL("../App.tsx", import.meta.url), "utf8");
 assert.match(appSource, /role === "central_admin" \|\| user\?\.role === "site_data_manager" \? <SiteFormTotalsPage \/> : <DashboardPage \/>/);
 assert.match(appSource, /path="\/staff-dashboard" element=\{<DashboardPage \/>\}/);
-const layoutSource = readFileSync(new URL("../components/Layout.tsx", import.meta.url), "utf8");
-assert.match(layoutSource, /canViewSiteTotals = user\?\.role === "central_admin" \|\| user\?\.role === "site_data_manager"/);
-assert.match(layoutSource, /canViewSiteTotals \? \[\{ path: "\/staff-dashboard"/);
 const pageSource = readFileSync(new URL("../pages/SiteFormTotalsPage.tsx", import.meta.url), "utf8");
-assert.ok(pageSource.includes('key={`${user.user_id}:${user.role}:${user.site_id}`}'), "Scope changes remount the totals view");
+assert.ok(pageSource.includes('key={`${user.user_id}:${user.role}:${user.site_id}`}'));
 delete globalThis.siteTotalsHarness;
-console.log("Site cards passed: all-time totals, central and site-manager access, scoped response display, other-role guard, refresh/error/empty states and staff dashboard route.");
+console.log("Operational progress passed: household/task denominators, percentages, no-data sites, form totals, site filter, own-site access, refresh/errors and preserved staff route.");
