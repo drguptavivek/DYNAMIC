@@ -31,7 +31,9 @@ model.setValue(ever, 2); assert.equal(question.isVisible, false);
 model.setValue(ever, 1); assert.equal(question.isVisible, true);
 assert.equal(getNativeRendererKind(question), "wq-transfusion-timing");
 assert.deepEqual(assertNativeSurveySupport(model), []);
-for (const value of [undefined, 98, "98", {month:"01",year:"2025"}]) {
+question.value = undefined;
+assert.equal(question.validate(), false, "A visible required transfusion date cannot be blank");
+for (const value of [98, "98", {month:"01",year:"2025"}]) {
   question.value = value;
   assert.equal(question.validate(), true, JSON.stringify(value));
 }

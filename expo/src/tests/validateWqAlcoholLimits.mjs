@@ -49,7 +49,7 @@ for (const [field, validValues, invalidValues] of [
     }
   }
   const original = fields.find(item => item.name === field);
-  assert.deepEqual(question.choices.map(choice => String(choice.value)), original.choices.map(choice => String(choice.value)));
+  assert.deepEqual(getNativeQuestionChoices(question).map(choice => String(choice.value)), original.choices.map(choice => String(choice.value)));
   assert.equal(question.validators[0].regex, original.validators[0].regex, "Prepared form retains definition validation");
 
   const rows = formTranslation.flattenFormText(getPreparedSurveyJson(source));

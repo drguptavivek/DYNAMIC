@@ -112,6 +112,7 @@ assert.equal(validateWqProgressiveDob({ mode: "unknown" }), null);
 const {
   appendDynamicPanel,
   getNativeQuestionTitle,
+  getNativeQuestionChoices,
   getPanelCommitLabel,
   getWqMultipleBirthRow,
   getWqPregnancyChildSummary,
@@ -2325,11 +2326,11 @@ for (const [fieldName, label, expectedSpecialCodes, expectedEntryHint] of [
   [husbandAlcoholDrinks, "alcohol drinks", ["00"], "years_with_special_codes"],
 ]) {
   const item = question(workHusbandModel, fieldName);
-  assert.equal(item.getType(), "radiogroup", `WQ Section 4 ${label} should keep coded special choices`);
+  assert.equal(item.getType(), "text", `WQ Section 4 ${label} must accept required free-entry numbers and coded special choices`);
   assert.equal(item.renderAs, expectedEntryHint, `WQ Section 4 ${label} should show a 2-digit entry with special codes`);
   assert.equal(item.jsonObj?.maxLength, 2, `WQ Section 4 ${label} should accept only two typed digits`);
   assert.deepEqual(
-    item.choices.map((choice) => String(choice.value)),
+    getNativeQuestionChoices(item, "en").map((choice) => String(choice.value)),
     expectedSpecialCodes,
     `WQ Section 4 ${label} should keep the Excel special codes`
   );
@@ -2637,6 +2638,22 @@ assert.equal(diedAge.isVisible, false, "The obsolete top-level Q28_i copy must r
 await import("../polyfills/surveyCoreNative.js");
 
 const blockedNextModel = createWqModel();
+function fillRequiredBackground(model) {
+  model.data = { ...model.data,
+    wq_name_woman: "Test woman",
+    wq_age_last_birthday: "30",
+    wq_01_respondent_s_backgr_which_state_were_you_born_in: 1,
+    wq_01_respondent_s_backgr_how_long_have_you_been_living_continuously: 95,
+    wq_01_respondent_s_backgr_in_what_month_and_year_were_you_born: { month: "02", year: "1996" },
+    wq_01_respondent_s_backgr_in_general_would_you_say_your_health_is_ve: 1,
+    wq_01_respondent_s_backgr_have_you_ever_attended_school: 2,
+    wq_01_respondent_s_backgr_what_is_your_religion: 1,
+    wq_01_respondent_s_backgr_do_you_belong_to_a_scheduled_caste_a_sched: 1,
+    wq_husband_partner_name: "Test partner",
+    wq_husband_partner_line_number: "02",
+  };
+}
+fillRequiredBackground(blockedNextModel);
 blockedNextModel.setValue("wq_interview_date", "2026-08-14");
 blockedNextModel.setValue("wq_visit_no", 1);
 blockedNextModel.setValue("wq_woman_available", 1);
@@ -2665,6 +2682,7 @@ const {
 } = await import("../components/forms/nativeSurveyModel.js");
 
 const itemErrorModel = createWqModel();
+fillRequiredBackground(itemErrorModel);
 itemErrorModel.setValue("wq_interview_date", "2026-08-14");
 itemErrorModel.setValue("wq_visit_no", 1);
 itemErrorModel.setValue("wq_woman_available", 1);
@@ -2698,6 +2716,7 @@ assert.equal(itemErrorModel.nextPage(), true);
 // Don't-know sentinels (98 month / 9998 year) must validate cleanly so the
 // unknown radio never leaves the item blocked with a pattern error.
 const dobUnknownModel = createWqModel();
+fillRequiredBackground(dobUnknownModel);
 dobUnknownModel.setValue("wq_interview_date", "2026-08-14");
 dobUnknownModel.setValue("wq_visit_no", 1);
 dobUnknownModel.setValue("wq_woman_available", 1);

@@ -36,6 +36,19 @@ function createSurveyModel(surveyJson) {
     }
   };
   retainTextChoices(surveyJson);
+  model.onValidateQuestion.add((sender, options) => {
+    const question = options.question;
+    if (!question?.isRequired || question.isReadOnly ||
+        !["pef_lmp_start", "wq_02_reproduction_when_did_your_last_menstrual_period_start"].includes(options.name)) return;
+    const value = options.value;
+    if (!value || typeof value !== "object") return;
+    // Selecting an entry mode alone is not an answer to a required LMP question.
+    const fields = value.mode === "date" ? ["day", "month", "year"]
+      : value.mode === "relative" ? ["unit", "value"] : [];
+    if (!fields.length || fields.some((field) => String(value[field] ?? "").trim() === "")) {
+      options.error = new surveyCore.AnswerRequiredError(question.requiredErrorText, question).getText();
+    }
+  });
   return model;
 }
 

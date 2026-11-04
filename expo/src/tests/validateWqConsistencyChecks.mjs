@@ -280,7 +280,7 @@ assert.equal(
   0,
   "Correcting Q11 to a consistent age must clear the message"
 );
-assert.equal(model.validate(), true, "A consistent model must pass validation");
+assert.equal(ageQuestion.validate(), true, "A consistent age must pass its validation without unrelated unanswered required fields");
 
 // Q9 residence years above Q11 age blocks on Q11 and clears when corrected;
 // the 95/96 special codes never block.
@@ -296,10 +296,10 @@ assert.equal(model.validate(), false, "Residence years above age must block vali
 model.setValue(WQ_RESIDENCE_YEARS_FIELD, 95);
 applyWqAgeConsistencyCheck(model);
 assert.equal(ageQuestion.errors.length, 0, "95 always must not block");
-assert.equal(model.validate(), true);
+assert.equal(ageQuestion.validate(), true);
 model.setValue(WQ_RESIDENCE_YEARS_FIELD, "10");
 applyWqAgeConsistencyCheck(model);
-assert.equal(model.validate(), true, "Residence years below age passes");
+assert.equal(ageQuestion.validate(), true, "Residence years below age passes");
 assert.equal(shouldRecalculateWqAgeConsistency(WQ_RESIDENCE_YEARS_FIELD), true);
 
 assert.equal(shouldRecalculateWqAgeConsistency(WQ_BIRTH_MONTH_YEAR_FIELD), true);
@@ -436,7 +436,12 @@ assert.equal(
   "Clearing Q9 must also clear its inline message"
 );
 check8Model.validate();
-assert.equal(check8Question.errors.length, 0, "A cleared Q9 must not block validation");
+assert.equal(questionHasMessage(check8Question, WQ_CHECK8_CONFIRMATION_MESSAGE), false,
+  "Clearing Q9 must remove the stale inconsistency message");
+assert.equal(check8Question.validate(), false, "Cleared required Q9 must be answered again");
+check8Model.setValue(WQ_CHECK8_CONFIRMATION_FIELD, 1);
+applyWqCheck8Confirmation(check8Model);
+assert.equal(check8Question.validate(), true, "A fresh agreement must pass validation");
 
 // --- calculateWqPregnancyDurationMessage / Q21_i ---------------------------
 

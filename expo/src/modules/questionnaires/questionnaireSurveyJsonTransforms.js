@@ -399,6 +399,37 @@ function applyMandatoryHhqSurveyJson(surveyJson) {
   };
 }
 
+function applyMandatoryWqPefSurveyJson(surveyJson) {
+  const optionalFields = new Set([
+    WQ_HUSBAND_PARTNER_MOBILE_NAME,
+    WQ_HUSBAND_PARTNER_MOBILE_HOLDER_NAME,
+    PEF_ULTRASOUND_REPORTS_FIELD,
+    PEF_ANC_CARD_IMAGE_FIELD,
+    "pef_weight_kg",
+    "pef_height_cm",
+    "pef_blood_pressure",
+  ]);
+  const visit = (elements = []) => elements.map((element) => {
+    const next = { ...element };
+    if (next.type === "radiogroup" &&
+        ["wq_lmp_timing", "lmp_timing", "years_with_special_codes", "days_with_special_codes"].includes(next.renderAs)) {
+      // These native controls also save free numbers/objects, not only coded choices.
+      next.type = "text";
+      next.inputType = "text";
+    }
+    // Uploads and site-specific PEF measurements retain their existing validators.
+    if (next.name && !next.readOnly && next.renderAs !== "background" &&
+        !["html", "panel", "paneldynamic", "expression"].includes(next.type) &&
+        !optionalFields.has(next.name)) {
+      next.isRequired = true;
+    }
+    if (Array.isArray(next.elements)) next.elements = visit(next.elements);
+    if (Array.isArray(next.templateElements)) next.templateElements = visit(next.templateElements);
+    return next;
+  });
+  return { ...surveyJson, pages: surveyJson.pages.map((page) => ({ ...page, elements: visit(page.elements) })) };
+}
+
 function applyHhqHighestGradeInput(surveyJson) {
   function visit(elements = []) {
     return elements.map((element) => {
@@ -1590,6 +1621,9 @@ export function prepareQuestionnaireSurveyJson(form) {
       return next;
     };
     surveyJson = visit(surveyJson);
+  }
+  if (isWqForm(form) || isPefForm(form)) {
+    surveyJson = applyMandatoryWqPefSurveyJson(surveyJson);
   }
   surveyJson = { ...surveyJson, nativeText: { ...(NATIVE_FORM_TEXT[form?.form_code] || {}), ...nativeTitleFallbacks } };
   const locales = new Set(["en", "hi", "kn", "mr", "ta", "te", ...Object.keys(form?.native_form_translations || {})]);
