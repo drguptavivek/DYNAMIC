@@ -62,25 +62,36 @@ assert.match(text(tree), /Loading study progress/);
 const emptyWork = () => ({ completed: 0, draft: 0, pending: 0, upcoming: 0, closed: 0, overdue: 0 });
 const emptyProgress = () => ({ households: { total: 0, assigned: 0, completed: 0, draft: 0, pending: 0, closed: 0 }, tasks: emptyWork(), tasks_by_code: {}, active_field_workers: 0, eligible_women: 0, active_pregnancies: 0 });
 const work = { completed: 30, draft: 5, pending: 15, upcoming: 10, closed: 4, overdue: 3 };
+const bwqWork = { completed: 4, draft: 1, pending: 3, upcoming: 2, closed: 1, overdue: 1 };
+const pefWork = { completed: 2, draft: 2, pending: 2, upcoming: 4, closed: 0, overdue: 0 };
 const result = { generated_at: "2026-11-04T04:00:00Z", sites: [
   { site_id: 1, site_name: "Bareilly", total: 6, forms_by_code: { HHQ: 3, WQ: 2, PEF: 1 }, progress: {
     households: { total: 100, assigned: 80, completed: 40, draft: 5, pending: 50, closed: 5 },
-    tasks: work, tasks_by_code: { HHQ: work }, active_field_workers: 8, eligible_women: 90, active_pregnancies: 4,
+    tasks: { completed: 36, draft: 8, pending: 20, upcoming: 16, closed: 5, overdue: 4 }, tasks_by_code: { HHQ: work, WQ: bwqWork, PEF: pefWork }, active_field_workers: 8, eligible_women: 90, active_pregnancies: 4,
   } },
-  { site_id: 2, site_name: "Ballabhgarh", total: 1, forms_by_code: { NEW_FORM: 1 }, progress: emptyProgress() },
+  { site_id: 2, site_name: "Ballabhgarh", total: 1, forms_by_code: { NEW_FORM: 1 }, progress: { ...emptyProgress(), tasks: { ...emptyWork(), upcoming: 5 }, tasks_by_code: { NEW_FORM: { ...emptyWork(), upcoming: 5 } } } },
   { site_id: 7, site_name: "New study site", total: 0, forms_by_code: {}, progress: emptyProgress() },
 ] };
 requests[0].resolve(result); await flush();
 assert.match(text(tree), /Operational dashboard/);
 assert.match(text(tree), /Accepted forms received7/);
-assert.match(text(tree), /Households surveyed40.0%/);
-assert.match(text(tree), /Work open now20/);
-assert.match(text(tree), /Overdue tasks3/);
-assert.match(text(tree), /30completed \/ 50 actionable tasks/);
+assert.match(text(tree), /Tasks completed56.3%/);
+assert.match(text(tree), /Work open now28/);
+assert.match(text(tree), /Overdue tasks4/);
+assert.match(text(tree), /36completed \/ 64 actionable tasks/);
 assert.match(text(tree), /60.0%/);
-assert.match(text(tree), /4 closed \/ cancelled/);
+assert.match(text(tree), /5 closed \/ cancelled/);
 assert.ok(!text(tree).includes("NaN"));
 const section = label => nodes(tree).find(node => node.type === "section" && node.props["aria-label"] === label);
+const progressCards = () => nodes(section("Questionnaire progress cards")).filter(node => node.type === "article");
+const progressCard = code => progressCards().find(node => node.props["aria-label"] === `${code} progress`);
+assert.equal(progressCards().length, 13, "All twelve standard questionnaires and additional codes have prominent cards");
+for (const code of ["BHQ", "BWQ", "PEF", "PSF", "PFF", "HRF", "UF", "POF", "BAF", "SBF", "NFF", "CDF"]) assert.ok(progressCard(code));
+assert.match(text(progressCard("BHQ")), /BHQ60.0%Accepted forms\s3Completed tasks30Draft5Left now15/);
+assert.match(text(progressCard("BWQ")), /BWQ50.0%Accepted forms\s2Completed tasks4Draft1Left now3/);
+assert.match(text(progressCard("PEF")), /PEF33.3%Accepted forms\s1Completed tasks2Draft2Left now2/);
+assert.match(text(progressCard("NEW_FORM")), /Upcoming only/);
+assert.match(text(progressCard("CDF")), /No actionable tasks/);
 assert.ok(text(section("Household coverage")).includes("40.0%"));
 assert.ok(text(section("Household coverage")).includes("80.0%"));
 const siteRows = nodes(section("Site progress comparison")).filter(node => node.type === "tr");
@@ -94,7 +105,9 @@ assert.ok(!nodes(tree).some(node => node.type === "input" && node.props.type ===
 const filter = nodes(tree).find(node => node.props?.["aria-label"] === "Study site");
 filter.props.onChange({ target: { value: "2" } }); render();
 assert.match(text(tree), /Accepted forms received1/);
-assert.match(text(tree), /Households surveyed—/);
+assert.match(text(tree), /Tasks completed—/);
+assert.match(text(progressCard("BWQ")), /Accepted forms\s0Completed tasks0Draft0Left now0/);
+assert.match(text(progressCard("NEW_FORM")), /Upcoming only/);
 assert.equal(nodes(section("Site progress comparison")).filter(node => node.type === "tr").length, 2);
 filter.props.onChange({ target: { value: "" } }); render();
 button("Refresh").props.onClick(); render();

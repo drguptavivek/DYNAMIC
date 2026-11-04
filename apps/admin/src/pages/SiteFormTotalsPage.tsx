@@ -114,10 +114,31 @@ function SiteFormTotalsView() {
         {sites.length === 0 ? <div className={styles.state}>No study sites found.</div> : <>
           <div className={styles.kpis}>
             <article><span>Accepted forms received</span><strong>{count(forms)}</strong><small>All questionnaire types · field staff</small></article>
-            <article><span>Households surveyed</span><strong>{percent(households.completed, households.total)}</strong><small>{count(households.completed)} of {count(households.total)} registered households</small></article>
+            <article><span>Tasks completed</span><strong>{percent(tasks.completed, taskTotal)}</strong><small>{count(tasks.completed)} of {count(taskTotal)} actionable tasks · all forms</small></article>
             <article><span>Work open now</span><strong>{count(tasks.pending + tasks.draft)}</strong><small>{count(tasks.draft)} drafts · {count(tasks.upcoming)} upcoming separately</small></article>
             <article className={tasks.overdue ? styles.attention : undefined}><span>Overdue tasks</span><strong>{count(tasks.overdue)}</strong><small>Included in work open now</small></article>
           </div>
+          <section className={`${styles.panel} ${styles.formOverview}`} aria-label="Questionnaire progress cards">
+            <header><div><h2>Progress by questionnaire</h2><p>Each form at a glance · task completion excludes upcoming and inactive work</p></div></header>
+            <div className={styles.formCards}>{codes.map((code) => {
+              const t = progress.tasks_by_code[code] ?? emptyWorkload(), total = actionable(t);
+              return <article key={code} className={styles.formCard} aria-label={`${formLabel(code)} progress`}>
+                <header><h3>{formLabel(code)}</h3><strong>{percent(t.completed, total)}</strong></header>
+                <p className={styles.received}>Accepted forms <b>{count(formsByCode[code] ?? 0)}</b></p>
+                <div className={styles.formBar} aria-hidden="true">
+                  <span style={{ width: `${total ? t.completed * 100 / total : 0}%`, background: "#16835b" }} />
+                  <span style={{ width: `${total ? t.draft * 100 / total : 0}%`, background: "#e6ad26" }} />
+                  <span style={{ width: `${total ? t.pending * 100 / total : 0}%`, background: "#387bd6" }} />
+                </div>
+                <dl className={styles.formCounts}>
+                  <div><dt>Completed tasks</dt><dd>{count(t.completed)}</dd></div>
+                  <div><dt>Draft</dt><dd>{count(t.draft)}</dd></div>
+                  <div><dt>Left now</dt><dd>{count(t.pending)}</dd></div>
+                </dl>
+                <footer>{total === 0 && <span>{t.upcoming > 0 ? "Upcoming only" : "No actionable tasks"}</span>}<span>{count(t.upcoming)} upcoming · {count(t.closed)} inactive</span></footer>
+              </article>;
+            })}</div>
+          </section>
           <div className={styles.overview}>
             <section className={styles.panel} aria-label="Household coverage">
               <header><div><h2>Household coverage</h2><p>Every registered household, counted once</p></div><span className={styles.pill}>BHQ</span></header>
