@@ -3,6 +3,7 @@ export interface DashboardLocality { site_id: number; locality_code: string; loc
 export interface DashboardMetrics {
   assigned_households: number;
   forms_completed: number;
+  forms_today: number;
   forms_received: number;
   backed_up_drafts: number;
   pending_tasks: number;
@@ -25,10 +26,12 @@ export interface DashboardStaffRow extends DashboardMetrics {
 }
 export interface OperationsDashboard {
   cohort: { households: number; members: number; eligible_women: number; tracking_eligible_women: number; active_pregnancies: number; children: number };
+  period: "all" | "date";
+  staff_options: Pick<DashboardStaffRow, "user_id" | "username" | "display_name" | "site_id">[];
   date: string;
   timezone: "Asia/Kolkata";
   generated_at: string;
-  scope: { all_sites: boolean; site_id: number | null; locality_code: string | null };
+  scope: { all_sites: boolean; site_id: number | null; locality_code: string | null; user_id: string | null; search: string; form_code: string | null };
   sites: { site_id: number; site_name: string }[];
   localities: DashboardLocality[];
   totals: DashboardMetrics & { users: number; active_users: number; unattributed_forms: number; open_data_quality_flags: number };

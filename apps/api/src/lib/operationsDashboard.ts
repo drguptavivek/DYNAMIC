@@ -9,13 +9,21 @@ export function dashboardScope(user: JwtPayload, query: Record<string, unknown>,
   const as_of_date = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
   const date = query.date === undefined ? as_of_date : String(query.date);
   if (!/^(?!0000)\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(date)) || new Date(date).toISOString().slice(0, 10) !== date) throw new Error("INVALID_DATE");
+  const period = query.period === undefined ? (query.date === undefined ? "all" : "date") : query.period;
+  if (period !== "all" && period !== "date") throw new Error("INVALID_PERIOD");
+  const user_id = query.user_id === undefined || query.user_id === "" ? null : query.user_id;
+  if (user_id !== null && (typeof user_id !== "string" || user_id.length > 200 || !user_id.trim() || /[\x00-\x1f]/.test(user_id))) throw new Error("INVALID_USER");
+  const search = query.search === undefined ? "" : query.search;
+  if (typeof search !== "string" || search.length > 200) throw new Error("INVALID_SEARCH");
+  const form_code = query.form_code === undefined || query.form_code === "" ? null : query.form_code;
+  if (form_code !== null && (typeof form_code !== "string" || !/^[A-Z][A-Z0-9_]{0,19}$/.test(form_code))) throw new Error("INVALID_FORM");
   const all_sites = CENTRAL.has(user.role);
   const requestedSite = query.site_id === undefined || query.site_id === "" ? null : Number(query.site_id);
   if (requestedSite !== null && (!Number.isSafeInteger(requestedSite) || requestedSite < 1)) throw new Error("INVALID_SITE");
   if (!all_sites && (!Number.isSafeInteger(user.site_id) || user.site_id! < 1)) throw new Error("DASHBOARD_FORBIDDEN");
   const locality_code = query.locality_code === undefined || query.locality_code === "" ? null : String(query.locality_code).trim();
   if (locality_code !== null && !/^[A-Za-z0-9]{1,20}$/.test(locality_code)) throw new Error("INVALID_LOCALITY");
-  return { date, as_of_date, all_sites, site_id: all_sites ? requestedSite : user.site_id, locality_code };
+  return { date, as_of_date, period: period as "all" | "date", user_id, search: search.trim(), form_code, all_sites, site_id: all_sites ? requestedSite : user.site_id, locality_code };
 }
 export type DashboardScope = ReturnType<typeof dashboardScope>;
 
@@ -23,14 +31,25 @@ export function dashboardSql(scope: DashboardScope) {
   const { site_id: site, locality_code: locality, date } = scope;
   const area = (alias: string): SQL => sql`(${site}::integer is null or ${sql.raw(alias)}.site_id = ${site}) and (${locality}::text is null or ${sql.raw(alias)}.locality_code = ${locality})`;
   const start = `${date}T00:00:00+05:30`;
+  const todayStart = `${scope.as_of_date}T00:00:00+05:30`;
+  const todayFinish = new Date(Date.parse(todayStart) + 86400000).toISOString();
+  const form = (alias: string): SQL => sql`(${scope.form_code}::text is null or ${sql.raw(alias)}.form_code=${scope.form_code})`;
+  const dueDate = scope.period === "all" ? scope.as_of_date : date;
   const finish = new Date(Date.parse(start) + 86400000).toISOString();
+  const inPeriod = (timestamp: SQL): SQL => scope.period === "all"
+    ? sql`${timestamp}<${todayFinish}::timestamptz`
+    : sql`${timestamp}>=${start}::timestamptz and ${timestamp}<${finish}::timestamptz`;
+  const submittedAt = sql`coalesce(f.created_offline_at,f.synced_at,f.created_at)`;
   const active = sql`(a.active_from is null or a.active_from <= ${scope.as_of_date}::date) and (a.active_to is null or a.active_to >= ${scope.as_of_date}::date)`;
-  const roster = sql`select u.user_id, u.username, coalesce(u.display_name, u.username) display_name, u.role, u.active, u.site_id,
+  const areaRoster = sql`select u.user_id, u.username, coalesce(u.display_name, u.username) display_name, u.role, u.active, u.site_id,
     coalesce(s.site_name, 'Central') site_name from users u left join study_sites s on s.site_id=u.site_id
     where (${site}::integer is null or u.site_id=${site}) and (${locality}::text is null or
       exists(select 1 from user_area_assignments a where a.user_id=u.user_id and ${active} and ${area("a")}) or
       exists(select 1 from field_worker_household_assignments a join households h on h.household_id=a.household_id where a.user_id=u.user_id and ${area("h")}))`;
+  const roster = sql`select * from (${areaRoster}) u where (${scope.user_id}::text is null or u.user_id=${scope.user_id})
+    and (${scope.search}='' or strpos(lower(u.username),lower(${scope.search}))>0 or strpos(lower(u.display_name),lower(${scope.search}))>0)`;
   return {
+    staff_options: sql`${areaRoster} order by display_name,username,user_id`,
     cohort: sql`select
       (select count(*)::integer from households h where ${area("h")}) households,
       (select count(*)::integer from household_members m where ${area("m")}) members,
@@ -50,7 +69,7 @@ export function dashboardSql(scope: DashboardScope) {
       from contacts z join roster r on r.user_id=z.user_id where z.at is not null order by z.user_id,z.at desc,z.id desc),
     worked_rows as (select distinct f.submitted_by_user_id user_id,f.site_id,f.locality_code,coalesce(l.locality_name,f.locality_code) locality_name
       from form_responses f left join study_localities l on l.site_id=f.site_id and l.locality_code=f.locality_code
-      where ${area("f")} and coalesce(f.response_status,'primary')='primary' and coalesce(f.created_offline_at,f.synced_at,f.created_at)>=${start}::timestamptz and coalesce(f.created_offline_at,f.synced_at,f.created_at)<${finish}::timestamptz),
+      where ${area("f")} and coalesce(f.response_status,'primary')='primary' and ${form("f")} and ${inPeriod(submittedAt)}),
     worked as (select user_id,json_agg(json_build_object('site_id',site_id,'locality_code',locality_code,'locality_name',locality_name) order by site_id,locality_code) completed_localities from worked_rows group by user_id)
     select r.*,coalesce(l.assigned_localities,'[]'::json) assigned_localities,coalesce(w.completed_localities,'[]'::json) completed_localities,z.last_sync_at,z.last_sync_status
     from roster r left join localities l on l.user_id=r.user_id left join latest_sync z on z.user_id=r.user_id
@@ -61,26 +80,29 @@ export function dashboardSql(scope: DashboardScope) {
       from field_worker_household_assignments a join households h on h.household_id=a.household_id where ${area("h")}
       union all select f.submitted_by_user_id,f.site_id,f.locality_code,'forms_completed',f.form_response_id,f.form_code
       from form_responses f where ${area("f")} and coalesce(f.response_status,'primary')='primary'
-        and coalesce(f.created_offline_at,f.synced_at,f.created_at)>=${start}::timestamptz and coalesce(f.created_offline_at,f.synced_at,f.created_at)<${finish}::timestamptz
+        and ${form("f")} and ${inPeriod(submittedAt)}
+      union all select f.submitted_by_user_id,f.site_id,f.locality_code,'forms_today',f.form_response_id,''
+      from form_responses f where ${area("f")} and ${form("f")} and coalesce(f.response_status,'primary')='primary'
+        and ${submittedAt}>=${todayStart}::timestamptz and ${submittedAt}<${todayFinish}::timestamptz
       union all select f.submitted_by_user_id,f.site_id,f.locality_code,'forms_received',f.form_response_id,''
       from form_responses f where ${area("f")} and coalesce(f.response_status,'primary')='primary'
-        and coalesce(f.synced_at,f.created_at)>=${start}::timestamptz and coalesce(f.synced_at,f.created_at)<${finish}::timestamptz
+        and ${form("f")} and ${inPeriod(sql`coalesce(f.synced_at,f.created_at)`)}
       union all select d.user_id,d.site_id,d.locality_code,'backed_up_drafts',d.draft_id,'' from questionnaire_drafts d
-      where ${area("d")} and d.draft_status='active' and not exists(select 1 from form_responses f
+      where ${area("d")} and ${form("d")} and d.draft_status='active' and not exists(select 1 from form_responses f
         where f.task_id=d.task_id and coalesce(f.response_status,'primary')='primary')
       union all select a.user_id,t.site_id,t.locality_code,'pending_tasks',t.task_id,''
       from follow_up_tasks t join field_worker_household_assignments a on a.household_id=t.household_id
-      where ${area("t")} and t.status in ('planned','due','urgent','overdue','in_progress')
+      where ${area("t")} and ${form("t")} and t.status in ('planned','due','urgent','overdue','in_progress')
         and coalesce(t.action_state,'enabled')<>'disabled' and coalesce(t.form_availability,'available')<>'disabled'
-        and (t.form_code in ('HHQ','WQ') or coalesce(t.window_start,t.target_date)<=${date}::date)
+        and (t.form_code in ('HHQ','WQ') or coalesce(t.window_start,t.target_date)<=${dueDate}::date)
       union all select a.user_id,t.site_id,t.locality_code,'overdue_tasks',t.task_id,''
       from follow_up_tasks t join field_worker_household_assignments a on a.household_id=t.household_id
-      where ${area("t")} and t.status in ('planned','due','urgent','overdue','in_progress')
+      where ${area("t")} and ${form("t")} and t.status in ('planned','due','urgent','overdue','in_progress')
         and coalesce(t.action_state,'enabled')<>'disabled' and coalesce(t.form_availability,'available')<>'disabled'
-        and (t.form_code in ('HHQ','WQ') or coalesce(t.window_start,t.target_date)<=${date}::date)
-        and coalesce(t.deadline_date,t.target_date)<${date}::date
+        and (t.form_code in ('HHQ','WQ') or coalesce(t.window_start,t.target_date)<=${dueDate}::date)
+        and coalesce(t.deadline_date,t.target_date)<${dueDate}::date
       union all select z.user_id,u.site_id,null,'sync_errors',z.sync_log_id,'' from sync_logs z join roster u on u.user_id=z.user_id
-      where coalesce(z.completed_at,z.started_at)>=${start}::timestamptz and coalesce(z.completed_at,z.started_at)<${finish}::timestamptz
+      where ${inPeriod(sql`coalesce(z.completed_at,z.started_at)`)}
         and z.status in ('error','failed','partial_success')
     ) select f.user_id,f.site_id,f.locality_code,grouping(f.user_id) gu,grouping(f.site_id) gs,grouping(f.locality_code) gl,
       metric,code,count(distinct id)::integer count from facts f join roster r on r.user_id=f.user_id
@@ -88,8 +110,8 @@ export function dashboardSql(scope: DashboardScope) {
     options: sql`select s.site_id,s.site_name,l.locality_code,l.locality_name from study_sites s left join study_localities l on l.site_id=s.site_id where (${scope.all_sites ? null : site}::integer is null or s.site_id=${site}) order by s.site_id,l.locality_code`,
     quality: sql`select
       (select count(*)::integer from form_responses f where ${area("f")} and coalesce(f.response_status,'primary')='primary'
-        and not exists(select 1 from users u where u.user_id=f.submitted_by_user_id)
-        and coalesce(f.created_offline_at,f.synced_at,f.created_at)>=${start}::timestamptz and coalesce(f.created_offline_at,f.synced_at,f.created_at)<${finish}::timestamptz) unattributed_forms,
+        and ${scope.user_id === null && !scope.search} and not exists(select 1 from users u where u.user_id=f.submitted_by_user_id)
+        and ${form("f")} and ${inPeriod(submittedAt)}) unattributed_forms,
       (select count(*)::integer from data_quality_flags q where q.status='open' and (${site}::integer is null or q.site_id=${site})
         and (${locality}::text is null or exists(select 1 from households h where h.site_id=q.site_id and ${area("h")} and (
           (q.subject_type='household' and h.household_id=q.subject_id)
@@ -102,9 +124,9 @@ export function dashboardSql(scope: DashboardScope) {
   };
 }
 
-export const emptyDashboardMetrics = (): DashboardMetrics => ({ assigned_households: 0, forms_completed: 0, forms_received: 0, backed_up_drafts: 0, pending_tasks: 0, overdue_tasks: 0, sync_errors: 0, forms_by_code: {} });
+export const emptyDashboardMetrics = (): DashboardMetrics => ({ assigned_households: 0, forms_completed: 0, forms_today: 0, forms_received: 0, backed_up_drafts: 0, pending_tasks: 0, overdue_tasks: 0, sync_errors: 0, forms_by_code: {} });
 interface Fact { user_id: string | null; site_id: number | null; locality_code: string | null; gu: number; gs: number; gl: number; metric: keyof DashboardMetrics; code: string; count: number; }
-export function assembleDashboard(scope: DashboardScope, users: DashboardStaffRow[], facts: Fact[], options: { site_id: number; site_name: string; locality_code: string | null; locality_name: string | null }[], quality: { unattributed_forms: number; open_data_quality_flags: number }, cohort: OperationsDashboard["cohort"] = { households: 0, members: 0, eligible_women: 0, tracking_eligible_women: 0, active_pregnancies: 0, children: 0 }): OperationsDashboard {
+export function assembleDashboard(scope: DashboardScope, users: DashboardStaffRow[], facts: Fact[], options: { site_id: number; site_name: string; locality_code: string | null; locality_name: string | null }[], quality: { unattributed_forms: number; open_data_quality_flags: number }, cohort: OperationsDashboard["cohort"] = { households: 0, members: 0, eligible_women: 0, tracking_eligible_women: 0, active_pregnancies: 0, children: 0 }, staffOptions: OperationsDashboard["staff_options"] = users): OperationsDashboard {
   const userMap = new Map(users.map(u => [u.user_id, Object.assign(u, emptyDashboardMetrics())]));
   const sites = [...new Map(options.map(o => [o.site_id, { site_id: o.site_id, site_name: o.site_name }])).values()];
   const localities = options.filter(o => o.locality_code !== null).map(o => ({ site_id: o.site_id, locality_code: o.locality_code!, locality_name: o.locality_name! }));
@@ -117,11 +139,11 @@ export function assembleDashboard(scope: DashboardScope, users: DashboardStaffRo
     if (f.metric === "forms_completed") target.forms_by_code[f.code] = Number(f.count);
     if (f.metric !== "forms_by_code") target[f.metric] += Number(f.count);
   }
-  return { cohort, date: scope.date, timezone: "Asia/Kolkata", generated_at: new Date().toISOString(), scope: { all_sites: scope.all_sites, site_id: scope.site_id, locality_code: scope.locality_code }, sites, localities, totals, users: [...userMap.values()], sites_summary: [...siteMap.values()], localities_summary: [...localityMap.values()], notes: [
+  return { cohort, period: scope.period, staff_options: staffOptions, date: scope.date, timezone: "Asia/Kolkata", generated_at: new Date().toISOString(), scope: { all_sites: scope.all_sites, site_id: scope.site_id, locality_code: scope.locality_code, user_id: scope.user_id, search: scope.search, form_code: scope.form_code }, sites, localities, totals, users: [...userMap.values()], sites_summary: [...siteMap.values()], localities_summary: [...localityMap.values()], notes: [
     "Forms completed use the client submission date in India time; received forms use the server receipt date. Only primary accepted submissions count.",
     "Drafts are active server backups, excluding tasks already submitted. Unsynced phone drafts and outbox forms are not visible here.",
     "Village labels show assigned localities, not the user's current physical location. Household and task totals count unique records even when assigned to multiple users.",
     "Sync issues count recorded failed or partially successful syncs; successful repeat uploads are excluded. Failed connections and HDSS download failures may not reach the server. Sync issues are user/site metrics, not attributed to a village.",
-    "Task and assignment figures show current server state; changing the date changes activity counts and due-date comparison, not historical assignment ownership."
+    "All time includes submissions through today in India time; Today is independent of the selected activity date. Staff and form filters apply before aggregation. Current study totals and open quality flags remain area-wide; household assignments and sync issues are not form-specific. Task and draft totals show current state, not historical snapshots."
   ] };
 }

@@ -60,6 +60,11 @@ test("dashboard aggregates real PostgreSQL fixtures without cross-site leaks or 
       insert into eligible_women values(4,'04','completed','active'),(4,'05','completed','not_tracked'),(2,'20','completed','active');
       insert into pregnancies values(4,'04','active'),(4,'05','enrolled'),(4,'04','closed'),(2,'20','active');
       insert into children values('c1'),('b1');
+      alter table questionnaire_drafts add column form_code text default 'HHQ';
+      update questionnaire_drafts set form_code='WQ' where draft_id='d1';
+      insert into form_responses values
+        ('f7','cw',4,'04','HHQ','primary','2026-10-19 10:00Z','2026-10-19 11:00Z',null,null),
+        ('f8','cw',4,'04','WQ','primary','2026-10-22 10:00Z','2026-10-22 11:00Z',null,null);
       alter table data_quality_flags add column subject_type text default 'household',add column primary_response_id text,add column duplicate_response_id text;
       alter table pregnancies add column pregnancy_id text,add column household_id text;
       alter table household_members add column household_member_id text,add column household_id text;
@@ -82,7 +87,7 @@ test("dashboard aggregates real PostgreSQL fixtures without cross-site leaks or 
         const compiled = new PgDialect().sqlToQuery(statement);
         return (await client.query(compiled.sql, compiled.params)).rows;
       };
-      return assembleDashboard(scope, await run(queries.roster), await run(queries.facts), await run(queries.options), (await run(queries.quality))[0], (await run(queries.cohort))[0]);
+      return assembleDashboard(scope, await run(queries.roster), await run(queries.facts), await run(queries.options), (await run(queries.quality))[0], (await run(queries.cohort))[0], await run(queries.staff_options));
     }
     const chennai = await load(user("site_data_manager",4),{site_id:2});
     assert.equal(chennai.scope.site_id,4);
@@ -130,5 +135,32 @@ test("dashboard aggregates real PostgreSQL fixtures without cross-site leaks or 
     const west=await load(user("site_data_manager",4),{locality_code:"05"});
     assert.equal(west.totals.open_data_quality_flags,2,"resolve person and woman flags in the other village");
     assert.ok(village.users.every(row=>row.user_id!=="bw"));
+    const all = await load(user("site_data_manager",4),{period:"all"});
+    assert.equal(all.totals.forms_completed,3,"all-time includes earlier forms and excludes tomorrow's submissions");
+    assert.equal(all.totals.forms_today,2,"today stays independent of all-time period");
+    const onlyWorker = await load(user("site_data_manager",4),{period:"all",user_id:"cw",form_code:"WQ"});
+    assert.equal(onlyWorker.users.length,1);
+    assert.equal(onlyWorker.totals.forms_completed,1);
+    assert.equal(onlyWorker.totals.forms_today,1);
+    assert.equal(onlyWorker.totals.backed_up_drafts,1);
+    assert.equal(onlyWorker.totals.pending_tasks,0,"form filter also restricts tasks");
+    assert.equal(onlyWorker.totals.unattributed_forms,0,"unattributed records cannot be assigned to selected user");
+    assert.equal(onlyWorker.staff_options.length,4,"staff picker does not collapse to selected worker");
+    const foreignWorker = await load(user("site_data_manager",4),{period:"all",user_id:"bw",site_id:2});
+    assert.equal(foreignWorker.users.length,0,"foreign user cannot widen own-site scope");
+    assert.equal(foreignWorker.totals.forms_completed,0);
+    assert.ok(foreignWorker.staff_options.every(row=>row.site_id===4));
+    const searched = await load(user("site_data_manager",4),{period:"all",search:" CH-WORKER "});
+    assert.equal(searched.users.length,1);
+    assert.equal(searched.totals.forms_completed,3,"search applies to aggregates, not just rendered rows");
+    assert.equal(searched.totals.assigned_households,2);
+    const literal = await load(user("site_data_manager",4),{period:"all",search:"%"});
+    assert.equal(literal.users.length,0,"SQL wildcards are treated literally");
+    const futureCode = await load(user("site_data_manager",4),{period:"all",form_code:"FUTURE_1"});
+    assert.equal(futureCode.totals.forms_completed,0,"safe unknown form codes return empty metrics");
+    const past = await load(user("site_data_manager",4),{period:"date",date:"2026-10-19"});
+    assert.equal(past.totals.forms_completed,1);
+    assert.equal(past.totals.forms_today,2,"today is shown beside historical daily activity");
+
   } finally { await client.query("rollback"); await client.end(); }
 });

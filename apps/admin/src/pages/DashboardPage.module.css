@@ -12,7 +12,7 @@
 .primaryButton { height: 34px; padding: 0 16px; background: #2563eb; color: white; border: 1px solid #2563eb; border-radius: 4px; font-size: .8rem; font-weight: 600; cursor: pointer; }
 .primaryButton:disabled { opacity: .55; cursor: wait; }
 .filters input:focus-visible, .filters select:focus-visible, .container button:focus-visible, .container summary:focus-visible { outline: 3px solid #93c5fd; outline-offset: 2px; }
-.statsGrid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; flex-shrink: 0; }
+.statsGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); gap: 10px; flex-shrink: 0; }
 .statCard { display: flex; flex-direction: column; gap: 7px; background: white; border: 1px solid #dce2ea; border-radius: 6px; padding: 11px 13px; min-width: 0; }
 .statLabel { color: #64748b; font-size: .73rem; }
 .statValue { color: #1d4ed8; font-size: 1.5rem; line-height: 1.15; font-variant-numeric: tabular-nums; }
@@ -56,3 +56,14 @@
 .state button { margin-top: 14px; padding: 7px 14px; cursor: pointer; background: white; color: #1d4ed8; border: 1px solid #bfdbfe; border-radius: 4px; }
 @media (max-width: 1100px) { .statsGrid { grid-template-columns: repeat(3, minmax(0, 1fr)); } .container { gap: 9px; } }
 @media (max-width: 600px) { .filters { gap: 8px; } .filters label, .filters label:first-child, .filters .search { flex: 1 1 135px; } .statCard { padding: 9px; } .statValue { font-size: 1.25rem; } .tablePanel { min-height: 260px; } .tableToolbar { padding: 7px; } .tab, .activeTab { padding: 7px; } }
+
+.periodSummary { margin: 0; flex-shrink: 0; font-size: .76rem; color: #64748b; }
+.periodSummary strong { color: #182435; margin-right: 6px; }
+.formSummary { display: flex; flex-wrap: wrap; gap: 6px; flex-shrink: 0; }
+.formSummary button { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex: 1 0 90px; padding: 8px 10px; color: #334155; border: 1px solid #dce2ea; border-radius: 5px; background: white; cursor: pointer; font-size: .75rem; }
+.formSummary button strong { color: #1d4ed8; font-size: 1rem; font-variant-numeric: tabular-nums; }
+.formSummary button[aria-pressed="true"] { background: #eff6ff; border-color: #2563eb; }
+.formsTable th:first-child, .formsTable td:first-child { position: sticky; left: 0; background: white; z-index: 1; border-right: 1px solid #e5eaf0; }
+.formsTable thead th:first-child { background: #f1f5f9; z-index: 2; }
+.formsTable tfoot th:first-child { background: #f1f5f9; z-index: 2; }
+@media (max-width: 600px) { .container { height: auto; min-height: 100%; } .tablePanel { flex: none; height: 460px; } }

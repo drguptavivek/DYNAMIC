@@ -50,3 +50,26 @@ test("zero-activity users remain visible and shared totals use grouped unique co
   assert.equal(result.totals.forms_completed, 5);
   assert.deepEqual(result.totals.forms_by_code, { HHQ: 2, WQ: 3 });
 });
+
+
+test("all-time default, legacy date mode and explicit mode validation", () => {
+  const now = new Date("2026-10-21T12:00:00Z");
+  assert.equal(dashboardScope(user, {}, now).period, "all");
+  assert.equal(dashboardScope(user, { date: "2026-10-01" }, now).period, "date");
+  const scope = dashboardScope(user, { period: "all", date: "2026-10-01", user_id: "cw", search: "  RAJ%_  ", form_code: "WQ" }, now);
+  assert.equal(scope.search, "RAJ%_");
+  const queries = dashboardSql(scope);
+  const facts = new PgDialect().sqlToQuery(queries.facts);
+  assert.ok(facts.params.includes("2026-10-21T18:30:00.000Z"), "all time ends after today IST");
+  assert.ok(!facts.params.includes("2026-10-01T00:00:00+05:30"), "all mode ignores stale selected date");
+  assert.match(facts.sql, /strpos\(lower\(u.username\)/, "search is literal substring, not wildcard matching");
+  assert.ok(facts.params.includes("WQ"));
+  const options = new PgDialect().sqlToQuery(queries.staff_options);
+  assert.ok(!options.params.includes("cw"), "worker choices are stable when a worker is selected");
+  assert.ok(!options.params.includes("RAJ%_"));
+  assert.equal(dashboardScope(user, { form_code: "FUTURE_1" }).form_code, "FUTURE_1");
+  for (const period of ["week", [], null]) assert.throws(() => dashboardScope(user, { period }), /INVALID_PERIOD/);
+  for (const user_id of [[], {}, " ", "a".repeat(201), "bad\nuser"]) assert.throws(() => dashboardScope(user, { user_id }), /INVALID_USER/);
+  for (const form_code of ["bad-code", "wrong", [], "WQ' OR true"]) assert.throws(() => dashboardScope(user, { form_code }), /INVALID_FORM/);
+  for (const search of [[], {}, "a".repeat(201)]) assert.throws(() => dashboardScope(user, { search }), /INVALID_SEARCH/);
+});
