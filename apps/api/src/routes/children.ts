@@ -8,6 +8,10 @@ import { appendAreaScopeCondition } from "../lib/areaScope";
 import { canAccessPii, redactFields } from "../lib/dataAccess";
 
 const router = Router();
+const ageMonths = sql<number | null>`case when ${schema.children.birth_date} <= (now() at time zone 'Asia/Kolkata')::date
+  then (extract(year from age((now() at time zone 'Asia/Kolkata')::date, ${schema.children.birth_date})) * 12
+      + extract(month from age((now() at time zone 'Asia/Kolkata')::date, ${schema.children.birth_date})))::integer
+  else null end`;
 
 /**
  * GET /api/v1/children
@@ -63,6 +67,8 @@ router.get("/", requireAuth, async (req: Request, res: Response) => {
     let baseQuery = db
       .select({
         child_id: schema.children.child_id,
+        locality_code: schema.households.locality_code,
+        age_months: ageMonths,
         pregnancy_id: schema.children.pregnancy_id,
         woman_id: schema.children.woman_id,
         household_id: schema.children.household_id,
@@ -118,6 +124,8 @@ router.get("/", requireAuth, async (req: Request, res: Response) => {
       const rows = await db
         .select({
           child_id: schema.children.child_id,
+          locality_code: schema.households.locality_code,
+          age_months: ageMonths,
           pregnancy_id: schema.children.pregnancy_id,
           woman_id: schema.children.woman_id,
           household_id: schema.children.household_id,

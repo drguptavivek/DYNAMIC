@@ -94,3 +94,8 @@
   opacity: 0.4;
   cursor: default;
 }
+.message { padding: 20px; border: 1px solid #d1d5db; border-radius: 6px; background: white; color: #475569; line-height: 1.5; }
+.message p { margin: 0 0 8px; }
+.message p:last-child { margin-bottom: 0; }
+.message[role="alert"] { border-color: #fca5a5; color: #991b1b; }
+.message button { padding: 6px 12px; background: white; border: 1px solid #94a3b8; border-radius: 6px; cursor: pointer; }

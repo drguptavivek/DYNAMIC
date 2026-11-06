@@ -82,7 +82,7 @@ Required admin surfaces:
 | `/eligible-women` | WQ-eligible woman registry. |
 | `/eligible-pregnancy-tracking` | Women promoted into pregnancy tracking. |
 | `/pregnant-women` | Active pregnancy registry. |
-| `/children` | Child registry. |
+| `/children` | Children registered from study pregnancy outcomes; BHQ minors remain in Household Members. Lists child ID, sex, birth date, age, status, locality and mother with scoped access; distinguishes no records from loading errors. |
 | `/masters` | Sites, localities, mapping frame, and study masters. |
 | `/users` | User management and active locality assignment summary. |
 | `/field-worker-household-assignment` | Scoped household selection and staff assignment. |
