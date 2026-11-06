@@ -4,6 +4,7 @@ import { db, schema } from "../db";
 import { requireRole } from "../middleware/auth";
 import { sendError, sendSuccess } from "../lib/errors";
 import { requireDataAccess } from "../lib/dataAccess";
+import { correctMemberSex, MemberSexCorrectionError } from "../services/memberSexCorrection";
 
 const router = Router();
 
@@ -122,7 +123,7 @@ router.post(
  */
 router.post(
   "/members/:id/corrections",
-  requireRole("central_admin", "site_research_scientist"),
+  requireRole("central_admin", "site_data_manager", "site_research_scientist"),
   async (req: Request, res: Response) => {
     try {
       const memberId = req.params.id;
@@ -131,6 +132,15 @@ router.post(
 
       if (!correctedBy) {
         sendError(res, 401, "MISSING_AUTH", "User ID not found in token");
+        return;
+      }
+
+      if (field === "sex") {
+        sendSuccess(res, await correctMemberSex(memberId, correctedBy, req.body), 201);
+        return;
+      }
+      if (req.user?.role === "site_data_manager") {
+        sendError(res, 403, "INSUFFICIENT_PERMISSIONS", "Site Data Managers may only apply the verified Male-to-Female correction");
         return;
       }
 
@@ -222,6 +232,10 @@ router.post(
         201,
       );
     } catch (error) {
+      if (error instanceof MemberSexCorrectionError) {
+        sendError(res, error.status, error.code, error.message);
+        return;
+      }
       console.error("Create member correction error:", error);
       sendError(res, 500, "INTERNAL_ERROR", "An error occurred");
     }

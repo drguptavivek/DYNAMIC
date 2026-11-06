@@ -1,0 +1,11 @@
+.panel { flex-shrink: 0; padding: 16px; border: 1px solid #bfdbfe; border-radius: 7px; background: #f8fbff; max-height: 55vh; overflow: auto; }
+.panel h2 { margin: 0 0 8px; font-size: 1.05rem; }
+.panel p { margin: 6px 0; line-height: 1.5; }
+.panel form { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+.panel textarea { width: 100%; min-height: 70px; box-sizing: border-box; padding: 8px; border: 1px solid #94a3b8; border-radius: 4px; font: inherit; resize: vertical; }
+.confirm { display: flex; align-items: flex-start; gap: 8px; line-height: 1.5; }
+.actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.save { background: #2563eb; color: white; border: 1px solid #2563eb; border-radius: 4px; padding: 8px 14px; cursor: pointer; font: inherit; }
+.save:disabled { opacity: .5; cursor: default; }
+.notice { padding: 12px 16px; background: #dcfce7; border: 1px solid #86efac; border-radius: 5px; color: #166534; line-height: 1.5; flex-shrink: 0; }
+.panel input:focus-visible, .panel textarea:focus-visible, .panel button:focus-visible { outline: 3px solid #93c5fd; outline-offset: 2px; }

@@ -133,6 +133,16 @@ Rules:
 - Corrections that affect future work recalculate future uncompleted tasks.
 - Completed history is preserved.
 
+## Verified Male-To-Female Roster Correction
+
+For an accidental Male entry on a synced BHQ member, Central Admin and own-site Site Data Managers/Research Scientists may apply a verified Male-to-Female correction online with a required reason. This is a narrow exception to the general central-review workflow; it does not grant general member editing or allow the reverse change.
+
+- Validate current stored sex and actor scope on the server; stale or competing edits must not silently overwrite each other.
+- Keep the original BHQ submission unchanged. Append the actor, reason and before/after values to correction history, update the typed member and its sync timestamp, and recalculate the existing BWQ eligibility rule.
+- Only an active eligible resident in an enrolled, active household may receive missing BWQ work. Use existing woman identity, protocol task planning and deduplication. Never reset an existing woman's tracking status, reopen completed/cancelled work, or create PEF/PSF tasks as a side effect.
+- Apply correction, eligibility and task writes together; failure must leave no partial correction. Household allocations and all other members remain unchanged.
+- Existing apps obtain corrected projections and authoritative BWQ tasks on their next normal sync. No device reset or resubmission of BHQ is part of the correction.
+
 ## Form Submission Review
 
 Form Submission Status is separate from the open Issue flag/count.

@@ -158,3 +158,5 @@ Rules:
 Dev seed credentials may exist only for local development. They must not be accepted as production defaults.
 
 Any code path that relies on default secrets, published seed passwords, or unrestricted dev scope must be guarded by explicit dev environment checks.
+
+Verified Male-to-Female roster corrections may be applied by Central Admin or an own-site Site Data Manager/Research Scientist through the audited correction endpoint. This permission applies only to that direction of sex correction with a required reason; it does not expand other correction fields or cross-site access.
