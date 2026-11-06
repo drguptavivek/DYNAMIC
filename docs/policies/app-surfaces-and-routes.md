@@ -92,7 +92,7 @@ Rules:
 - Admin lists are backend-driven.
 - Admin navigation pages use the available content width. Titles, tabs, filters, and actions remain outside the scrolling record/list area; table headings stay visible inside that area. Filter, action, and pagination controls wrap to the available width.
 - Admin household/member displays use field-meaning labels, not sync internals.
-- The member directory offers authorized managers a verified Male-to-Female correction for mistakenly recorded male members in their permitted site. Require a reason and explicit confirmation, show the member/household IDs before saving, retain errors for retry, refresh the corrected row and report whether missing BWQ work was created. Original BHQ evidence, household allocations and completed forms are preserved.
+- The member directory offers authorized managers Correct details for their permitted site. Display server-defined current values and editable fields, require a reason, preview before/after values and task impact, and require verification plus final confirmation. Any edit invalidates the preview; stale saves require a fresh preview. Block conflicting completed histories with a clear review message. Preserve original submissions and allocations, and instruct the assigned worker to sync after success.
 - Admin correction/data-quality actions must follow active correction policy.
 - Masters and users are controlled admin surfaces, not field-app workflows.
 - Household assignment filters and selection controls remain visible while the table scrolls. The table-header checkbox selects/deselects only the current page; the separate site/locality checkbox selects every household in that scope, ignoring range and search. Changing filters clears selection.

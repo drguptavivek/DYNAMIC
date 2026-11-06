@@ -159,4 +159,4 @@ Dev seed credentials may exist only for local development. They must not be acce
 
 Any code path that relies on default secrets, published seed passwords, or unrestricted dev scope must be guarded by explicit dev environment checks.
 
-Verified Male-to-Female roster corrections may be applied by Central Admin or an own-site Site Data Manager/Research Scientist through the audited correction endpoint. This permission applies only to that direction of sex correction with a required reason; it does not expand other correction fields or cross-site access.
+Verified member/BWQ workflow corrections may be previewed and applied by Central Admin or an own-site Site Data Manager/Research Scientist through the configured audited endpoints. Resolve the current active actor and site/area permissions on the server. This does not grant unrestricted correction fields, cross-site access or permission to rewrite completed clinical history.

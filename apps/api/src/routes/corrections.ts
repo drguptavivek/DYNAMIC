@@ -5,8 +5,28 @@ import { requireRole } from "../middleware/auth";
 import { sendError, sendSuccess } from "../lib/errors";
 import { requireDataAccess } from "../lib/dataAccess";
 import { correctMemberSex, MemberSexCorrectionError } from "../services/memberSexCorrection";
+import { getMemberCorrectionContext, previewMemberWorkflowCorrection, applyMemberWorkflowCorrection,
+  MemberWorkflowCorrectionError } from "../services/memberWorkflowCorrection";
 
 const router = Router();
+
+for (const action of ["context", "preview"] as const) {
+  const path = action === "context" ? "/members/:id/correction-context" : "/members/:id/correction-preview";
+  const handler = async (req: Request, res: Response) => {
+    try {
+      if (!req.user?.sub) { sendError(res, 401, "MISSING_AUTH", "User ID not found in token"); return; }
+      sendSuccess(res, action === "context" ? await getMemberCorrectionContext(req.params.id, req.user.sub)
+        : await previewMemberWorkflowCorrection(req.params.id, req.user.sub, req.body));
+    } catch (error) {
+      if (error instanceof MemberWorkflowCorrectionError) { sendError(res, error.status, error.code, error.message); return; }
+      console.error("Member correction review error:", error);
+      sendError(res, 500, "INTERNAL_ERROR", "Could not review the member correction");
+    }
+  };
+  const roles = requireRole("central_admin", "site_data_manager", "site_research_scientist");
+  if (action === "context") router.get(path, roles, handler);
+  else router.post(path, roles, handler);
+}
 
 /**
  * POST /api/v1/households/:id/corrections
@@ -135,6 +155,10 @@ router.post(
         return;
       }
 
+      if (Object.prototype.hasOwnProperty.call(req.body, "changes")) {
+        sendSuccess(res, await applyMemberWorkflowCorrection(memberId, correctedBy, req.body), 201);
+        return;
+      }
       if (field === "sex") {
         sendSuccess(res, await correctMemberSex(memberId, correctedBy, req.body), 201);
         return;
@@ -232,7 +256,7 @@ router.post(
         201,
       );
     } catch (error) {
-      if (error instanceof MemberSexCorrectionError) {
+      if (error instanceof MemberSexCorrectionError || error instanceof MemberWorkflowCorrectionError) {
         sendError(res, error.status, error.code, error.message);
         return;
       }

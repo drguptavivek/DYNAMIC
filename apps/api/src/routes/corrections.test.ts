@@ -29,3 +29,21 @@ test("unsupported and reverse sex changes cannot reach the legacy direct-update 
     }
   }
 });
+
+test("generic changes require preview and strict supported fields before database access", async () => {
+  for (const body of [{ changes: { sex: 2 }, reason: "Verified" },
+    { changes: { name: "Changed" }, reason: "Verified", preview_token: "a".repeat(64) },
+    { changes: { wq_pregnant: 3 }, reason: "Verified", preview_token: "a".repeat(64) }]) {
+    assert.equal((await memberCorrection("site_data_manager", body)).status, 400);
+  }
+});
+
+test("field staff cannot reach correction context or preview", () => {
+  for (const path of ["/members/:id/correction-context", "/members/:id/correction-preview"]) {
+    const route = (router as any).stack.find((entry: any) => entry.route?.path === path).route;
+    let status = 200, next = false;
+    const res: any = { status: (value: number) => { status = value; return res; }, json: () => res };
+    route.stack[0].handle({ user: { role: "field_worker" } }, res, () => { next = true; });
+    assert.equal(status, 403); assert.equal(next, false);
+  }
+});

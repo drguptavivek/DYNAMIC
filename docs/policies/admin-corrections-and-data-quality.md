@@ -133,15 +133,18 @@ Rules:
 - Corrections that affect future work recalculate future uncompleted tasks.
 - Completed history is preserved.
 
-## Verified Male-To-Female Roster Correction
+## Verified Member And BWQ Workflow Corrections
 
-For an accidental Male entry on a synced BHQ member, Central Admin and own-site Site Data Managers/Research Scientists may apply a verified Male-to-Female correction online with a required reason. This is a narrow exception to the general central-review workflow; it does not grant general member editing or allow the reverse change.
+Central Admin and own-site Site Data Managers/Research Scientists may correct verified mistakes in recorded member sex, age at BHQ, marital status at BHQ, and the pregnancy answer of the latest accepted BWQ. This online, audited workflow is an authorized exception to general central approval for those configured fields. It does not grant arbitrary database editing or authority to rewrite completed clinical history.
 
-- Validate current stored sex and actor scope on the server; stale or competing edits must not silently overwrite each other.
-- Keep the original BHQ submission unchanged. Append the actor, reason and before/after values to correction history, update the typed member and its sync timestamp, and recalculate the existing BWQ eligibility rule.
-- Only an active eligible resident in an enrolled, active household may receive missing BWQ work. Use existing woman identity, protocol task planning and deduplication. Never reset an existing woman's tracking status, reopen completed/cancelled work, or create PEF/PSF tasks as a side effect.
-- Apply correction, eligibility and task writes together; failure must leave no partial correction. Household allocations and all other members remain unchanged.
-- Existing apps obtain corrected projections and authoritative BWQ tasks on their next normal sync. No device reset or resubmission of BHQ is part of the correction.
+- The server owns the editable field registry, choice codes and validation. Pregnancy choices retain BWQ codes 1, 2 and 98. Pregnancy correction requires an accepted BWQ source; it corrects that interview, not a newly discovered pregnancy today.
+- Show current values and a no-write preview of before/after values, missing tasks to create and unfinished tasks to withdraw. Require a reason, explicit verification and final confirmation. Recompute under transaction locks and reject a stale preview if evidence, projections, tasks, drafts or the planned impact changed.
+- Preserve raw BHQ/BWQ submissions, completed work, saved drafts, household identities and worker allocations. Correction events retain the actor, reason and source. A BWQ answer override belongs only to its exact accepted source response; it must not silently override a later interview.
+- Recalculate existing study rules, never infer pregnancy from age. An eligible member without an accepted BWQ receives missing BWQ work first. With accepted BWQ evidence, use its completion anchor and the existing shared PSF/PEF planner. BWQ pregnancy detection retains the normal PSF schedule; PEF enrollment follows the existing surveillance cancellation rules.
+- Synchronize typed member/eligible-woman/pregnancy state and create only missing deterministic tasks. Only unfinished work made invalid by the correction may be superseded, with an explicit correction reason. Restore a same-key task only if this correction workflow previously withdrew it; never reopen completed or independently cancelled work.
+- Stop for review when the proposed correction conflicts with later accepted clinical/surveillance work, enrolled or completed pregnancy history, terminal study state or a draft on work that would be withdrawn. Failed persistence must roll back all correction and task writes.
+- Inferred birth dates follow a corrected BHQ age; reported dates of birth are not silently rewritten. Original source answers and ordinary mobile questionnaire/task-generation flows remain unchanged.
+- Existing apps receive corrected typed member data and authoritative tasks on normal sync. Clinical/LMP answer editing and correction-aware clinical prefill are outside this field registry and must be separately implemented before exposing those fields.
 
 ## Form Submission Review
 

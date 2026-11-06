@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth-context";
 import correctionStyles from "./HouseholdMemberCorrection.module.css";
+import MemberCorrectionPanel from "../components/MemberCorrectionPanel";
 import {
   formatHouseholdMemberStatus,
   formatHouseholdRelationship,
@@ -36,13 +37,8 @@ export default function HouseholdMembersPage() {
   const { user } = useAuth();
   const canCorrect = !!user && ["central_admin", "site_data_manager", "site_research_scientist"].includes(user.role);
   const [correcting, setCorrecting] = useState<HouseholdMemberRow | null>(null);
-  const [reason, setReason] = useState("");
-  const [verified, setVerified] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [correctionError, setCorrectionError] = useState("");
   const [notice, setNotice] = useState("");
-  const reasonInput = useRef<HTMLTextAreaElement>(null);
-  useEffect(() => { if (correcting) reasonInput.current?.focus(); }, [correcting]);
   const params = useParams();
   const routeHouseholdId = params.householdId ? decodeURIComponent(params.householdId) : "";
   const [members, setMembers] = useState<HouseholdMemberRow[]>([]);
@@ -86,27 +82,6 @@ export default function HouseholdMembersPage() {
     }
   }
 
-  async function saveCorrection(event: React.FormEvent) {
-    event.preventDefault();
-    if (!correcting || !verified || !reason.trim() || saving) return;
-    setSaving(true);
-    setCorrectionError("");
-    try {
-      const result = await api.post<{ woman_questionnaire_eligible: boolean; bwq_task_created: boolean; bwq_task_exists: boolean }>(
-        `/members/${encodeURIComponent(correcting.household_member_id)}/corrections`,
-        { field: "sex", old_value: 1, new_value: 2, reason: reason.trim() },
-      );
-      setNotice(`Member corrected to Female. ${result.bwq_task_created
-        ? "A BWQ task was created. Ask the assigned field worker to sync the app."
-        : result.bwq_task_exists ? "Existing BWQ work was preserved; no duplicate task was created. Ask the assigned field worker to sync the app."
-        : "No BWQ task was created because the member does not meet the current eligibility or active study conditions."}`);
-      setCorrecting(null);
-      await loadMembers();
-    } catch (err) {
-      setCorrectionError(err instanceof Error ? err.message : "Could not save the correction. Please try again.");
-    } finally { setSaving(false); }
-  }
-
   const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
 
   return (
@@ -114,21 +89,9 @@ export default function HouseholdMembersPage() {
       <h1>{routeHouseholdId ? `Household Members: ${routeHouseholdId}` : "Household Members"}</h1>
       {error && <div className={styles.error}>{error}</div>}
       {notice && <div role="status" className={correctionStyles.notice}>{notice}</div>}
-      {correcting && <section className={correctionStyles.panel} aria-labelledby="member-correction-title">
-        <h2 id="member-correction-title">Correct incorrectly recorded sex</h2>
-        <p><strong>{correcting.name || correcting.household_member_id}</strong> - {correcting.household_member_id}</p>
-        <p>Change <strong>Male to Female</strong>. Normal BWQ eligibility will be checked and only missing BWQ work will be created. The original BHQ submission remains preserved.</p>
-        <form onSubmit={saveCorrection}>
-          <label htmlFor="member-correction-reason">Reason for correction</label>
-          <textarea id="member-correction-reason" ref={reasonInput} value={reason} required maxLength={1000} disabled={saving} onChange={(event) => setReason(event.target.value)} />
-          <label className={correctionStyles.confirm}><input type="checkbox" checked={verified} disabled={saving} onChange={(event) => setVerified(event.target.checked)} />I have verified that this member is Female and was incorrectly recorded as Male.</label>
-          {correctionError && <p role="alert" className={styles.error}>{correctionError}</p>}
-          <div className={correctionStyles.actions}>
-            <button type="button" className={styles.secondaryBtn} disabled={saving} onClick={() => setCorrecting(null)}>Cancel correction</button>
-            <button type="submit" className={correctionStyles.save} disabled={saving || !verified || !reason.trim()}>{saving ? "Saving correction..." : "Confirm correction"}</button>
-          </div>
-        </form>
-      </section>}
+      {correcting && <MemberCorrectionPanel key={correcting.household_member_id} member={correcting}
+        onBusyChange={setSaving} onCancel={() => setCorrecting(null)}
+        onSaved={(message) => { setNotice(message); setCorrecting(null); void loadMembers(); }} />}
 
       <div className={styles.filters}>
         <input
@@ -202,10 +165,10 @@ export default function HouseholdMembersPage() {
                     <td>{formatHouseholdRelationship(member.relationship_to_head, member.name, member.household?.household_head_name)}</td>
                     <td>{member.household?.address || "—"}</td>
                     <td>{formatHouseholdMemberStatus(member, member.household?.household_head_name)}</td>
-                    {canCorrect && <td>{Number(member.sex) === 1 && (user?.role === "central_admin" || member.site_id === user?.site_id) && <button type="button" className={styles.secondaryBtn} aria-label={`Correct sex for ${member.name || "member"} (${member.household_member_id})`} disabled={saving} onClick={() => {
-                      if (!window.confirm(`Are you sure you want to correct ${member.name || "this member"} (${member.household_member_id}) to Female? Continuing opens the verification form. No changes are saved yet.`)) return;
-                      setCorrecting(member); setReason(""); setVerified(false); setCorrectionError(""); setNotice("");
-                    }}>Correct to Female</button>}</td>}
+                    {canCorrect && <td>{(user?.role === "central_admin" || member.site_id === user?.site_id) && <button type="button" className={styles.secondaryBtn} aria-label={`Correct details for ${member.name || "member"} (${member.household_member_id})`} disabled={saving} onClick={() => {
+                      if (!window.confirm(`Are you sure you want to review corrections for ${member.name || "this member"} (${member.household_member_id})? You will preview the changes and task impact before saving.`)) return;
+                      setCorrecting(member); setNotice("");
+                    }}>Correct details</button>}</td>}
                   </tr>
                 ))}
               </tbody>
