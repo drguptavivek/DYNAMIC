@@ -1,8 +1,14 @@
-.panel { flex-shrink: 0; padding: 16px; border: 1px solid #bfdbfe; border-radius: 7px; background: #f8fbff; max-height: 55vh; overflow: auto; }
+.page { min-height: min-content; }
+.page h1 { margin-bottom: 16px; font-size: 1.6rem; }
+.page .memberResults { flex: 1 0 380px; min-height: 380px; }
+.page table { min-width: 1100px; }
+.page table th, .page table td { padding: 10px 12px; }
+.page table td:first-child, .page table td:nth-child(2), .page table button { white-space: nowrap; }
+.panel { flex-shrink: 0; box-sizing: border-box; padding: 12px; margin-bottom: 12px; border: 1px solid #bfdbfe; border-radius: 7px; background: #f8fbff; max-height: min(40vh, 360px); overflow: auto; }
 .panel h2 { margin: 0 0 8px; font-size: 1.05rem; }
 .panel p { margin: 6px 0; line-height: 1.5; }
-.panel form { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
-.panel textarea { width: 100%; min-height: 70px; box-sizing: border-box; padding: 8px; border: 1px solid #94a3b8; border-radius: 4px; font: inherit; resize: vertical; }
+.panel form { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.panel textarea { width: 100%; min-height: 48px; box-sizing: border-box; padding: 8px; border: 1px solid #94a3b8; border-radius: 4px; font: inherit; resize: vertical; }
 .confirm { display: flex; align-items: flex-start; gap: 8px; line-height: 1.5; }
 .actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 .save { background: #2563eb; color: white; border: 1px solid #2563eb; border-radius: 4px; padding: 8px 14px; cursor: pointer; font: inherit; }
@@ -10,7 +16,7 @@
 .notice { padding: 12px 16px; background: #dcfce7; border: 1px solid #86efac; border-radius: 5px; color: #166534; line-height: 1.5; flex-shrink: 0; }
 .panel input:focus-visible, .panel textarea:focus-visible, .panel button:focus-visible { outline: 3px solid #93c5fd; outline-offset: 2px; }
 
-.fieldGrid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
+.fieldGrid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
 .fieldGrid label { display: flex; flex-direction: column; gap: 5px; font-weight: 600; }
 .fieldGrid input, .fieldGrid select { width: 100%; min-width: 0; padding: 8px; font: inherit; border: 1px solid #94a3b8; border-radius: 4px; background: white; }
 .current { font-size: .8rem; font-weight: 400; color: #64748b; }
@@ -20,4 +26,10 @@
 .impact summary { cursor: pointer; }
 .warning { color: #9a3412; line-height: 1.5; }
 .panel > .actions { margin-top: 12px; }
-@media(max-width:600px) { .fieldGrid { grid-template-columns: 1fr; } .panel { max-height: 65vh; } }
+@media(min-width:1600px) { .fieldGrid { grid-template-columns: repeat(4,minmax(0,1fr)); } }
+@media(max-width:768px), (max-height:700px) {
+  .page { height: auto; min-height: 100%; }
+  .page .memberResults { flex: none; height: max(340px, 55vh); min-height: 340px; }
+  .panel { max-height: none; overflow: visible; }
+}
+@media(max-width:600px) { .fieldGrid { grid-template-columns: 1fr; } }

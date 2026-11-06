@@ -85,7 +85,7 @@ export default function HouseholdMembersPage() {
   const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
 
   return (
-    <div className={styles.container}>
+    <div className={`${styles.container} ${correctionStyles.page}`}>
       <h1>{routeHouseholdId ? `Household Members: ${routeHouseholdId}` : "Household Members"}</h1>
       {error && <div className={styles.error}>{error}</div>}
       {notice && <div role="status" className={correctionStyles.notice}>{notice}</div>}
@@ -113,7 +113,7 @@ export default function HouseholdMembersPage() {
       ) : members.length === 0 ? (
         <div className={styles.empty}>No household members found</div>
       ) : (
-        <div className={styles.results}>
+        <div className={`${styles.results} ${correctionStyles.memberResults}`}>
           <div className={styles.pagination}>
             <span>
               {`Showing ${(page - 1) * PER_PAGE + 1}-${Math.min(page * PER_PAGE, total)} of ${total}`}
