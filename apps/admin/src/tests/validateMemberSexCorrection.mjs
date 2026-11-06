@@ -4,6 +4,8 @@ import { readFileSync, writeFileSync } from 'node:fs';
 let user={user_id:'manager',role:'site_data_manager',site_id:2};
 const initial=[{household_member_id:'2-39-0001-01-02',household_id:'2-39-0001-01',member_number:2,name:'Example Member',sex:1,site_id:2,reported_age_years:28,marital_status:1,member_status:'active'}, {household_member_id:'2-39-0001-01-03',household_id:'2-39-0001-01',member_number:3,name:'Already Female',sex:2,site_id:2}, {household_member_id:'4-04-0001-01-01',household_id:'4-04-0001-01',member_number:1,name:'Outside site',sex:1,site_id:4}];
 let members=structuredClone(initial), posts=[], pendingPost, postError;
+let confirmAnswer=true, confirmationPrompts=[];
+globalThis.window={confirm:prompt=>{confirmationPrompts.push(prompt);return confirmAnswer;}};
 let slots=[], cursor=0, dirty=true, effects=[],tree;
 const same=(a,b)=>a&&b&&a.length===b.length&&a.every((v,i)=>Object.is(v,b[i]));
 globalThis.memberCorrectionHarness={
@@ -27,7 +29,15 @@ const button=label=>{const n=buttons(label)[0];assert.ok(n,`Missing ${label}`);r
 function open(){button('Correct to Female').props.onClick();}
 function complete(){nodes().find(n=>n.type==='textarea').props.onChange({target:{value:'  Verified incorrect sex entry with field supervisor.  '}});nodes().find(n=>n.type==='input'&&n.props.type==='checkbox').props.onChange({target:{checked:true}});}
 await settle();assert.equal(buttons('Correct to Female').length,1,'only male member inside own site offers correction');
+confirmAnswer=false;const beforeCancel=slots.slice();open();await settle();
+assert.deepEqual(slots,beforeCancel,'declining opening confirmation leaves all state unchanged');
+assert.ok(!nodes().some(n=>n.type==='form'),'Cancel does not open verification form');
+assert.equal(posts.length,0,'opening confirmation never submits a correction');
+assert.match(confirmationPrompts[0],/Are you sure/);assert.ok(confirmationPrompts[0].includes(initial[0].name));assert.ok(confirmationPrompts[0].includes(initial[0].household_member_id));
+assert.match(confirmationPrompts[0],/opens the verification form/);assert.match(confirmationPrompts[0],/No changes are saved yet/);
+confirmAnswer=true;
 open();await settle();assert.equal(button('Confirm correction').props.disabled,true);
+assert.equal(posts.length,0,'OK opens verification form without saving');
 if(process.env.MEMBER_CORRECTION_PREVIEW) {
  const escape=value=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;');
  function html(n){if(Array.isArray(n))return n.map(html).join('');if(!n||typeof n!=='object')return n==null||typeof n==='boolean'?'':escape(n);if(n.type==='fragment')return html(n.props.children);const attrs=Object.entries(n.props).filter(([k,v])=>!['children','ref'].includes(k)&&!k.startsWith('on')&&v!=null&&v!==false).map(([k,v])=>` ${k==='className'?'class':k}="${escape(v)}"`).join('');return `<${n.type}${attrs}>${html(n.props.children)}</${n.type}>`;}
@@ -36,6 +46,9 @@ if(process.env.MEMBER_CORRECTION_PREVIEW) {
 }
 let form=nodes().find(n=>n.type==='form');await form.props.onSubmit({preventDefault(){}});assert.equal(posts.length,0,'empty reason/confirmation must not submit');
 complete();await settle();assert.equal(button('Confirm correction').props.disabled,false);
+confirmAnswer=false;const beforeRepeatedCancel=slots.slice();open();await settle();
+assert.deepEqual(slots,beforeRepeatedCancel,'Cancel preserves existing member selection, reason, verification and notices');
+assert.equal(posts.length,0);confirmAnswer=true;
 button('Cancel correction').props.onClick();await settle();assert.equal(posts.length,0);assert.ok(!nodes().some(n=>n.type==='form'));
 open();await settle();complete();await settle();postError='Stale sex value; reload this member';
 await nodes().find(n=>n.type==='form').props.onSubmit({preventDefault(){}});await settle();assert.ok(text().includes(postError));assert.ok(nodes().some(n=>n.type==='form'),'failed request retains correction and reason');
@@ -46,4 +59,4 @@ assert.equal(posts.length,1);assert.deepEqual(posts[0],{path:'/members/2-39-0001
 assert.ok(text().includes('A BWQ task was created. Ask the assigned field worker to sync the app.'));
 assert.ok(!nodes().some(n=>n.type==='form'));assert.equal(buttons('Correct to Female').length,0,'saved member refreshes as female');
 for(const slot of slots)slot?.cleanup?.();slots=[];effects=[];dirty=true;members=structuredClone(initial);user={user_id:'observer',role:'site_investigator',site_id:2};await settle();assert.equal(buttons('Correct to Female').length,0,'read-only roles have no correction action');
-console.log('Member sex correction UI: own-site male action, verified reason, cancellation, error retry, saving state, exact payload, refresh, and role restrictions passed.');
+console.log('Member sex correction UI: member-specific opening confirmation Cancel/OK, own-site male action, verified reason, cancellation, error retry, saving state, exact payload, refresh, and role restrictions passed.');

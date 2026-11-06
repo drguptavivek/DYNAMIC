@@ -202,7 +202,10 @@ export default function HouseholdMembersPage() {
                     <td>{formatHouseholdRelationship(member.relationship_to_head, member.name, member.household?.household_head_name)}</td>
                     <td>{member.household?.address || "—"}</td>
                     <td>{formatHouseholdMemberStatus(member, member.household?.household_head_name)}</td>
-                    {canCorrect && <td>{Number(member.sex) === 1 && (user?.role === "central_admin" || member.site_id === user?.site_id) && <button type="button" className={styles.secondaryBtn} aria-label={`Correct sex for ${member.name || "member"} (${member.household_member_id})`} disabled={saving} onClick={() => { setCorrecting(member); setReason(""); setVerified(false); setCorrectionError(""); setNotice(""); }}>Correct to Female</button>}</td>}
+                    {canCorrect && <td>{Number(member.sex) === 1 && (user?.role === "central_admin" || member.site_id === user?.site_id) && <button type="button" className={styles.secondaryBtn} aria-label={`Correct sex for ${member.name || "member"} (${member.household_member_id})`} disabled={saving} onClick={() => {
+                      if (!window.confirm(`Are you sure you want to correct ${member.name || "this member"} (${member.household_member_id}) to Female? Continuing opens the verification form. No changes are saved yet.`)) return;
+                      setCorrecting(member); setReason(""); setVerified(false); setCorrectionError(""); setNotice("");
+                    }}>Correct to Female</button>}</td>}
                   </tr>
                 ))}
               </tbody>
