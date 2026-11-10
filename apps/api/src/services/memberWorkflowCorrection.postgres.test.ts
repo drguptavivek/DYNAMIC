@@ -26,7 +26,7 @@ test("generic corrections use locked real transactions, preserve evidence and re
     const structure = String(++sequence), household = `2-39-${structure}-01`, id = `${household}-01`;
     householdIds.push(household); memberIds.push(id);
     await database.insert(schema.households).values({ household_id: household, site_id: 2, locality_code: "39", structure_map_id: structure,
-      household_number: "01", baseline_completed_date: "2026-11-01", baseline_enrollment_status: "enrolled", cohort_status: "active" });
+      household_number: "01", baseline_completed_date: "2026-11-01", baseline_enrollment_status: "enrolled", cohort_status: "listed" });
     await database.insert(schema.householdMembers).values({ household_member_id: id, household_id: household, member_number: 1, site_id: 2,
       locality_code: "39", name: "Synthetic member", sex: 1, reported_age_years: 28, marital_status: 1, usual_resident: true,
       member_status: "active", date_of_birth: "1998-01-01", date_of_birth_precision: "inferred_from_age", reported_age_as_of_date: "2026-11-01", ...overrides });

@@ -42,6 +42,29 @@ test("male-to-female creates only canonical BWQ, eligibility boundaries do not b
   assert.equal(planMemberWorkflowCorrection(c, input({ sex: 2 })).tasks_to_create.length, 0);
 });
 
+test("age 17-to-19 creates BWQ for enrolled imported households without bypassing inactive-state guards", () => {
+  for (const cohort_status of [null, "active", "listed", "enrolled"]) {
+    const c = context();
+    Object.assign(c.household, { cohort_status });
+    Object.assign(c.member, { sex: 2, reported_age_years: 17, date_of_birth: "2009-01-01" });
+    Object.assign(c.current, { sex: 2, reported_age_years: 17 });
+    const plan = planMemberWorkflowCorrection(c, input({ reported_age_years: 19 }));
+    assert.equal(plan.can_apply, true, String(cohort_status));
+    assert.deepEqual(plan.tasks_to_create.map(task => task.form_code), ["WQ"]);
+  }
+  for (const patch of [{ cohort_status: "excluded" }, { cohort_status: "closed" }, { cohort_status: "unknown" },
+    { baseline_enrollment_status: "pending" }, { closed_reason: "withdrawn" }]) {
+    const c = context(); Object.assign(c.household, { cohort_status: "listed", ...patch });
+    Object.assign(c.member, { sex: 2, reported_age_years: 17, date_of_birth: "2009-01-01" });
+    Object.assign(c.current, { sex: 2, reported_age_years: 17 });
+    assert.equal(planMemberWorkflowCorrection(c, input({ reported_age_years: 19 })).can_apply, false);
+  }
+  for (const patch of [{ member_status: "deceased" }, { usual_resident: false }]) {
+    const c = context(); c.household.cohort_status = "listed"; Object.assign(c.member, patch);
+    assert.equal(planMemberWorkflowCorrection(c, input({ sex: 2 })).can_apply, false);
+  }
+});
+
 test("an existing/completed BWQ never duplicates; own admin-withdrawn baseline can be restored", () => {
   const c = context(), first = planMemberWorkflowCorrection(c, input({ sex: 2 }));
   c.tasks = [{ ...first.descriptors[0], task_id: "baseline", status: "completed" }];

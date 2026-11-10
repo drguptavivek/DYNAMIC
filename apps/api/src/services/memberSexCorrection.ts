@@ -82,7 +82,7 @@ export async function correctMemberSex(memberId: string, actorId: string, input:
     let taskCreated = false;
     const canReceiveWork = eligible && member.member_status === "active" && member.usual_resident === true &&
       household.baseline_enrollment_status === "enrolled" && !household.closed_reason &&
-      (household.cohort_status === null || household.cohort_status === "active") &&
+      (household.cohort_status === null || ["active", "listed", "enrolled"].includes(household.cohort_status)) &&
       (!woman || (woman.wq_status === "pending" && woman.tracking_status === "not_tracked" && woman.current_eligibility_status === "eligible"));
     if (canReceiveWork && !existingTask && !existingResponse) {
       const anchor = woman?.eligibility_start_date ?? household.baseline_completed_date ?? now.toISOString().slice(0, 10);

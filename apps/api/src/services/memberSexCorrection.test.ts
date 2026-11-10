@@ -115,9 +115,18 @@ test("inactive residents and excluded or closed households receive no baseline w
     assert.equal((await f.correct()).bwq_task_created, false);
     assert.equal(f.rows.get(schema.eligibleWomen)!.length, 0);
   }
-  for (const patch of [{ baseline_enrollment_status: "pending" }, { cohort_status: "excluded" }, { closed_reason: "withdrawn" }]) {
+  for (const patch of [{ baseline_enrollment_status: "pending" }, { cohort_status: "excluded" }, { cohort_status: "closed" },
+    { cohort_status: "unknown" }, { closed_reason: "withdrawn" }]) {
     const f = fixture(); Object.assign(f.household, patch);
     assert.equal((await f.correct()).bwq_task_created, false);
+  }
+});
+
+test("legacy sex correction supports enrolled imported and seeded household cohort states", async () => {
+  for (const cohort_status of [null, "active", "listed", "enrolled"]) {
+    const f = fixture(); Object.assign(f.household, { cohort_status });
+    assert.equal((await f.correct()).bwq_task_created, true, String(cohort_status));
+    assert.equal(f.rows.get(schema.followUpTasks)!.length, 1);
   }
 });
 

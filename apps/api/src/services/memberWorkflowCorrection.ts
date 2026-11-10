@@ -136,7 +136,7 @@ export function planMemberWorkflowCorrection(context: Context, input: ReturnType
     }
   }
   if (context.member.member_status !== "active" || !context.member.usual_resident || context.household.baseline_enrollment_status !== "enrolled" ||
-    context.household.closed_reason || (context.household.cohort_status && context.household.cohort_status !== "active") ||
+    context.household.closed_reason || (context.household.cohort_status !== null && !["active", "listed", "enrolled"].includes(context.household.cohort_status)) ||
     context.woman?.tracking_status === "terminated" || ["deceased", "excluded"].includes(context.woman?.current_eligibility_status ?? "")) {
     warnings.push("This member or household is inactive, excluded or closed. Review is required before correcting its workflow.");
   }
