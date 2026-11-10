@@ -40,7 +40,7 @@ interface Household {
   site_id: number;
   locality_code: string;
   household_number: string;
-  bhq_status?: "completed" | "draft" | "pending";
+  bhq_status?: "completed" | "draft" | "pending" | "excluded";
   assigned_user_ids?: string[];
   assigned_field_worker_names?: string[];
   assigned_field_worker_usernames?: string[];
@@ -718,7 +718,7 @@ export default function FieldWorkerHouseholdAssignmentPage() {
                   ? ` from ${visibleHouseholds.length}`
                   : ""}
               </p>
-              <p className={styles.statusLegend}>Green: completed BHQ synced · Yellow: backed-up BHQ draft</p>
+              <p className={styles.statusLegend}>Green: completed BHQ synced · Yellow: backed-up BHQ draft · Rose: excluded household</p>
             </div>
             <div className={styles.tableSearchBar}>
               <input
@@ -811,7 +811,7 @@ export default function FieldWorkerHouseholdAssignmentPage() {
                     const isOpen = openWorkerMenuFor === household.household_id;
                     return (
                       <tr key={household.household_id} data-household-id={household.household_id}
-                        className={household.bhq_status === "completed" ? styles.completedRow : household.bhq_status === "draft" ? styles.draftRow : undefined}>
+                        className={household.bhq_status === "excluded" ? styles.excludedRow : household.bhq_status === "completed" ? styles.completedRow : household.bhq_status === "draft" ? styles.draftRow : undefined}>
                         <td>
                           <input
                             type="checkbox"
@@ -903,7 +903,8 @@ export default function FieldWorkerHouseholdAssignmentPage() {
                           </div>
                         </td>
                         <td>{household.household_id}
-                          {household.bhq_status === "completed" ? <span className={styles.householdStatus}>Completed</span>
+                          {household.bhq_status === "excluded" ? <span className={styles.householdStatus}>Excluded</span>
+                            : household.bhq_status === "completed" ? <span className={styles.householdStatus}>Completed</span>
                             : household.bhq_status === "draft" ? <span className={styles.householdStatus}>Draft</span> : null}
                         </td>
                         <td>

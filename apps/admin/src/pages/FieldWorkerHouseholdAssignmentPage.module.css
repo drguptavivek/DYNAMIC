@@ -271,6 +271,14 @@
   background: #dcfce7;
 }
 
+.assignmentTable .excludedRow > td {
+  background: #ffe4e6;
+}
+
+.assignmentTable .excludedRow .householdStatus {
+  color: #9f1239;
+}
+
 .assignmentTable .draftRow > td {
   background: #fef3c7;
 }

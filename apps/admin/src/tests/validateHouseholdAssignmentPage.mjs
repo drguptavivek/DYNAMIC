@@ -6,7 +6,7 @@ import { parseHouseholdAssignmentRange, isHouseholdInAssignmentRange } from '../
 const households = Array.from({ length: 1205 }, (_, index) => ({
   household_id: `2-02-0010-${String(index + 1).padStart(2, '0')}`,
   site_id: 2, locality_code: '02', household_number: String(index + 1),
-  bhq_status: index === 9 ? 'completed' : index === 10 ? 'draft' : 'pending',
+  bhq_status: index === 9 ? 'completed' : index === 10 ? 'draft' : index === 12 ? 'excluded' : 'pending',
 })).concat([
   { household_id: '2-02-0011-15', site_id: 2, locality_code: '02', household_number: '15' },
   { household_id: '2-11-0010-15', site_id: 2, locality_code: '11', household_number: '15' },
@@ -184,13 +184,19 @@ assert.ok(text(rows()[0]).includes('Completed'));
 assert.equal(rows()[1].props.className, 'draftRow');
 assert.ok(text(rows()[1]).includes('Draft'));
 assert.equal(rows()[2].props.className, undefined, 'Pending rows retain their ordinary appearance');
+assert.equal(rows()[3].props.className, 'excludedRow');
+assert.ok(text(rows()[3]).includes('Excluded'));
+assert.ok(text(tree).includes('Rose: excluded household'));
 await check('Select visible households', true);
 assert.equal(selectedRows().length, 11);
 assert.equal(timers.size, 1, 'One visible-page status timer is active');
 households[10].bhq_status = 'completed';
+households[11].bhq_status = 'excluded';
 const readsBeforeStatus = requests.length;
 await [...timers.values()][0](); await settle();
 assert.equal(rows()[1].props.className, 'completedRow', 'A newly synced BHQ automatically turns green');
+assert.equal(rows()[2].props.className, 'excludedRow', 'A newly synced exclusion automatically turns rose');
+assert.ok(text(rows()[2]).includes('Excluded'));
 assert.equal(selectedRows().length, 11, 'Status refresh retains selected households');
 assert.equal(labelled('Household range start').props.value, '2-02-0010-10');
 assert.equal(labelled('Household range end').props.value, '2-02-0010-20');
@@ -524,4 +530,4 @@ console.log('Site-manager allocation navigation, own-site/active-locality scope,
 slots.forEach(slot => slot?.cleanup?.());
 globalThis.setInterval = originalSetInterval;
 globalThis.clearInterval = originalClearInterval;
-console.log('Completed/draft household colours and automatic status refresh preserve range and selections; hidden pages do not poll.');
+console.log('Completed/draft/excluded household colours and automatic status refresh preserve range and selections; hidden pages do not poll.');
