@@ -11,6 +11,18 @@ import { FORM_EXPORT_MASK, maskFormExportValue } from "../lib/formExportPrivacy"
 
 const router = Router();
 
+export function exportDateCondition(value: unknown) {
+  if (value === undefined) return undefined;
+  if (typeof value !== "string" || !/^(?!0000)\d{4}-\d{2}-\d{2}$/.test(value) ||
+    !Number.isFinite(Date.parse(value)) || new Date(value).toISOString().slice(0, 10) !== value) {
+    throw new Error("INVALID_EXPORT_DATE");
+  }
+  const start = new Date(`${value}T00:00:00+05:30`).toISOString();
+  const finish = new Date(Date.parse(start) + 86400000).toISOString();
+  const submittedAt = sql`coalesce(${schema.formResponses.created_offline_at},${schema.formResponses.synced_at},${schema.formResponses.created_at})`;
+  return sql`${submittedAt} >= ${start}::timestamptz and ${submittedAt} < ${finish}::timestamptz`;
+}
+
 type ExportField = { key: string; choices: Map<string, string>; definition: Record<string, unknown> };
 const HOUSEHOLD_MEMBERS = "hhq_household_members";
 
@@ -170,6 +182,12 @@ router.get("/export", requireDataAccess("can_access_raw_crfs"), async (req: Requ
       sendError(res, 400, "INVALID_EXPORT_MODE", "Select a valid export type and value format; member export is available only for BHQ");
       return;
     }
+    let dateCondition;
+    try { dateCondition = exportDateCondition(req.query.date); }
+    catch {
+      sendError(res, 400, "INVALID_EXPORT_DATE", "Select a valid submission date in YYYY-MM-DD format");
+      return;
+    }
     const profile = await getRequestDataAccessProfile(req);
     const capability = privacy === "non_pis" ? "can_access_deidentified_exports" : "can_access_pii";
     if (!profile[capability]) {
@@ -178,6 +196,7 @@ router.get("/export", requireDataAccess("can_access_raw_crfs"), async (req: Requ
     }
     const conditions: any[] = [eq(schema.formResponses.form_code, formCode)];
     if (typeof req.query.submitted_by_user_id === "string") conditions.push(eq(schema.formResponses.submitted_by_user_id, req.query.submitted_by_user_id.trim()));
+    if (dateCondition) conditions.push(dateCondition);
     await appendAreaScopeCondition(req.user!, schema.formResponses, conditions);
     const [responses, formJson] = await Promise.all([
       db.select().from(schema.formResponses).where(and(...conditions)).orderBy(desc(schema.formResponses.created_at)),

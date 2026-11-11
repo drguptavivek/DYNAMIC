@@ -10,6 +10,7 @@ const catalog = [
   { form_code: 'HHQ', title: 'Household questionnaire', version: 'test' },
   { form_code: 'WQ', title: 'Woman questionnaire', version: 'test' },
   { form_code: 'PEF', title: 'Pregnancy enrollment', version: 'test' },
+  ...['HRF', 'UF', 'PFF', 'POF', 'BAF', 'SBF', 'NFF', 'CDF', 'PSF'].map(form_code => ({ form_code, title: form_code, version: 'test' })),
 ];
 const sameDeps = (a, b) => a && b && a.length === b.length && a.every((value, i) => Object.is(value, b[i]));
 globalThis.exportHarness = {
@@ -90,6 +91,7 @@ async function finish(expectedPath, expectedFilename) {
 render();
 assert(selects().every(node => node.props.disabled));
 assert.equal(selects()[1].props.value, 'coded', 'Raw codes remain the default');
+assert.equal(selects()[4].props.value, 'all', 'All data remains the default export period');
 assert.equal(buttons().length, 1); assert(buttons()[0].props.disabled);
 catalogResolve({ forms: catalog }); await settle();
 assert.deepEqual(buttons().map(text), ['BHQ', 'BHQ Members']);
@@ -172,7 +174,34 @@ assert(!button('Export CSV').props.disabled, 'Explicit All users remains availab
 button('Export CSV').props.onClick(); render();
 await finish('/form-responses/export?form_code=WQ', 'wq-form-responses.csv');
 
+deferSubmitters = false;
+await chooseForm('HHQ'); chooseFormat('labels'); choosePrivacy('non_pis'); chooseSubmitter('worker/1');
+const choosePeriod = value => { selects()[4].props.onChange({ target: { value } }); render(); };
+const changeDate = value => { nodes(tree).find(node => node.type === 'input' && node.props.type === 'date').props.onChange({ target: { value } }); render(); };
+choosePeriod('date');
+assert(buttons().every(node => node.props.disabled), 'A date must be selected before exporting');
+const beforeMissingDate = requests.length; button('BHQ').props.onClick(); assert.equal(requests.length, beforeMissingDate);
+changeDate('2026-02-30'); assert(button('BHQ').props.disabled, 'Impossible calendar dates cannot export');
+changeDate('2026-11-10');
+button('BHQ').props.onClick(); render();
+assert(nodes(tree).find(node => node.type === 'input' && node.props.type === 'date').props.disabled);
+changeDate('2026-11-11');
+await finish('/form-responses/export?form_code=HHQ&value_format=labels&privacy=non_pis&submitted_by_user_id=worker%2F1&date=2026-11-10', 'bhq-form-responses-non-pis-uncoded-2026-11-10.csv');
+button('BHQ Members').props.onClick(); render();
+await finish('/form-responses/export?form_code=HHQ&export_type=members&value_format=labels&privacy=non_pis&submitted_by_user_id=worker%2F1&date=2026-11-11', 'bhq-members-non-pis-uncoded-2026-11-11.csv');
+choosePeriod('all');
+assert(!nodes(tree).some(node => node.type === 'input' && node.props.type === 'date'));
+button('BHQ').props.onClick(); render();
+await finish('/form-responses/export?form_code=HHQ&value_format=labels&privacy=non_pis&submitted_by_user_id=worker%2F1', 'bhq-form-responses-non-pis-uncoded.csv');
+choosePeriod('date'); chooseFormat('coded'); choosePrivacy('pis');
+for (const form of catalog) {
+  await chooseForm(form.form_code);
+  button(form.form_code === 'HHQ' ? 'BHQ' : 'Export CSV').props.onClick(); render();
+  const filename = form.form_code === 'HHQ' ? 'bhq-form-responses' : `${form.form_code.toLowerCase()}-form-responses`;
+  await finish(`/form-responses/export?form_code=${form.form_code}&date=2026-11-11`, `${filename}-2026-11-11.csv`);
+}
+
 slots.length = 0; dirty = true; render();
 catalogReject(new Error('Forms unavailable')); await settle();
 assert(text(tree).includes('Forms unavailable')); assert(buttons()[0].props.disabled);
-console.log('Form export UI supports BHQ/member downloads, coded/uncoded and privacy formats, scoped submitters, async races, captured filenames, concurrency and errors.');
+console.log('Form export UI supports all/date-wise downloads across 12 forms, BHQ members, date validation, coded/uncoded and privacy formats, scoped submitters, async races, captured filenames, concurrency and errors.');

@@ -141,7 +141,7 @@ test("BHQ roster split, coded/labelled data, submitter filters and privacy prese
   ];
   let formJson: any = { pages: [{ elements: fields }] };
   const responses: any[] = [
-    { form_response_id: "response-a", household_id: "2-10-0001A-01", submitted_by_user_id: "worker-a", site_id: 2, device_id: "phone-a", answers_json: {
+    { form_response_id: "response-a", household_id: "2-10-0001A-01", submitted_by_user_id: "worker-a", site_id: 2, device_id: "phone-a", created_offline_at: "2026-11-10T18:30:00.000Z", synced_at: "2026-11-12T00:00:00.000Z", answers_json: {
       status: 1, many: ["A", "B", "unknown"], birth_date: { month: "98", year: 9998 }, history: [{ outcome: 1, note: "unchanged" }],
       hhq_household_head_name: "Private Head", hhq_household_address: "Private address", hhq_gps_latitude: 0, hhq_gps_longitude: 77.3,
       hhq_contact_mobile_numbers: [{ mobile_number: "9876543210" }],
@@ -150,18 +150,18 @@ test("BHQ roster split, coded/labelled data, submitter filters and privacy prese
         { member_name: "Second woman", member_individual_id: "2-10-0001A-01-02", member_sex: 77, member_marital_status: null, member_residence_duration: { years: "05", months: "00" } },
       ],
     } },
-    { form_response_id: "empty-roster", household_id: "2-10-0002-01", submitted_by_user_id: "worker-b", site_id: 2, answers_json: { status: 2, hhq_household_members: [] } },
-    { form_response_id: "legacy", household_id: "2-10-0003-01", site_id: 2, answers_json: { status: 999 } },
+    { form_response_id: "empty-roster", household_id: "2-10-0002-01", submitted_by_user_id: "worker-b", site_id: 2, created_at: "2026-11-10T18:29:59.999Z", answers_json: { status: 2, hhq_household_members: [] } },
+    { form_response_id: "legacy", household_id: "2-10-0003-01", site_id: 2, synced_at: "2026-11-11T04:00:00.000Z", answers_json: { status: 999 } },
     { form_response_id: "outside-scope", household_id: "3-10-0001-01", submitted_by_user_id: "worker-other", site_id: 3, answers_json: { hhq_household_members: [{ member_name: "Secret outside site" }] } },
   ];
   const evidence = JSON.stringify(responses);
   let canPii = true, canDeidentified = true, reads = 0;
-  const tables = { formResponses: { form_code: "form_code", submitted_by_user_id: "submitted_by_user_id", created_at: "created_at" }, users: { user_id: "user_id" }, studySites: {}, studyLocalities: {} };
+  const tables = { formResponses: { form_code: "form_code", submitted_by_user_id: "submitted_by_user_id", created_at: "created_at", created_offline_at: "created_offline_at", synced_at: "synced_at" }, users: { user_id: "user_id" }, studySites: {}, studyLocalities: {} };
   let visibleSites: (number | null)[] = [2];
   const submitters = [{ user_id: "worker-a", username: "staff-a", display_name: "Worker A" }, { user_id: "worker-b", username: "staff-b", display_name: "Worker B" }, { user_id: "worker-other", username: "other", display_name: "Other site" }];
   const modules: Record<string, unknown> = {
     express: { Router: require("express").Router },
-    "drizzle-orm": { eq: (field: string, value: unknown) => ({ field, value }), and: (...conditions: unknown[]) => conditions, desc: (field: string) => field, inArray: (field: string, values: unknown[]) => ({ field, values }) },
+    "drizzle-orm": { sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({ sql: strings.join("?"), values }), eq: (field: string, value: unknown) => ({ field, value }), and: (...conditions: unknown[]) => conditions, desc: (field: string) => field, inArray: (field: string, values: unknown[]) => ({ field, values }) },
     "../db": { schema: tables, db: { select() { return { from(table: unknown) {
       if (table === tables.studySites) return Promise.resolve([{ site_id: 1, site_name: "Bareilly" }, { site_id: 2, site_name: "Ballabhgarh" }]);
       if (table === tables.studyLocalities) return Promise.resolve([{ site_id: 1, locality_code: "01", locality_name: "Bareilly locality" }, { site_id: 2, locality_code: "01", locality_name: "Ballabhgarh locality" }]);
@@ -171,7 +171,7 @@ test("BHQ roster split, coded/labelled data, submitter filters and privacy prese
       assert.equal(table, tables.formResponses);
       assert.ok(conditions.some((condition: any) => condition.site_id === 2), "Every export query must carry server area scope");
       assert.equal(conditions[0].value, formCode);
-      const rows = responses.filter((response) => visibleSites.includes(response.site_id) && conditions.every((condition: any) => condition.field !== "submitted_by_user_id" || response.submitted_by_user_id === condition.value));
+      const rows = responses.filter((response) => visibleSites.includes(response.site_id) && conditions.every((condition: any) => condition.sql ? (() => { const time = response.created_offline_at ?? response.synced_at ?? response.created_at; return time && time >= condition.values[1] && time < condition.values[3]; })() : condition.field !== "submitted_by_user_id" || response.submitted_by_user_id === condition.value));
       return { orderBy: async () => rows, then: (resolve: any, reject: any) => Promise.resolve(rows).then(resolve, reject) };
     } }; } }; } } },
     "../lib/errors": { sendError: (res: any, status: number, code: string, message: string) => res.status(status).json({ code, message }), sendSuccess: (res: any, data: unknown) => res.status(200).json({ data }) },
@@ -195,6 +195,12 @@ test("BHQ roster split, coded/labelled data, submitter filters and privacy prese
   }
   const normal = await download();
   assert.equal(normal.status, 200); assert.equal(normal.rows.length, 3);
+  const dated = await download({ date: "2026-11-11" });
+  assert.equal(dated.rows.length, 2, "Offline submission date wins over a later upload; historical fallbacks remain eligible");
+  const datedMembers = await download({ date: "2026-11-11", export_type: "members", submitted_by_user_id: "worker-a" });
+  assert.equal(datedMembers.rows.length, 2, "BHQ member export filters the source BHQ and retains each of its members");
+  assert.ok(datedMembers.rows.every((row: string[]) => row[datedMembers.names.indexOf("household_id")] === "2-10-0001A-01"));
+  assert.equal((await download({ date: "2026-11-11", submitted_by_user_id: "worker-b" })).rows.length, 0, "Date and submitter filters intersect");
   assert.equal(normal.rows[0][normal.names.indexOf("hhq_household_members")], 'Asha, "Devi"\nsecond line, Second woman');
   assert.ok(!normal.names.includes("member_sex")); assert.ok(!normal.names.includes("member_name"));
   assert.equal(normal.rows[0][normal.names.indexOf("hhq_gps_latitude")], "0");
@@ -274,11 +280,12 @@ test("BHQ roster split, coded/labelled data, submitter filters and privacy prese
   assert.equal((await download({ privacy: "non_pis" })).status, 403);
   canPii = canDeidentified = true;
   const beforeInvalid = reads;
-  for (const query of [{ export_type: "invalid" }, { value_format: "invalid" }, { privacy: "invalid" }, { submitted_by_user_id: [] }]) assert.equal((await download(query)).status, 400);
+  for (const query of [{ export_type: "invalid" }, { value_format: "invalid" }, { privacy: "invalid" }, { submitted_by_user_id: [] }, { date: [] }, { date: "2026-02-30" }, { date: "" }, { date: null }]) assert.equal((await download(query)).status, 400);
   assert.equal(reads, beforeInvalid, "Invalid modes must fail before response reads");
   for (const code of ["WQ", "HRF", "PEF", "UF", "PFF", "POF", "BAF", "SBF", "NFF", "CDF", "PSF"]) {
     formCode = code;
     const coded = await download();
+    assert.equal((await download({ date: "2026-11-11", value_format: "labels", privacy: "non_pis" })).rows.length, 2, `${code}: date filtering composes with labels and masking`);
     assert.equal((await download({ value_format: "coded", privacy: "pis" })).body, coded.body, `${code}: defaults preserve coded output`);
     const decoded = await download({ value_format: "labels" });
     assert.deepEqual(decoded.names, coded.names, `${code}: choice labels do not change columns`);

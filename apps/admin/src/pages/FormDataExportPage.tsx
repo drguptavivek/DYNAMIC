@@ -10,6 +10,8 @@ export default function FormDataExportPage() {
   const [valueFormat, setValueFormat] = useState<"coded" | "labels">("coded");
   const [privacy, setPrivacy] = useState<"pis" | "non_pis">("pis");
   const [submitterId, setSubmitterId] = useState("");
+  const [period, setPeriod] = useState<"all" | "date">("all");
+  const [exportDate, setExportDate] = useState("");
   const [submitters, setSubmitters] = useState<{ formCode: string; users: ExportSubmitter[]; loading: boolean; error: string }>({ formCode: "", users: [], loading: false, error: "" });
   const submittersRequest = useRef(0);
   const [loading, setLoading] = useState(true);
@@ -40,26 +42,28 @@ export default function FormDataExportPage() {
 
   const submittersReady = submitters.formCode === formCode && !submitters.loading;
   const validSubmitter = !submitterId || (submittersReady && submitters.users.some((user) => user.user_id === submitterId));
-  const exportDisabled = !formCode || loading || exporting !== null || !submittersReady || !validSubmitter;
+  const validDate = /^(?!0000)\d{4}-\d{2}-\d{2}$/.test(exportDate) && Number.isFinite(Date.parse(exportDate)) && new Date(exportDate).toISOString().slice(0, 10) === exportDate;
+  const exportDisabled = !formCode || loading || exporting !== null || !submittersReady || !validSubmitter || (period === "date" && !validDate);
 
   async function exportForm(kind: "form" | "members" = "form") {
     const requestedFormCode = formCode;
     const requestedValueFormat = valueFormat;
     const requestedPrivacy = privacy;
     const requestedSubmitterId = submitterId;
+    const requestedDate = period === "date" ? exportDate : "";
     if (exportDisabled || exportingRef.current || (kind === "members" && requestedFormCode !== "HHQ")) return;
     exportingRef.current = true;
     setExporting(kind);
     setError("");
     try {
-      const blob = await api.download(`/form-responses/export?form_code=${encodeURIComponent(requestedFormCode)}${kind === "members" ? "&export_type=members" : ""}${requestedValueFormat === "labels" ? "&value_format=labels" : ""}${requestedPrivacy === "non_pis" ? "&privacy=non_pis" : ""}${requestedSubmitterId ? `&submitted_by_user_id=${encodeURIComponent(requestedSubmitterId)}` : ""}`);
+      const blob = await api.download(`/form-responses/export?form_code=${encodeURIComponent(requestedFormCode)}${kind === "members" ? "&export_type=members" : ""}${requestedValueFormat === "labels" ? "&value_format=labels" : ""}${requestedPrivacy === "non_pis" ? "&privacy=non_pis" : ""}${requestedSubmitterId ? `&submitted_by_user_id=${encodeURIComponent(requestedSubmitterId)}` : ""}${requestedDate ? `&date=${encodeURIComponent(requestedDate)}` : ""}`);
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
       const filename = requestedFormCode === "HHQ"
         ? (kind === "members" ? "bhq-members" : "bhq-form-responses")
         : `${requestedFormCode.toLowerCase()}-form-responses`;
-      link.download = `${filename}${requestedPrivacy === "non_pis" ? "-non-pis" : ""}${requestedValueFormat === "labels" ? "-uncoded" : ""}.csv`;
+      link.download = `${filename}${requestedPrivacy === "non_pis" ? "-non-pis" : ""}${requestedValueFormat === "labels" ? "-uncoded" : ""}${requestedDate ? `-${requestedDate}` : ""}.csv`;
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -106,6 +110,17 @@ export default function FormDataExportPage() {
             {submitters.formCode === formCode && submitters.users.map((user) => <option key={user.user_id} value={user.user_id}>{user.display_name || user.username || user.user_id}{user.display_name && user.username && user.display_name !== user.username ? ` (${user.username})` : ""}</option>)}
           </select>
         </label>
+        <label style={{ display: "grid", gap: 8 }}>
+          Export period
+          <select value={period} onChange={(event) => setPeriod(event.target.value as "all" | "date")} disabled={loading || exporting !== null} style={{ padding: 10 }}>
+            <option value="all">All data</option>
+            <option value="date">Date wise</option>
+          </select>
+        </label>
+        {period === "date" && <label style={{ display: "grid", gap: 8 }}>
+          Submission date (IST)
+          <input type="date" aria-label="Submission date (IST)" required value={exportDate} onChange={(event) => setExportDate(event.target.value)} disabled={loading || exporting !== null} style={{ padding: 10, minWidth: 0, maxWidth: "100%" }} />
+        </label>}
         <button type="button" onClick={() => exportForm()} disabled={exportDisabled} style={{ padding: "11px 20px", fontWeight: 700 }}>
           {exporting === "form" ? "Preparing export..." : formCode === "HHQ" ? "BHQ" : "Export CSV"}
         </button>
@@ -117,8 +132,9 @@ export default function FormDataExportPage() {
       {submitters.formCode === formCode && submitters.error && <p role="alert" style={{ color: "#a11" }}>Submitting users could not be loaded: {submitters.error}. All users export remains available.</p>}
       {formCode === "HHQ" && <p>The BHQ member list contains names only. BHQ Members downloads one row per member with their household ID and recorded member details, using the selected privacy and answer format. Both downloads are Excel-compatible CSV files.</p>}
       <p style={{ color: "#59677d" }}>Coded data keeps stored option codes. Uncoded data uses the questionnaire's English option text; unknown values keep their stored codes.</p>
+      <p style={{ color: "#59677d" }}>All data exports every date. Date wise uses the recorded submission date in IST, including forms filled offline and synced later. If that timestamp is unavailable, the server receipt date is used. The same date filter applies to BHQ Members.</p>
       <p style={{ color: "#59677d" }}>PIS data includes recorded personal information. Non-PIS data masks personal information and keeps household IDs for linking records. Submitted by lists users with submitted responses visible to your access scope.</p>
-      {selected && <p style={{ color: "#59677d" }}>Latest definition: {selected.version}{selected.question_count ? ` · ${selected.question_count} questions` : ""}. The export includes all submitted responses visible to your current access scope.</p>}
+      {selected && <p style={{ color: "#59677d" }}>Latest definition: {selected.version}{selected.question_count ? ` · ${selected.question_count} questions` : ""}. The export includes submitted responses matching your selected filters and current access scope.</p>}
     </div>
   );
 }
