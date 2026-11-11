@@ -11,14 +11,21 @@ import { FORM_EXPORT_MASK, maskFormExportValue } from "../lib/formExportPrivacy"
 
 const router = Router();
 
-export function exportDateCondition(value: unknown) {
-  if (value === undefined) return undefined;
-  if (typeof value !== "string" || !/^(?!0000)\d{4}-\d{2}-\d{2}$/.test(value) ||
-    !Number.isFinite(Date.parse(value)) || new Date(value).toISOString().slice(0, 10) !== value) {
-    throw new Error("INVALID_EXPORT_DATE");
-  }
-  const start = new Date(`${value}T00:00:00+05:30`).toISOString();
-  const finish = new Date(Date.parse(start) + 86400000).toISOString();
+export function exportDateCondition(value: unknown, from?: unknown, to?: unknown) {
+  if (value === undefined && from === undefined && to === undefined) return undefined;
+  if (value !== undefined && (from !== undefined || to !== undefined)) throw new Error("INVALID_EXPORT_DATE");
+  const day = (date: unknown) => {
+    if (typeof date !== "string" || !/^(?!0000)\d{4}-\d{2}-\d{2}$/.test(date) ||
+      !Number.isFinite(Date.parse(date)) || new Date(date).toISOString().slice(0, 10) !== date) {
+      throw new Error("INVALID_EXPORT_DATE");
+    }
+    return date;
+  };
+  const first = day(value !== undefined ? value : from);
+  const last = value !== undefined ? first : day(to);
+  if (first > last) throw new Error("INVALID_EXPORT_DATE");
+  const start = new Date(`${first}T00:00:00+05:30`).toISOString();
+  const finish = new Date(Date.parse(`${last}T00:00:00+05:30`) + 86400000).toISOString();
   const submittedAt = sql`coalesce(${schema.formResponses.created_offline_at},${schema.formResponses.synced_at},${schema.formResponses.created_at})`;
   return sql`${submittedAt} >= ${start}::timestamptz and ${submittedAt} < ${finish}::timestamptz`;
 }
@@ -183,9 +190,9 @@ router.get("/export", requireDataAccess("can_access_raw_crfs"), async (req: Requ
       return;
     }
     let dateCondition;
-    try { dateCondition = exportDateCondition(req.query.date); }
+    try { dateCondition = exportDateCondition(req.query.date, req.query.date_from, req.query.date_to); }
     catch {
-      sendError(res, 400, "INVALID_EXPORT_DATE", "Select a valid submission date in YYYY-MM-DD format");
+      sendError(res, 400, "INVALID_EXPORT_DATE", "Select a valid submission date or complete date range in YYYY-MM-DD format");
       return;
     }
     const profile = await getRequestDataAccessProfile(req);

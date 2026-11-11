@@ -201,6 +201,11 @@ test("BHQ roster split, coded/labelled data, submitter filters and privacy prese
   assert.equal(datedMembers.rows.length, 2, "BHQ member export filters the source BHQ and retains each of its members");
   assert.ok(datedMembers.rows.every((row: string[]) => row[datedMembers.names.indexOf("household_id")] === "2-10-0001A-01"));
   assert.equal((await download({ date: "2026-11-11", submitted_by_user_id: "worker-b" })).rows.length, 0, "Date and submitter filters intersect");
+  assert.equal((await download({ date_from: "2026-11-10", date_to: "2026-11-11" })).rows.length, 3, "Both range endpoints are included");
+  assert.equal((await download({ date_from: "2026-11-11", date_to: "2026-11-11" })).rows.length, dated.rows.length, "Equal range endpoints preserve single-day behavior");
+  const rangedMembers = await download({ date_from: "2026-11-10", date_to: "2026-11-11", export_type: "members", submitted_by_user_id: "worker-a", privacy: "non_pis", value_format: "labels" });
+  assert.equal(rangedMembers.rows.length, 2, "Range, submitter, member split, masking and label modes compose");
+  assert.ok(rangedMembers.rows.every((row: string[]) => row[rangedMembers.names.indexOf("member_name")] === FORM_EXPORT_MASK));
   assert.equal(normal.rows[0][normal.names.indexOf("hhq_household_members")], 'Asha, "Devi"\nsecond line, Second woman');
   assert.ok(!normal.names.includes("member_sex")); assert.ok(!normal.names.includes("member_name"));
   assert.equal(normal.rows[0][normal.names.indexOf("hhq_gps_latitude")], "0");
@@ -280,12 +285,13 @@ test("BHQ roster split, coded/labelled data, submitter filters and privacy prese
   assert.equal((await download({ privacy: "non_pis" })).status, 403);
   canPii = canDeidentified = true;
   const beforeInvalid = reads;
-  for (const query of [{ export_type: "invalid" }, { value_format: "invalid" }, { privacy: "invalid" }, { submitted_by_user_id: [] }, { date: [] }, { date: "2026-02-30" }, { date: "" }, { date: null }]) assert.equal((await download(query)).status, 400);
+  for (const query of [{ export_type: "invalid" }, { value_format: "invalid" }, { privacy: "invalid" }, { submitted_by_user_id: [] }, { date: [] }, { date: "2026-02-30" }, { date: "" }, { date: null }, { date_from: "2026-11-11" }, { date_to: "2026-11-11" }, { date_from: "2026-11-12", date_to: "2026-11-11" }, { date: "2026-11-11", date_from: "2026-11-11", date_to: "2026-11-12" }, { date_from: [], date_to: "2026-11-11" }, { date_from: "2026-11-11", date_to: "2026-02-30" }]) assert.equal((await download(query)).status, 400);
   assert.equal(reads, beforeInvalid, "Invalid modes must fail before response reads");
   for (const code of ["WQ", "HRF", "PEF", "UF", "PFF", "POF", "BAF", "SBF", "NFF", "CDF", "PSF"]) {
     formCode = code;
     const coded = await download();
     assert.equal((await download({ date: "2026-11-11", value_format: "labels", privacy: "non_pis" })).rows.length, 2, `${code}: date filtering composes with labels and masking`);
+    assert.equal((await download({ date_from: "2026-11-10", date_to: "2026-11-11", value_format: "labels", privacy: "non_pis" })).rows.length, 3, `${code}: range filtering composes with labels and masking`);
     assert.equal((await download({ value_format: "coded", privacy: "pis" })).body, coded.body, `${code}: defaults preserve coded output`);
     const decoded = await download({ value_format: "labels" });
     assert.deepEqual(decoded.names, coded.names, `${code}: choice labels do not change columns`);

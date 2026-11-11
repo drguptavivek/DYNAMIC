@@ -201,7 +201,43 @@ for (const form of catalog) {
   await finish(`/form-responses/export?form_code=${form.form_code}&date=2026-11-11`, `${filename}-2026-11-11.csv`);
 }
 
+// Range endpoints are inclusive, validated together, and captured for each download.
+choosePeriod('range');
+const changeRangeDate = (label, value) => {
+  nodes(tree).find(node => node.type === 'input' && node.props['aria-label'] === label).props.onChange({ target: { value } }); render();
+};
+assert(buttons().every(node => node.props.disabled));
+changeRangeDate('From date (IST)', '2026-11-01');
+assert(buttons().every(node => node.props.disabled), 'Both range endpoints are required');
+changeRangeDate('To date (IST)', '2026-10-31');
+assert(buttons().every(node => node.props.disabled), 'Reversed ranges cannot export');
+const beforeInvalidRange = requests.length; buttons()[0].props.onClick(); assert.equal(requests.length, beforeInvalidRange);
+changeRangeDate('To date (IST)', '2026-02-30');
+assert(buttons().every(node => node.props.disabled), 'Impossible range dates cannot export');
+changeRangeDate('To date (IST)', '2026-11-11');
+for (const form of catalog) {
+  await chooseForm(form.form_code);
+  button(form.form_code === 'HHQ' ? 'BHQ' : 'Export CSV').props.onClick(); render();
+  assert(nodes(tree).filter(node => node.type === 'input' && node.props.type === 'date').every(node => node.props.disabled));
+  const filename = form.form_code === 'HHQ' ? 'bhq-form-responses' : `${form.form_code.toLowerCase()}-form-responses`;
+  await finish(`/form-responses/export?form_code=${form.form_code}&date_from=2026-11-01&date_to=2026-11-11`, `${filename}-2026-11-01-to-2026-11-11.csv`);
+}
+await chooseForm('HHQ'); chooseFormat('labels'); choosePrivacy('non_pis'); chooseSubmitter('worker/1');
+button('BHQ Members').props.onClick(); render();
+changeRangeDate('From date (IST)', '2026-11-11');
+await finish('/form-responses/export?form_code=HHQ&export_type=members&value_format=labels&privacy=non_pis&submitted_by_user_id=worker%2F1&date_from=2026-11-01&date_to=2026-11-11', 'bhq-members-non-pis-uncoded-2026-11-01-to-2026-11-11.csv');
+button('BHQ').props.onClick(); render();
+await finish('/form-responses/export?form_code=HHQ&value_format=labels&privacy=non_pis&submitted_by_user_id=worker%2F1&date_from=2026-11-11&date_to=2026-11-11', 'bhq-form-responses-non-pis-uncoded-2026-11-11-to-2026-11-11.csv');
+choosePeriod('date');
+assert.equal(nodes(tree).filter(node => node.type === 'input' && node.props.type === 'date').length, 1);
+button('BHQ').props.onClick(); render();
+await finish('/form-responses/export?form_code=HHQ&value_format=labels&privacy=non_pis&submitted_by_user_id=worker%2F1&date=2026-11-11', 'bhq-form-responses-non-pis-uncoded-2026-11-11.csv');
+choosePeriod('all');
+assert(!nodes(tree).some(node => node.type === 'input' && node.props.type === 'date'));
+button('BHQ').props.onClick(); render();
+await finish('/form-responses/export?form_code=HHQ&value_format=labels&privacy=non_pis&submitted_by_user_id=worker%2F1', 'bhq-form-responses-non-pis-uncoded.csv');
+
 slots.length = 0; dirty = true; render();
 catalogReject(new Error('Forms unavailable')); await settle();
 assert(text(tree).includes('Forms unavailable')); assert(buttons()[0].props.disabled);
-console.log('Form export UI supports all/date-wise downloads across 12 forms, BHQ members, date validation, coded/uncoded and privacy formats, scoped submitters, async races, captured filenames, concurrency and errors.');
+console.log('Form export UI supports all/date-wise/date-range downloads across 12 forms, BHQ members, date validation, coded/uncoded and privacy formats, scoped submitters, async races, captured filenames, concurrency and errors.');
