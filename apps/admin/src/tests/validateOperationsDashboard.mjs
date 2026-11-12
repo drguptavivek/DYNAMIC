@@ -2,40 +2,37 @@ import assert from 'node:assert/strict';
 import { build } from 'esbuild';
 import { readFileSync, writeFileSync } from 'node:fs';
 
-const metrics = (forms = 0) => ({ assigned_households: 20, forms_completed: forms, forms_today: Math.min(forms, 1), forms_received: forms + 1, backed_up_drafts: 2, pending_tasks: 12, overdue_tasks: 3, sync_errors: 1, forms_by_code: forms ? { HHQ: 1, WQ: 1, PEF: 1, PSF: 1 } : {} });
-const villages = [{ site_id: 2, locality_code: '20', locality_name: 'Bukharpur' }, { site_id: 4, locality_code: '04', locality_name: 'Chennai East' }];
+const metrics = () => ({ assigned_households: 0, forms_completed: 0, forms_today: 0, forms_received: 0, backed_up_drafts: 0, pending_tasks: 0, overdue_tasks: 0, sync_errors: 0, forms_by_code: {} });
+const villages = [{ site_id: 2, locality_code: '20', locality_name: 'Bukharpur' }, { site_id: 2, locality_code: '21', locality_name: 'Empty village' }, { site_id: 4, locality_code: '20', locality_name: 'Chennai East' }];
 const staff = [
-  { ...metrics(4), user_id: 'blb-worker', username: 'blb-worker', display_name: 'Anita Example', role: 'field_worker', active: true, site_id: 2, site_name: 'Ballabhgarh', assigned_localities: [villages[0]], completed_localities: [villages[0]], last_sync_at: '2026-10-21T09:00:00Z', last_sync_status: 'partial_success' },
-  { ...metrics(4), user_id: 'ch-worker', username: 'ch-worker', display_name: 'Chennai Example', role: 'field_worker', active: true, site_id: 4, site_name: 'Chennai', assigned_localities: [villages[1]], completed_localities: [villages[1]], last_sync_at: '2026-10-21T09:10:00Z', last_sync_status: 'draft_backup' },
-  { ...metrics(), assigned_households: 0, backed_up_drafts: 0, pending_tasks: 0, overdue_tasks: 0, sync_errors: 0, user_id: 'ch-zero', username: 'ch-zero', display_name: 'Zero Activity', role: 'field_worker', active: true, site_id: 4, site_name: 'Chennai', assigned_localities: [], completed_localities: [], last_sync_at: null, last_sync_status: null },
+  { user_id: 'anita', username: 'worker.one', display_name: 'Anita', site_id: 2, village: '20' },
+  { user_id: 'anita2', username: 'worker.two', display_name: 'Anita', site_id: 2, village: '20' },
+  { user_id: 'ch-worker', username: 'ch-worker', display_name: 'Chennai Example', site_id: 4, village: '20' },
 ];
-let authUser = { user_id: 'central', role: 'central_admin', username: 'central' };
+const submissions = [
+  { site_id: 2, locality_code: '20', user_id: 'anita', code: 'HHQ', date: '2026-11-10' },
+  { site_id: 2, locality_code: '20', user_id: 'anita', code: 'WQ', date: '2026-11-11' },
+  { site_id: 2, locality_code: '20', user_id: 'anita2', code: 'WQ', date: '2026-11-12' },
+  { site_id: 2, locality_code: '20', user_id: 'anita2', code: 'PEF', date: '2026-11-12' },
+  { site_id: 2, locality_code: '20', user_id: 'anita', code: 'EXTRA', date: '2026-11-11' },
+  { site_id: 4, locality_code: '20', user_id: 'ch-worker', code: 'HHQ', date: '2026-11-12' },
+];
 const sites = [{ site_id: 2, site_name: 'Ballabhgarh' }, { site_id: 4, site_name: 'Chennai' }];
+let authUser = { user_id: 'central', role: 'central_admin', username: 'central' };
+const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 function response(url) {
   if (url === '/dashboard') return { households: 10, members: 40, eligible_women: 8, tracking_eligible_women: 6, active_pregnancies: 3, children: 4, tasks: 20, open_data_quality_flags: 1 };
   const params = new URLSearchParams(url.split('?')[1]);
-  const central = authUser.role === 'central_admin';
+  const central = ['central_admin','central_data_manager'].includes(authUser.role);
   const site = central ? Number(params.get('site_id')) || null : authUser.site_id;
-  const locality = params.get('locality_code');
-  const staffOptions = staff.filter(row => (!site || row.site_id === site) && (!locality || row.assigned_localities.some(item => item.locality_code === locality)));
-  const selectedUser = params.get('user_id');
-  const search = (params.get('search') || '').trim().toLowerCase();
-  const form = params.get('form_code');
-  const users = staffOptions.filter(row => (!selectedUser || row.user_id === selectedUser) && (!search || `${row.display_name} ${row.username}`.toLowerCase().includes(search))).map(row => {
-    let codes = form ? { [form]: row.forms_by_code[form] || 0 } : row.forms_by_code;
-    if (params.get('period') === 'date') {
-      const firstCode = Object.keys(codes).find(code => codes[code] > 0);
-      codes = firstCode ? { [firstCode]: 1 } : {};
-    }
-    const completed = Object.values(codes).reduce((sum,value) => sum+value,0);
-    return { ...row, forms_by_code: codes, forms_completed: params.get('period') === 'date' ? Math.min(completed,1) : completed, forms_today: Math.min(completed,1) };
+  const locality = params.get('locality_code'), user = params.get('user_id');
+  const period = params.get('period') || 'all';
+  const staffOptions = staff.filter(row => (!site || row.site_id === site) && (!locality || row.village === locality));
+  const cards = villages.filter(v => (!site || v.site_id === site) && (!locality || v.locality_code === locality) && (!user || staff.some(s => s.user_id === user && s.site_id === v.site_id && s.village === v.locality_code))).map(v => {
+    const forms = submissions.filter(f => f.site_id === v.site_id && f.locality_code === v.locality_code && (!user || f.user_id === user) && (period === 'all' || period === 'today' && f.date === today || period === 'date' && f.date === params.get('date') || period === 'range' && f.date >= params.get('date_from') && f.date <= params.get('date_to')));
+    return { ...metrics(), ...v, users: 2, assigned_users: staff.filter(s => s.site_id === v.site_id && s.village === v.locality_code), forms_completed: forms.length, forms_by_code: forms.reduce((counts,f) => {counts[f.code]=(counts[f.code]||0)+1;return counts;},{}) };
   });
-  const scopeSites = sites.filter(item => central || item.site_id === site);
-  return { period: params.get('period') || 'all', staff_options: staffOptions, date: params.get('date'), timezone: 'Asia/Kolkata', generated_at: '2026-10-21T10:00:00Z', scope: { all_sites: central, site_id: site, locality_code: locality }, sites: scopeSites, localities: villages.filter(item => central || item.site_id === site), users,
-    totals: { ...metrics(users.reduce((sum,row)=>sum+row.forms_completed,0)), forms_today: users.reduce((sum,row)=>sum+row.forms_today,0), forms_by_code: users.reduce((counts,row)=>{for(const [code,value] of Object.entries(row.forms_by_code))counts[code]=(counts[code]||0)+value;return counts;},{}), assigned_households: 37, users: users.length, active_users: users.length, unattributed_forms: 2, open_data_quality_flags: 1 },
-    sites_summary: scopeSites.filter(item => !site || item.site_id === site).map(item => ({ ...metrics(4), ...item, users: 1 })),
-    localities_summary: villages.filter(item => (!site || item.site_id === site) && (!locality || item.locality_code === locality)).map(item=>({ ...metrics(4), ...item, users: 1 })),
-    cohort: response('/dashboard'), notes: ['Device-only drafts appear after sync.'] };
+  return { period, staff_options: staffOptions, date: params.get('date'), date_from: params.get('date_from'), date_to: params.get('date_to'), timezone: 'Asia/Kolkata', generated_at: '2026-11-12T10:00:00Z', scope: { all_sites: central, site_id: site, locality_code: locality }, sites: sites.filter(s=>central||s.site_id===site), localities: villages.filter(v=>central||v.site_id===site), localities_summary: cards, users: [], totals: metrics(), sites_summary: [], cohort: response('/dashboard'), notes: [] };
 }
 
 let slots = [], cursor = 0, dirty = true, effects = [], tree;
@@ -61,7 +58,11 @@ function nodes(node=tree) {if(Array.isArray(node))return node.flatMap(item=>node
 function text(node=tree) {if(Array.isArray(node))return node.map(text).join('');return node&&typeof node==='object'?text(node.props?.children ?? null):node==null||typeof node==='boolean'?'':String(node);}
 const button=label=>{const found=nodes().find(node=>node.type==='button'&&text(node)===label);assert.ok(found,`Missing ${label}`);return found;};
 const input=label=>{const found=nodes().find(node=>node.type==='label'&&text(node).startsWith(label));assert.ok(found,label);return nodes(found).find(node=>['select','input'].includes(node.type));};
-const rowKeys=()=>nodes().filter(node=>node.type==='tr'&&node.key).map(node=>node.key);
+const villageKeys=()=>nodes().filter(node=>node.type==='article').map(node=>node.key);
+const villageCard=key=>nodes().find(node=>node.type==='article'&&node.key===key);
+const formValue=(key,code)=>text(nodes(villageCard(key)).find(node=>node.type==='dt'&&text(node)===code));
+const change=async(label,value)=>{input(label).props.onChange({target:{value}});await settle();};
+const params=()=>new URLSearchParams(requests.at(-1).split('?')[1]);
 function snapshot(name) {
   if(!process.env.DASHBOARD_PREVIEW_DIR)return;
   const escape=value=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;');
@@ -71,61 +72,63 @@ function snapshot(name) {
 }
 
 await settle();
-assert.deepEqual(rowKeys(),staff.map(row=>row.user_id));
-assert.equal(input('Period').props.value, 'all');
-assert.ok(!nodes().some(node=>node.type==='input' && node.props.type==='date'));
-assert.equal(new URLSearchParams(requests.at(-1).split('?')[1]).get('period'),'all');
-assert.ok(text().includes('All time total') && text().includes('Today (IST)'));
-button('Staff overview').props.onClick();await settle();
-assert.equal(input('Site').props.disabled,false);
-assert.ok(text().includes('Backed-up drafts')&&text().includes('Recorded sync issues'));
-assert.ok(text().includes('Forms filled:')&&text().includes('Chennai East'));
-assert.ok(text().includes('Not recorded'),'no server contact must not invent a date');
-snapshot('central-staff');
-button('Forms by staff').props.onClick();await settle();
-const headings=nodes().filter(node=>node.type==='th').map(node=>text(node));
-for(const code of ['BHQ','BWQ','HRF','PEF','UF','PFF','POF','BAF','SBF','NFF','CDF','PSF'])assert.ok(headings.includes(code),code);
-snapshot('central-forms');
-input('Find staff').props.onChange({target:{value:'  ANITA  '}});await settle();assert.deepEqual(rowKeys(),['blb-worker']);
-assert.ok(requests.at(-1).includes('search=ANITA'));
-assert.ok(text().includes('Total forms filled4'), 'summary follows staff search');
-input('Find staff').props.onChange({target:{value:''}});await settle();
-input('Staff user').props.onChange({target:{value:'blb-worker'}});await settle();
-assert.deepEqual(rowKeys(),['blb-worker']);
-assert.ok(requests.at(-1).includes('user_id=blb-worker'));
-assert.equal(nodes(input('Staff user')).filter(node=>node.type==='option').length,4,'staff filter must keep other choices');
-input('Form type').props.onChange({target:{value:'PEF'}});await settle();
-assert.ok(requests.at(-1).includes('form_code=PEF'));
-assert.ok(text().includes('Total forms filled1'),'summary follows form filter');
-button('Forms by staff').props.onClick();await settle();
-assert.ok(nodes().some(node=>node.type==='th'&&text(node)==='PEF'));
-assert.ok(!nodes().some(node=>node.type==='th'&&text(node)==='BHQ'));
-input('Form type').props.onChange({target:{value:''}});await settle();
-input('Staff user').props.onChange({target:{value:''}});await settle();
-input('Find staff').props.onChange({target:{value:'no such staff'}});await settle();
-assert.deepEqual(rowKeys(),[]);assert.ok(text().includes('No staff match these filters.'));
-input('Find staff').props.onChange({target:{value:''}});await settle();
-button('Village activity').props.onClick();await settle();assert.deepEqual(rowKeys(),['2:20','4:04']);snapshot('central-villages');
-input('Site').props.onChange({target:{value:'4'}});await settle();assert.ok(requests.at(-1).includes('site_id=4'));assert.deepEqual(rowKeys(),['4:04']);
-button('Staff overview').props.onClick();await settle();assert.deepEqual(rowKeys(),['ch-worker','ch-zero']);
-input('Period').props.onChange({target:{value:'date'}});await settle();
-assert.ok(nodes().some(node=>node.type==='input' && node.props.type==='date'));
-assert.ok(text().includes('Forms on selected date1'), 'date-wise summary uses the selected day');
-assert.ok(text().includes('Forms filled today1'), 'today remains independent of selected date');
-snapshot('central-date-wise');
-let release;nextResponse=new Promise(done=>{release=done;});
-input('Date (IST)').props.onChange({target:{value:'2026-10-20'}});await settle();assert.ok(nodes().some(node=>node.props?.role==='status'));
-input('Date (IST)').props.onChange({target:{value:'2026-10-19'}});await settle();const current=requests.at(-1);
-release({...response('/dashboard/operations?date=2026-10-20'),users:[]});await settle();assert.deepEqual(rowKeys(),['ch-worker','ch-zero'],'late earlier date response cannot replace latest data');
-nextResponse=Promise.reject(new Error('Dashboard test network failure'));button('Refresh').props.onClick();await settle();
-assert.ok(nodes().some(node=>node.props?.role==='alert'));assert.ok(!nodes().some(node=>node.type==='table'),'failed refresh must hide stale rows');
-const staleStudyPanel=nodes().find(node=>node.type==='details'&&text(node).includes('Study totals'));
-assert.equal(nodes(staleStudyPanel ?? null).filter(node=>node.type==='strong').length,0,'failed refresh must hide old study counts too');
-button('Refresh').props.onClick();await settle();assert.equal(requests.at(-1),current,'refresh preserves filters');assert.deepEqual(rowKeys(),['ch-worker','ch-zero']);
-
-for(const slot of slots)slot?.cleanup?.();slots=[];effects=[];dirty=true;authUser={user_id:'ch-manager',username:'manager',role:'site_data_manager',site_id:4};
-await settle();assert.equal(input('Site').props.disabled,true);
-button('Staff overview').props.onClick();await settle();assert.deepEqual(rowKeys(),['ch-worker','ch-zero']);
-assert.ok(!nodes().some(node=>node.type==='option'&&text(node)==='All sites'));
-assert.ok(!text().includes('Anita Example'));assert.ok(!nodes().some(node=>node.type==='button'&&text(node)==='Site activity'));snapshot('chennai-manager');
-console.log('Operational dashboard all-time/date, exact user, form filter, today totals, and central/site views, zero-activity users, all form labels, filters, stale responses, refresh errors, and offline disclosure passed.');
+assert.deepEqual(villageKeys(), ['2:20','2:21','4:20']);
+assert.equal(input('Date').props.value, 'all');
+assert.equal(nodes().filter(n=>n.type==='select').length, 4, 'Only the four requested filters remain');
+assert.equal(params().get('period'), 'all');
+assert(!nodes().some(n=>n.type==='table'), 'Old dashboard tables are removed');
+assert(!text().includes('Recorded sync issues'));
+for (const code of ['BHQ','BWQ','HRF','PEF','UF','PFF','POF','BAF','SBF','NFF','CDF','PSF','EXTRA']) assert.equal(formValue('2:20',code),code);
+assert(text(villageCard('2:20')).includes('worker.one') && text(villageCard('2:20')).includes('worker.two'), 'Same names retain distinct usernames');
+assert(text(villageCard('2:21')).includes('No staff currently assigned'));
+const value = (key,code) => {
+  const pair=nodes(villageCard(key)).find(n=>n.type==='div'&&nodes(n).some(child=>child.type==='dt'&&text(child)===code));
+  return text(nodes(pair).find(n=>n.type==='dd'));
+};
+assert.equal(value('2:20','BWQ'),'2 forms filled');
+assert.equal(value('2:21','BHQ'),'0 forms filled');
+snapshot('central-villages');
+await change('Site','2');
+assert.deepEqual(villageKeys(),['2:20','2:21']);
+assert(!text().includes('Chennai Example'));
+await change('Village','2:20');
+assert.deepEqual(villageKeys(),['2:20']);
+await change('User','anita');
+assert.equal(params().get('user_id'),'anita');
+assert.equal(value('2:20','BWQ'),'1 forms filled');
+assert.equal(value('2:20','PEF'),'0 forms filled');
+assert(text().includes("Anita's forms only"));
+assert.equal(nodes(input('User')).filter(n=>n.type==='option').length,3,'Selecting one user retains other staff choices');
+await change('Date','date'); await change('Submission date','2026-11-10');
+assert.equal(params().get('date'),'2026-11-10');
+assert.equal(value('2:20','BHQ'),'1 forms filled');assert.equal(value('2:20','BWQ'),'0 forms filled');
+await change('Date','range');
+await change('From date','2026-11-10');await change('To date','2026-11-11');
+assert.equal(params().get('date_from'),'2026-11-10');assert.equal(params().get('date_to'),'2026-11-11');assert(!params().has('date'));
+assert.equal(value('2:20','BHQ'),'1 forms filled');assert.equal(value('2:20','BWQ'),'1 forms filled');
+snapshot('central-range');
+const beforeInvalid=requests.length;
+await change('To date','2026-11-09');
+assert.equal(requests.length,beforeInvalid);assert(text().includes('To date must be on or after From date'));assert.equal(villageKeys().length,0,'Invalid ranges must not display stale totals');
+await change('To date','');assert(text().includes('Select both From and To dates'));assert.equal(requests.length,beforeInvalid);
+await change('To date','2026-11-10');
+assert.equal(value('2:20','BHQ'),'1 forms filled');assert.equal(value('2:20','BWQ'),'0 forms filled');
+await change('Date','today');assert.equal(params().get('period'),'today');assert(!params().has('date_from')&&!params().has('date'));
+assert(!nodes().some(n=>n.type==='input'&&n.props.type==='date'));
+await change('Date','all');assert(!params().has('date_to'));
+await change('Site','4');assert.equal(input('User').props.value,'');assert.equal(input('Village').props.value,'');assert.deepEqual(villageKeys(),['4:20']);
+await change('Site','');await change('Village','2:20');assert.equal(params().get('site_id'),'2','Village choice selects its site');
+// Slow responses cannot overwrite a newer set of filters.
+let resolveOld;nextResponse=new Promise(done=>{resolveOld=done;});
+input('User').props.onChange({target:{value:'anita'}});await settle();assert(text().includes('Loading village forms'));assert.equal(villageKeys().length,0);
+await change('User','anita2');assert.equal(value('2:20','BHQ'),'0 forms filled');
+resolveOld(response('/dashboard/operations?period=all'));await settle();assert.equal(value('2:20','BHQ'),'0 forms filled');
+nextResponse=Promise.reject(new Error('Connection unavailable'));button('Refresh').props.onClick();await settle();assert(text().includes('Connection unavailable'));assert.equal(villageKeys().length,0);
+button('Try again').props.onClick();await settle();assert.equal(villageKeys().length,1);
+authUser={user_id:'manager4',role:'site_data_manager',site_id:4,username:'manager'};slots=[];dirty=true;await settle();
+assert(input('Site').props.disabled);assert.equal(input('Site').props.value,'4');assert.deepEqual(villageKeys(),['4:20']);assert(!text().includes('Ballabhgarh'));
+input('Site').props.onChange({target:{value:'2'}});await settle();assert(!params().has('site_id'),'Site manager cannot request a different site');assert.deepEqual(villageKeys(),['4:20']);
+snapshot('site-manager-villages');
+await change('User','missing');assert(text().includes('No villages match these filters'));assert.equal(villageKeys().length,0);
+authUser={user_id:'collaborator',role:'us_collaborator',username:'collaborator'};slots=[];dirty=true;await settle();assert(text().includes('Household members'));assert(requests.at(-1)==='/dashboard','Non-operational roles retain their study summary');
+console.log('Village dashboard UI passed: four filters, all/today/date/range, all form cards, exact user totals, zero villages, scoped choices, duplicate names, invalid dates, races/errors and site-manager isolation.');

@@ -162,5 +162,35 @@ test("dashboard aggregates real PostgreSQL fixtures without cross-site leaks or 
     assert.equal(past.totals.forms_completed,1);
     assert.equal(past.totals.forms_today,2,"today is shown beside historical daily activity");
 
+    const today = await load(user("site_data_manager",4),{period:"today"});
+    assert.equal(today.totals.forms_completed,2);
+    const range = await load(user("site_data_manager",4),{period:"range",date:undefined,date_from:"2026-10-19",date_to:"2026-10-21"});
+    assert.equal(range.totals.forms_completed,3,"range includes both endpoints but excludes the following IST midnight");
+    const sameDay = await load(user("site_data_manager",4),{period:"range",date:undefined,date_from:"2026-10-21",date_to:"2026-10-21"});
+    assert.equal(sameDay.totals.forms_completed,chennai.totals.forms_completed);
+    const nextDay = await load(user("site_data_manager",4),{period:"range",date:undefined,date_from:"2026-10-21",date_to:"2026-10-22"});
+    assert.equal(nextDay.totals.forms_completed,4,"next day's forms enter only when end date includes them");
+    assert.deepEqual(chennai.localities_summary.find(l=>l.locality_code==='05')!.assigned_users.map(u=>u.user_id).sort(),['cw','cz'],"household-only and area assignments both name current workers");
+    await client.query(`insert into study_localities values(4,'06','Zero village');
+      insert into users values('moved','moved-worker','Moved worker','field_worker',true,2);
+      insert into form_responses values('historical','moved',4,'05','FUTURE_1','primary','2026-10-19 10:00Z','2026-10-19 11:00Z',null,null);
+      insert into field_worker_household_assignments values('co','c2');
+      insert into sync_logs values('moved-foreign-sync','moved','2026-10-21 10:00Z','2026-10-21 10:01Z','error',1);`);
+    const updated = await load(user("site_data_manager",4),{period:"all"});
+    assert.equal(updated.localities_summary.find(l=>l.locality_code==='06')!.forms_completed,0,"zero villages remain visible");
+    assert.deepEqual(updated.localities_summary.find(l=>l.locality_code==='05')!.assigned_users.map(u=>u.user_id).sort(),['co','cw','cz']);
+    assert.equal(updated.localities_summary.find(l=>l.locality_code==='05')!.forms_by_code.FUTURE_1,1,"unknown form counts remain available");
+    const historical = await load(user("site_data_manager",4),{period:"all",locality_code:"05",user_id:"moved"});
+    assert.equal(historical.totals.forms_completed,1,"current site transfer does not lose recorded village attribution");
+    assert.equal(historical.totals.sync_errors,0,"historical submitters cannot expose their current other-site sync issues");
+    assert.equal(new Date(historical.users[0].last_sync_at!).toISOString(),"2026-10-19T11:00:00.000Z","last contact comes from scoped submissions rather than another site sync");
+    assert.ok(historical.staff_options.some(u=>u.user_id==='moved'),"historical submitter is available in the village staff filter");
+    assert.ok(!historical.localities_summary[0].assigned_users.some(u=>u.user_id==='moved'),"historical work does not imply a current assignment");
+    const historicalZeroDay = await load(user("site_data_manager",4),{period:"date",date:"2026-10-21",user_id:"moved"});
+    assert.deepEqual(historicalZeroDay.localities_summary.map(l=>l.locality_code),['05']);
+    assert.equal(historicalZeroDay.localities_summary[0].forms_completed,0);
+    const idle = await load(user("site_data_manager",4),{period:"all",user_id:"cz"});
+    assert.deepEqual(idle.localities_summary.map(l=>l.locality_code),['05'],"user filter retains assigned village even without completed forms");
+
   } finally { await client.query("rollback"); await client.end(); }
 });

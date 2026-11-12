@@ -1,29 +1,20 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "../lib/auth-context";
 import { api } from "../lib/api";
-import type { DashboardMetrics, DashboardStaffRow, OperationsDashboard } from "../../../../shared/operationsDashboard";
+import type { OperationsDashboard } from "../../../../shared/operationsDashboard";
 import styles from "./DashboardPage.module.css";
 
 type DashboardStats = { households: number; members: number; eligible_women: number; tracking_eligible_women: number; active_pregnancies: number; children: number; tasks: number; open_data_quality_flags: number };
-type View = "staff" | "forms" | "villages" | "sites";
+type Period = "all" | "today" | "date" | "range";
 const OPERATION_ROLES = ["central_admin", "central_data_manager", "site_data_manager", "site_research_scientist", "site_investigator"];
 const FORM_CODES = ["HHQ", "WQ", "HRF", "PEF", "UF", "PFF", "POF", "BAF", "SBF", "NFF", "CDF", "PSF"];
 const formLabel = (code: string) => code === "HHQ" ? "BHQ" : code === "WQ" ? "BWQ" : code;
 const count = (value: number) => value.toLocaleString("en-IN");
 const todayInIndia = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
-function syncTime(value: string | null) {
-  if (!value) return "Not recorded";
+const validDate = (value: string) => /^(?!0000)\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value;
+function syncTime(value: string) {
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "Not recorded" : new Intl.DateTimeFormat("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: false }).format(date);
-}
-function StaffName({ row }: { row: DashboardStaffRow }) {
-  return <><strong>{row.display_name || row.username}</strong><span className={styles.secondary}>{row.username} · {row.active ? "Active" : "Inactive"}</span><span className={styles.secondary}>{row.role.replace(/_/g, " ")} · {row.site_name || "No site"}</span></>;
-}
-function TaskCounts({ row }: { row: DashboardMetrics }) {
-  return <>{count(row.pending_tasks)}<span className={row.overdue_tasks ? styles.warning : styles.secondary}>{count(row.overdue_tasks)} overdue</span></>;
-}
-function FormCounts({ row }: { row: DashboardMetrics }) {
-  return <span className={styles.secondary}>{Object.entries(row.forms_by_code).filter(([, value]) => value > 0).map(([code, value]) => `${formLabel(code)} ${count(value)}`).join(" · ") || "No completed forms"}</span>;
+  return Number.isNaN(date.getTime()) ? "" : new Intl.DateTimeFormat("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: false }).format(date);
 }
 
 export default function DashboardPage() {
@@ -33,93 +24,87 @@ export default function DashboardPage() {
 
 function OperationsView() {
   const { user } = useAuth();
+  const [period, setPeriod] = useState<Period>("all");
   const [date, setDate] = useState(todayInIndia);
-  const [period, setPeriod] = useState("all");
-  const [userId, setUserId] = useState("");
-  const [formCode, setFormCode] = useState("");
+  const [dateFrom, setDateFrom] = useState(todayInIndia);
+  const [dateTo, setDateTo] = useState(todayInIndia);
   const [siteId, setSiteId] = useState("");
   const [locality, setLocality] = useState("");
-  const [search, setSearch] = useState("");
-  const [view, setView] = useState<View>("forms");
+  const [userId, setUserId] = useState("");
   const [revision, setRevision] = useState(0);
   const [data, setData] = useState<OperationsDashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const central = user?.role === "central_admin" || user?.role === "central_data_manager";
+  const dateError = period === "date" && !validDate(date) ? "Select a valid submission date."
+    : period === "range" && (!validDate(dateFrom) || !validDate(dateTo)) ? "Select both From and To dates."
+    : period === "range" && dateFrom > dateTo ? "To date must be on or after From date." : "";
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
     setError("");
+    if (dateError) { setLoading(false); return; }
+    setLoading(true);
     const params = new URLSearchParams({ period });
     if (period === "date") params.set("date", date);
-    if (userId) params.set("user_id", userId);
-    if (formCode) params.set("form_code", formCode);
-    if (search.trim()) params.set("search", search.trim());
+    if (period === "range") { params.set("date_from", dateFrom); params.set("date_to", dateTo); }
     if (central && siteId) params.set("site_id", siteId);
     if (locality) params.set("locality_code", locality);
+    if (userId) params.set("user_id", userId);
     api.get<OperationsDashboard>(`/dashboard/operations?${params}`)
       .then((result) => { if (!cancelled) setData(result); })
       .catch((reason) => { if (!cancelled) setError(reason instanceof Error ? reason.message : "Could not load the dashboard."); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [period, date, siteId, locality, userId, formCode, search, revision, user?.user_id, central]);
+  }, [period, date, dateFrom, dateTo, dateError, siteId, locality, userId, revision, user?.user_id, central]);
 
-  const users = useMemo(() => [...(data?.users ?? [])].sort((a, b) => b.forms_completed - a.forms_completed || a.display_name.localeCompare(b.display_name)), [data]);
-  const periodLabel = period === "all" ? "All time" : date;
-  const formCodes = useMemo(() => [...FORM_CODES, ...(formCode && !FORM_CODES.includes(formCode) ? [formCode] : []), ...Object.keys(data?.totals.forms_by_code ?? {}).filter((code) => !FORM_CODES.includes(code) && code !== formCode).sort()], [data, formCode]);
-  const displayedFormCodes = formCode ? [formCode] : formCodes;
   const selectedSite = central ? siteId : String(data?.scope.site_id ?? user?.site_id ?? "");
   const localities = (data?.localities ?? []).filter((item) => !selectedSite || String(item.site_id) === selectedSite);
-  const totals = !loading && !error ? data?.totals : null;
-  const cards = [
-    [period === "all" ? "Total forms filled" : "Forms on selected date", totals?.forms_completed, "Primary accepted submissions with recorded staff attribution in the selected period."],
-    ["Forms filled today", totals?.forms_today, "Primary accepted submissions completed today (IST), within the selected staff, area and form filters."],
-    ["Assigned households", totals?.assigned_households, "Current unique household assignments in the selected area."],
-    ["Backed-up drafts", totals?.backed_up_drafts, "Current drafts backed up to the server; device-only drafts are unavailable."],
-    ["Pending tasks", totals?.pending_tasks, "Current pending and in-progress tasks."],
-    ["Overdue tasks", totals?.overdue_tasks, "Pending tasks whose deadline has passed by the selected date."],
-    ["Recorded sync issues", totals?.sync_errors, "Failed or partially successful sync requests in the selected period. Sync requests are not specific to a form type."],
-  ] as const;
-  const studyCards = !loading && !error && data?.cohort ? [
-    ["Households", data.cohort.households],
-    ["Household members", data.cohort.members],
-    ["Eligible women", data.cohort.eligible_women],
-    ["Tracking eligible", data.cohort.tracking_eligible_women],
-    ["Active pregnancies", data.cohort.active_pregnancies],
-    ["Children", data.cohort.children],
-  ] as const : [];
+  const selectedUser = data?.staff_options.find((staff) => staff.user_id === userId);
+  const periodLabel = period === "all" ? "All time" : period === "today" ? "Today (IST)" : period === "date" ? date : `${dateFrom} to ${dateTo} (inclusive)`;
+  const currentError = dateError || error;
 
   return <div className={styles.container}>
-    <header className={styles.heading}><div><h1>Staff dashboard</h1><p>{central ? "Study-wide staff and village activity" : `${data?.sites.find((site) => String(site.site_id) === selectedSite)?.site_name || "Your site"} · staff and village activity`}</p></div><span className={styles.updated}>{data && !loading && !error ? `Updated ${syncTime(data.generated_at)} IST` : ""}</span></header>
+    <header className={styles.heading}>
+      <div><h1>Village dashboard</h1><p>Forms filled in each village, by staff and submission date</p></div>
+      <span className={styles.updated}>{data && !loading && !currentError ? `Updated ${syncTime(data.generated_at)} IST` : ""}</span>
+    </header>
     <div className={styles.filters}>
-      <label>Period<select value={period} onChange={(event) => setPeriod(event.target.value)}><option value="all">All time</option><option value="date">Date wise</option></select></label>
-      {period === "date" && <label>Date (IST)<input type="date" value={date} max={todayInIndia()} onChange={(event) => { if (event.target.value) setDate(event.target.value); }} /></label>}
       <label>Site<select value={selectedSite} disabled={!central} onChange={(event) => { setSiteId(event.target.value); setLocality(""); setUserId(""); }}>
         {central && <option value="">All sites</option>}
         {!central && !data && <option value={selectedSite}>Your site</option>}
         {(data?.sites ?? []).map((site) => <option key={site.site_id} value={site.site_id}>{site.site_name}</option>)}
       </select></label>
-      <label>Village / locality<select value={locality ? `${selectedSite}:${locality}` : ""} onChange={(event) => { const [site, code] = event.target.value.split(":"); if (central && site) setSiteId(site); setLocality(code || ""); setUserId(""); }}><option value="">All assigned villages</option>{localities.map((item) => <option key={`${item.site_id}:${item.locality_code}`} value={`${item.site_id}:${item.locality_code}`}>{!selectedSite ? `${data?.sites.find((site) => site.site_id === item.site_id)?.site_name} · ` : ""}{item.locality_code} · {item.locality_name}</option>)}</select></label>
-      <label>Staff user<select value={userId} onChange={(event) => setUserId(event.target.value)}><option value="">All staff</option>{(data?.staff_options ?? []).map((staff) => <option key={staff.user_id} value={staff.user_id}>{staff.display_name || staff.username}{staff.display_name && staff.display_name !== staff.username ? ` (${staff.username})` : ""}</option>)}</select></label>
-      <label>Form type<select value={formCode} onChange={(event) => setFormCode(event.target.value)}><option value="">All forms</option>{formCodes.map((code) => <option key={code} value={code}>{formLabel(code)}</option>)}</select></label>
-      <label className={styles.search}>Find staff<input type="search" placeholder="Name or username" value={search} onChange={(event) => setSearch(event.target.value)} /></label>
-      <button className={styles.primaryButton} onClick={() => setRevision((value) => value + 1)} disabled={loading}>Refresh</button>
+      <label>Village<select value={locality ? `${selectedSite}:${locality}` : ""} onChange={(event) => { const [site, code] = event.target.value.split(":"); if (central && site) setSiteId(site); setLocality(code || ""); setUserId(""); }}>
+        <option value="">All villages</option>
+        {localities.map((item) => <option key={`${item.site_id}:${item.locality_code}`} value={`${item.site_id}:${item.locality_code}`}>{!selectedSite ? `${data?.sites.find((site) => site.site_id === item.site_id)?.site_name} - ` : ""}{item.locality_code} - {item.locality_name}</option>)}
+      </select></label>
+      <label>User<select value={userId} onChange={(event) => setUserId(event.target.value)}>
+        <option value="">All users</option>
+        {(data?.staff_options ?? []).map((staff) => <option key={staff.user_id} value={staff.user_id}>{staff.display_name || staff.username}{staff.display_name && staff.display_name !== staff.username ? ` (${staff.username})` : ""}</option>)}
+      </select></label>
+      <label>Date<select value={period} onChange={(event) => setPeriod(event.target.value as Period)}>
+        <option value="all">All</option><option value="today">Today</option><option value="date">Specific date</option><option value="range">Date range</option>
+      </select></label>
+      {period === "date" && <label>Submission date (IST)<input type="date" value={date} onChange={(event) => setDate(event.target.value)} required /></label>}
+      {period === "range" && <label>From date (IST)<input type="date" value={dateFrom} max={dateTo || undefined} onChange={(event) => setDateFrom(event.target.value)} required /></label>}
+      {period === "range" && <label>To date (IST)<input type="date" value={dateTo} min={dateFrom || undefined} onChange={(event) => setDateTo(event.target.value)} required /></label>}
+      <button className={styles.primaryButton} onClick={() => setRevision((value) => value + 1)} disabled={loading || !!dateError}>Refresh</button>
     </div>
-    <p className={styles.periodSummary}><strong>{periodLabel}</strong> - Form counts follow the selected filters. Assignments and sync issues are not form-specific; workload shows current server state.</p>
-    <div className={styles.statsGrid}>{cards.map(([label, value, help]) => <div key={label} className={styles.statCard} title={help}><span className={styles.statLabel}>{label}</span><strong className={styles.statValue}>{value === undefined ? "—" : count(value)}</strong></div>)}</div>
-    {totals && <div className={styles.formSummary} aria-label="Forms filled by questionnaire">{displayedFormCodes.map((code) => <button key={code} aria-pressed={formCode === code} onClick={() => setFormCode(formCode === code ? "" : code)}><span>{formLabel(code)}</span><strong>{count(totals.forms_by_code[code] ?? 0)}</strong></button>)}</div>}
-    {totals && totals.unattributed_forms > 0 && <p className={styles.attributionNotice}>{count(totals.unattributed_forms)} additional completed forms have no recorded staff attribution.</p>}
-    <details className={styles.studyTotals}><summary>Study totals <span>Current records in the selected site / locality</span></summary><div className={styles.statsGrid}>{studyCards.map(([label, value]) => <div key={label}><span className={styles.statLabel}>{label}</span><strong className={styles.statValue}>{loading || error ? "—" : count(value)}</strong></div>)}</div></details>
-    <details className={styles.notes}><summary>Showing server-synced activity only · villages are assignments, not live locations</summary><div><p>Forms filled uses the recorded submission date, even if received later. All time includes accepted submissions through today (IST); Date wise shows one selected day. The Today column always refers to today (IST). Assignments, backed-up drafts and task statuses are current. Work still only on a phone becomes visible after sync. Staff selection and search apply to the tables and operational totals. Study totals remain area-wide. Sync issues are not form-specific.</p>{data?.notes.map((note) => <p key={note}>{note}</p>)}{totals && <p>{count(totals.forms_received)} forms received in this period · {count(totals.unattributed_forms)} completed forms without staff attribution · {count(totals.open_data_quality_flags)} open data quality flags.</p>}</div></details>
-    <section className={styles.tablePanel} aria-label="Operational activity">
-      <div className={styles.tableToolbar}><div className={styles.tabs} role="group" aria-label="Dashboard view">{([["staff", "Staff overview"], ["forms", "Forms by staff"], ["villages", "Village activity"], ...(central ? [["sites", "Site activity"]] : [])] as [View, string][]).map(([key, label]) => <button key={key} aria-pressed={view === key} className={view === key ? styles.activeTab : styles.tab} onClick={() => setView(key)}>{label}</button>)}</div><span className={styles.rowCount}>{!loading && !error && data ? `${count(view === "staff" || view === "forms" ? users.length : view === "villages" ? data.localities_summary.length : data.sites_summary.length)} ${view === "staff" || view === "forms" ? "users" : view === "villages" ? "villages" : "sites"}` : ""}</span></div>
-      {loading ? <div className={styles.state} role="status">Loading dashboard…</div> : error ? <div className={styles.state} role="alert"><strong>Dashboard could not be loaded</strong><p>{error}</p><button onClick={() => setRevision((value) => value + 1)}>Try again</button></div> : data && <div className={styles.tableScroll}>
-        {view === "staff" && <table className={styles.staffTable}><thead><tr><th scope="col">Staff</th><th scope="col">Assigned villages</th><th scope="col">Households assigned</th><th scope="col">{period === "all" ? "Total forms" : "Selected date"}</th><th scope="col">Today (IST)</th><th scope="col">Backed-up drafts</th><th scope="col">Tasks pending</th><th scope="col">Sync issues</th><th scope="col">Last server contact (IST)</th></tr></thead><tbody>{users.length ? users.map((row) => <tr key={row.user_id}><td><StaffName row={row} /></td><td>{row.assigned_localities.length ? row.assigned_localities.map((item) => <span key={`${item.site_id}:${item.locality_code}`} className={styles.village}>{item.locality_code} · {item.locality_name}</span>) : <span className={styles.secondary}>None assigned</span>}{row.completed_localities?.length > 0 && <span className={styles.worked}>Forms filled: {row.completed_localities.map((item) => `${item.locality_code} · ${item.locality_name}`).join(", ")}</span>}</td><td>{count(row.assigned_households)}</td><td><strong>{count(row.forms_completed)}</strong></td><td>{count(row.forms_today)}</td><td>{count(row.backed_up_drafts)}</td><td><TaskCounts row={row} /></td><td className={row.sync_errors ? styles.issueCount : undefined}>{count(row.sync_errors)}</td><td>{syncTime(row.last_sync_at)}<span className={styles.secondary}>{row.last_sync_status?.replace(/_/g, " ") || "No server contact"}</span></td></tr>) : <tr><td colSpan={9} className={styles.empty}>No staff match these filters.</td></tr>}</tbody></table>}
-        {view === "forms" && <table className={styles.formsTable}><thead><tr><th scope="col">Staff</th><th scope="col">{periodLabel} total</th><th scope="col">Today (IST)</th>{displayedFormCodes.map((code) => <th scope="col" key={code}>{formLabel(code)}</th>)}</tr></thead><tbody>{users.length ? users.map((row) => <tr key={row.user_id}><td><StaffName row={row} /></td><td><strong>{count(row.forms_completed)}</strong></td><td>{count(row.forms_today)}</td>{displayedFormCodes.map((code) => <td key={code}>{count(row.forms_by_code[code] ?? 0)}</td>)}</tr>) : <tr><td className={styles.empty} colSpan={displayedFormCodes.length + 3}>No staff match these filters.</td></tr>}</tbody><tfoot><tr><th scope="row">Filtered staff total</th><td>{count(data.totals.forms_completed)}</td><td>{count(data.totals.forms_today)}</td>{displayedFormCodes.map((code) => <td key={code}>{count(data.totals.forms_by_code[code] ?? 0)}</td>)}</tr></tfoot></table>}
-        {(view === "villages" || view === "sites") && <table className={styles.areaTable}><thead><tr><th scope="col">{view === "villages" ? "Village / locality" : "Site"}</th><th scope="col">Staff</th><th scope="col">Households assigned</th><th scope="col">{period === "all" ? "Total forms" : "Selected date"}</th><th scope="col">Today (IST)</th><th scope="col">Backed-up drafts</th><th scope="col">Tasks pending</th><th scope="col">Sync issues</th></tr></thead><tbody>{(view === "villages" ? data.localities_summary : data.sites_summary).length ? (view === "villages" ? data.localities_summary : data.sites_summary).map((row) => <tr key={`${row.site_id}:${"locality_code" in row ? row.locality_code : "site"}`}><td>{"locality_code" in row ? <><strong>{row.locality_code} · {row.locality_name}</strong><span className={styles.secondary}>{data.sites.find((site) => site.site_id === row.site_id)?.site_name}</span></> : <strong>{row.site_name}</strong>}</td><td>{count(row.users)}</td><td>{count(row.assigned_households)}</td><td><strong>{count(row.forms_completed)}</strong><FormCounts row={row} /></td><td>{count(row.forms_today)}</td><td>{count(row.backed_up_drafts)}</td><td><TaskCounts row={row} /></td><td className={view === "sites" && row.sync_errors ? styles.issueCount : undefined}>{view === "villages" ? <span title="Sync requests cannot reliably be assigned to a single village.">—</span> : count(row.sync_errors)}</td></tr>) : <tr><td colSpan={8} className={styles.empty}>No {view === "villages" ? "villages" : "sites"} match these filters.</td></tr>}</tbody></table>}
-      </div>}
-    </section>
+    <p className={styles.periodSummary}><strong>{periodLabel}</strong> | {userId ? `${selectedUser?.display_name || selectedUser?.username || "Selected user"}'s forms only` : "All users' forms"}. Accepted, server-synced submissions; offline work appears after sync. Dates use IST. Assigned staff are current assignments.</p>
+    {loading ? <div className={styles.state} role="status">Loading village forms...</div>
+      : currentError ? <div className={styles.state} role="alert"><strong>Dashboard could not be loaded</strong><p>{currentError}</p>{!dateError && <button onClick={() => setRevision((value) => value + 1)}>Try again</button>}</div>
+      : data && <section className={styles.cardsScroll} aria-label="Village form totals">
+        {data.localities_summary.length === 0 ? <p className={styles.empty}>No villages match these filters.</p>
+          : <div className={styles.villageGrid}>{data.localities_summary.map((village) => {
+            const codes = [...FORM_CODES, ...Object.keys(village.forms_by_code).filter((code) => !FORM_CODES.includes(code)).sort()];
+            return <article key={`${village.site_id}:${village.locality_code}`} className={styles.villageCard} aria-label={`${village.locality_name} (${village.locality_code})`}>
+              <header className={styles.cardHeading}><div><span className={styles.siteName}>{data.sites.find((site) => site.site_id === village.site_id)?.site_name}</span><h2>{village.locality_name} <span>({village.locality_code})</span></h2></div><div className={styles.cardTotal}><strong>{count(village.forms_completed)}</strong><span>Total forms</span></div></header>
+              <div className={styles.assignees}><h3>Assigned staff</h3>{village.assigned_users.length ? <ul>{village.assigned_users.map((staff) => <li key={staff.user_id} className={staff.user_id === userId ? styles.selectedStaff : undefined}>{staff.display_name || staff.username}{staff.display_name && staff.display_name !== staff.username ? ` (${staff.username})` : ""}</li>)}</ul> : <p>No staff currently assigned</p>}</div>
+              <dl className={styles.formCounts}>{codes.map((code) => <div key={code}><dt>{formLabel(code)}</dt><dd><strong>{count(village.forms_by_code[code] ?? 0)}</strong> <span>forms filled</span></dd></div>)}</dl>
+            </article>;
+          })}</div>}
+      </section>}
   </div>;
 }
 

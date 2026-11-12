@@ -26,7 +26,9 @@ export interface DashboardStaffRow extends DashboardMetrics {
 }
 export interface OperationsDashboard {
   cohort: { households: number; members: number; eligible_women: number; tracking_eligible_women: number; active_pregnancies: number; children: number };
-  period: "all" | "date";
+  period: "all" | "today" | "date" | "range";
+  date_from: string | null;
+  date_to: string | null;
   staff_options: Pick<DashboardStaffRow, "user_id" | "username" | "display_name" | "site_id">[];
   date: string;
   timezone: "Asia/Kolkata";
@@ -37,6 +39,6 @@ export interface OperationsDashboard {
   totals: DashboardMetrics & { users: number; active_users: number; unattributed_forms: number; open_data_quality_flags: number };
   users: DashboardStaffRow[];
   sites_summary: (DashboardMetrics & { site_id: number; site_name: string; users: number })[];
-  localities_summary: (DashboardMetrics & DashboardLocality & { users: number })[];
+  localities_summary: (DashboardMetrics & DashboardLocality & { users: number; assigned_users: Pick<DashboardStaffRow, "user_id" | "username" | "display_name">[] })[];
   notes: string[];
 }

@@ -28,13 +28,15 @@ test("operations HTTP route enforces authentication, aggregate permission, role 
   const router = load("./dashboard.ts", {
     express: { Router: express.Router }, "drizzle-orm": orm, "../lib/errors": errors,
     "../lib/areaScope": { appendAreaScopeCondition() {} }, "../lib/dataAccess": access, "../lib/operationsDashboard": operations,
-    "../middleware/auth": { requireAuth(req: any, res: any, next: any) {
+    "../lib/siteFormTotals": { assembleSiteFormTotals() {}, siteFormTotalsSql() {} },
+    "../lib/siteOperationalProgress": { siteOperationalProgressSql() {} },
+    "../middleware/auth": { requireRole: (...roles: string[]) => (req: any, res: any, next: any) => roles.includes(req.user.role) ? next() : errors.sendError(res, 403, "FORBIDDEN", "Role not permitted"), requireAuth(req: any, res: any, next: any) {
       if (!req.headers.authorization) return errors.sendError(res, 401, "MISSING_AUTH", "Missing auth");
       req.user = { sub: "manager", username: "manager", role: req.headers["x-role"] || "site_data_manager", site_id: 4, type: "access" }; next();
     } },
     "../db": { schema, db: { async execute(query: orm.SQL) {
       executed.push(new PgDialect().sqlToQuery(query));
-      return { rows: executed.length === 4 ? [{ unattributed_forms: 0, open_data_quality_flags: 0 }] : executed.length === 5 ? [{ households: 0, members: 0, eligible_women: 0, tracking_eligible_women: 0, active_pregnancies: 0, children: 0 }] : [] };
+      return { rows: executed.length % 6 === 4 ? [{ unattributed_forms: 0, open_data_quality_flags: 0 }] : executed.length % 6 === 5 ? [{ households: 0, members: 0, eligible_women: 0, tracking_eligible_women: 0, active_pregnancies: 0, children: 0 }] : [] };
     } } },
   }).default;
   const app = express(); app.use("/dashboard", router);
@@ -55,7 +57,24 @@ test("operations HTTP route enforces authentication, aggregate permission, role 
     const body = await response.json() as any;
     assert.equal(body.data.scope.site_id, 4);
     assert.equal(body.data.scope.all_sites, false);
-    assert.equal(executed.length, 5);
+    assert.equal(executed.length, 6);
     for (const query of executed) { assert.ok(query.params.includes(4)); assert.ok(!query.params.includes(2)); }
+    for (const query of [
+      "?period=range&date_from=2026-11-01", "?period=range&date_to=2026-11-12",
+      "?period=range&date_from=2026-11-13&date_to=2026-11-12",
+      "?period=range&date_from=2026-02-30&date_to=2026-03-01",
+      "?period=range&date_from=2026-11-01&date_to=2026-11-12&date=2026-11-12",
+      "?period=range&date_from=2026-11-01&date_from=2026-11-02&date_to=2026-11-12",
+    ]) assert.equal((await fetch(base + query, { headers: { authorization: "test" } })).status, 400);
+    assert.equal(executed.length, 6, "invalid range requests fail before database queries");
+    const ranged = await fetch(base + "?period=range&date_from=2026-11-01&date_to=2026-11-12&site_id=2", { headers: { authorization: "test" } });
+    assert.equal(ranged.status, 200);
+    const rangeBody = await ranged.json() as any;
+    assert.equal(rangeBody.data.period, "range");
+    assert.equal(rangeBody.data.date_from, "2026-11-01");
+    assert.equal(rangeBody.data.date_to, "2026-11-12");
+    assert.equal(rangeBody.data.scope.site_id, 4);
+    assert.equal((await fetch(base + "?period=today", { headers: { authorization: "test" } })).status, 200);
+
   } finally { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); }
 });

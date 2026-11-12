@@ -73,3 +73,54 @@ test("all-time default, legacy date mode and explicit mode validation", () => {
   for (const form_code of ["bad-code", "wrong", [], "WQ' OR true"]) assert.throws(() => dashboardScope(user, { form_code }), /INVALID_FORM/);
   for (const search of [[], {}, "a".repeat(201)]) assert.throws(() => dashboardScope(user, { search }), /INVALID_SEARCH/);
 });
+
+
+test("today and inclusive date ranges validate scalar endpoints and retain IST boundaries", () => {
+  const now = new Date("2026-11-12T18:29:59Z");
+  const today = dashboardScope(user, { period: "today", date: "2026-01-01" }, now);
+  assert.equal(today.date, "2026-11-12");
+  assert.equal(today.period, "today");
+  const range = dashboardScope(user, { period: "range", date_from: "2026-10-31", date_to: "2026-11-02" }, now);
+  assert.equal(range.date_from, "2026-10-31");
+  assert.equal(range.date_to, "2026-11-02");
+  const facts = new PgDialect().sqlToQuery(dashboardSql(range).facts);
+  assert.ok(facts.params.includes("2026-10-31T00:00:00+05:30"));
+  assert.ok(facts.params.includes("2026-11-02T18:30:00.000Z"), "end date includes the full IST day");
+  assert.equal(dashboardScope(user, { period: "range", date_from: "2024-02-29", date_to: "2024-02-29" }).date_to, "2024-02-29");
+  for (const query of [
+    { period: "range" }, { period: "range", date_from: "2026-11-12" },
+    { period: "range", date_to: "2026-11-12" },
+    { period: "range", date_from: "2026-11-13", date_to: "2026-11-12" },
+    { period: "range", date_from: "2026-02-30", date_to: "2026-03-01" },
+    { period: "range", date_from: ["2026-11-12"], date_to: "2026-11-12" },
+    { period: "range", date_from: "2026-11-12", date_to: null },
+    { period: "date", date: ["2026-11-12"] },
+    { period: "all", date_from: "2026-11-12", date_to: "2026-11-12" },
+    { period: "range", date: "2026-11-12", date_from: "2026-11-12", date_to: "2026-11-12" },
+  ]) assert.throws(() => dashboardScope(user, query, now), /INVALID_DATE/);
+  assert.throws(() => dashboardScope(user, { site_id: ["4"] }), /INVALID_SITE/);
+  assert.throws(() => dashboardScope(user, { locality_code: ["04"] }), /INVALID_LOCALITY/);
+});
+
+test("village cards keep current staff names, zero counts and selected user's historical villages", () => {
+  const staff = { user_id: "worker", username: "worker.login", display_name: "Worker" };
+  const row = { ...emptyDashboardMetrics(), ...staff, active: true, role: "field_worker", site_id: 4, site_name: "Chennai", assigned_localities: [{ site_id: 4, locality_code: "04", locality_name: "Assigned" }], completed_localities: [], last_sync_at: null, last_sync_status: null };
+  const options = [
+    { site_id: 4, site_name: "Chennai", locality_code: "04", locality_name: "Assigned", assigned_users: [staff] },
+    { site_id: 4, site_name: "Chennai", locality_code: "05", locality_name: "Historical", assigned_users: [], selected_user_has_forms: true },
+    { site_id: 4, site_name: "Chennai", locality_code: "06", locality_name: "Unrelated zero", assigned_users: [] },
+    { site_id: 2, site_name: "Ballabhgarh", locality_code: "04", locality_name: "Other site", assigned_users: [staff] },
+  ];
+  const quality = { unattributed_forms: 0, open_data_quality_flags: 0 };
+  const scope = dashboardScope(user, { user_id: staff.user_id, period: "range", date_from: "2026-11-01", date_to: "2026-11-12" });
+  const result = assembleDashboard(scope, [row], [], options, quality);
+  assert.deepEqual(result.localities_summary.map(l => l.locality_code), ["04", "05"]);
+  assert.deepEqual(result.localities_summary[0].assigned_users, [staff]);
+  assert.equal(result.localities_summary[1].forms_completed, 0, "historical card stays visible on a zero-activity selected period");
+  assert.equal(result.date_from, "2026-11-01");
+  const all = assembleDashboard(dashboardScope(user, {}), [row], [
+    { user_id: null, site_id: 4, locality_code: "04", gu: 1, gs: 0, gl: 0, metric: "forms_completed", code: "FUTURE_1", count: 2 },
+  ], options, quality);
+  assert.deepEqual(all.localities_summary.map(l => l.locality_code), ["04", "05", "06"]);
+  assert.deepEqual(all.localities_summary[0].forms_by_code, { FUTURE_1: 2 });
+});

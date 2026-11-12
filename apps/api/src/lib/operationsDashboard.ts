@@ -7,10 +7,17 @@ const SITE = new Set(["site_data_manager", "site_research_scientist", "site_inve
 export function dashboardScope(user: JwtPayload, query: Record<string, unknown>, now = new Date()) {
   if (!CENTRAL.has(user.role) && !SITE.has(user.role)) throw new Error("DASHBOARD_FORBIDDEN");
   const as_of_date = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
-  const date = query.date === undefined ? as_of_date : String(query.date);
-  if (!/^(?!0000)\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(date)) || new Date(date).toISOString().slice(0, 10) !== date) throw new Error("INVALID_DATE");
+  const calendarDate = (value: unknown) => {
+    if (typeof value !== "string" || !/^(?!0000)\d{4}-\d{2}-\d{2}$/.test(value) || !Number.isFinite(Date.parse(value)) || new Date(value).toISOString().slice(0, 10) !== value) throw new Error("INVALID_DATE");
+    return value;
+  };
+  const date = query.date === undefined ? as_of_date : calendarDate(query.date);
   const period = query.period === undefined ? (query.date === undefined ? "all" : "date") : query.period;
-  if (period !== "all" && period !== "date") throw new Error("INVALID_PERIOD");
+  if (period !== "all" && period !== "today" && period !== "date" && period !== "range") throw new Error("INVALID_PERIOD");
+  if ((query.date_from !== undefined || query.date_to !== undefined) && (period !== "range" || query.date !== undefined)) throw new Error("INVALID_DATE_RANGE");
+  const date_from = period === "range" ? calendarDate(query.date_from) : null;
+  const date_to = period === "range" ? calendarDate(query.date_to) : null;
+  if (date_from && date_to && date_from > date_to) throw new Error("INVALID_DATE_RANGE");
   const user_id = query.user_id === undefined || query.user_id === "" ? null : query.user_id;
   if (user_id !== null && (typeof user_id !== "string" || user_id.length > 200 || !user_id.trim() || /[\x00-\x1f]/.test(user_id))) throw new Error("INVALID_USER");
   const search = query.search === undefined ? "" : query.search;
@@ -18,24 +25,26 @@ export function dashboardScope(user: JwtPayload, query: Record<string, unknown>,
   const form_code = query.form_code === undefined || query.form_code === "" ? null : query.form_code;
   if (form_code !== null && (typeof form_code !== "string" || !/^[A-Z][A-Z0-9_]{0,19}$/.test(form_code))) throw new Error("INVALID_FORM");
   const all_sites = CENTRAL.has(user.role);
+  if (query.site_id !== undefined && query.site_id !== "" && (typeof query.site_id !== "string" && typeof query.site_id !== "number")) throw new Error("INVALID_SITE");
   const requestedSite = query.site_id === undefined || query.site_id === "" ? null : Number(query.site_id);
   if (requestedSite !== null && (!Number.isSafeInteger(requestedSite) || requestedSite < 1)) throw new Error("INVALID_SITE");
   if (!all_sites && (!Number.isSafeInteger(user.site_id) || user.site_id! < 1)) throw new Error("DASHBOARD_FORBIDDEN");
-  const locality_code = query.locality_code === undefined || query.locality_code === "" ? null : String(query.locality_code).trim();
+  if (query.locality_code !== undefined && typeof query.locality_code !== "string") throw new Error("INVALID_LOCALITY");
+  const locality_code = query.locality_code === undefined || query.locality_code === "" ? null : query.locality_code.trim();
   if (locality_code !== null && !/^[A-Za-z0-9]{1,20}$/.test(locality_code)) throw new Error("INVALID_LOCALITY");
-  return { date, as_of_date, period: period as "all" | "date", user_id, search: search.trim(), form_code, all_sites, site_id: all_sites ? requestedSite : user.site_id, locality_code };
+  return { date: period === "today" ? as_of_date : date, as_of_date, date_from, date_to, period: period as "all" | "today" | "date" | "range", user_id, search: search.trim(), form_code, all_sites, site_id: all_sites ? requestedSite : user.site_id, locality_code };
 }
 export type DashboardScope = ReturnType<typeof dashboardScope>;
 
 export function dashboardSql(scope: DashboardScope) {
   const { site_id: site, locality_code: locality, date } = scope;
   const area = (alias: string): SQL => sql`(${site}::integer is null or ${sql.raw(alias)}.site_id = ${site}) and (${locality}::text is null or ${sql.raw(alias)}.locality_code = ${locality})`;
-  const start = `${date}T00:00:00+05:30`;
+  const start = `${scope.date_from ?? date}T00:00:00+05:30`;
   const todayStart = `${scope.as_of_date}T00:00:00+05:30`;
   const todayFinish = new Date(Date.parse(todayStart) + 86400000).toISOString();
   const form = (alias: string): SQL => sql`(${scope.form_code}::text is null or ${sql.raw(alias)}.form_code=${scope.form_code})`;
-  const dueDate = scope.period === "all" ? scope.as_of_date : date;
-  const finish = new Date(Date.parse(start) + 86400000).toISOString();
+  const dueDate = scope.period === "all" ? scope.as_of_date : scope.date_to ?? date;
+  const finish = new Date(Date.parse(`${scope.date_to ?? date}T00:00:00+05:30`) + 86400000).toISOString();
   const inPeriod = (timestamp: SQL): SQL => scope.period === "all"
     ? sql`${timestamp}<${todayFinish}::timestamptz`
     : sql`${timestamp}>=${start}::timestamptz and ${timestamp}<${finish}::timestamptz`;
@@ -43,9 +52,10 @@ export function dashboardSql(scope: DashboardScope) {
   const active = sql`(a.active_from is null or a.active_from <= ${scope.as_of_date}::date) and (a.active_to is null or a.active_to >= ${scope.as_of_date}::date)`;
   const areaRoster = sql`select u.user_id, u.username, coalesce(u.display_name, u.username) display_name, u.role, u.active, u.site_id,
     coalesce(s.site_name, 'Central') site_name from users u left join study_sites s on s.site_id=u.site_id
-    where (${site}::integer is null or u.site_id=${site}) and (${locality}::text is null or
+    where (${site}::integer is null or u.site_id=${site} or exists(select 1 from form_responses f where f.submitted_by_user_id=u.user_id and ${area("f")} and coalesce(f.response_status,'primary')='primary')) and (${locality}::text is null or
       exists(select 1 from user_area_assignments a where a.user_id=u.user_id and ${active} and ${area("a")}) or
-      exists(select 1 from field_worker_household_assignments a join households h on h.household_id=a.household_id where a.user_id=u.user_id and ${area("h")}))`;
+      exists(select 1 from field_worker_household_assignments a join households h on h.household_id=a.household_id where a.user_id=u.user_id and ${area("h")}) or
+      exists(select 1 from form_responses f where f.submitted_by_user_id=u.user_id and ${area("f")} and coalesce(f.response_status,'primary')='primary'))`;
   const roster = sql`select * from (${areaRoster}) u where (${scope.user_id}::text is null or u.user_id=${scope.user_id})
     and (${scope.search}='' or strpos(lower(u.username),lower(${scope.search}))>0 or strpos(lower(u.display_name),lower(${scope.search}))>0)`;
   return {
@@ -60,9 +70,14 @@ export function dashboardSql(scope: DashboardScope) {
     roster: sql`with roster as (${roster}), locality_rows as (
       select distinct a.user_id,a.site_id,a.locality_code,coalesce(l.locality_name,a.locality_code) locality_name
       from user_area_assignments a left join study_localities l on l.site_id=a.site_id and l.locality_code=a.locality_code
-      where ${active} and ${area("a")}
+      where ${active} and ${area("a")} and exists(select 1 from users u where u.user_id=a.user_id and u.site_id=a.site_id)
+      union select distinct a.user_id,h.site_id,h.locality_code,coalesce(l.locality_name,h.locality_code) locality_name
+      from field_worker_household_assignments a join households h on h.household_id=a.household_id
+      join users u on u.user_id=a.user_id and u.site_id=h.site_id
+      left join study_localities l on l.site_id=h.site_id and l.locality_code=h.locality_code where ${area("h")}
     ), localities as (select user_id,json_agg(json_build_object('site_id',site_id,'locality_code',locality_code,'locality_name',locality_name) order by site_id,locality_code) assigned_localities from locality_rows group by user_id),
-    contacts as (select z.user_id,coalesce(z.completed_at,z.started_at) at,z.status, z.sync_log_id id from sync_logs z
+    contacts as (select z.user_id,coalesce(z.completed_at,z.started_at) at,z.status, z.sync_log_id id from sync_logs z join users u on u.user_id=z.user_id
+      where (${site}::integer is null or u.site_id=${site})
       union all select d.user_id,d.server_updated_at,'draft_backup',d.draft_id from questionnaire_drafts d where ${area("d")}
       union all select f.submitted_by_user_id,f.synced_at,'form_received',f.form_response_id from form_responses f where ${area("f")}),
     latest_sync as (select distinct on (z.user_id) z.user_id,z.at last_sync_at,z.status last_sync_status
@@ -102,12 +117,18 @@ export function dashboardSql(scope: DashboardScope) {
         and (t.form_code in ('HHQ','WQ') or coalesce(t.window_start,t.target_date)<=${dueDate}::date)
         and coalesce(t.deadline_date,t.target_date)<${dueDate}::date
       union all select z.user_id,u.site_id,null,'sync_errors',z.sync_log_id,'' from sync_logs z join roster u on u.user_id=z.user_id
-      where ${inPeriod(sql`coalesce(z.completed_at,z.started_at)`)}
+      where (${site}::integer is null or u.site_id=${site}) and ${inPeriod(sql`coalesce(z.completed_at,z.started_at)`)}
         and z.status in ('error','failed','partial_success')
     ) select f.user_id,f.site_id,f.locality_code,grouping(f.user_id) gu,grouping(f.site_id) gs,grouping(f.locality_code) gl,
       metric,code,count(distinct id)::integer count from facts f join roster r on r.user_id=f.user_id
       group by grouping sets ((f.user_id,metric,code),(f.site_id,metric,code),(f.site_id,f.locality_code,metric,code),(metric,code))`,
-    options: sql`select s.site_id,s.site_name,l.locality_code,l.locality_name from study_sites s left join study_localities l on l.site_id=s.site_id where (${scope.all_sites ? null : site}::integer is null or s.site_id=${site}) order by s.site_id,l.locality_code`,
+    options: sql`select s.site_id,s.site_name,l.locality_code,l.locality_name,
+      coalesce((select json_agg(json_build_object('user_id',u.user_id,'username',u.username,'display_name',coalesce(u.display_name,u.username)) order by coalesce(u.display_name,u.username),u.user_id)
+        from users u where u.role='field_worker' and u.site_id=l.site_id and (
+          exists(select 1 from user_area_assignments a where a.user_id=u.user_id and a.site_id=l.site_id and a.locality_code=l.locality_code and ${active}) or
+          exists(select 1 from field_worker_household_assignments a join households h on h.household_id=a.household_id where a.user_id=u.user_id and h.site_id=l.site_id and h.locality_code=l.locality_code))), '[]'::json) assigned_users,
+      exists(select 1 from form_responses f where f.submitted_by_user_id=${scope.user_id} and f.site_id=l.site_id and f.locality_code=l.locality_code and coalesce(f.response_status,'primary')='primary') selected_user_has_forms
+      from study_sites s left join study_localities l on l.site_id=s.site_id where (${scope.all_sites ? null : site}::integer is null or s.site_id=${site}) order by s.site_id,l.locality_code`,
     quality: sql`select
       (select count(*)::integer from form_responses f where ${area("f")} and coalesce(f.response_status,'primary')='primary'
         and ${scope.user_id === null && !scope.search} and not exists(select 1 from users u where u.user_id=f.submitted_by_user_id)
@@ -126,20 +147,22 @@ export function dashboardSql(scope: DashboardScope) {
 
 export const emptyDashboardMetrics = (): DashboardMetrics => ({ assigned_households: 0, forms_completed: 0, forms_today: 0, forms_received: 0, backed_up_drafts: 0, pending_tasks: 0, overdue_tasks: 0, sync_errors: 0, forms_by_code: {} });
 interface Fact { user_id: string | null; site_id: number | null; locality_code: string | null; gu: number; gs: number; gl: number; metric: keyof DashboardMetrics; code: string; count: number; }
-export function assembleDashboard(scope: DashboardScope, users: DashboardStaffRow[], facts: Fact[], options: { site_id: number; site_name: string; locality_code: string | null; locality_name: string | null }[], quality: { unattributed_forms: number; open_data_quality_flags: number }, cohort: OperationsDashboard["cohort"] = { households: 0, members: 0, eligible_women: 0, tracking_eligible_women: 0, active_pregnancies: 0, children: 0 }, staffOptions: OperationsDashboard["staff_options"] = users): OperationsDashboard {
+export function assembleDashboard(scope: DashboardScope, users: DashboardStaffRow[], facts: Fact[], options: { site_id: number; site_name: string; locality_code: string | null; locality_name: string | null; assigned_users?: OperationsDashboard["localities_summary"][number]["assigned_users"]; selected_user_has_forms?: boolean }[], quality: { unattributed_forms: number; open_data_quality_flags: number }, cohort: OperationsDashboard["cohort"] = { households: 0, members: 0, eligible_women: 0, tracking_eligible_women: 0, active_pregnancies: 0, children: 0 }, staffOptions: OperationsDashboard["staff_options"] = users): OperationsDashboard {
   const userMap = new Map(users.map(u => [u.user_id, Object.assign(u, emptyDashboardMetrics())]));
   const sites = [...new Map(options.map(o => [o.site_id, { site_id: o.site_id, site_name: o.site_name }])).values()];
   const localities = options.filter(o => o.locality_code !== null).map(o => ({ site_id: o.site_id, locality_code: o.locality_code!, locality_name: o.locality_name! }));
   const totals = { ...emptyDashboardMetrics(), users: users.length, active_users: users.filter(u => u.active).length, ...quality };
   const siteMap = new Map(sites.filter(s => scope.site_id === null || s.site_id === scope.site_id).map(s => [s.site_id, { ...s, ...emptyDashboardMetrics(), users: users.filter(u => u.site_id === s.site_id).length }]));
-  const localityMap = new Map(localities.filter(l => (scope.site_id === null || l.site_id === scope.site_id) && (scope.locality_code === null || l.locality_code === scope.locality_code)).map(l => [l.site_id + ":" + l.locality_code, { ...l, ...emptyDashboardMetrics(), users: users.filter(u => u.assigned_localities.some(a => a.site_id === l.site_id && a.locality_code === l.locality_code)).length }]));
+  const localityMap = new Map(options.filter(l => l.locality_code !== null && (scope.site_id === null || l.site_id === scope.site_id) && (scope.locality_code === null || l.locality_code === scope.locality_code) &&
+    (scope.user_id === null || l.selected_user_has_forms || users.some(u => u.user_id === scope.user_id && u.assigned_localities.some(a => a.site_id === l.site_id && a.locality_code === l.locality_code))))
+    .map(l => [l.site_id + ":" + l.locality_code, { site_id: l.site_id, locality_code: l.locality_code!, locality_name: l.locality_name!, ...emptyDashboardMetrics(), assigned_users: l.assigned_users ?? [], users: (l.assigned_users ?? []).length }]));
   for (const f of facts) {
     const target = f.gu === 0 ? userMap.get(f.user_id!) : f.gs === 1 ? totals : f.gl === 1 ? siteMap.get(f.site_id!) : localityMap.get(f.site_id + ":" + f.locality_code);
     if (!target) continue;
     if (f.metric === "forms_completed") target.forms_by_code[f.code] = Number(f.count);
     if (f.metric !== "forms_by_code") target[f.metric] += Number(f.count);
   }
-  return { cohort, period: scope.period, staff_options: staffOptions, date: scope.date, timezone: "Asia/Kolkata", generated_at: new Date().toISOString(), scope: { all_sites: scope.all_sites, site_id: scope.site_id, locality_code: scope.locality_code, user_id: scope.user_id, search: scope.search, form_code: scope.form_code }, sites, localities, totals, users: [...userMap.values()], sites_summary: [...siteMap.values()], localities_summary: [...localityMap.values()], notes: [
+  return { cohort, period: scope.period, date_from: scope.date_from, date_to: scope.date_to, staff_options: staffOptions, date: scope.date, timezone: "Asia/Kolkata", generated_at: new Date().toISOString(), scope: { all_sites: scope.all_sites, site_id: scope.site_id, locality_code: scope.locality_code, user_id: scope.user_id, search: scope.search, form_code: scope.form_code }, sites, localities, totals, users: [...userMap.values()], sites_summary: [...siteMap.values()], localities_summary: [...localityMap.values()], notes: [
     "Forms completed use the client submission date in India time; received forms use the server receipt date. Only primary accepted submissions count.",
     "Drafts are active server backups, excluding tasks already submitted. Unsynced phone drafts and outbox forms are not visible here.",
     "Village labels show assigned localities, not the user's current physical location. Household and task totals count unique records even when assigned to multiple users.",
