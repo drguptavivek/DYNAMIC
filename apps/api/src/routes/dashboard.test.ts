@@ -20,10 +20,11 @@ function load(path: string, modules: Record<string, unknown>) {
 
 test("operations HTTP route enforces authentication, aggregate permission, role and site scope", async () => {
   let capability = true;
+  let pii = true;
   const executed: { sql: string; params: unknown[] }[] = [];
   const access = load("../lib/dataAccess.ts", {
     "drizzle-orm": orm, "./errors": errors,
-    "../db": { schema, db: { select() { const builder: any = { from: () => builder, leftJoin: () => builder, where: () => builder, limit: async () => [{ can_access_pii: true, can_access_aggregate_dashboards: capability }] }; return builder; } } },
+    "../db": { schema, db: { select() { const builder: any = { from: () => builder, leftJoin: () => builder, where: () => builder, limit: async () => [{ can_access_pii: pii, can_access_aggregate_dashboards: capability }] }; return builder; } } },
   });
   const router = load("./dashboard.ts", {
     express: { Router: express.Router }, "drizzle-orm": orm, "../lib/errors": errors,
@@ -35,7 +36,9 @@ test("operations HTTP route enforces authentication, aggregate permission, role 
       req.user = { sub: "manager", username: "manager", role: req.headers["x-role"] || "site_data_manager", site_id: 4, type: "access" }; next();
     } },
     "../db": { schema, db: { async execute(query: orm.SQL) {
-      executed.push(new PgDialect().sqlToQuery(query));
+      const compiled = new PgDialect().sqlToQuery(query);
+      executed.push(compiled);
+      if (compiled.sql.startsWith("with assigned as")) return { rows: [{ rows: [{ household_id: "c1", household_head_name: "Test head", site_id: 4, site_name: "Chennai", locality_code: "04", locality_name: "Village", bhq_status: "draft", last_activity_at: "2026-11-12T04:00:00.000Z" }], summary: { assigned: 1, completed: 0, draft: 1, excluded: 0, pending: 0 }, page: 1, total_pages: 1 }] };
       return { rows: executed.length % 6 === 4 ? [{ unattributed_forms: 0, open_data_quality_flags: 0 }] : executed.length % 6 === 5 ? [{ households: 0, members: 0, eligible_women: 0, tracking_eligible_women: 0, active_pregnancies: 0, children: 0 }] : [] };
     } } },
   }).default;
@@ -75,6 +78,30 @@ test("operations HTTP route enforces authentication, aggregate permission, role 
     assert.equal(rangeBody.data.date_to, "2026-11-12");
     assert.equal(rangeBody.data.scope.site_id, 4);
     assert.equal((await fetch(base + "?period=today", { headers: { authorization: "test" } })).status, 200);
+    const assignedBase = base.replace("/operations", "/assigned-households");
+    const beforeAssignments = executed.length;
+    assert.equal((await fetch(assignedBase + "?user_id=cw")).status, 401);
+    for (const role of ["field_worker", "field_supervisor", "us_collaborator"]) assert.equal((await fetch(assignedBase + "?user_id=cw", { headers: { authorization: "test", "x-role": role } })).status, 403);
+    capability = false;
+    assert.equal((await fetch(assignedBase + "?user_id=cw", { headers: { authorization: "test" } })).status, 403);
+    capability = true;
+    for (const query of ["", "?user_id=", "?user_id=cw&page=0", "?user_id=cw&page=1x", "?user_id=cw&page=2147483648", "?user_id=cw&page=1&page=2", "?user_id=cw&period=range&date_from=2026-11-12"]) assert.equal((await fetch(assignedBase + query, { headers: { authorization: "test" } })).status, 400);
+    assert.equal(executed.length, beforeAssignments, "invalid or unauthorized assigned-household requests never query data");
+    const assigned = await fetch(assignedBase + "?user_id=cw&site_id=2&period=range&date_from=2026-11-01&date_to=2026-11-12", { headers: { authorization: "test" } });
+    assert.equal(assigned.status, 200);
+    const assignedBody = await assigned.json() as any;
+    assert.equal(assignedBody.data.rows[0].site_id, 4);
+    assert.equal(assignedBody.data.rows[0].household_head_name, "Test head");
+    assert.equal(assignedBody.data.rows[0].bhq_status, "draft");
+    assert.equal(assignedBody.data.summary.assigned, 1);
+    assert.ok(executed.at(-1)!.params.includes(4));
+    assert.ok(!executed.at(-1)!.params.includes(2));
+    assert.ok(executed.at(-1)!.params.includes("2026-11-01T00:00:00+05:30"));
+    pii = false;
+    const masked = await fetch(assignedBase + "?user_id=cw", { headers: { authorization: "test" } });
+    assert.equal(masked.status, 200);
+    assert.equal(((await masked.json()) as any).data.rows[0].household_head_name, null, "aggregate permission does not reveal head names without PII access");
+
 
   } finally { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); }
 });

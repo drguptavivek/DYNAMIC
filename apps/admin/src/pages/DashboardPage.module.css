@@ -12,7 +12,8 @@
 .filters input:focus-visible, .filters select:focus-visible, .container button:focus-visible { outline: 3px solid #93c5fd; outline-offset: 2px; }
 .periodSummary { margin: 0; flex-shrink: 0; font-size: .78rem; line-height: 1.5; color: #64748b; }
 .periodSummary strong { color: #182435; }
-.cardsScroll { flex: 1; min-height: 0; min-width: 0; overflow: auto; padding: 1px 6px 8px 1px; }
+.contentScroll { flex: 1; min-height: 0; min-width: 0; overflow: auto; padding: 1px 6px 8px 1px; }
+.cardsSection { min-width: 0; }
 .villageGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 14px; align-items: start; }
 .villageCard { min-width: 0; border: 1px solid #dce2ea; border-radius: 10px; background: white; overflow: hidden; }
 .cardHeading { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 16px; background: #f0fdfa; border-bottom: 1px solid #d9eeea; }
@@ -42,4 +43,25 @@
 .statCard { display: flex; flex-direction: column; gap: 7px; background: white; border: 1px solid #dce2ea; border-radius: 6px; padding: 11px 13px; min-width: 0; }
 .statLabel { color: #64748b; font-size: .73rem; }
 .statValue { color: #1d4ed8; font-size: 1.5rem; line-height: 1.15; font-variant-numeric: tabular-nums; }
-@media (max-width: 600px) { .container { height: auto; min-height: 100%; } .filters label { flex-basis: 135px; } .cardsScroll { flex: none; overflow: visible; padding-right: 0; } .cardHeading { padding: 12px; } .assignees { padding: 10px 12px; } .formCounts { padding-left: 12px; padding-right: 12px; } }
+@media (max-width: 600px) { .container { height: auto; min-height: 100%; } .filters label { flex-basis: 135px; } .contentScroll { flex: none; overflow: visible; padding-right: 0; } .cardHeading { padding: 12px; } .assignees { padding: 10px 12px; } .formCounts { padding-left: 12px; padding-right: 12px; } }
+
+.householdPanel { margin-top: 18px; border: 1px solid #dce2ea; border-radius: 8px; background: white; overflow: hidden; }
+.householdHeading { padding: 14px 16px 8px; }
+.householdHeading h2 { margin: 0; font-size: 1.05rem; color: #182435; }
+.householdHeading p { margin: 6px 0 0; font-size: .76rem; line-height: 1.5; color: #64748b; }
+.householdSummary { display: flex; flex-wrap: wrap; gap: 8px 18px; padding: 8px 16px; font-size: .8rem; color: #334155; }
+.householdSummary strong { font-variant-numeric: tabular-nums; }
+.statusLegend { padding: 0 16px 10px; margin: 0; font-size: .74rem; color: #64748b; line-height: 1.5; }
+.householdTableScroll { max-height: clamp(280px, 55vh, 650px); min-width: 0; overflow: auto; }
+.householdTableScroll table { width: 100%; min-width: 740px; border-collapse: separate; border-spacing: 0; font-size: .82rem; }
+.householdTableScroll th, .householdTableScroll td { padding: 10px 13px; border-bottom: 1px solid #e5eaf0; text-align: left; color: #334155; }
+.householdTableScroll th { position: sticky; top: 0; z-index: 1; background: #f1f5f9; white-space: nowrap; }
+.householdTableScroll td { background: white; }
+.householdTableScroll .completedRow > td { background: #dcfce7; }
+.householdTableScroll .draftRow > td { background: #fef3c7; }
+.householdTableScroll .excludedRow > td { background: #ffe4e6; }
+.statusBadge { display: inline-block; border: 1px solid currentColor; border-radius: 3px; padding: 2px 5px; font-size: .72rem; }
+.householdPagination { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 16px; font-size: .76rem; color: #64748b; }
+.householdPagination > div { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.householdPagination button { padding: 6px 9px; background: white; border: 1px solid #cbd5e1; border-radius: 4px; color: #1d4ed8; cursor: pointer; }
+.householdPagination button:disabled { color: #94a3b8; cursor: default; }

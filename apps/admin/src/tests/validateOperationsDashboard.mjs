@@ -20,9 +20,24 @@ const submissions = [
 const sites = [{ site_id: 2, site_name: 'Ballabhgarh' }, { site_id: 4, site_name: 'Chennai' }];
 let authUser = { user_id: 'central', role: 'central_admin', username: 'central' };
 const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+const assignments = [
+  ...Array.from({length:54},(_,i)=>({ household_id:`2-20-${String(i+1).padStart(4,'0')}-01`,household_head_name:`Head ${i+1}`,site_id:2,site_name:'Ballabhgarh',locality_code:'20',locality_name:'Bukharpur',user_id:'anita',bhq_status:['completed','draft','excluded','pending'][i%4],activity_date:i<4?'2026-11-10':i%4===3?null:'2026-11-12' })),
+  {household_id:'2-20-0100-01',household_head_name:'Other worker head',site_id:2,site_name:'Ballabhgarh',locality_code:'20',locality_name:'Bukharpur',user_id:'anita2',bhq_status:'completed',activity_date:'2026-11-12'},
+  {household_id:'4-20-0001-01',household_head_name:'Chennai head',site_id:4,site_name:'Chennai',locality_code:'20',locality_name:'Chennai East',user_id:'ch-worker',bhq_status:'draft',activity_date:'2026-11-12'},
+];
 function response(url) {
   if (url === '/dashboard') return { households: 10, members: 40, eligible_women: 8, tracking_eligible_women: 6, active_pregnancies: 3, children: 4, tasks: 20, open_data_quality_flags: 1 };
   const params = new URLSearchParams(url.split('?')[1]);
+  if(url.startsWith('/dashboard/assigned-households?')) {
+    const central=['central_admin','central_data_manager'].includes(authUser.role);
+    const site=central?Number(params.get('site_id'))||null:authUser.site_id;
+    const mode=params.get('period'), user=params.get('user_id'), village=params.get('locality_code');
+    const matching=assignments.filter(r=>r.user_id===user&&(!site||r.site_id===site)&&(!village||r.locality_code===village)&&(mode==='all'||mode==='today'&&r.activity_date===today||mode==='date'&&r.activity_date===params.get('date')||mode==='range'&&r.activity_date&&r.activity_date>=params.get('date_from')&&r.activity_date<=params.get('date_to')));
+    const summary={assigned:matching.length,completed:0,draft:0,excluded:0,pending:0};
+    for(const row of matching)summary[row.bhq_status]++;
+    const page=Number(params.get('page'))||1;
+    return { rows:matching.slice((page-1)*50,page*50).map(r=>({...r,last_activity_at:r.activity_date?`${r.activity_date}T06:00:00Z`:null})),summary,page,total_pages:Math.max(1,Math.ceil(matching.length/50)) };
+  }
   const central = ['central_admin','central_data_manager'].includes(authUser.role);
   const site = central ? Number(params.get('site_id')) || null : authUser.site_id;
   const locality = params.get('locality_code'), user = params.get('user_id');
@@ -36,7 +51,7 @@ function response(url) {
 }
 
 let slots = [], cursor = 0, dirty = true, effects = [], tree;
-let nextResponse;
+let nextResponse, nextAssignedResponse;
 const requests = [];
 const same = (a,b) => a && b && a.length === b.length && a.every((value,index)=>Object.is(value,b[index]));
 globalThis.operationsHarness = {
@@ -44,7 +59,7 @@ globalThis.operationsHarness = {
   useState(initial) { const index=cursor++; if(!(index in slots))slots[index]=typeof initial==='function'?initial():initial; return [slots[index], value=>{const next=typeof value==='function'?value(slots[index]):value;if(!Object.is(next,slots[index])){slots[index]=next;dirty=true;}}]; },
   useMemo(factory,deps) { const index=cursor++;if(!slots[index]||!same(slots[index].deps,deps))slots[index]={deps,value:factory()};return slots[index].value; },
   useEffect(callback,deps) { const index=cursor++;if(!slots[index]||!same(slots[index].deps,deps)){slots[index]?.cleanup?.();slots[index]={deps};effects.push(()=>{slots[index].cleanup=callback();});} },
-  api: { get: async url=>{requests.push(url);const pending=nextResponse;nextResponse=undefined;return pending ? await pending : structuredClone(response(url));} },
+  api: { get: async url=>{requests.push(url);const assigned=url.startsWith('/dashboard/assigned-households?');const pending=assigned?nextAssignedResponse:nextResponse;if(assigned)nextAssignedResponse=undefined;else nextResponse=undefined;return pending ? await pending : structuredClone(response(url));} },
 };
 const bundled = await build({entryPoints:['apps/admin/src/pages/DashboardPage.tsx'],bundle:true,write:false,format:'cjs',platform:'node',jsx:'automatic',plugins:[{name:'dashboard-test',setup(builder){
   builder.onResolve({filter:/^(react|react\/jsx-runtime)$|\/lib\/(api|auth-context)$|\.css$/},args=>({path:args.path,namespace:'mock'}));
@@ -62,7 +77,9 @@ const villageKeys=()=>nodes().filter(node=>node.type==='article').map(node=>node
 const villageCard=key=>nodes().find(node=>node.type==='article'&&node.key===key);
 const formValue=(key,code)=>text(nodes(villageCard(key)).find(node=>node.type==='dt'&&text(node)===code));
 const change=async(label,value)=>{input(label).props.onChange({target:{value}});await settle();};
-const params=()=>new URLSearchParams(requests.at(-1).split('?')[1]);
+const params=()=>new URLSearchParams(requests.findLast(url=>url.startsWith('/dashboard/operations?')).split('?')[1]);
+const tableParams=()=>new URLSearchParams(requests.findLast(url=>url.startsWith('/dashboard/assigned-households?')).split('?')[1]);
+const householdRows=()=>nodes().filter(n=>n.type==='tr'&&n.props['data-household-id']);
 function snapshot(name) {
   if(!process.env.DASHBOARD_PREVIEW_DIR)return;
   const escape=value=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;');
@@ -125,10 +142,33 @@ await change('User','anita2');assert.equal(value('2:20','BHQ'),'0 forms filled')
 resolveOld(response('/dashboard/operations?period=all'));await settle();assert.equal(value('2:20','BHQ'),'0 forms filled');
 nextResponse=Promise.reject(new Error('Connection unavailable'));button('Refresh').props.onClick();await settle();assert(text().includes('Connection unavailable'));assert.equal(villageKeys().length,0);
 button('Try again').props.onClick();await settle();assert.equal(villageKeys().length,1);
+await change('Date','all');await change('User','anita');
+assert.equal(tableParams().get('user_id'),'anita');assert.equal(tableParams().get('period'),'all');
+assert.equal(householdRows().length,50);assert(text().includes('Showing 1-50 of 54'));
+assert.equal(householdRows()[0].props.className,'completedRow');assert.equal(householdRows()[1].props.className,'draftRow');assert.equal(householdRows()[2].props.className,'excludedRow');assert.equal(householdRows()[3].props.className,undefined);
+assert(text().includes('BHQ status')&&text().includes('Left to complete BHQ: 27'));
+assert(!text().includes('Other worker head'));
+button('Next households').props.onClick();await settle();assert.equal(tableParams().get('page'),'2');assert.equal(householdRows().length,4);assert(button('Next households').props.disabled);assert(!button('Previous households').props.disabled);
+await change('Date','date');await change('Submission date','2026-11-10');
+assert.equal(tableParams().get('page'),'1');assert.equal(tableParams().get('date'),'2026-11-10');assert.equal(householdRows().length,4);assert(text().includes('Households in period: 4'));
+snapshot('household-table-date');
+await change('Date','range');await change('From date','2026-11-10');await change('To date','2026-11-12');
+assert.equal(tableParams().get('date_from'),'2026-11-10');assert.equal(tableParams().get('date_to'),'2026-11-12');assert.equal(householdRows().length,42,'Unworked pending households are shown in All rather than the activity range');
+const beforeInvalidTable=requests.length;await change('To date','2026-11-09');assert.equal(requests.length,beforeInvalidTable);assert.equal(householdRows().length,0);
+await change('Date','today');assert.equal(tableParams().get('period'),'today');assert(!tableParams().has('date_from'));
+await change('Date','all');
+let resolveOldTable;nextAssignedResponse=new Promise(done=>{resolveOldTable=done;});
+input('User').props.onChange({target:{value:'anita2'}});await settle();assert(text().includes('Loading assigned households'));assert.equal(householdRows().length,0);
+await change('User','anita');assert.equal(householdRows().length,50);resolveOldTable(response('/dashboard/assigned-households?period=all&user_id=anita2'));await settle();assert.equal(householdRows().length,50,'Late table responses must not replace current user data');
+nextAssignedResponse=Promise.reject(new Error('Household connection unavailable'));button('Refresh').props.onClick();await settle();assert(text().includes('Household connection unavailable'));assert.equal(householdRows().length,0);
+button('Retry households').props.onClick();await settle();assert.equal(householdRows().length,50);
+snapshot('household-table-all');
+await change('User','');assert.equal(householdRows().length,0);assert(text().includes('Select a user above'));
 authUser={user_id:'manager4',role:'site_data_manager',site_id:4,username:'manager'};slots=[];dirty=true;await settle();
 assert(input('Site').props.disabled);assert.equal(input('Site').props.value,'4');assert.deepEqual(villageKeys(),['4:20']);assert(!text().includes('Ballabhgarh'));
 input('Site').props.onChange({target:{value:'2'}});await settle();assert(!params().has('site_id'),'Site manager cannot request a different site');assert.deepEqual(villageKeys(),['4:20']);
+await change('User','ch-worker');assert(!tableParams().has('site_id'));assert.deepEqual(householdRows().map(n=>n.props['data-household-id']),['4-20-0001-01']);
 snapshot('site-manager-villages');
 await change('User','missing');assert(text().includes('No villages match these filters'));assert.equal(villageKeys().length,0);
 authUser={user_id:'collaborator',role:'us_collaborator',username:'collaborator'};slots=[];dirty=true;await settle();assert(text().includes('Household members'));assert(requests.at(-1)==='/dashboard','Non-operational roles retain their study summary');
-console.log('Village dashboard UI passed: four filters, all/today/date/range, all form cards, exact user totals, zero villages, scoped choices, duplicate names, invalid dates, races/errors and site-manager isolation.');
+console.log('Village dashboard UI passed: four filters, all/today/date/range, all form cards, exact user totals, zero villages, assigned-household colors/periods/pagination, scoped choices, duplicate names, invalid dates, races/errors and site-manager isolation.');

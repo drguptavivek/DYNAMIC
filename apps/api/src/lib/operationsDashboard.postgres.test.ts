@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { Client } from "pg";
 import { PgDialect } from "drizzle-orm/pg-core";
-import { dashboardScope, dashboardSql, assembleDashboard } from "./operationsDashboard";
+import { dashboardScope, dashboardSql, assembleDashboard, assignedHouseholdsSql } from "./operationsDashboard";
 import type { JwtPayload } from "./jwt";
 
 const url = process.env.DASHBOARD_TEST_DATABASE_URL;
@@ -191,6 +191,57 @@ test("dashboard aggregates real PostgreSQL fixtures without cross-site leaks or 
     assert.equal(historicalZeroDay.localities_summary[0].forms_completed,0);
     const idle = await load(user("site_data_manager",4),{period:"all",user_id:"cz"});
     assert.deepEqual(idle.localities_summary.map(l=>l.locality_code),['05'],"user filter retains assigned village even without completed forms");
+
+    await client.query(`alter table households add column household_head_name text,add column cohort_status text,add column baseline_enrollment_status text,add column closed_reason text;
+      alter table form_responses add column household_id text,add column answers_json jsonb;
+      alter table questionnaire_drafts add column household_id text,add column submitted_form_response_id text,add column client_updated_at timestamptz;
+      alter table follow_up_tasks add column task_type text;
+      update form_responses set household_id='c1',answers_json='{"hhq_result_interview":1}' where form_response_id='f1';
+      update form_responses set household_id='c1' where form_response_id='f7';
+      update form_responses set household_id='c2' where form_response_id='f2';
+      update households set household_head_name='Head C1' where household_id='c1';
+      insert into households values('c3',4,'04','Excluded head','excluded','enrolled',null),('c4',4,'04','Completed head',null,'enrolled',null);
+      insert into field_worker_household_assignments values('cw','c3'),('cw','c4'),('cw','c1'),('bw','c1'),('moved','c1');
+      insert into questionnaire_drafts(draft_id,user_id,site_id,locality_code,draft_status,form_code,household_id) values
+        ('hh-draft-c2','cw',4,'05','active','HHQ','c2'),('hh-draft-c4','cw',4,'04','active','HHQ','c4');
+      update questionnaire_drafts set client_updated_at='2026-10-20 18:30Z',server_updated_at='2026-10-23 10:00Z' where draft_id='hh-draft-c4';
+      insert into form_responses(form_response_id,submitted_by_user_id,site_id,locality_code,form_code,response_status,household_id,answers_json) values
+        ('c3-complete','cw',4,'04','HHQ','primary','c3','{"hhq_result_interview":1}'),
+        ('c4-complete','cw',4,'04','HHQ','primary','c4','{"hhq_result_interview":1}');
+      insert into households(household_id,site_id,locality_code) select 'hh-'||lpad(i::text,3,'0'),4,'04' from generate_series(1,55) i;
+      insert into field_worker_household_assignments select 'cw',household_id from households where household_id like 'hh-%';`);
+    async function assigned(identity: JwtPayload, query: Record<string,unknown>, page=1) {
+      const statement=assignedHouseholdsSql(dashboardScope(identity,query,new Date('2026-10-21T12:00:00Z')),page);
+      const compiled=new PgDialect().sqlToQuery(statement);
+      return (await client.query(compiled.sql,compiled.params)).rows[0];
+    }
+    const assignments=await assigned(user('site_data_manager',4),{user_id:'cw',site_id:2});
+    assert.equal(assignments.rows.length,50);
+    assert.deepEqual(assignments.summary,{assigned:59,completed:2,draft:1,excluded:1,pending:55},'summary covers all matches, not the first page');
+    assert.equal(assignments.total_pages,2);
+    assert.equal(assignments.rows.find((r:any)=>r.household_id==='c1').household_head_name,'Head C1');
+    assert.deepEqual(Object.fromEntries(assignments.rows.slice(0,4).map((r:any)=>[r.household_id,r.bhq_status])),{c1:'completed',c2:'draft',c3:'excluded',c4:'completed'});
+    const secondPage=await assigned(user('site_data_manager',4),{user_id:'cw'},2);
+    assert.equal(secondPage.rows.length,9);
+    assert.deepEqual(secondPage.summary,assignments.summary);
+    assert.ok(!secondPage.rows.some((r:any)=>assignments.rows.some((a:any)=>a.household_id===r.household_id)),'stable pages do not overlap');
+    const noActivity=await assigned(user('site_data_manager',4),{user_id:'cw',period:'date',date:'2020-01-01'});
+    assert.equal(noActivity.summary.assigned,0,'date mode only shows households with selected-user activity');
+    const activeDay=await assigned(user('site_data_manager',4),{user_id:'cw',period:'date',date:'2026-10-21'});
+    assert.deepEqual(activeDay.rows.map((r:any)=>r.household_id),['c1','c2','c4'],'all form submissions and active drafts establish user activity');
+    assert.equal(activeDay.rows.find((r:any)=>r.household_id==='c2').bhq_status,'draft','current BHQ color remains shared classification even when activity is BWQ');
+    assert.equal(new Date(activeDay.rows.find((r:any)=>r.household_id==='c4').last_activity_at).toISOString(),'2026-10-20T18:30:00.000Z','draft client save time wins over delayed server receipt');
+    const activityRange=await assigned(user('site_data_manager',4),{user_id:'cw',period:'range',date_from:'2026-10-19',date_to:'2026-10-21'});
+    assert.equal(activityRange.summary.assigned,3);
+    const otherWorkerDay=await assigned(user('site_data_manager',4),{user_id:'co',period:'date',date:'2026-10-21'});
+    assert.equal(otherWorkerDay.summary.assigned,0,'shared household activity is attributed to its actual submitter');
+    const assignedWest=await assigned(user('site_data_manager',4),{user_id:'cw',locality_code:'05'});
+    assert.equal(assignedWest.summary.assigned,1);assert.equal(assignedWest.rows[0].bhq_status,'draft');
+    for(const user_id of ['bw','moved','unknown'])assert.equal((await assigned(user('site_data_manager',4),{user_id,site_id:2})).summary.assigned,0,'foreign/stale/unknown accounts cannot expose assignments');
+    const centralAssigned=await assigned(user('central_admin',null),{user_id:'bw'});
+    assert.equal(centralAssigned.summary.assigned,1);assert.equal(centralAssigned.rows[0].household_id,'b1','central view also excludes stale foreign-site allocations');
+    const emptyAssigned=await assigned(user('site_data_manager',4),{user_id:'cw',locality_code:'06'});
+    assert.deepEqual(emptyAssigned.rows,[]);assert.equal(emptyAssigned.total_pages,1);
 
   } finally { await client.query("rollback"); await client.end(); }
 });

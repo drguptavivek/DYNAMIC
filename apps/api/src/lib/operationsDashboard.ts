@@ -1,5 +1,6 @@
 import { sql, SQL } from "drizzle-orm";
 import type { JwtPayload } from "./jwt";
+import { householdBhqStatusSql } from "./householdBhqStatus";
 import type { DashboardMetrics, OperationsDashboard, DashboardStaffRow } from "../../../../shared/operationsDashboard";
 
 const CENTRAL = new Set(["central_admin", "central_data_manager"]);
@@ -169,4 +170,39 @@ export function assembleDashboard(scope: DashboardScope, users: DashboardStaffRo
     "Sync issues count recorded failed or partially successful syncs; successful repeat uploads are excluded. Failed connections and HDSS download failures may not reach the server. Sync issues are user/site metrics, not attributed to a village.",
     "All time includes submissions through today in India time; Today is independent of the selected activity date. Staff and form filters apply before aggregation. Current study totals and open quality flags remain area-wide; household assignments and sync issues are not form-specific. Task and draft totals show current state, not historical snapshots."
   ] };
+}
+
+
+export function assignedHouseholdsSql(scope: DashboardScope, page = 1) {
+  if (!scope.user_id) throw new Error("INVALID_USER");
+  const offset = (page - 1) * 50;
+  if (!Number.isSafeInteger(page) || page < 1 || page > 2147483647 || !Number.isSafeInteger(offset)) throw new Error("INVALID_PAGE");
+  const start = `${scope.date_from ?? scope.date}T00:00:00+05:30`;
+  const finish = new Date(Date.parse(`${scope.period === "all" ? scope.as_of_date : scope.date_to ?? scope.date}T00:00:00+05:30`) + 86400000).toISOString();
+  const inPeriod = (at: SQL) => scope.period === "all" ? sql`${at}<${finish}::timestamptz` : sql`${at}>=${start}::timestamptz and ${at}<${finish}::timestamptz`;
+  return sql`with assigned as (
+    select households.household_id,households.household_head_name,households.site_id,coalesce(s.site_name,households.site_id::text) site_name,
+      households.locality_code,coalesce(l.locality_name,households.locality_code) locality_name,${householdBhqStatusSql()} bhq_status,activity.last_activity_at
+    from households left join study_sites s on s.site_id=households.site_id
+    left join study_localities l on l.site_id=households.site_id and l.locality_code=households.locality_code
+    left join lateral (select max(at) last_activity_at from (
+      select coalesce(f.created_offline_at,f.synced_at,f.created_at) at from form_responses f
+      where f.household_id=households.household_id and f.site_id=households.site_id and f.submitted_by_user_id=${scope.user_id}
+        and coalesce(f.response_status,'primary')='primary' and ${inPeriod(sql`coalesce(f.created_offline_at,f.synced_at,f.created_at)`)}
+      union all select coalesce(d.client_updated_at,d.server_updated_at) at from questionnaire_drafts d
+      where d.household_id=households.household_id and d.site_id=households.site_id and d.user_id=${scope.user_id}
+        and d.draft_status='active' and d.submitted_form_response_id is null and ${inPeriod(sql`coalesce(d.client_updated_at,d.server_updated_at)`)}
+    ) activity_rows) activity on true
+    where (${scope.site_id}::integer is null or households.site_id=${scope.site_id})
+      and (${scope.locality_code}::text is null or households.locality_code=${scope.locality_code})
+      and (${scope.period === "all"} or activity.last_activity_at is not null)
+      and exists(select 1 from field_worker_household_assignments a join users u on u.user_id=a.user_id and u.site_id=households.site_id
+        where a.household_id=households.household_id and a.user_id=${scope.user_id})
+  ), totals as (
+    select count(*)::integer assigned,count(*) filter(where bhq_status='completed')::integer completed,
+      count(*) filter(where bhq_status='draft')::integer draft,count(*) filter(where bhq_status='excluded')::integer excluded,
+      count(*) filter(where bhq_status='pending')::integer pending from assigned
+  ) select json_build_object('assigned',assigned,'completed',completed,'draft',draft,'excluded',excluded,'pending',pending) summary,
+    coalesce((select json_agg(p order by household_id) from (select * from assigned order by household_id limit 50 offset ${offset}) p),'[]'::json) rows,
+    ${page}::integer page,greatest(1,(assigned+49)/50)::integer total_pages from totals`;
 }

@@ -42,3 +42,20 @@ export interface OperationsDashboard {
   localities_summary: (DashboardMetrics & DashboardLocality & { users: number; assigned_users: Pick<DashboardStaffRow, "user_id" | "username" | "display_name">[] })[];
   notes: string[];
 }
+
+
+export interface DashboardAssignedHouseholds {
+  rows: {
+    household_id: string;
+    household_head_name: string | null;
+    site_id: number;
+    site_name: string;
+    locality_code: string;
+    locality_name: string;
+    bhq_status: "completed" | "draft" | "excluded" | "pending";
+    last_activity_at: string | null;
+  }[];
+  summary: { assigned: number; completed: number; draft: number; excluded: number; pending: number };
+  page: number;
+  total_pages: number;
+}

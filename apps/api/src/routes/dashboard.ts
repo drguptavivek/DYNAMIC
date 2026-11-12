@@ -4,9 +4,9 @@ import { db, schema } from "../db";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { sendError, sendSuccess } from "../lib/errors";
 import { appendAreaScopeCondition } from "../lib/areaScope";
-import { requireDataAccess } from "../lib/dataAccess";
-import { assembleDashboard, dashboardScope, dashboardSql } from "../lib/operationsDashboard";
-import type { DashboardStaffRow } from "../../../../shared/operationsDashboard";
+import { canAccessPii, requireDataAccess } from "../lib/dataAccess";
+import { assembleDashboard, assignedHouseholdsSql, dashboardScope, dashboardSql } from "../lib/operationsDashboard";
+import type { DashboardAssignedHouseholds, DashboardStaffRow } from "../../../../shared/operationsDashboard";
 import { assembleSiteFormTotals, siteFormTotalsSql } from "../lib/siteFormTotals";
 import { siteOperationalProgressSql } from "../lib/siteOperationalProgress";
 
@@ -45,6 +45,26 @@ router.get("/operations", requireAuth, requireDataAccess("can_access_aggregate_d
     } else {
       console.error("Operations dashboard error:", error);
       sendError(res, 500, "INTERNAL_ERROR", "An error occurred");
+    }
+  }
+});
+
+router.get("/assigned-households", requireAuth, requireDataAccess("can_access_aggregate_dashboards"), async (req: Request, res: Response) => {
+  try {
+    const scope = dashboardScope(req.user!, req.query);
+    const page = req.query.page === undefined ? 1 : typeof req.query.page === "string" && /^[1-9]\d*$/.test(req.query.page) ? Number(req.query.page) : NaN;
+    const result = await db.execute(assignedHouseholdsSql(scope, page));
+    const data = result.rows[0] as unknown as DashboardAssignedHouseholds;
+    if (!await canAccessPii(req)) data.rows = data.rows.map(row => ({ ...row, household_head_name: null }));
+    sendSuccess(res, data);
+  } catch (error) {
+    if (error instanceof Error && error.message === "DASHBOARD_FORBIDDEN") {
+      sendError(res, 403, "FORBIDDEN", "This dashboard is available to site and central managers only");
+    } else if (error instanceof Error && error.message.startsWith("INVALID_")) {
+      sendError(res, 400, error.message, "Select a valid user, site, village and page");
+    } else {
+      console.error("Dashboard assigned households error:", error);
+      sendError(res, 500, "INTERNAL_ERROR", "Could not load assigned households");
     }
   }
 });

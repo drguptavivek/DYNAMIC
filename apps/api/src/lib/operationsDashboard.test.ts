@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { PgDialect } from "drizzle-orm/pg-core";
-import { assembleDashboard, dashboardScope, dashboardSql, emptyDashboardMetrics } from "./operationsDashboard";
+import { assembleDashboard, assignedHouseholdsSql, dashboardScope, dashboardSql, emptyDashboardMetrics } from "./operationsDashboard";
 import type { JwtPayload } from "./jwt";
 
 const user: JwtPayload = { sub: "manager", username: "manager", role: "site_data_manager", site_id: 4, type: "access" };
@@ -123,4 +123,21 @@ test("village cards keep current staff names, zero counts and selected user's hi
   ], options, quality);
   assert.deepEqual(all.localities_summary.map(l => l.locality_code), ["04", "05", "06"]);
   assert.deepEqual(all.localities_summary[0].forms_by_code, { FUTURE_1: 2 });
+});
+
+
+test("assigned household query requires one user, validates pages and applies selected-user activity dates", () => {
+  assert.throws(() => assignedHouseholdsSql(dashboardScope(user, {})), /INVALID_USER/);
+  const scope = dashboardScope(user, { user_id: "worker", period: "range", date_from: "2026-11-01", date_to: "2026-11-12", site_id: "2" });
+  for (const page of [0, -1, 1.5, NaN, Infinity, 2147483648]) assert.throws(() => assignedHouseholdsSql(scope, page), /INVALID_PAGE/);
+  const compiled = new PgDialect().sqlToQuery(assignedHouseholdsSql(scope, 2));
+  assert.ok(compiled.params.includes(4));
+  assert.ok(compiled.params.includes("worker"));
+  assert.ok(compiled.params.includes(50));
+  assert.ok(compiled.params.includes("2026-11-01T00:00:00+05:30"));
+  assert.ok(compiled.params.includes("2026-11-12T18:30:00.000Z"));
+  assert.match(compiled.sql, /coalesce\(d.client_updated_at,d.server_updated_at\)/);
+  assert.match(compiled.sql, /u.site_id=households.site_id/);
+  assert.match(compiled.sql, /exists\(select 1 from field_worker_household_assignments/);
+  assert.match(compiled.sql, /case when "households"\."cohort_status"='excluded'/, "use the shared assignment status classifier");
 });
