@@ -8,6 +8,7 @@ import SiteFormTotalsPage from "./pages/SiteFormTotalsPage";
 import { useAuth } from "./lib/auth-context";
 import UsersPage from "./pages/UsersPage";
 import FieldWorkerHouseholdAssignmentPage from "./pages/FieldWorkerHouseholdAssignmentPage";
+import SupervisorVillageAssignmentPage from "./pages/SupervisorVillageAssignmentPage";
 import MastersPage from "./pages/MastersPage";
 import HouseholdsPage from "./pages/HouseholdsPage";
 import HouseholdMembersPage from "./pages/HouseholdMembersPage";
@@ -35,6 +36,7 @@ export default function App() {
               <Route path="/security/totp-setup" element={<TotpSetupPage />} />
               <Route path="/users" element={<UsersPage />} />
               <Route path="/field-worker-household-assignment" element={<FieldWorkerHouseholdAssignmentPage />} />
+              <Route path="/supervisor-village-assignment" element={<SupervisorVillageAssignmentPage />} />
               <Route path="/masters" element={<MastersPage />} />
               <Route path="/households" element={<HouseholdsPage />} />
               <Route path="/household-members" element={<HouseholdMembersPage />} />

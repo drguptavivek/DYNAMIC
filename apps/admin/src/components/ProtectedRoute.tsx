@@ -23,5 +23,9 @@ export default function ProtectedRoute() {
     return <Navigate to="/security/totp-setup" replace />;
   }
 
+  if (user.role === "field_supervisor" && !["/dashboard", "/security/totp-setup"].includes(location.pathname)) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
   return <Outlet />;
 }

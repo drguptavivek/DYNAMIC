@@ -227,6 +227,8 @@ async function selectUserWithStaff(userId: string) {
 }
 
 function buildDefaultDataAccessProfile(role: (typeof userRoleValues)[number]) {
+  if (role === "field_supervisor") return { can_access_pii: true, can_access_raw_crfs: false,
+    can_access_deidentified_exports: false, can_access_aggregate_dashboards: true, can_access_admin_audit: false };
   if (role === "us_collaborator") {
     return {
       can_access_pii: false,
@@ -908,7 +910,9 @@ router.patch(
         }
       });
 
-      if (data.password || (data.active === false && user.active !== false)) {
+      if (data.password || (data.active === false && user.active !== false) ||
+        ((user.role === "field_supervisor" || nextRole === "field_supervisor") &&
+          (nextRole !== user.role || nextSiteId !== user.site_id))) {
         await revokeUserSessions(userId);
       }
 

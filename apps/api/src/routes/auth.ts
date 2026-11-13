@@ -186,7 +186,7 @@ router.post("/login", authRateLimit, async (req: Request, res: Response) => {
     }
 
     // Field workers authenticate through the Expo app only.
-    if (client === "web" && user.role === "field_worker") {
+    if ((client === "web" && user.role === "field_worker") || (client !== "web" && user.role === "field_supervisor")) {
       sendError(res, 401, "INVALID_CREDENTIALS", "Invalid username or password");
       return;
     }
@@ -262,7 +262,7 @@ router.post("/qr-login", authRateLimit, async (req: Request, res: Response) => {
       .from(schema.users)
       .where(eq(schema.users.user_id, qrPayload.user_id));
 
-    if (!user || user.username !== qrPayload.username) {
+    if (!user || user.username !== qrPayload.username || user.role === "field_supervisor") {
       sendError(res, 401, "INVALID_QR_LOGIN", "Invalid QR login code");
       return;
     }

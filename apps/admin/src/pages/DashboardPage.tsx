@@ -3,10 +3,11 @@ import { useAuth } from "../lib/auth-context";
 import { api } from "../lib/api";
 import type { DashboardAssignedHouseholds, OperationsDashboard } from "../../../../shared/operationsDashboard";
 import styles from "./DashboardPage.module.css";
+import SupervisorFormViewer from "../components/SupervisorFormViewer";
 
 type DashboardStats = { households: number; members: number; eligible_women: number; tracking_eligible_women: number; active_pregnancies: number; children: number; tasks: number; open_data_quality_flags: number };
 type Period = "all" | "today" | "date" | "range";
-const OPERATION_ROLES = ["central_admin", "central_data_manager", "site_data_manager", "site_research_scientist", "site_investigator"];
+const OPERATION_ROLES = ["field_supervisor", "central_admin", "central_data_manager", "site_data_manager", "site_research_scientist", "site_investigator"];
 const FORM_CODES = ["HHQ", "WQ", "HRF", "PEF", "UF", "PFF", "POF", "BAF", "SBF", "NFF", "CDF", "PSF"];
 const formLabel = (code: string) => code === "HHQ" ? "BHQ" : code === "WQ" ? "BWQ" : code;
 const count = (value: number) => value.toLocaleString("en-IN");
@@ -39,6 +40,9 @@ function OperationsView() {
   const [assignedData, setAssignedData] = useState<DashboardAssignedHouseholds | null>(null);
   const [assignedLoading, setAssignedLoading] = useState(false);
   const [assignedError, setAssignedError] = useState("");
+  const [viewHousehold, setViewHousehold] = useState<string | null>(null);
+  const supervisor = user?.role === "field_supervisor";
+  useEffect(() => { setViewHousehold(null); }, [period, date, dateFrom, dateTo, siteId, locality, userId, revision, householdPage]);
   const central = user?.role === "central_admin" || user?.role === "central_data_manager";
   const dateError = period === "date" && !validDate(date) ? "Select a valid submission date."
     : period === "range" && (!validDate(dateFrom) || !validDate(dateTo)) ? "Select both From and To dates."
@@ -139,13 +143,14 @@ function OperationsView() {
               <span>Completed: <strong>{count(assignedData.summary.completed)}</strong></span><span>Draft: <strong>{count(assignedData.summary.draft)}</strong></span><span>Excluded: <strong>{count(assignedData.summary.excluded)}</strong></span><span>Pending: <strong>{count(assignedData.summary.pending)}</strong></span><span>{period === "all" ? "Left to complete BHQ" : "Left among matching households"}: <strong>{count(assignedData.summary.draft + assignedData.summary.pending)}</strong></span>
             </div>
             <p className={styles.statusLegend}>Green: completed BHQ synced | Yellow: backed-up BHQ draft | Rose: excluded | White: pending</p>
-            <div className={styles.householdTableScroll}><table><thead><tr><th scope="col">Household ID</th><th scope="col">Head name</th><th scope="col">Site</th><th scope="col">Village</th><th scope="col">BHQ status</th><th scope="col">Activity (IST)</th></tr></thead><tbody>{assignedData.rows.length ? assignedData.rows.map((row) => <tr key={row.household_id} data-household-id={row.household_id} className={row.bhq_status === "completed" ? styles.completedRow : row.bhq_status === "draft" ? styles.draftRow : row.bhq_status === "excluded" ? styles.excludedRow : undefined}>
-              <td>{row.household_id}</td><td>{row.household_head_name || "-"}</td><td>{row.site_name}</td><td>{row.locality_name} ({row.locality_code})</td><td><span className={styles.statusBadge}>{row.bhq_status === "completed" ? "Completed" : row.bhq_status === "draft" ? "Draft" : row.bhq_status === "excluded" ? "Excluded" : "Pending"}</span></td><td>{row.last_activity_at ? syncTime(row.last_activity_at) : "No synced activity"}</td>
-            </tr>) : <tr><td colSpan={6} className={styles.empty}>No assigned households match these filters.</td></tr>}</tbody></table></div>
+            <div className={styles.householdTableScroll}><table><thead><tr><th scope="col">Household ID</th><th scope="col">Head name</th><th scope="col">Site</th><th scope="col">Village</th><th scope="col">BHQ status</th><th scope="col">Activity (IST)</th>{supervisor && <th scope="col">Forms</th>}</tr></thead><tbody>{assignedData.rows.length ? assignedData.rows.map((row) => <tr key={row.household_id} data-household-id={row.household_id} className={row.bhq_status === "completed" ? styles.completedRow : row.bhq_status === "draft" ? styles.draftRow : row.bhq_status === "excluded" ? styles.excludedRow : undefined}>
+              <td>{row.household_id}</td><td>{row.household_head_name || "-"}</td><td>{row.site_name}</td><td>{row.locality_name} ({row.locality_code})</td><td><span className={styles.statusBadge}>{row.bhq_status === "completed" ? "Completed" : row.bhq_status === "draft" ? "Draft" : row.bhq_status === "excluded" ? "Excluded" : "Pending"}</span></td><td>{row.last_activity_at ? syncTime(row.last_activity_at) : "No synced activity"}</td>{supervisor && <td>{row.bhq_status === "completed" && <button type="button" aria-label={`View completed forms for ${row.household_id}`} onClick={() => setViewHousehold(row.household_id)}>View</button>}</td>}
+            </tr>) : <tr><td colSpan={supervisor ? 7 : 6} className={styles.empty}>No assigned households match these filters.</td></tr>}</tbody></table></div>
             <div className={styles.householdPagination}><span>Showing {assignedData.rows.length ? count((assignedData.page - 1) * 50 + 1) : "0"}-{count(Math.min(assignedData.page * 50, assignedData.summary.assigned))} of {count(assignedData.summary.assigned)}</span><div><button type="button" disabled={assignedData.page <= 1} onClick={() => setHouseholdPage((page) => page - 1)}>Previous households</button><span>Page {assignedData.page} of {assignedData.total_pages}</span><button type="button" disabled={assignedData.page >= assignedData.total_pages} onClick={() => setHouseholdPage((page) => page + 1)}>Next households</button></div></div>
           </>}
       </section>
     </div>
+    {supervisor && viewHousehold && userId && <SupervisorFormViewer key={`${viewHousehold}:${userId}:${period}:${date}:${dateFrom}:${dateTo}`} householdId={viewHousehold} userId={userId} period={period} date={date} dateFrom={dateFrom} dateTo={dateTo} localityCode={locality || undefined} onClose={() => setViewHousehold(null)} />}
   </div>;
 }
 

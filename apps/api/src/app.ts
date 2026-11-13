@@ -18,6 +18,8 @@ import correctionsRouter from "./routes/corrections";
 import formResponsesRouter from "./routes/form-responses";
 import fieldWorkerHouseholdAssignmentsRouter from "./routes/field-worker-household-assignments";
 import formLanguageManagementRouter from "./routes/form-language-management";
+import dashboardHouseholdFormsRouter from "./routes/dashboard-household-forms";
+import supervisorVillageAssignmentsRouter from "./routes/supervisor-village-assignments";
 import dashboardRouter from "./routes/dashboard";
 import { requireAuth } from "./middleware/auth";
 
@@ -80,6 +82,8 @@ export function createApp() {
   app.use("/api/v1", requireAuth, correctionsRouter);
   app.use("/api/v1/form-responses", requireAuth, formResponsesRouter);
   app.use("/api/v1/form-language-management", requireAuth, formLanguageManagementRouter);
+  app.use("/api/v1/supervisor-village-assignments", requireAuth, supervisorVillageAssignmentsRouter);
+  app.use("/api/v1/dashboard/household-forms", requireAuth, dashboardHouseholdFormsRouter);
   app.use("/api/v1/dashboard", requireAuth, dashboardRouter);
   app.use(
     "/api/v1/field-worker-household-assignments",

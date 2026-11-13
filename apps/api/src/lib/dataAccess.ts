@@ -48,6 +48,9 @@ function fallbackProfileForRole(role: JwtPayload["role"]): DataAccessProfile {
 }
 
 export async function getDataAccessProfile(user: JwtPayload): Promise<DataAccessProfile> {
+  // Supervisor access is a fixed ceiling, including accounts converted from broader roles.
+  if (user.role === "field_supervisor") return { can_access_pii: true, can_access_raw_crfs: false,
+    can_access_deidentified_exports: false, can_access_aggregate_dashboards: true, can_access_admin_audit: false };
   const [row] = await db
     .select({
       can_access_pii: schema.dataAccessProfiles.can_access_pii,

@@ -23,6 +23,7 @@ test("field-worker site transfer withdraws only that worker's obsolete household
   ];
   const writes: { table: unknown; type: string }[] = [];
   let transactions = 0;
+  let sessionRevocationReads = 0;
   let failAllocationDelete = false;
   let failAreaInsert = false;
   const matches = (row: any, condition: any) => {
@@ -41,7 +42,7 @@ test("field-worker site transfer withdraws only that worker's obsolete household
     const rows = () => {
       const source = table === schema.users ? state.users : table === schema.studySites ? [{ site_id: 1 }, { site_id: 2 }] :
         table === schema.studyLocalities ? [{ site_id: 1, locality_code: "01" }, { site_id: 2, locality_code: "39" }] :
-        assert.fail("Unexpected read table");
+        table === schema.refreshTokenSessions ? (sessionRevocationReads++, []) : assert.fail("Unexpected read table");
       return source.filter((row: any) => matches(row, condition));
     };
     const chain: any = { where(value: any) { condition = value; return chain; }, leftJoin() { return chain; },
@@ -116,6 +117,21 @@ test("field-worker site transfer withdraws only that worker's obsolete household
     state.users[0].role = "field_supervisor";
     assert.equal((await patch({ site_id: 2, locality_codes: ["39"] })).status, 200);
     assert.deepEqual(state.allocations, initial().allocations, "Other roles retain their existing behavior");
+
+    reset();
+    sessionRevocationReads = 0;
+    assert.equal((await patch({ role: "field_supervisor", locality_codes: ["01"] })).status, 200);
+    assert.equal(state.users[0].role, "field_supervisor");
+    assert.equal(sessionRevocationReads, 1, "Changing to Supervisor revokes old access/refresh sessions");
+    assert.deepEqual(state.allocations, initial().allocations, "Role changes never erase household data");
+    sessionRevocationReads = 0;
+    assert.equal((await patch({ role: "field_worker", locality_codes: ["01"] })).status, 200);
+    assert.equal(sessionRevocationReads, 1, "Changing from Supervisor also invalidates stale role tokens");
+    reset();
+    state.users[0].role = "field_supervisor";
+    sessionRevocationReads = 0;
+    assert.equal((await patch({ site_id: 2, locality_codes: ["39"] })).status, 200);
+    assert.equal(sessionRevocationReads, 1, "Supervisor site changes invalidate old scope tokens");
 
     reset();
     assert.equal((await patch({ site_id: 2, locality_codes: ["invalid"] })).status, 400);

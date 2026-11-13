@@ -9,6 +9,7 @@ import { assembleDashboard, assignedHouseholdsSql, dashboardScope, dashboardSql 
 import type { DashboardAssignedHouseholds, DashboardStaffRow } from "../../../../shared/operationsDashboard";
 import { assembleSiteFormTotals, siteFormTotalsSql } from "../lib/siteFormTotals";
 import { siteOperationalProgressSql } from "../lib/siteOperationalProgress";
+import { getSupervisorLocalities } from "../lib/supervisorVillageAssignments";
 
 const router = Router();
 
@@ -31,7 +32,8 @@ router.get("/site-form-totals", requireAuth, requireRole("central_admin", "site_
 
 router.get("/operations", requireAuth, requireDataAccess("can_access_aggregate_dashboards"), async (req: Request, res: Response) => {
   try {
-    const scope = dashboardScope(req.user!, req.query);
+    const now = new Date();
+    const scope = dashboardScope(req.user!, req.query, now, req.user!.role === "field_supervisor" ? await getSupervisorLocalities(req.user!, now) : undefined);
     const queries = dashboardSql(scope);
     const [roster, facts, options, quality, cohort, staffOptions] = await Promise.all([
       db.execute(queries.roster), db.execute(queries.facts), db.execute(queries.options), db.execute(queries.quality), db.execute(queries.cohort), db.execute(queries.staff_options),
@@ -39,7 +41,7 @@ router.get("/operations", requireAuth, requireDataAccess("can_access_aggregate_d
     sendSuccess(res, assembleDashboard(scope, roster.rows as unknown as DashboardStaffRow[], facts.rows as any[], options.rows as any[], quality.rows[0] as any, cohort.rows[0] as any, staffOptions.rows as any[]));
   } catch (error) {
     if (error instanceof Error && error.message === "DASHBOARD_FORBIDDEN") {
-      sendError(res, 403, "FORBIDDEN", "This dashboard is available to site and central managers only");
+      sendError(res, 403, "FORBIDDEN", "This dashboard is available to authorized site managers and supervisors");
     } else if (error instanceof Error && error.message.startsWith("INVALID_")) {
       sendError(res, 400, error.message, "Invalid dashboard period, date, site, locality, staff or form filter");
     } else {
@@ -51,7 +53,8 @@ router.get("/operations", requireAuth, requireDataAccess("can_access_aggregate_d
 
 router.get("/assigned-households", requireAuth, requireDataAccess("can_access_aggregate_dashboards"), async (req: Request, res: Response) => {
   try {
-    const scope = dashboardScope(req.user!, req.query);
+    const now = new Date();
+    const scope = dashboardScope(req.user!, req.query, now, req.user!.role === "field_supervisor" ? await getSupervisorLocalities(req.user!, now) : undefined);
     const page = req.query.page === undefined ? 1 : typeof req.query.page === "string" && /^[1-9]\d*$/.test(req.query.page) ? Number(req.query.page) : NaN;
     const result = await db.execute(assignedHouseholdsSql(scope, page));
     const data = result.rows[0] as unknown as DashboardAssignedHouseholds;
@@ -59,7 +62,7 @@ router.get("/assigned-households", requireAuth, requireDataAccess("can_access_ag
     sendSuccess(res, data);
   } catch (error) {
     if (error instanceof Error && error.message === "DASHBOARD_FORBIDDEN") {
-      sendError(res, 403, "FORBIDDEN", "This dashboard is available to site and central managers only");
+      sendError(res, 403, "FORBIDDEN", "This dashboard is available to authorized site managers and supervisors");
     } else if (error instanceof Error && error.message.startsWith("INVALID_")) {
       sendError(res, 400, error.message, "Select a valid user, site, village and page");
     } else {

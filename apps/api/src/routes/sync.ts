@@ -1157,6 +1157,16 @@ router.post(
 
     if (rejectUnauthorizedDevice(res, device)) return;
 
+    // Legacy finalized outboxes may upload without a bearer token. A dashboard-only
+    // supervisor device must never use that path to submit under another worker.
+    if (!req.user && device.user_id) {
+      const [owner] = await db.select({ role: schema.users.role }).from(schema.users)
+        .where(eq(schema.users.user_id, device.user_id)).limit(1);
+      if (owner?.role === "field_supervisor") {
+        return sendError(res, 403, "INSUFFICIENT_PERMISSIONS", "Supervisors cannot upload field data");
+      }
+    }
+
     if (req.user && device.user_id !== req.user.sub) {
       return sendError(res, 403, "DEVICE_USER_MISMATCH", "Device is not registered to this user");
     }
@@ -1186,6 +1196,10 @@ router.post(
               : "Missing or invalid submitted user_id",
           });
           continue;
+        }
+
+        if (recordUser.role === "field_supervisor") {
+          return sendError(res, 403, "INSUFFICIENT_PERMISSIONS", "Supervisors cannot upload field data");
         }
 
         const dataAccessProfile = await getDataAccessProfile(recordUser);

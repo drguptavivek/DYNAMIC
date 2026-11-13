@@ -26,7 +26,7 @@ export default function Layout() {
     user?.role === "central_admin" ||
     user?.role === "site_research_scientist" ||
     user?.role === "site_data_manager";
-  const links = [
+  const links = user?.role === "field_supervisor" ? [{ path: "/dashboard", label: "Dashboard" }] : [
     { path: "/dashboard", label: canViewSiteTotals ? "Main dashboard" : "Dashboard" },
     ...(canViewSiteTotals ? [{ path: "/staff-dashboard", label: "Staff dashboard" }] : []),
     { path: "/tasks", label: "Tasks" },
@@ -44,6 +44,9 @@ export default function Layout() {
     { path: "/children", label: "Children" },
     { path: "/masters", label: "Study Masters" },
     ...(isAdmin ? [{ path: "/users", label: "Users" }] : []),
+    ...(["central_admin", "site_data_manager"].includes(user?.role || "")
+      ? [{ path: "/supervisor-village-assignment", label: "Supervisor Village Assignment" }]
+      : []),
     ...(canAssignHouseholds
       ? [{ path: "/field-worker-household-assignment", label: "Field Worker Household Assignment" }]
       : []),

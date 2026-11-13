@@ -33,7 +33,7 @@ export interface OperationsDashboard {
   date: string;
   timezone: "Asia/Kolkata";
   generated_at: string;
-  scope: { all_sites: boolean; site_id: number | null; locality_code: string | null; user_id: string | null; search: string; form_code: string | null };
+  scope: { all_sites: boolean; locality_codes: string[] | null; site_id: number | null; locality_code: string | null; user_id: string | null; search: string; form_code: string | null };
   sites: { site_id: number; site_name: string }[];
   localities: DashboardLocality[];
   totals: DashboardMetrics & { users: number; active_users: number; unattributed_forms: number; open_data_quality_flags: number };

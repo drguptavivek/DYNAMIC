@@ -62,8 +62,8 @@ globalThis.operationsHarness = {
   api: { get: async url=>{requests.push(url);const assigned=url.startsWith('/dashboard/assigned-households?');const pending=assigned?nextAssignedResponse:nextResponse;if(assigned)nextAssignedResponse=undefined;else nextResponse=undefined;return pending ? await pending : structuredClone(response(url));} },
 };
 const bundled = await build({entryPoints:['apps/admin/src/pages/DashboardPage.tsx'],bundle:true,write:false,format:'cjs',platform:'node',jsx:'automatic',plugins:[{name:'dashboard-test',setup(builder){
-  builder.onResolve({filter:/^(react|react\/jsx-runtime)$|\/lib\/(api|auth-context)$|\.css$/},args=>({path:args.path,namespace:'mock'}));
-  builder.onLoad({filter:/.*/,namespace:'mock'},args=>({contents:args.path==='react'?'export const {useState,useEffect,useMemo}=globalThis.operationsHarness;':args.path==='react/jsx-runtime'?'export const jsx=(type,props,key)=>({type,props,key});export const jsxs=jsx;export const Fragment="fragment";':args.path.endsWith('/api')?'export const api=globalThis.operationsHarness.api;':args.path.endsWith('/auth-context')?'export const useAuth=globalThis.operationsHarness.useAuth;':'export default new Proxy({}, {get: (_,key)=>String(key)});'}));
+  builder.onResolve({filter:/^(react|react\/jsx-runtime)$|\/lib\/(api|auth-context)$|SupervisorFormViewer$|\.css$/},args=>({path:args.path,namespace:'mock'}));
+  builder.onLoad({filter:/.*/,namespace:'mock'},args=>({contents:args.path==='react'?'export const {useState,useEffect,useMemo}=globalThis.operationsHarness;':args.path==='react/jsx-runtime'?'export const jsx=(type,props,key)=>({type,props,key});export const jsxs=jsx;export const Fragment="fragment";':args.path.endsWith('/api')?'export const api=globalThis.operationsHarness.api;':args.path.endsWith('/auth-context')?'export const useAuth=globalThis.operationsHarness.useAuth;':args.path.endsWith('/SupervisorFormViewer')?'export default function Viewer(props){return {type:"div",props:{...props,"data-form-viewer":true}};}':'export default new Proxy({}, {get: (_,key)=>String(key)});'}));
 }}]});
 const module = { exports: {} };new Function('module','exports',bundled.outputFiles[0].text)(module,module.exports);
 const Page = module.exports.default;
@@ -170,5 +170,18 @@ input('Site').props.onChange({target:{value:'2'}});await settle();assert(!params
 await change('User','ch-worker');assert(!tableParams().has('site_id'));assert.deepEqual(householdRows().map(n=>n.props['data-household-id']),['4-20-0001-01']);
 snapshot('site-manager-villages');
 await change('User','missing');assert(text().includes('No villages match these filters'));assert.equal(villageKeys().length,0);
+authUser={user_id:'supervisor4',role:'field_supervisor',site_id:4,username:'supervisor'};slots=[];dirty=true;await settle();
+assert(input('Site').props.disabled);assert.equal(input('Site').props.value,'4');assert.deepEqual(villageKeys(),['4:20']);assert(!text().includes('Ballabhgarh'));
+await change('User','ch-worker');assert(!tableParams().has('site_id'));assert.deepEqual(householdRows().map(n=>n.props['data-household-id']),['4-20-0001-01']);
+snapshot('field-supervisor-villages');
+assert(!nodes().some(n=>n.type==='button'&&n.props['aria-label']?.startsWith('View completed forms')), 'Draft rows cannot open forms');
+authUser={user_id:'supervisor2',role:'field_supervisor',site_id:2,username:'supervisor'};slots=[];dirty=true;await settle();
+await change('User','anita');
+const viewButtons=nodes().filter(n=>n.type==='button'&&n.props['aria-label']?.startsWith('View completed forms'));
+assert.equal(viewButtons.length,householdRows().filter(n=>n.props.className==='completedRow').length);
+viewButtons[0].props.onClick();await settle();
+const viewer=nodes().find(n=>n.props['data-form-viewer']);assert.equal(viewer.props.userId,'anita');assert.equal(viewer.props.householdId,'2-20-0001-01');
+await change('Date','today');assert(!nodes().some(n=>n.props['data-form-viewer']),'Changing filters closes the old form');
+
 authUser={user_id:'collaborator',role:'us_collaborator',username:'collaborator'};slots=[];dirty=true;await settle();assert(text().includes('Household members'));assert(requests.at(-1)==='/dashboard','Non-operational roles retain their study summary');
 console.log('Village dashboard UI passed: four filters, all/today/date/range, all form cards, exact user totals, zero villages, assigned-household colors/periods/pagination, scoped choices, duplicate names, invalid dates, races/errors and site-manager isolation.');

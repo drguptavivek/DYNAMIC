@@ -21,6 +21,8 @@ function load(path: string, modules: Record<string, unknown>) {
 test("operations HTTP route enforces authentication, aggregate permission, role and site scope", async () => {
   let capability = true;
   let pii = true;
+  let supervisorAreas = ["04"];
+  let assignmentReads = 0;
   const executed: { sql: string; params: unknown[] }[] = [];
   const access = load("../lib/dataAccess.ts", {
     "drizzle-orm": orm, "./errors": errors,
@@ -31,6 +33,7 @@ test("operations HTTP route enforces authentication, aggregate permission, role 
     "../lib/areaScope": { appendAreaScopeCondition() {} }, "../lib/dataAccess": access, "../lib/operationsDashboard": operations,
     "../lib/siteFormTotals": { assembleSiteFormTotals() {}, siteFormTotalsSql() {} },
     "../lib/siteOperationalProgress": { siteOperationalProgressSql() {} },
+    "../lib/supervisorVillageAssignments": { async getSupervisorLocalities(user: any) { assert.equal(user.role, "field_supervisor"); assert.equal(user.site_id, 4); assignmentReads++; return [...supervisorAreas]; } },
     "../middleware/auth": { requireRole: (...roles: string[]) => (req: any, res: any, next: any) => roles.includes(req.user.role) ? next() : errors.sendError(res, 403, "FORBIDDEN", "Role not permitted"), requireAuth(req: any, res: any, next: any) {
       if (!req.headers.authorization) return errors.sendError(res, 401, "MISSING_AUTH", "Missing auth");
       req.user = { sub: "manager", username: "manager", role: req.headers["x-role"] || "site_data_manager", site_id: 4, type: "access" }; next();
@@ -52,7 +55,7 @@ test("operations HTTP route enforces authentication, aggregate permission, role 
     assert.equal((await fetch(base, { headers: { authorization: "test" } })).status, 403);
     assert.equal(executed.length, 0);
     capability = true;
-    for (const role of ["field_worker", "field_supervisor", "us_collaborator"]) assert.equal((await fetch(base, { headers: { authorization: "test", "x-role": role } })).status, 403);
+    for (const role of ["field_worker", "supervisor", "us_collaborator"]) assert.equal((await fetch(base, { headers: { authorization: "test", "x-role": role } })).status, 403);
     assert.equal(executed.length, 0);
     assert.equal((await fetch(base + "?date=2026-02-30", { headers: { authorization: "test" } })).status, 400);
     const response = await fetch(base + "?site_id=2&date=2026-10-21", { headers: { authorization: "test" } });
@@ -81,7 +84,7 @@ test("operations HTTP route enforces authentication, aggregate permission, role 
     const assignedBase = base.replace("/operations", "/assigned-households");
     const beforeAssignments = executed.length;
     assert.equal((await fetch(assignedBase + "?user_id=cw")).status, 401);
-    for (const role of ["field_worker", "field_supervisor", "us_collaborator"]) assert.equal((await fetch(assignedBase + "?user_id=cw", { headers: { authorization: "test", "x-role": role } })).status, 403);
+    for (const role of ["field_worker", "supervisor", "us_collaborator"]) assert.equal((await fetch(assignedBase + "?user_id=cw", { headers: { authorization: "test", "x-role": role } })).status, 403);
     capability = false;
     assert.equal((await fetch(assignedBase + "?user_id=cw", { headers: { authorization: "test" } })).status, 403);
     capability = true;
@@ -101,6 +104,24 @@ test("operations HTTP route enforces authentication, aggregate permission, role 
     const masked = await fetch(assignedBase + "?user_id=cw", { headers: { authorization: "test" } });
     assert.equal(masked.status, 200);
     assert.equal(((await masked.json()) as any).data.rows[0].household_head_name, null, "aggregate permission does not reveal head names without PII access");
+    const supervisorHeaders = { authorization: "test", "x-role": "field_supervisor" };
+    const supervised = await fetch(base + "?site_id=2", { headers: supervisorHeaders });
+    assert.equal(supervised.status, 200);
+    const supervisedBody = await supervised.json() as any;
+    assert.equal(supervisedBody.data.scope.site_id, 4);
+    assert.deepEqual(supervisedBody.data.scope.locality_codes, ["04"]);
+    assert.equal(assignmentReads, 1);
+    const supervisedAssignments = await fetch(assignedBase + "?user_id=cw&site_id=2", { headers: supervisorHeaders });
+    assert.equal(supervisedAssignments.status, 200);
+    assert.equal(assignmentReads, 2, "each assigned-household request refreshes supervisor village access");
+    assert.ok(executed.at(-1)!.params.includes("04"));
+    supervisorAreas = [];
+    const revoked = await fetch(base, { headers: supervisorHeaders });
+    assert.equal(revoked.status, 200);
+    assert.deepEqual(((await revoked.json()) as any).data.scope.locality_codes, []);
+    assert.equal(assignmentReads, 3, "revoked assignments are not cached in the token or route");
+    assert.match(executed.at(-1)!.sql, /and false/);
+
 
 
   } finally { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); }

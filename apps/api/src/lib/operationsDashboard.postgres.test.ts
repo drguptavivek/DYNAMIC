@@ -3,6 +3,7 @@ import test from "node:test";
 import { Client } from "pg";
 import { PgDialect } from "drizzle-orm/pg-core";
 import { dashboardScope, dashboardSql, assembleDashboard, assignedHouseholdsSql } from "./operationsDashboard";
+import { householdCompletedFormsSql } from "./dashboardHouseholdForms";
 import type { JwtPayload } from "./jwt";
 
 const url = process.env.DASHBOARD_TEST_DATABASE_URL;
@@ -80,8 +81,8 @@ test("dashboard aggregates real PostgreSQL fixtures without cross-site leaks or 
         (4,'open','unknown','form_response','f2'),(4,'open','member-c','person',null),
         (4,'open','woman-c','woman',null),(4,'open','child-c','child',null);`);
     const user = (role: JwtPayload["role"], site_id: number | null): JwtPayload => ({ sub: "cm", username: "manager", role, site_id, type: "access" });
-    async function load(identity: JwtPayload, query: Record<string, unknown>) {
-      const scope = dashboardScope(identity, { date: "2026-10-21", ...query }, new Date("2026-10-21T12:00:00Z"));
+    async function load(identity: JwtPayload, query: Record<string, unknown>, supervisorLocalities?: string[]) {
+      const scope = dashboardScope(identity, { date: "2026-10-21", ...query }, new Date("2026-10-21T12:00:00Z"), supervisorLocalities);
       const queries = dashboardSql(scope);
       const run = async (statement: typeof queries.roster) => {
         const compiled = new PgDialect().sqlToQuery(statement);
@@ -192,6 +193,31 @@ test("dashboard aggregates real PostgreSQL fixtures without cross-site leaks or 
     const idle = await load(user("site_data_manager",4),{period:"all",user_id:"cz"});
     assert.deepEqual(idle.localities_summary.map(l=>l.locality_code),['05'],"user filter retains assigned village even without completed forms");
 
+    await client.query(`insert into form_responses values('outside-village','cw',4,'05','WQ','primary','2026-10-21 10:00Z','2026-10-30 10:00Z',null,null);`);
+    const supervisor = user("field_supervisor",4);
+    const supervised = await load(supervisor,{site_id:2},["04"]);
+    assert.equal(supervised.scope.site_id,4);
+    assert.deepEqual(supervised.localities.map(l=>l.locality_code),["04"]);
+    assert.deepEqual(supervised.sites.map(s=>s.site_id),[4]);
+    assert.deepEqual(supervised.staff_options.map(u=>u.user_id).sort(),["co","cw"]);
+    assert.equal(supervised.totals.forms_completed,2,"only assigned-village submissions count, even for workers serving other villages");
+    assert.equal(supervised.totals.assigned_households,1);
+    assert.equal(supervised.totals.sync_errors,0,"unvillageable global sync logs are withheld");
+    assert.equal(supervised.totals.open_data_quality_flags,4,"quality counts resolve to permitted households only");
+    assert.deepEqual(supervised.cohort,{households:1,members:1,eligible_women:1,tracking_eligible_women:1,active_pregnancies:1,children:1});
+    assert(supervised.users.every(u=>u.assigned_localities.every(l=>l.locality_code==='04')));
+    assert.equal(new Date(supervised.users.find(u=>u.user_id==='cw')!.last_sync_at!).toISOString(),'2026-10-22T11:00:00.000Z','outside-village form receipt must not leak into last contact');
+    for(const query of [{locality_code:'05'},{user_id:'cz'},{user_id:'bw',site_id:2}]) {
+      const blocked=await load(supervisor,query,["04"]);
+      assert.equal(blocked.totals.forms_completed,0);
+      assert.equal(blocked.users.length,0);
+      assert.ok(blocked.localities.every(l=>l.locality_code==='04'));
+    }
+    const unassigned=await load(supervisor,{},[]);
+    assert.deepEqual(unassigned.sites,[]);assert.deepEqual(unassigned.localities,[]);assert.deepEqual(unassigned.staff_options,[]);
+    assert.equal(unassigned.totals.forms_completed,0);assert.equal(unassigned.totals.assigned_households,0);assert.equal(unassigned.totals.open_data_quality_flags,0);
+    assert.deepEqual(unassigned.cohort,{households:0,members:0,eligible_women:0,tracking_eligible_women:0,active_pregnancies:0,children:0});
+
     await client.query(`alter table households add column household_head_name text,add column cohort_status text,add column baseline_enrollment_status text,add column closed_reason text;
       alter table form_responses add column household_id text,add column answers_json jsonb;
       alter table questionnaire_drafts add column household_id text,add column submitted_form_response_id text,add column client_updated_at timestamptz;
@@ -210,8 +236,8 @@ test("dashboard aggregates real PostgreSQL fixtures without cross-site leaks or 
         ('c4-complete','cw',4,'04','HHQ','primary','c4','{"hhq_result_interview":1}');
       insert into households(household_id,site_id,locality_code) select 'hh-'||lpad(i::text,3,'0'),4,'04' from generate_series(1,55) i;
       insert into field_worker_household_assignments select 'cw',household_id from households where household_id like 'hh-%';`);
-    async function assigned(identity: JwtPayload, query: Record<string,unknown>, page=1) {
-      const statement=assignedHouseholdsSql(dashboardScope(identity,query,new Date('2026-10-21T12:00:00Z')),page);
+    async function assigned(identity: JwtPayload, query: Record<string,unknown>, page=1, supervisorLocalities?: string[]) {
+      const statement=assignedHouseholdsSql(dashboardScope(identity,query,new Date('2026-10-21T12:00:00Z'),supervisorLocalities),page);
       const compiled=new PgDialect().sqlToQuery(statement);
       return (await client.query(compiled.sql,compiled.params)).rows[0];
     }
@@ -242,6 +268,46 @@ test("dashboard aggregates real PostgreSQL fixtures without cross-site leaks or 
     assert.equal(centralAssigned.summary.assigned,1);assert.equal(centralAssigned.rows[0].household_id,'b1','central view also excludes stale foreign-site allocations');
     const emptyAssigned=await assigned(user('site_data_manager',4),{user_id:'cw',locality_code:'06'});
     assert.deepEqual(emptyAssigned.rows,[]);assert.equal(emptyAssigned.total_pages,1);
+    const supervisedAssignments=await assigned(supervisor,{user_id:'cw',site_id:2},1,['04']);
+    assert.equal(supervisedAssignments.summary.assigned,58,"assignment rows and summary intersect supervisor villages");
+    assert(supervisedAssignments.rows.every((r:any)=>r.site_id===4&&r.locality_code==='04'));
+    assert.equal((await assigned(supervisor,{user_id:'cw',locality_code:'05'},1,['04'])).summary.assigned,0);
+    assert.equal((await assigned(supervisor,{user_id:'cw'},1,[])).summary.assigned,0);
+
+    await client.query(`alter table form_responses add column form_version text,add column subject_id text,add column prefill_snapshot_json jsonb;
+      insert into households(household_id,site_id,locality_code) values('viewer-east',4,'04'),('viewer-west',4,'05'),('viewer-foreign',2,'20');
+      insert into field_worker_household_assignments values('cw','viewer-east'),('co','viewer-east'),('cw','viewer-west'),('bw','viewer-foreign'),('moved','viewer-east');
+      insert into follow_up_tasks(task_id,household_id,site_id,locality_code,status) values
+        ('viewer-done','viewer-east',4,'04','completed_late'),('viewer-open','viewer-east',4,'04','in_progress');
+      insert into form_responses(form_response_id,submitted_by_user_id,site_id,locality_code,form_code,response_status,created_offline_at,synced_at,task_id,household_id,answers_json,form_version,subject_id,prefill_snapshot_json) values
+        ('viewer-bhq','cw',4,'04','HHQ','primary','2026-10-20 18:30Z','2026-10-24 10:00Z',null,'viewer-east','{"hhq_result_interview":1}','v1','viewer-east','{"hhq_site_id":4}'),
+        ('viewer-bwq','cw',4,'04','WQ','primary','2026-10-21 18:29:59Z','2026-10-24 10:00Z',null,'viewer-east','{"wq_result_interview":1}','v1','woman-1',null),
+        ('viewer-pef','cw',4,'04','PEF','primary','2026-10-21 10:00Z',null,'viewer-done','viewer-east','{}','v1','woman-1',null),
+        ('viewer-open','cw',4,'04','PEF','primary','2026-10-21 10:00Z',null,'viewer-open','viewer-east','{}','v1','woman-1',null),
+        ('viewer-duplicate','cw',4,'04','WQ','duplicate','2026-10-21 10:00Z',null,null,'viewer-east','{"wq_result_interview":1}','v1','woman-1',null),
+        ('viewer-incomplete','cw',4,'04','WQ','primary','2026-10-21 10:00Z',null,null,'viewer-east','{"wq_result_interview":2}','v1','woman-1',null),
+        ('viewer-other-worker','co',4,'04','WQ','primary','2026-10-21 10:00Z',null,null,'viewer-east','{"wq_result_interview":1}','v1','woman-1',null),
+        ('viewer-next-day','cw',4,'04','WQ','primary','2026-10-21 18:30Z',null,null,'viewer-east','{"wq_result_interview":1}','v1','woman-1',null),
+        ('viewer-locality-mismatch','cw',4,'05','WQ','primary','2026-10-21 10:00Z',null,null,'viewer-east','{"wq_result_interview":1}','v1','woman-1',null),
+        ('viewer-outside','cw',4,'05','WQ','primary','2026-10-21 10:00Z',null,null,'viewer-west','{"wq_result_interview":1}','v1','woman-2',null),
+        ('viewer-foreign','bw',2,'20','WQ','primary','2026-10-21 10:00Z',null,null,'viewer-foreign','{"wq_result_interview":1}','v1','woman-3',null);`);
+    async function savedForms(query: Record<string,unknown> = {}, householdId = 'viewer-east', villages: string[] = ['04']) {
+      const scope=dashboardScope(supervisor,{user_id:'cw',period:'date',date:'2026-10-21',...query},new Date('2026-10-21T12:00:00Z'),villages);
+      const compiled=new PgDialect().sqlToQuery(householdCompletedFormsSql(scope,householdId));
+      return (await client.query(compiled.sql,compiled.params)).rows;
+    }
+    const saved=await savedForms();
+    assert.deepEqual(saved.map(row=>row.form_response_id),['viewer-bhq','viewer-pef','viewer-bwq'],'only selected-worker primary completed forms, with inclusive IST day and recorded time rather than late sync');
+    assert.deepEqual(saved[0].prefill_snapshot_json,{hhq_site_id:4},'prefill snapshot is returned for complete read-only rendering');
+    assert.deepEqual((await savedForms({user_id:'co'})).map(row=>row.form_response_id),['viewer-other-worker'],'shared household does not mix submitters');
+    for(const query of [{locality_code:'05'},{user_id:'bw',site_id:2},{user_id:'moved'},{period:'date',date:'2026-10-20'}]) assert.deepEqual(await savedForms(query),[],'forged village, foreign/transferred worker and nonmatching date cannot expose forms');
+    assert.deepEqual(await savedForms({},'viewer-west'),[],'foreign village denied despite current worker allocation');
+    assert.deepEqual(await savedForms({user_id:'bw',site_id:2},'viewer-foreign'),[],'forged site cannot override supervisor site');
+    assert.deepEqual(await savedForms({},'viewer-east',[]),[],'missing or expired supervisor villages deny all saved forms');
+    assert.equal((await savedForms({period:'range',date:undefined,date_from:'2026-10-21',date_to:'2026-10-22'})).length,4,'range includes next-day form only when requested');
+    assert.equal((await savedForms({period:'all',date:undefined})).length,3,'all excludes future submitted dates and all incomplete/duplicate/mismatched-locality forms');
+    await client.query("delete from field_worker_household_assignments where user_id='cw' and household_id='viewer-east'");
+    assert.deepEqual(await savedForms(),[],'deallocation immediately withdraws read access even while historical forms remain');
 
   } finally { await client.query("rollback"); await client.end(); }
 });

@@ -10,7 +10,7 @@ test("site managers stay in their own site even with a forged site filter", () =
   assert.equal(dashboardScope({ ...user, role: "central_admin" }, { site_id: "2" }).site_id, 2);
   assert.throws(() => dashboardScope({ ...user, site_id: null }, {}), /FORBIDDEN/);
   for (const site_id of [undefined, 0, NaN, "4"]) assert.throws(() => dashboardScope({ ...user, site_id } as JwtPayload, {}), /FORBIDDEN/);
-  for (const role of ["field_worker", "field_supervisor", "us_collaborator"] as const) assert.throws(() => dashboardScope({ ...user, role }, {}), /FORBIDDEN/);
+  for (const role of ["field_worker", "us_collaborator"] as const) assert.throws(() => dashboardScope({ ...user, role }, {}), /FORBIDDEN/);
 });
 test("India date boundary and strict calendar/filter validation", () => {
   assert.equal(dashboardScope(user, {}, new Date("2026-10-20T18:30:00Z")).date, "2026-10-21");
@@ -140,4 +140,28 @@ test("assigned household query requires one user, validates pages and applies se
   assert.match(compiled.sql, /u.site_id=households.site_id/);
   assert.match(compiled.sql, /exists\(select 1 from field_worker_household_assignments/);
   assert.match(compiled.sql, /case when "households"\."cohort_status"='excluded'/, "use the shared assignment status classifier");
+});
+
+
+test("supervisor dashboard scope is deny-by-default and cannot widen its current village list", () => {
+  const supervisor = { ...user, role: "field_supervisor" } as JwtPayload;
+  const now = new Date("2026-11-13T12:00:00Z");
+  const denied = dashboardScope(supervisor, {}, now);
+  assert.deepEqual(denied.locality_codes, []);
+  const scope = dashboardScope(supervisor, { site_id: "2", locality_code: "05", user_id: "foreign" }, now, ["04", "04"]);
+  assert.equal(scope.site_id, 4);
+  assert.deepEqual(scope.locality_codes, ["04"]);
+  for (const query of Object.values(dashboardSql(scope))) {
+    const compiled = new PgDialect().sqlToQuery(query);
+    assert.ok(compiled.params.includes(4));
+    assert.ok(!compiled.params.includes(2), "forged foreign site never enters a query");
+    assert.ok(compiled.params.includes("04"), "every query enforces the assigned village");
+  }
+  assert.throws(() => dashboardScope({ ...supervisor, site_id: null }, {}, now, ["04"]), /FORBIDDEN/);
+  const result = assembleDashboard(denied, [], [], [
+    { site_id: 4, site_name: "Chennai", locality_code: "04", locality_name: "Not assigned" },
+  ], { unattributed_forms: 0, open_data_quality_flags: 0 });
+  assert.deepEqual(result.sites, []);
+  assert.deepEqual(result.localities, []);
+  assert.deepEqual(result.localities_summary, []);
 });

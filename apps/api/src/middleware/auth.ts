@@ -13,6 +13,16 @@ declare global {
 
 export { JwtPayload };
 
+// Supervisors have one read-only admin surface. Enforce this beyond navigation/role UI.
+export function supervisorRequestAllowed(method: string, originalUrl: string): boolean {
+  const path = originalUrl.split("?")[0].replace(/\/+$/, "");
+  return (method === "GET" && /^\/api\/v1\/dashboard\/household-forms\/attachments\/[^/]{1,200}$/.test(path)) ||
+    (method === "GET" && ["/api/v1/users/me", "/api/v1/dashboard/operations",
+    "/api/v1/dashboard/assigned-households", "/api/v1/dashboard/household-forms"].includes(path)) ||
+    (method === "POST" && ["/api/v1/auth/totp/setup", "/api/v1/auth/totp/enable",
+      "/api/v1/auth/logout"].includes(path));
+}
+
 /**
  * Middleware: verify Bearer JWT, attach req.user
  * Returns 401 if missing/invalid, 403 if expired
@@ -31,6 +41,10 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     const payload = verifyToken(token);
     if (!(await isAccessSessionActive(payload))) {
       sendError(res, 401, "TOKEN_REVOKED", "Token session is no longer active");
+      return;
+    }
+    if (payload.role === "field_supervisor" && !supervisorRequestAllowed(req.method, req.originalUrl)) {
+      sendError(res, 403, "INSUFFICIENT_PERMISSIONS", "Supervisors can only view their assigned-village dashboard");
       return;
     }
     req.user = payload;
@@ -59,6 +73,10 @@ export async function optionalAuth(req: Request, res: Response, next: NextFuncti
     const payload = verifyToken(token);
     if (!(await isAccessSessionActive(payload))) {
       sendError(res, 401, "TOKEN_REVOKED", "Token session is no longer active");
+      return;
+    }
+    if (payload.role === "field_supervisor" && !supervisorRequestAllowed(req.method, req.originalUrl)) {
+      sendError(res, 403, "INSUFFICIENT_PERMISSIONS", "Supervisors can only view their assigned-village dashboard");
       return;
     }
     req.user = payload;
