@@ -7,4 +7,8 @@
 .body :is(input,select,textarea):focus-visible { outline: 3px solid #bfdbfe; border-color: #2563eb; }
 .body small { color: #64748b; line-height: 1.4; font-size: .75rem; font-weight: 400; }
 .identity { margin: 0; padding: 12px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 5px; font-size: .875rem; overflow-wrap: anywhere; }
+.identity p { margin: 0; }
+.identity p + p { margin-top: 7px; line-height: 1.4; }
+.available { color: #166534; }
+.unavailable { color: #991b1b; }
 @media(max-width: 600px) { .fields { grid-template-columns: 1fr; } .body { padding: 16px 16px 0; } }

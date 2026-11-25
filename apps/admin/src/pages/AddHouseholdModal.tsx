@@ -34,6 +34,8 @@ export default function AddHouseholdModal({ sites, localities, initialSite, onCl
   const [areas, setAreas] = useState<{ userId: string; codes: string[] } | null>(null);
   const [areaError, setAreaError] = useState("");
   const [areaRevision, setAreaRevision] = useState(0);
+  const [availability, setAvailability] = useState<{ key: string; exists?: boolean; error?: string } | null>(null);
+  const [checkRevision, setCheckRevision] = useState(0);
   const savingRef = useRef(false);
   const dialogRef = useRef<HTMLDivElement>(null);
   const firstRef = useRef<HTMLSelectElement>(null);
@@ -47,6 +49,24 @@ export default function AddHouseholdModal({ sites, localities, initialSite, onCl
   const normalizedLocality = padNumeric(locality, 2);
   const validIdentity = availableSites.some((row) => String(row.site_id) === site) && villages.some((row) => padNumeric(row.locality_code, 2) === normalizedLocality) && /^[A-Z0-9]{1,6}$/.test(normalizedStructure) && /^\d{2}$/.test(normalizedNumber);
   const householdId = validIdentity ? `${Number(site)}-${normalizedLocality}-${normalizedStructure}-${normalizedNumber}` : "Complete site, village, structure and household number";
+  const availabilityKey = validIdentity && canAdd && areasReady && !areaError ? `${user?.user_id}:${user?.role}:${householdId}` : "";
+  const currentAvailability = availability?.key === availabilityKey && availabilityKey ? availability : null;
+  const available = currentAvailability?.exists === false && !currentAvailability.error;
+
+  useEffect(() => {
+    if (!availabilityKey) return;
+    let cancelled = false;
+    setAvailability(null);
+    const timer = setTimeout(() => {
+      const query = new URLSearchParams({ site_id: String(Number(site)), locality_code: normalizedLocality, structure_map_id: normalizedStructure, household_number: normalizedNumber });
+      api.get<{ household_id: string; exists: boolean }>(`/masters/mapping-frame/availability?${query}`).then((result) => {
+        if (cancelled) return;
+        if (result.household_id !== householdId || typeof result.exists !== "boolean") throw new Error("Could not verify this household number. Please retry the check.");
+        setAvailability({ key: availabilityKey, exists: result.exists });
+      }).catch((reason) => { if (!cancelled) setAvailability({ key: availabilityKey, error: reason instanceof Error ? reason.message : "Could not check this household number." }); });
+    }, 300);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [availabilityKey, checkRevision]);
 
   useEffect(() => {
     let cancelled = false;
@@ -80,6 +100,7 @@ export default function AddHouseholdModal({ sites, localities, initialSite, onCl
     event.preventDefault();
     if (savingRef.current || !canAdd || !areasReady || areaError) return;
     if (!validIdentity) { setError("Select a site and village, enter 1-6 alphanumeric structure characters and a household number of up to 2 digits."); return; }
+    if (!available) return;
     if (!head.trim() || !address.trim()) { setError("Enter the household head name and address."); return; }
     savingRef.current = true; setSaving(true); setError("");
     try {
@@ -105,12 +126,17 @@ export default function AddHouseholdModal({ sites, localities, initialSite, onCl
             <label>Structure number<input value={structure} disabled={saving} required maxLength={6} pattern="[A-Za-z0-9]{1,6}" onChange={(event) => setStructure(event.target.value)} onBlur={() => setStructure(normalizedStructure)} /><small>1-6 letters or digits. Numeric values are padded to at least four digits.</small></label>
             <label>Household number<input value={number} disabled={saving} required inputMode="numeric" maxLength={2} pattern="[0-9]{1,2}" onChange={(event) => setNumber(event.target.value)} onBlur={() => setNumber(normalizedNumber)} /></label>
           </div>
-          <p className={styles.identity}>Household ID: <strong>{householdId}</strong></p>
+          <div className={styles.identity}><p>Household ID: <strong>{householdId}</strong></p>
+            {availabilityKey && (currentAvailability?.error ? <p className={styles.unavailable} role="alert">{currentAvailability.error} <button type="button" disabled={saving} onClick={() => setCheckRevision((value) => value + 1)}>Retry check</button></p>
+              : currentAvailability?.exists ? <p className={styles.unavailable} role="status">This household already exists. Choose a different household number.</p>
+              : available ? <p className={styles.available} role="status">Household number is available.</p>
+              : <p role="status">Checking household number...</p>)}
+          </div>
           <label>Household head name<input value={head} disabled={saving} required maxLength={300} onChange={(event) => setHead(event.target.value)} /></label>
           <label>Address / location<textarea value={address} disabled={saving} required maxLength={2000} rows={3} onChange={(event) => setAddress(event.target.value)} /></label>
           <label>Comments (optional)<textarea value={comments} disabled={saving} maxLength={2000} rows={2} onChange={(event) => setComments(event.target.value)} /></label>
         </div>
-        <footer className={common.modalFooter}><button type="button" className={common.secondaryBtn} disabled={saving} onClick={onClose}>Cancel</button><button type="submit" className={common.primaryBtn} disabled={saving || !areasReady || !!areaError}>{saving ? "Adding..." : "Add Household"}</button></footer>
+        <footer className={common.modalFooter}><button type="button" className={common.secondaryBtn} disabled={saving} onClick={onClose}>Cancel</button><button type="submit" className={common.primaryBtn} disabled={saving || !areasReady || !!areaError || !available}>{saving ? "Adding..." : "Add Household"}</button></footer>
       </form>
     </div>
   </div>;

@@ -529,6 +529,10 @@ const mappingFrameRecordSchema = z.object({
   household_number: z.string().length(2),
 });
 
+const manualMappingIdentitySchema = mappingFrameRecordSchema.extend({
+  locality_code: z.string(), structure_map_id: z.string(), household_number: z.string(),
+});
+
 type MappingFrameRecord = z.infer<typeof mappingFrameRecordSchema>;
 type MappingFrameImportRecord = MappingFrameRecord & {
   address: string;
@@ -1223,6 +1227,49 @@ router.delete("/mapping-frame/:household_id", requireRole("central_admin"), asyn
   }
 });
 
+async function validateManualMappingIdentity<T extends MappingFrameRecord>(input: T, user: Request["user"], res: Response): Promise<T | null> {
+  if (user!.role !== "central_admin" && user!.site_id !== input.site_id) {
+    sendError(res, 403, "SITE_SCOPE", "You can only add households to your own site"); return null;
+  }
+  const errors: string[] = [];
+  const data = {
+    ...input,
+    locality_code: validateAndPadNumericCode(input.locality_code, "Locality", 2, errors),
+    structure_map_id: validateStructureMapId(input.structure_map_id, errors),
+    household_number: validateAndPadNumericCode(input.household_number, "Household number", 2, errors),
+  };
+  if (errors.length) { sendError(res, 400, "VALIDATION_ERROR", errors.join("; ")); return null; }
+  const allowedLocalities = await getHouseholdAssignmentLocalities(user!);
+  if (allowedLocalities !== undefined && !allowedLocalities.includes(data.locality_code)) {
+    sendError(res, 403, "LOCALITY_SCOPE", "Select a locality allocated to you"); return null;
+  }
+  const [site] = await db.select().from(schema.studySites).where(eq(schema.studySites.site_id, data.site_id)).limit(1);
+  const [locality] = await db.select().from(schema.studyLocalities).where(and(
+    eq(schema.studyLocalities.site_id, data.site_id), eq(schema.studyLocalities.locality_code, data.locality_code),
+  )).limit(1);
+  if (!site || !locality) { sendError(res, 400, "INVALID_LOCALITY", "Select a configured site and its locality"); return null; }
+  return data;
+}
+
+router.get("/mapping-frame/availability", requireRole("central_admin", "site_data_manager", "site_research_scientist"), async (req: Request, res: Response) => {
+  try {
+    const input = manualMappingIdentitySchema.extend({
+      site_id: z.string().trim().regex(/^\d+$/).transform(Number).pipe(mappingFrameRecordSchema.shape.site_id),
+    }).parse(req.query);
+    const data = await validateManualMappingIdentity(input, req.user, res);
+    if (!data) return;
+    const household_id = computeHouseholdId(data);
+    const [mapping] = await db.select({ household_id: schema.mappingFrame.household_id }).from(schema.mappingFrame)
+      .where(ilike(schema.mappingFrame.household_id, household_id)).limit(1);
+    const [household] = await db.select({ household_id: schema.households.household_id }).from(schema.households)
+      .where(ilike(schema.households.household_id, household_id)).limit(1);
+    sendSuccess(res, { household_id, exists: Boolean(mapping || household) });
+  } catch (error) {
+    if (error instanceof z.ZodError) sendError(res, 400, "VALIDATION_ERROR", "Invalid household identity", { errors: error.errors });
+    else { console.error("Check mapping frame availability error:", error); sendError(res, 500, "INTERNAL_ERROR", "Could not check household availability"); }
+  }
+});
+
 /**
  * GET /api/v1/masters/mapping-frame/:household_id
  * Returns single mapping frame entry
@@ -1272,32 +1319,13 @@ router.get("/mapping-frame/:household_id", async (req: Request, res: Response) =
  */
 router.post("/mapping-frame", requireRole("central_admin", "site_data_manager", "site_research_scientist"), async (req: Request, res: Response) => {
   try {
-    const input = mappingFrameRecordSchema.extend({
-      locality_code: z.string(), structure_map_id: z.string(), household_number: z.string(),
+    const input = manualMappingIdentitySchema.extend({
       address: z.string().trim().max(2000).optional().default(""),
       household_head_name: z.string().trim().max(300).optional().default(""),
       comments: z.string().trim().max(2000).optional().default(""),
     }).parse(req.body);
-    if (req.user!.role !== "central_admin" && req.user!.site_id !== input.site_id) {
-      sendError(res, 403, "SITE_SCOPE", "You can only add households to your own site"); return;
-    }
-    const errors: string[] = [];
-    const data = {
-      ...input,
-      locality_code: validateAndPadNumericCode(input.locality_code, "Locality", 2, errors),
-      structure_map_id: validateStructureMapId(input.structure_map_id, errors),
-      household_number: validateAndPadNumericCode(input.household_number, "Household number", 2, errors),
-    };
-    if (errors.length) { sendError(res, 400, "VALIDATION_ERROR", errors.join("; ")); return; }
-    const allowedLocalities = await getHouseholdAssignmentLocalities(req.user!);
-    if (allowedLocalities !== undefined && !allowedLocalities.includes(data.locality_code)) {
-      sendError(res, 403, "LOCALITY_SCOPE", "Select a locality allocated to you"); return;
-    }
-    const [site] = await db.select().from(schema.studySites).where(eq(schema.studySites.site_id, data.site_id)).limit(1);
-    const [locality] = await db.select().from(schema.studyLocalities).where(and(
-      eq(schema.studyLocalities.site_id, data.site_id), eq(schema.studyLocalities.locality_code, data.locality_code),
-    )).limit(1);
-    if (!site || !locality) { sendError(res, 400, "INVALID_LOCALITY", "Select a configured site and its locality"); return; }
+    const data = await validateManualMappingIdentity(input, req.user, res);
+    if (!data) return;
     const household_id = computeHouseholdId(data);
     const structure_id = computeStructureId(data);
     const created = await db.transaction(async (tx) => {
