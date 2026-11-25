@@ -97,14 +97,14 @@ export default function FieldWorkerHouseholdAssignmentPage() {
   currentFilterKey.current = filterKey;
   const busy = tableLoading || allSelectionLoading;
 
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
   function workerLocalities(worker: User): string {
     const assignments = workerAreas[worker.user_id];
     if (!assignments) return "Localities unavailable";
-    const now = new Date();
     const labels = assignments
       .filter((area) => area.site_id === worker.site_id &&
-        (!area.active_from || new Date(area.active_from) <= now) &&
-        (!area.active_to || new Date(area.active_to) >= now))
+        (!area.active_from || area.active_from <= today) &&
+        (!area.active_to || area.active_to >= today))
       .map((area) => {
         const locality = localities.find((item) => item.site_id === area.site_id && item.locality_code === area.locality_code);
         return locality ? `${locality.locality_name} (${area.locality_code})` : area.locality_code;
@@ -112,7 +112,6 @@ export default function FieldWorkerHouseholdAssignmentPage() {
     return labels.length ? [...new Set(labels)].join(", ") : "No assigned locality";
   }
 
-  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
   const eligibleWorkers = fieldWorkers.filter((worker) => worker.role === "field_worker" && worker.active !== false &&
     String(worker.site_id) === selectedSiteId && (workerAreas[worker.user_id] || []).some((area) =>
       String(area.site_id) === selectedSiteId && (!selectedLocalityCode || area.locality_code === selectedLocalityCode) &&

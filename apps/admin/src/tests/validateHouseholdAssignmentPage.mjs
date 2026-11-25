@@ -68,7 +68,9 @@ globalThis.assignmentHarness = {
         if (path.includes('/unassigned/')) return [];
         const code = path.includes('/worker-two/') ? '11' : '02';
         return [
-          { site_id: 2, locality_code: code },
+          { site_id: 2, locality_code: code,
+            active_from: new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }),
+            active_to: new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }) },
           { site_id: 2, locality_code: '25' },
           { site_id: 2, locality_code: code === '02' ? '11' : '02', active_to: '2000-01-01' },
           { site_id: 2, locality_code: 'future', active_from: '2999-01-01' },
