@@ -3,6 +3,7 @@ import { api } from "../lib/api";
 import { useAuth } from "../lib/auth-context";
 import styles from "./MastersPage.module.css";
 import HdssRegistryUploadTab from "./HdssRegistryUploadTab";
+import AddHouseholdModal, { type AddedHousehold } from "./AddHouseholdModal";
 
 interface Site {
   site_id: number;
@@ -138,7 +139,7 @@ export default function MastersPage() {
     }
   }
 
-  async function loadMappingFrames() {
+  async function loadMappingFrames(rethrow = false) {
     setLoadingMappingFrames(true);
     setError("");
     try {
@@ -146,6 +147,7 @@ export default function MastersPage() {
       setMappingFrames(result.data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load mapping frame");
+      if (rethrow) throw err;
     } finally {
       setLoadingMappingFrames(false);
     }
@@ -237,9 +239,14 @@ export default function MastersPage() {
         {activeTab === "mapping" && (
           <MappingTab
             sites={sites}
+            localities={localities}
             mappingFrames={mappingFrames}
             loading={loadingMappingFrames}
             onRefresh={loadMappingFrames}
+            onCreated={async (entry) => {
+              try { await loadMappingFrames(true); }
+              finally { setMappingFrames((rows) => [rows.find((row) => row.household_id === entry.household_id) ?? entry, ...rows.filter((row) => row.household_id !== entry.household_id)]); }
+            }}
           />
         )}
         {isCentralAdmin && activeTab === "hdss" && <HdssRegistryUploadTab />}
@@ -862,15 +869,24 @@ function EditLocalityModal({
 
 function MappingTab({
   sites,
+  localities,
   mappingFrames,
   loading,
   onRefresh,
+  onCreated,
 }: {
   sites: Site[];
+  localities: Locality[];
   mappingFrames: MappingFrame[];
   loading: boolean;
   onRefresh: () => Promise<void>;
+  onCreated: (entry: AddedHousehold) => Promise<void>;
 }) {
+  const { user } = useAuth();
+  const canAdd = !!user && ["central_admin", "site_data_manager", "site_research_scientist"].includes(user.role);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addedHousehold, setAddedHousehold] = useState<AddedHousehold | null>(null);
+  const [refreshError, setRefreshError] = useState("");
   const [siteFilter, setSiteFilter] = useState("");
   const [search, setSearch] = useState("");
   const [showImportModal, setShowImportModal] = useState(false);
@@ -899,6 +915,12 @@ function MappingTab({
   useEffect(() => {
     setPage(1);
   }, [siteFilter, search]);
+
+  async function refreshAdded(entry: AddedHousehold) {
+    setRefreshError("");
+    try { await onCreated(entry); }
+    catch { setRefreshError("The household was saved, but the table could not refresh. Do not add it again."); }
+  }
 
   async function openUploadsModal() {
     setShowUploadsModal(true);
@@ -957,6 +979,7 @@ function MappingTab({
               </option>
             ))}
           </select>
+          {canAdd && <button className={styles.primaryBtn} onClick={() => { setAddedHousehold(null); setRefreshError(""); setShowAddModal(true); }}>Add Household</button>}
           <button className={styles.primaryBtn} onClick={() => setShowImportModal(true)}>
             Import CSV
           </button>
@@ -966,6 +989,8 @@ function MappingTab({
         </div>
       </div>
 
+      {addedHousehold && <div className={styles.info} role="status">Household {addedHousehold.household_id} added successfully.</div>}
+      {refreshError && <div className={styles.error} role="alert">{refreshError} <button type="button" className={styles.secondaryBtn} onClick={() => { if (addedHousehold) void refreshAdded(addedHousehold); }}>Refresh table</button></div>}
       {deleteError && <div className={styles.error}>{deleteError}</div>}
 
       {loading ? (
@@ -1046,6 +1071,10 @@ function MappingTab({
         </>
       )}
 
+      {showAddModal && canAdd && <AddHouseholdModal key={`${user.user_id}:${user.site_id}`} sites={sites} localities={localities} initialSite={siteFilter} onClose={() => setShowAddModal(false)} onSaved={(entry) => {
+        setShowAddModal(false); setAddedHousehold(entry); setSiteFilter(String(entry.site_id)); setSearch(entry.household_id); setPage(1);
+        void refreshAdded(entry);
+      }} />}
       {showImportModal && (
         <MappingCsvImportModal
           sites={sites}

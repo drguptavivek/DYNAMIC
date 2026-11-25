@@ -1,0 +1,10 @@
+.dialog { max-width: 680px; }
+.body { padding: 20px 24px 0; display: grid; gap: 16px; }
+.body label { display: grid; gap: 7px; min-width: 0; font-size: .875rem; font-weight: 500; color: #333; }
+.fields { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.body input, .body select, .body textarea { width: 100%; min-width: 0; box-sizing: border-box; padding: 10px; font: inherit; color: #333; border: 1px solid #ddd; border-radius: 4px; }
+.body textarea { resize: vertical; }
+.body :is(input,select,textarea):focus-visible { outline: 3px solid #bfdbfe; border-color: #2563eb; }
+.body small { color: #64748b; line-height: 1.4; font-size: .75rem; font-weight: 400; }
+.identity { margin: 0; padding: 12px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 5px; font-size: .875rem; overflow-wrap: anywhere; }
+@media(max-width: 600px) { .fields { grid-template-columns: 1fr; } .body { padding: 16px 16px 0; } }

@@ -35,6 +35,13 @@ Rules:
 - Field Supervisor completed household rows have a View button. It opens a read-only saved-form review, using the app preview labels and repeated entries. Only completed primary submissions for that household, selected recorded submitter and applied IST period are returned, intersecting current village access and household allocations. No drafts, duplicate records, editing, submission, deletion or general export routes are exposed. Changing dashboard filters closes the previous review. Uploaded ANC cards and other questionnaire images appear inline within the saved-form review, next to their question when available. Image bytes use authenticated, non-cacheable requests that recheck the same saved response, current village/household allocation, selected submitter and date scope; never expose storage paths or public file links. Image object URLs are released when the selected form, filters or dialog change.
 - Saved village access takes effect on the next dashboard request. Removing every village leaves an empty dashboard. Assignment controls and duplicate saves are disabled during saving; a successful refresh preserves selected site and supervisor.
 
+## Single Household Entry
+
+- Study Masters > Add Households provides an Add Household form alongside the existing CSV import for bulk entry. It is available only to Central Admins, Site Data Managers and Site Research Scientists. Site staff are pinned to their own site; Site Data Managers can select only currently assigned villages. The API enforces the same rules even if a client request is forged.
+- Select an existing site and village, enter structure and household numbers, head name and address, with optional comments. Show the resulting household ID before saving. Reuse canonical structure normalization: uppercase alphanumeric values of 1-6 characters, and four-character padding for short numeric values; locality and household numbers use two digits.
+- Single entry atomically creates the mapping frame and listed household, with baseline enrollment pending. Reject duplicates found in either table, including concurrent inserts, without overwriting study records. Creation does not enroll the household, record consent, assign a field worker or create tasks; use the existing assignment workflow afterward.
+- Saving retains input on failure and prevents duplicate submissions. On success, refresh the list and retain the selected site. A successful creation followed by a refresh failure must be reported as saved, with refresh-only recovery rather than another insertion.
+
 ## Form Language Management
 
 - The admin form selector uses the mobile display aliases BHQ and BWQ while requests, translation keys, permissions, and stored submissions retain internal codes HHQ and WQ.

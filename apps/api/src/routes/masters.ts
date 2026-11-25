@@ -12,6 +12,7 @@ import { sendError, sendSuccess } from "../lib/errors";
 import { requireDataAccess } from "../lib/dataAccess";
 import { buildAreaScopeCondition } from "../lib/areaScope";
 import { buildHdssRegistryScopeCondition } from "../lib/hdssRegistryScope";
+import { getHouseholdAssignmentLocalities } from "../lib/householdAssignmentScope";
 import {
   DEFAULT_HDSS_SOURCE_AGE_AS_OF,
   createHdssRegistryVersion,
@@ -1269,55 +1270,62 @@ router.get("/mapping-frame/:household_id", async (req: Request, res: Response) =
  * POST /api/v1/masters/mapping-frame
  * Create single mapping frame entry
  */
-router.post("/mapping-frame", requireRole("central_admin"), async (req: Request, res: Response) => {
+router.post("/mapping-frame", requireRole("central_admin", "site_data_manager", "site_research_scientist"), async (req: Request, res: Response) => {
   try {
-    const data = mappingFrameRecordSchema.parse(req.body);
-
+    const input = mappingFrameRecordSchema.extend({
+      locality_code: z.string(), structure_map_id: z.string(), household_number: z.string(),
+      address: z.string().trim().max(2000).optional().default(""),
+      household_head_name: z.string().trim().max(300).optional().default(""),
+      comments: z.string().trim().max(2000).optional().default(""),
+    }).parse(req.body);
+    if (req.user!.role !== "central_admin" && req.user!.site_id !== input.site_id) {
+      sendError(res, 403, "SITE_SCOPE", "You can only add households to your own site"); return;
+    }
+    const errors: string[] = [];
+    const data = {
+      ...input,
+      locality_code: validateAndPadNumericCode(input.locality_code, "Locality", 2, errors),
+      structure_map_id: validateStructureMapId(input.structure_map_id, errors),
+      household_number: validateAndPadNumericCode(input.household_number, "Household number", 2, errors),
+    };
+    if (errors.length) { sendError(res, 400, "VALIDATION_ERROR", errors.join("; ")); return; }
+    const allowedLocalities = await getHouseholdAssignmentLocalities(req.user!);
+    if (allowedLocalities !== undefined && !allowedLocalities.includes(data.locality_code)) {
+      sendError(res, 403, "LOCALITY_SCOPE", "Select a locality allocated to you"); return;
+    }
+    const [site] = await db.select().from(schema.studySites).where(eq(schema.studySites.site_id, data.site_id)).limit(1);
+    const [locality] = await db.select().from(schema.studyLocalities).where(and(
+      eq(schema.studyLocalities.site_id, data.site_id), eq(schema.studyLocalities.locality_code, data.locality_code),
+    )).limit(1);
+    if (!site || !locality) { sendError(res, 400, "INVALID_LOCALITY", "Select a configured site and its locality"); return; }
     const household_id = computeHouseholdId(data);
     const structure_id = computeStructureId(data);
-
-    // Check if household_id already exists
-    const [existing] = await db
-      .select()
-      .from(schema.mappingFrame)
-      .where(eq(schema.mappingFrame.household_id, household_id));
-
-    if (existing) {
-      sendError(res, 409, "HOUSEHOLD_ID_EXISTS", "Household ID already exists");
-      return;
-    }
-
-    await db.insert(schema.mappingFrame).values({
-      household_id,
-      site_id: data.site_id,
-      locality_code: data.locality_code,
-      structure_map_id: data.structure_map_id,
-      household_number: data.household_number,
-      structure_id,
-      mapping_status: "listed",
-      baseline_enrollment_status: "pending",
+    const created = await db.transaction(async (tx) => {
+      const [mapping] = await tx.select().from(schema.mappingFrame).where(ilike(schema.mappingFrame.household_id, household_id)).limit(1);
+      const [household] = await tx.select().from(schema.households).where(ilike(schema.households.household_id, household_id)).limit(1);
+      if (mapping || household) return null;
+      const entry = { household_id, site_id: data.site_id, locality_code: data.locality_code,
+        structure_map_id: data.structure_map_id, household_number: data.household_number, structure_id,
+        mapping_status: "listed" as const, baseline_enrollment_status: "pending" as const };
+      await tx.insert(schema.mappingFrame).values(entry);
+      const now = new Date();
+      await tx.insert(schema.households).values({ household_id, site_id: data.site_id, locality_code: data.locality_code,
+        structure_map_id: data.structure_map_id, household_number: data.household_number,
+        address: data.address, household_head_name: data.household_head_name,
+        baseline_enrollment_status: "pending", cohort_status: "listed", sync_status: "synced",
+        household_characteristics: { mapping_frame_comments: data.comments, mapping_frame_source: "manual_entry" },
+        created_at: now, updated_at: now });
+      return { ...entry, address: data.address, household_head_name: data.household_head_name, comments: data.comments,
+        consent_status: null, can_delete: req.user!.role === "central_admin" };
     });
-
-    const [createdEntry] = await db
-      .select({
-        household_id: schema.mappingFrame.household_id,
-        site_id: schema.mappingFrame.site_id,
-        locality_code: schema.mappingFrame.locality_code,
-        structure_map_id: schema.mappingFrame.structure_map_id,
-        household_number: schema.mappingFrame.household_number,
-        structure_id: schema.mappingFrame.structure_id,
-        mapping_status: schema.mappingFrame.mapping_status,
-        baseline_enrollment_status: schema.mappingFrame.baseline_enrollment_status,
-      })
-      .from(schema.mappingFrame)
-      .where(eq(schema.mappingFrame.household_id, household_id));
-
-    sendSuccess(res, createdEntry, 201);
+    if (!created) { sendError(res, 409, "HOUSEHOLD_ID_EXISTS", "Household ID already exists"); return; }
+    sendSuccess(res, created, 201);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      sendError(res, 400, "VALIDATION_ERROR", "Invalid request body", {
-        errors: error.errors,
-      });
+      sendError(res, 400, "VALIDATION_ERROR", "Invalid request body", { errors: error.errors });
+    } else if ((error as { code?: string; cause?: { code?: string } })?.code === "23505" ||
+      (error as { cause?: { code?: string } })?.cause?.code === "23505") {
+      sendError(res, 409, "HOUSEHOLD_ID_EXISTS", "Household ID already exists");
     } else {
       console.error("Create mapping frame error:", error);
       sendError(res, 500, "INTERNAL_ERROR", "An error occurred");
