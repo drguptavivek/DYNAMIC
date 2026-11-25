@@ -112,7 +112,12 @@ export default function FieldWorkerHouseholdAssignmentPage() {
     return labels.length ? [...new Set(labels)].join(", ") : "No assigned locality";
   }
 
-  const matchingWorkers = fieldWorkers.filter((worker) =>
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+  const eligibleWorkers = fieldWorkers.filter((worker) => worker.role === "field_worker" && worker.active !== false &&
+    String(worker.site_id) === selectedSiteId && (workerAreas[worker.user_id] || []).some((area) =>
+      String(area.site_id) === selectedSiteId && (!selectedLocalityCode || area.locality_code === selectedLocalityCode) &&
+      (!area.active_from || area.active_from <= today) && (!area.active_to || area.active_to >= today)));
+  const matchingWorkers = eligibleWorkers.filter((worker) =>
     [workerLabel(worker), worker.username, workerLocalities(worker)]
       .join(" ").toLowerCase().includes(workerSearch.trim().toLowerCase()));
 
@@ -243,6 +248,7 @@ export default function FieldWorkerHouseholdAssignmentPage() {
     setAssignedWorkerId("");
     selectedAssignedWorkerLabel.current = "";
     setWorkerIdsByHouseholdId({});
+    setBulkWorkerIds([]);
     setHasViewed(false);
     setTableLoading(false);
     setAllSelectionLoading(false);
@@ -591,6 +597,11 @@ export default function FieldWorkerHouseholdAssignmentPage() {
       setError("Select at least one field worker before assigning households");
       return;
     }
+    if (uniqueUserIds.some((id) => !eligibleWorkers.some((worker) => worker.user_id === id) &&
+      !householdIds.every((householdId) => households.find((household) => household.household_id === householdId)?.assigned_user_ids?.includes(id)))) {
+      setError("Select field workers currently allocated to the selected site and locality");
+      return;
+    }
 
     setTableLoading(true);
     try {
@@ -878,8 +889,8 @@ export default function FieldWorkerHouseholdAssignmentPage() {
                                   <input type="search" aria-label="Search field workers" placeholder="Search name, username or locality" value={workerSearch} onChange={(event) => setWorkerSearch(event.target.value)} />
                                 </div>
                                 <div className={styles.workerMenuList}>
-                                {fieldWorkers.length === 0 ? (
-                                  <p>No active field workers for this site</p>
+                                {eligibleWorkers.length === 0 ? (
+                                  <p>No active field workers allocated to this site/locality, or locality details are unavailable</p>
                                 ) : matchingWorkers.length === 0 ? (
                                   <p>No field workers match your search</p>
                                 ) : (
@@ -970,8 +981,8 @@ export default function FieldWorkerHouseholdAssignmentPage() {
               <input type="search" aria-label="Search field workers" placeholder="Search name, username or locality" disabled={busy} value={workerSearch} onChange={(event) => setWorkerSearch(event.target.value)} />
             </div>
             <div className={styles.bulkWorkerList}>
-              {fieldWorkers.length === 0 ? (
-                <div className={styles.emptyState}>No active field workers for this site</div>
+              {eligibleWorkers.length === 0 ? (
+                <div className={styles.emptyState}>No active field workers allocated to this site/locality, or locality details are unavailable</div>
               ) : matchingWorkers.length === 0 ? (
                 <div className={styles.emptyState}>No field workers match your search</div>
               ) : (

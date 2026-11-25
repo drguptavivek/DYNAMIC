@@ -63,6 +63,7 @@ globalThis.assignmentHarness = {
       if (path.endsWith('/area-assignments')) {
         if (path.includes('/other-site/')) return [{ site_id: 1, locality_code: '02' }];
         if (path.includes('/expired/')) return [{ site_id: 2, locality_code: '02', active_to: '2000-01-01' }];
+        if (path.includes('/future-worker/')) return [{ site_id: 2, locality_code: '02', active_from: '2999-01-01' }];
         if (path.includes('/unavailable/')) throw new Error('Localities unavailable');
         if (path.includes('/unassigned/')) return [];
         const code = path.includes('/worker-two/') ? '11' : '02';
@@ -79,6 +80,8 @@ globalThis.assignmentHarness = {
         { user_id: 'worker-two', username: 'worker-two', display_name: 'Sanjay', role: 'field_worker', site_id: 2 },
         { user_id: 'unavailable', username: 'unknown-locality', display_name: 'Other worker', role: 'field_worker', site_id: 2 },
         { user_id: 'unassigned', username: 'no-locality', display_name: ' No-Locality ', role: 'field_worker', site_id: 2 },
+        { user_id: 'future-worker', username: 'future-worker', role: 'field_worker', site_id: 2 },
+        { user_id: 'inactive-picker', username: 'inactive-picker', role: 'field_worker', site_id: 2, active: false },
         ...(filterFixtures ? [
           { user_id: 'zero', username: 'zero', display_name: 'No households', role: 'field_worker', site_id: 2 },
           { user_id: 'expired', username: 'expired', role: 'field_worker', site_id: 2 },
@@ -349,19 +352,18 @@ assert.ok(nodes().some(node => node.props?.['aria-label'] === 'Unassign worker')
 // Duplicate names remain distinguishable, and search never loses hidden selections.
 failRefresh = false;
 pickerFixtures = true;
+await change(find(node => node.props?.id === 'assignment-locality', 'locality'), '');
 await click('View');
 await check(`Select household ${rows()[0].key}`, true);
 await click('Assign all selected');
 const workerOptions = () => nodes().filter(node => node.type === 'label' && node.props?.className === 'workerOption');
-assert.equal(workerOptions().length, 4);
+assert.equal(workerOptions().length, 2, 'Only active workers with available current area assignments may be selected');
+const staleOtherVillageChoice = nodes(workerOptions()[1]).find(node => node.type === 'input');
 assert.match(text(workerOptions()[0]), /Sanjay.*worker-one.*Locality 02 \(02\)/);
 assert.match(text(workerOptions()[1]), /Sanjay.*worker-two.*Dayalpur \(11\)/);
 assert.ok(!text(workerOptions()[0]).includes('Dayalpur'), 'Expired locality must be excluded');
 assert.ok(!text(workerOptions()[0]).includes('future'));
 assert.ok(!text(workerOptions()[0]).includes('other-site'));
-assert.match(text(workerOptions()[2]), /Localities unavailable/);
-assert.match(text(workerOptions()[3]), /No assigned locality/);
-assert.ok(!nodes(workerOptions()[3]).some(node => node.props?.className === 'workerUsername'), 'Repeated usernames are hidden regardless of case or surrounding spaces');
 assert.match(text(workerOptions()[0]), /25/, 'Multiple active localities must remain visible');
 const beforeSearchRequests = requests.length;
 await change(labelled('Search field workers'), ' SANJAY ');
@@ -390,6 +392,36 @@ await change(labelled('Search field workers'), 'worker-two');
 assert.equal(workerOptions().length, 1, 'Row picker also supports worker search');
 assert.match(text(workerOptions()[0]), /Sanjay.*worker-two.*Dayalpur/);
 
+// Selecting a village narrows both pickers, without allowing a stale hidden choice to be submitted.
+await change(find(node => node.props?.id === 'assignment-locality', 'locality'), '02');
+await click('View');
+nodes(rows()[0]).find(node => node.props?.role === 'button').props.onClick(); await settle();
+assert.deepEqual(workerOptions().map(option => option.key), ['worker']);
+assert.match(text(workerOptions()[0]), /Locality 02.*25/, 'A worker allocated multiple villages remains eligible');
+await change(labelled('Search field workers'), 'worker-two');
+assert.equal(workerOptions().length, 0, 'Search cannot expose workers from another village');
+await change(labelled('Search field workers'), '');
+nodes(rows()[0]).find(node => node.props?.role === 'button').props.onClick(); await settle();
+await check(`Select household ${households[900].household_id}`, true); await click('Assign all selected');
+assert.deepEqual(workerOptions().map(option => option.key), ['worker'], 'Bulk and inline pickers share village scope');
+// Simulate an old picker callback firing after a scope change.
+staleOtherVillageChoice.props.onChange(); await settle();
+const writesBeforeStaleChoice = requests.filter(request => request.method === 'post').length;
+await nodes(find(node => node.props?.className === 'bulkModal', 'bulk modal'))
+  .find(node => node.type === 'button' && text(node) === 'Assign').props.onClick(); await settle();
+assert.equal(requests.filter(request => request.method === 'post').length, writesBeforeStaleChoice);
+assert.match(text(tree), /currently allocated/);
+await nodes(find(node => node.props?.className === 'bulkModal', 'bulk modal'))
+  .find(node => node.type === 'button' && text(node) === 'Cancel').props.onClick(); await settle();
+
+await change(input('Search household'), '');
+await change(find(node => node.props?.id === 'assignment-locality', 'locality'), '11');
+await click('View');
+nodes(rows()[0]).find(node => node.props?.role === 'button').props.onClick(); await settle();
+assert.deepEqual(workerOptions().map(option => option.key), ['worker-two'], 'Changing villages replaces candidate workers');
+await change(find(node => node.props?.id === 'assignment-locality', 'locality'), '02');
+await click('View');
+
 // Worker counts cover the whole locality, including assignments below page one and outside the range.
 filterFixtures = true;
 globalThis.window.confirm = () => true;
@@ -400,6 +432,14 @@ households[1100].assigned_user_ids = ['worker', 'worker-two'];
 households[10].assigned_user_ids = ['inactive'];
 households[10].assigned_field_worker_usernames = ['inactive-worker'];
 await change(input('Search household'), '');
+await click('View');
+households[900].assigned_user_ids = ['worker', 'worker-two'];
+await click('View');
+assert.match(text(rows()[900]), /Sanjay.*Sanjay/, 'Existing owners outside their current village remain visible');
+await rowButton(households[900].household_id, 'Assign').props.onClick(); await settle();
+assert.deepEqual(requests.filter(request => request.method === 'post').at(-1).payload.user_ids, ['worker', 'worker-two'],
+  'Saving an existing coassignment must preserve its historical owner rather than silently removing it');
+households[900].assigned_user_ids = [];
 await click('View');
 const filterOptions = () => nodes(labelled('Assigned field worker')).filter(node => node.type === 'option');
 assert.ok(filterOptions().some(option => option.props.value === 'worker' && /Sanjay \(worker-one\).*2 households/.test(text(option))));
